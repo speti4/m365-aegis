@@ -14,3 +14,4 @@ The repository, the task standard and the empty solution: no product yet.
 ### Project housekeeping
 
 - Project scaffolding: repo structure, task standard, decisions, origin and research ([001](https://github.com/speti4/m365-aegis/blob/main/tasks/done/001-project-scaffolding.md))
+- GitHub repository settings by hand after the first push ([012](https://github.com/speti4/m365-aegis/blob/main/tasks/done/012-github-repository-settings.md))

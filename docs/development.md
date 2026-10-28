@@ -109,13 +109,17 @@ requests; it is not a required check. The workflows run with a read-only token b
 may write contents. Every restore runs in locked mode (`RestoreLockedMode` under `CI`), so a lock file out of
 step with its project fails instead of being rewritten.
 
-Some of the setup lives in the repository settings, not in a file (task 012): a ruleset protects `main`
-(changes arrive through a pull request with squash merge only, the checks `dotnet`, `deps`, `frontend`,
-`sidecar`, `lint`, `workflow-lint`, `windows` and `commit-rules` must pass, the history stays linear, and force
-pushes and deletion are blocked; a job skipped by its `if:` still satisfies its required check); another ruleset
-keeps `v*` tags from being moved or deleted; squash merge is the only merge method, with the pull request title
-and description as the default commit message; private vulnerability reporting is on (the link in SECURITY.md
-and the code of conduct depends on it); Dependabot security updates and secret scanning are on.
+Some of the setup lives in the repository settings, not in a file (task 012, applied 2026-10-29): a ruleset
+protects `main` (changes arrive through a pull request with squash merge only, the checks `dotnet`, `deps`,
+`frontend`, `sidecar`, `lint`, `workflow-lint`, `windows` and `commit-rules` must pass, the history stays
+linear, and force pushes and deletion are blocked, with no bypass for anyone; a job skipped by its `if:` still
+satisfies its required check; the checks are not "strict", so a branch need not be rebased on the head of
+`main` before the merge, which spares the minutes budget); another ruleset keeps `v*` tags from being moved or
+deleted; squash merge is the only merge method, with the pull request title and description as the commit
+message, and the branch is deleted on merge; Dependabot alerts and security updates are on. Private
+vulnerability reporting (the link in SECURITY.md) and secret scanning are not offered on a private repository
+of this plan and are turned on when the repo goes public (M6); until then the fixture check in CI and the
+pre-commit checks stand in for secret scanning.
 
 Every action is pinned by commit SHA with the version in a comment. Dependabot proposes the updates for the
 NuGet packages, the SDK pin, the front end's packages and the actions once a week, a release only after it is a
