@@ -38,3 +38,4 @@ __pycache__/
 
 # git worktrees that Claude Code creates under .claude/worktrees (docs/maintainer-sessions.md)
 .claude/worktrees/
+.claude/memory/.consolidate-lock

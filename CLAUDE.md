@@ -55,3 +55,13 @@ lock files, `gui/web` or `.github/` change); a change that closes a task regener
   stays `proposed` until the maintainer decides it
 - A task file's `plan:` field is `none` (a plan file lives outside the repo), and no file carries a home folder
   path, so the repo can go public without a rewrite
+
+## Memory
+
+- The Claude memory of this repo lives in `.claude/memory/` (the committed `.claude/settings.json` sets
+  `autoMemoryDirectory` to this checkout's absolute path; another machine falls back to its slug memory until a
+  `.claude/settings.local.json` points here too). The files are Claude Code's own (`MEMORY.md` index + one
+  `name`/`description`/`type` file per fact) under the project-pal memory standard: validated by `memory_check`
+  (`/memory check`, `/memory-check`) before a memory commit, never generated. Business truth goes to the hub, a
+  generic tooling lesson to the setup repo's known-issues doc, a decision to `decisions/` (`/tasks decide`) — a
+  decision-shaped memory note graduates there.
