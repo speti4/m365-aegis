@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/M365Aegis.Cli/M365Aegis.Cli.csproj" />
+    <Project Path="src/M365Aegis.Core/M365Aegis.Core.csproj" />
+    <Project Path="src/M365Aegis.Gui/M365Aegis.Gui.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/M365Aegis.Cli.Tests/M365Aegis.Cli.Tests.csproj" />
+    <Project Path="tests/M365Aegis.Core.Tests/M365Aegis.Core.Tests.csproj" />
+  </Folder>
+</Solution>

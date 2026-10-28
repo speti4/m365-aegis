@@ -1,0 +1,18 @@
+﻿<!-- The m365-aegis executable: the commands over the Core, the JSON envelope and the table output (D-006). -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>m365-aegis</AssemblyName>
+    <RootNamespace>M365Aegis.Cli</RootNamespace>
+    <!-- Framework-dependent, ReadyToRun on publish (D-007): the runtime is Windows Update's to patch. -->
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\M365Aegis.Core\M365Aegis.Core.csproj" />
+    <PackageReference Include="System.CommandLine" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,12 @@
+# Text files are stored with LF whatever the contributor's core.autocrlf says; the lines below override this for
+# the files that need something else.
+* text=auto eol=lf
+# Test fixtures carry their own line endings (a recorded answer keeps the bytes it was recorded with).
+tests/fixtures/** -text
+# Shell scripts and git hooks run under sh, which a CRLF line ending breaks.
+*.sh text eol=lf
+.githooks/* text eol=lf
+# PowerShell scripts run on Windows too, but pwsh reads LF fine and the diffs stay clean.
+*.ps1 text eol=lf
+*.psm1 text eol=lf
+*.psd1 text eol=lf

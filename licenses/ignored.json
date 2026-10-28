@@ -1,0 +1,7 @@
+[
+  "M365Aegis.Core",
+  "M365Aegis.Cli",
+  "M365Aegis.Gui",
+  "M365Aegis.Core.Tests",
+  "M365Aegis.Cli.Tests"
+]

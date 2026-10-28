@@ -1,0 +1,18 @@
+<!-- The command line end to end: the tests start the built m365-aegis assembly as a child process and check its
+     output and exit code, the way a shell or a Claude Code session sees it. -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>M365Aegis.Cli.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The exe project reference puts m365-aegis.dll and its runtimeconfig next to the tests. -->
+    <ProjectReference Include="..\..\src\M365Aegis.Cli\M365Aegis.Cli.csproj" />
+    <PackageReference Include="xunit.v3" />
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

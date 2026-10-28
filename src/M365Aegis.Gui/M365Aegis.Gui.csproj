@@ -1,0 +1,52 @@
+﻿<!-- The m365-aegis-gui executable: a Photino window (behind IUiHost) that loads the React front end built from
+     gui/web into wwwroot/ and bridges its messages to the Core. -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>m365-aegis-gui</AssemblyName>
+    <RootNamespace>M365Aegis.Gui</RootNamespace>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <SelfContained>false</SelfContained>
+    <!-- The front end's build output; `true` skips the npm build (CI jobs that do not need the window, a quick
+         local build) and the window then finds an empty wwwroot. -->
+    <SkipFrontendBuild Condition="'$(SkipFrontendBuild)' == ''">false</SkipFrontendBuild>
+    <FrontendDir>$(MSBuildProjectDirectory)\..\..\gui\web\</FrontendDir>
+    <FrontendDist>$(FrontendDir)dist\</FrontendDist>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\M365Aegis.Core\M365Aegis.Core.csproj" />
+    <PackageReference Include="Photino.NET" />
+  </ItemGroup>
+
+  <!-- Build the front end before this project when its sources are newer than its output: `npm ci` for the
+       lock file's packages, then `npm run build` (Vite) into gui/web/dist. dist is never committed. -->
+  <Target Name="BuildFrontend" BeforeTargets="AssignTargetPaths" Condition="'$(SkipFrontendBuild)' != 'true'"
+          Inputs="$(FrontendDir)package-lock.json;$(FrontendDir)index.html;$(FrontendDir)vite.config.ts;@(FrontendSource)"
+          Outputs="$(FrontendDist)index.html">
+    <Exec Command="npm ci --no-audit --no-fund" WorkingDirectory="$(FrontendDir)" />
+    <Exec Command="npm run build" WorkingDirectory="$(FrontendDir)" />
+  </Target>
+
+  <ItemGroup>
+    <FrontendSource Include="$(FrontendDir)src\**\*" />
+  </ItemGroup>
+
+  <!-- The built front end travels with the exe as wwwroot/, on build and on publish. The glob is evaluated after
+       the BuildFrontend target ran, so a fresh build sees the fresh dist. Two item groups: inside a target, the
+       RecursiveDir of a freshly globbed item is only readable through a qualified reference. -->
+  <Target Name="CollectFrontend" AfterTargets="BuildFrontend" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <FrontendDistFile Include="$(FrontendDist)**\*" />
+    </ItemGroup>
+    <ItemGroup>
+      <Content Include="@(FrontendDistFile)">
+        <Link>wwwroot\%(FrontendDistFile.RecursiveDir)%(FrontendDistFile.Filename)%(FrontendDistFile.Extension)</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </Content>
+    </ItemGroup>
+  </Target>
+
+</Project>

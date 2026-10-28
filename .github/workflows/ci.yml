@@ -1,0 +1,259 @@
+# The checks of every push to main and every pull request, under a minutes budget (D-005): the repo is private, so
+# the Linux jobs carry everything that does not need Windows (restore in locked mode, build with the analyzers,
+# the format check, the Core and Cli tests with the sidecar against a fake module under the runner's pwsh, the
+# package audit and license check, the front end's lint, type check, tests and build, the sidecar's Pester tests,
+# the changelog and fixture checks, the workflow lint), and the one Windows job (the published exes, the window's
+# smoke test, the Windows-only tests) runs on pull requests and tags only. The ruleset on `main` requires every
+# job, a skipped job included, so no path filter skips them (the commit rules have their own workflow,
+# commit-rules.yml). A tag also publishes the zip, its checksum, its build provenance attestation and the notes
+# from the changelog. Every restore runs in locked mode (RestoreLockedMode in CI), so a stale lock file fails
+# instead of being rewritten. Actions are pinned by commit SHA and bumped by dependabot.
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: 1
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  # Vite 8 warns when its config is loaded by the native runtime; the warning is noise in a log.
+  VITE_CONFIG_NATIVE_IGNORE_WARNING: "true"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # A newer push supersedes a pull request run; a running main or tag run is never cancelled.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # The .NET side on the cheapest runner: locked restore, format, the analyzers in the build, the Core and Cli
+  # tests (the Cli ones start the built assembly as a child process; the doctor finds the runner's pwsh).
+  dotnet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - run: dotnet restore --locked-mode
+      - run: dotnet format --verify-no-changes --no-restore
+      # The front end is built by its own job; the GUI project compiles here with an empty wwwroot.
+      - run: dotnet build --no-restore -c Release -p:SkipFrontendBuild=true
+      - run: dotnet test --no-build -c Release
+
+  # The dependency policy: a known vulnerability in any package (the restore's audit and the explicit script), a
+  # license outside licenses/allowed.json (nuget-license over the shipped packages; the front end's packages from
+  # the lock file), and npm's own audit of the shipped packages.
+  deps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - run: dotnet restore --locked-mode
+      - run: python3 -I scripts/check-vulnerable.py
+      - run: dotnet tool restore
+      - name: The licenses of the shipped packages
+        run: dotnet nuget-license --input M365Aegis.slnx --include-transitive --allowed-license-types licenses/allowed.json --ignored-packages licenses/ignored.json --exclude-projects-matching "*.Tests" --error-only
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          # No npm cache: a release is built in this workflow, and a cache a pull request wrote must not reach it.
+          package-manager-cache: false
+      - run: npm ci
+        working-directory: gui/web
+      - run: npm audit --omit=dev
+        working-directory: gui/web
+      - run: python3 -I scripts/npm-licenses.py
+
+  # The front end: Biome (lint and format), the type check, the Vitest tests (they read the same bridge samples
+  # the C# tests read) and the Vite build.
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          # No npm cache: a release is built in this workflow, and a cache a pull request wrote must not reach it.
+          package-manager-cache: false
+      - run: npm ci
+        working-directory: gui/web
+      - run: npm run lint
+        working-directory: gui/web
+      - run: npm run typecheck
+        working-directory: gui/web
+      - run: npm test
+        working-directory: gui/web
+      - run: npm run build
+        working-directory: gui/web
+
+  # The Exchange Online sidecar: PSScriptAnalyzer over the scripts and the Pester tests, which run the sidecar as a
+  # child pwsh against the fake module (tests/sidecar/modules), never against a tenant. The runner image carries
+  # pwsh; Pester is installed in the version scripts/pester-version.txt names.
+  sidecar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Pester and PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $pester = (Get-Content scripts/pester-version.txt -Raw).Trim()
+          Install-Module Pester -RequiredVersion $pester -Scope CurrentUser -Force -SkipPublisherCheck
+          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $findings = Invoke-ScriptAnalyzer -Path src/M365Aegis.Core/Exchange/Sidecar, tests/sidecar, scripts -Recurse -Severity Warning, Error
+          $findings | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
+          if ($findings) { exit 1 }
+      - name: Pester
+        shell: pwsh
+        run: |
+          Import-Module Pester -RequiredVersion (Get-Content scripts/pester-version.txt -Raw).Trim()
+          $config = New-PesterConfiguration
+          $config.Run.Path = 'tests/sidecar'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $config
+
+  # The repo's own rules: the changelog matches tasks/done/ (not on a tag, see docs/development.md), the fixtures
+  # carry made-up data only, and the helper scripts pass their self-checks.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The whole history with the tags: scripts/changelog.py tells the tasks of a release by the tag trees.
+          fetch-depth: 0
+      - name: CHANGELOG.md is up to date
+        if: github.ref_type != 'tag'
+        run: python3 -I scripts/changelog.py --check
+      - run: python3 -I scripts/check-fixtures.py
+      - run: sh scripts/check-commit.sh --self-test
+
+  # zizmor over the workflows and dependabot.yml; findings fail the job as annotations. No SARIF upload to code
+  # scanning: an uploaded finding would not fail this required check.
+  workflow-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
+        with:
+          advanced-security: false
+
+  # The shipped platform, on pull requests and tags only (D-005): the release script's dry run publishes both exes
+  # with the front end, the command line answers, the window loads the page and the bridge works (--smoke), and
+  # the Windows-only tests run.
+  windows:
+    if: github.event_name == 'pull_request' || github.ref_type == 'tag'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          # No npm cache: a release is built in this workflow, and a cache a pull request wrote must not reach it.
+          package-manager-cache: false
+      - run: dotnet restore --locked-mode
+      - run: dotnet build --no-restore -c Release
+      - run: dotnet test --no-build -c Release
+      - name: The command line answers
+        shell: pwsh
+        run: |
+          $env:M365AEGIS_HOME = Join-Path $env:RUNNER_TEMP 'm365-aegis-home'
+          & src/M365Aegis.Cli/bin/Release/net10.0/m365-aegis.exe --version
+          & src/M365Aegis.Cli/bin/Release/net10.0/m365-aegis.exe --json doctor --offline
+          if ($LASTEXITCODE -ne 0) { throw "doctor exited $LASTEXITCODE" }
+      - name: The window loads the page and the bridge answers
+        shell: pwsh
+        run: |
+          $env:M365AEGIS_HOME = Join-Path $env:RUNNER_TEMP 'm365-aegis-home'
+          $process = Start-Process -FilePath src/M365Aegis.Gui/bin/Release/net10.0/m365-aegis-gui.exe -ArgumentList '--smoke' -PassThru -Wait -RedirectStandardError (Join-Path $env:RUNNER_TEMP 'smoke-stderr.txt')
+          Get-Content (Join-Path $env:RUNNER_TEMP 'smoke-stderr.txt') -ErrorAction SilentlyContinue
+          if ($process.ExitCode -ne 0) { throw "smoke exited $($process.ExitCode)" }
+      - name: The release script's dry run
+        shell: pwsh
+        run: scripts/release.ps1 -DryRun
+
+  release:
+    needs: [dotnet, deps, frontend, sidecar, lint, workflow-lint, windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # creates the release and uploads the zip
+      id-token: write # the OIDC token that signs the build provenance attestation
+      attestations: write # stores the attestation with the repo
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The whole history with the tags: scripts/changelog.py tells the tasks of a release by the tag trees.
+          fetch-depth: 0
+      # A release is cut from main only: the ruleset protects main, not every commit a tag could point at.
+      - name: The tag is on main
+        shell: bash
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main ||
+            { echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on main"; exit 1; }
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          # No npm cache: a release is built in this workflow, and a cache a pull request wrote must not reach it.
+          package-manager-cache: false
+      - name: Publish and pack
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+        run: scripts/release.ps1 -Tag $env:TAG
+      # Build provenance for every file SHA256SUMS.txt lists, signed through the job's OIDC token and checked
+      # with `gh attestation verify <zip> --repo speti4/m365-aegis`.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: dist/SHA256SUMS.txt
+      # The runner's own gh CLI publishes the release: no third-party action holds the write token. The notes
+      # are the tag's section of the changelog, written by release.ps1 (scripts/changelog.py --notes).
+      - name: Publish the release
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = $env:TAG.Substring(1)
+          gh release create $env:TAG "dist/m365-aegis-$version.zip" dist/SHA256SUMS.txt `
+            --verify-tag --title "m365-aegis $version" --notes-file "dist/release-notes-$version.md"

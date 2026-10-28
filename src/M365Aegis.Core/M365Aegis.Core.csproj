@@ -1,0 +1,22 @@
+﻿<!-- The library: auth, the Graph client, the Exchange Online backends, the operations with their plans, the
+     output contract and the doctor checks. Plain net10.0, not net10.0-windows, so the tests run on Linux; the
+     Windows-only paths (WAM, DPAPI, the registry) sit behind OperatingSystem.IsWindows() and CA1416 checks them. -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>M365Aegis.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The Core and Cli tests see the internals. -->
+    <InternalsVisibleTo Include="M365Aegis.Core.Tests" />
+    <InternalsVisibleTo Include="M365Aegis.Cli.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The Exchange Online sidecar script travels next to every exe that references the Core, as sidecar\ (D-004);
+         the doctor checks its hash and the release zip carries it at the same path. -->
+    <None Include="Exchange\Sidecar\aegis-exo-sidecar.ps1" Link="sidecar\aegis-exo-sidecar.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

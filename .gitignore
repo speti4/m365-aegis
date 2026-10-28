@@ -1,0 +1,40 @@
+# .NET build output and tool state
+bin/
+obj/
+.vs/
+TestResults/
+*.user
+*.suo
+artifacts/
+dist/
+
+# The front end's packages and build; the build travels as wwwroot/ inside the GUI's output, never in git
+gui/web/node_modules/
+gui/web/dist/
+gui/web/.vite/
+*.tsbuildinfo
+
+# Tenant data never enters the repo: a tenant profile, an MSAL cache, a recorded answer that was not scrubbed, a
+# token or a certificate (CLAUDE.md, "Data outside the repo"). The scrubbed fixtures under tests/fixtures are
+# the one place a JSON answer lives, and check-fixtures.py holds them to made-up names.
+config.json
+msal-cache*.bin
+*.pfx
+*.p12
+*.cer
+*.token
+captures/
+
+# local: editor folders, the anonymizer's token map, the maintainer's local instructions
+.env
+*.log
+.DS_Store
+.vscode/
+.idea/
+.anonilm-map.json
+.claude/settings.local.json
+CLAUDE.local.md
+__pycache__/
+
+# git worktrees that Claude Code creates under .claude/worktrees (docs/maintainer-sessions.md)
+.claude/worktrees/

@@ -1,0 +1,65 @@
+name: Bug report
+description: Something in m365-aegis does not work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please keep the tenant's data private: no tenant name or id, no user names, mailbox
+        addresses, object ids or tokens. Describe the problem with made-up names (contoso.onmicrosoft.com,
+        alice@contoso.com) and the exact text of the error line. A security problem goes to a
+        [private report](https://github.com/speti4/m365-aegis/security/advisories/new) instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you see? Include the exact text of the message, or the `--json` envelope with the names replaced.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. m365-aegis mailbox access shared@contoso.com
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: m365-aegis version
+      description: "`m365-aegis --version` prints it."
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: The doctor report
+      description: "The output of `m365-aegis doctor --offline --table` (it names no tenant data)."
+      render: text
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where
+      options:
+        - the command line
+        - the window
+        - the Exchange Online sidecar
+        - not sure
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy
+      options:
+        - label: This report contains no tenant name or id, no user or mailbox names and no token.
+          required: true

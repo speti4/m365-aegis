@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest something m365-aegis should do.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. Please keep the tenant's data private: describe the need with made-up names, never
+        with real users, mailboxes or ids.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What administration task are you trying to do, and what gets in the way today (in the admin centers, in PowerShell)?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you propose
+      description: How it could work in the command line or the window.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: A script you run now, or how another tool handles it.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy
+      options:
+        - label: This request contains no tenant name or id and no user or mailbox names.
+          required: true

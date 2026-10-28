@@ -1,0 +1,22 @@
+<!-- The Core tests: xUnit v3 on Microsoft.Testing.Platform (an executable test project), offline, against the
+     fixtures under tests/fixtures. -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>M365Aegis.Core.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\M365Aegis.Core\M365Aegis.Core.csproj" />
+    <PackageReference Include="xunit.v3" />
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The bridge contract samples, shared with the front end's Vitest tests (tests/contracts/bridge). -->
+    <Content Include="..\contracts\bridge\*.json" Link="contracts\bridge\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

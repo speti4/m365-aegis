@@ -1,0 +1,51 @@
+<!-- The settings every project of the repo shares. The version is written here and nowhere else: the exes print
+     it, the release script names the zip after it, the changelog stamps it. -->
+<Project>
+
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <Authors>speti4</Authors>
+    <Product>m365-aegis</Product>
+    <Copyright>Copyright (c) 2026 speti4</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/speti4/m365-aegis</RepositoryUrl>
+    <!-- Never published as a NuGet package. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Every warning is an error: the analyzers at the recommended level, the code style of .editorconfig in the
+         build, and the XML doc comments on the public surface (CS1591, a missing comment, stays a non-error so a
+         stub can land without prose). -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- Tenant data carries accented names; the culture-aware APIs stay, and CA1305/CA1307/CA1309 force every
+         comparison and format to name its culture. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <!-- The lock files: every project writes packages.lock.json, and CI restores in locked mode, so a lock file out
+       of step with the project fails instead of being rewritten (what a locked cargo build does elsewhere). NuGetAudit
+       turns a known vulnerability of any package, transitive ones included, into a restore warning, which
+       TreatWarningsAsErrors makes an error. -->
+  <PropertyGroup>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(CI)' == 'true' or '$(GITHUB_ACTIONS)' == 'true'">
+    <RestoreLockedMode>true</RestoreLockedMode>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+</Project>

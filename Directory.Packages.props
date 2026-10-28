@@ -1,0 +1,41 @@
+<!-- Central package management: every package version is written here, a project only names the package. Each
+     entry carries a one-line reason, as CONTRIBUTING.md asks ("Dependencies"): why it is needed and why the ones
+     already here do not cover it. Transitive pinning keeps a transitive package at the version listed here when
+     one is listed. Dependabot bumps these lines (the nuget ecosystem reads this file and the lock files). -->
+<Project>
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Argument parsing, help and completions of the m365-aegis command line (task 001 / D-006). The 2.0 line is
+         the stable one; 3.0 is a migration task of its own, so Dependabot ignores that major. -->
+    <PackageVersion Include="System.CommandLine" Version="2.0.14" />
+
+    <!-- Delegated token acquisition for Graph and Exchange Online as a public client, silent first (task 002 /
+         D-003); the broker package adds WAM, the Windows account manager: SSO with the signed-in Entra account,
+         Conditional Access and device-bound refresh tokens; the extensions package persists the MSAL cache in a
+         DPAPI-protected file with a cross-process lock, which the command line and the window share (WAM holds the
+         refresh token, the file holds the accounts and id tokens). -->
+    <PackageVersion Include="Microsoft.Identity.Client" Version="4.91.1" />
+    <PackageVersion Include="Microsoft.Identity.Client.Broker" Version="4.91.1" />
+    <PackageVersion Include="Microsoft.Identity.Client.Extensions.Msal" Version="4.91.1" />
+
+    <!-- The window of the GUI: a WebView2 host with a string message bridge, Apache-2.0, for the React front end
+         under gui/web (task 001 / D-002). Dormant upstream since 2025-01; the window sits behind IUiHost so a
+         WinForms + WebView2 host can replace it (task 014). -->
+    <PackageVersion Include="Photino.NET" Version="4.0.16" />
+
+    <!-- The test framework of the Core and Cli tests, on Microsoft.Testing.Platform (global.json names the
+         runner). -->
+    <PackageVersion Include="xunit.v3" Version="4.0.2" />
+    <!-- Snapshot tests of the JSON envelope and the table output; scrubs GUIDs and dates by default (task 004). -->
+    <PackageVersion Include="Verify.XunitV3" Version="33.3.4" />
+    <!-- Line coverage under Microsoft.Testing.Platform, MIT (the Microsoft code coverage extension's license is
+         not on the allowlist). -->
+    <PackageVersion Include="coverlet.MTP" Version="10.1.0" />
+  </ItemGroup>
+
+</Project>
