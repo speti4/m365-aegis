@@ -3,6 +3,7 @@ size: S
 origin: session 2026-10-28
 created: 2026-10-28
 started: 2026-10-28
+closed: 2026-10-29
 plan: none
 milestone: M1 Foundation
 changelog: housekeeping
@@ -94,6 +95,9 @@ protocol and the sidecar script with its tests.
 - 2026-10-28 — `speti4/m365-aegis` created private; the `ci` run of 6ca41aa green in every Linux job
   (`dotnet`, `deps`, `frontend`, `sidecar`, `lint`, `workflow-lint`), `windows` and `release` skipped on a push
   as D-005 wants; `commit-rules` green on every push
+- 2026-10-29 — the checkout renamed from the working title to `m365-aegis`; `.claude/settings.json` points the
+  memory at the new path; closed with no new follow-up: every item of *Not in this change* is a backlog file
+  (002–018), the module update sits in 011
 
 ## Deviations from the plan
 
@@ -117,11 +121,13 @@ protocol and the sidecar script with its tests.
   envelope with exit 0 on this machine, `m365-aegis-gui --smoke` exits 0 with the React page loaded through
   the bridge; on GitHub the `ci` run of 6ca41aa and the `commit-rules` runs succeeded
   (https://github.com/speti4/m365-aegis/actions)
+- 2026-10-29 — at the close: `memory_check` and `tasks_check` 0 errors, `python -I scripts/changelog.py --check`
+  green with 001 under Project housekeeping
 
 ## Closing checklist
 
-- [ ] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
+- [x] `tasks_check` green, README index regenerated
+- [x] moved to `done/` with `closed: 2026-10-29`

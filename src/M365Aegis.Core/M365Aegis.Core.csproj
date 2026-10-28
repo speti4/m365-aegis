@@ -5,6 +5,10 @@
 
   <PropertyGroup>
     <RootNamespace>M365Aegis.Core</RootNamespace>
+    <!-- The exes publish for win-x64 (D-007) and the publish restore carries the runtime identifier into every
+         referenced project, so the Core's lock file needs the win-x64 targets too, or the locked restore of the
+         release fails. -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
   </PropertyGroup>
 
   <ItemGroup>
