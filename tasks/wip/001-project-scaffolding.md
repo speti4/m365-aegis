@@ -51,10 +51,10 @@ protocol and the sidecar script with its tests.
 5. [x] The solution: `M365Aegis.Core` (the output contract, the home folder, the offline doctor, the bridge
        protocol, the sidecar script), `M365Aegis.Cli` (`m365-aegis` with `doctor`), `M365Aegis.Gui` (the Photino
        host behind `IUiHost`, the React front end with shadcn/ui), the xUnit, Vitest and Pester tests
-6. [ ] Every check green locally: restore, format, build, test, the front end's lint, type check, tests and
+6. [x] Every check green locally: restore, format, build, test, the front end's lint, type check, tests and
        build, the sidecar's Pester tests, the vulnerability and license checks, zizmor, the changelog and
        fixture checks, the commit-rules self-test, `tasks_check`
-7. [ ] The private repo `speti4/m365-aegis`, the first push, CI green
+7. [x] The private repo `speti4/m365-aegis`, the first push, CI green
 
 ## Log
 
@@ -88,6 +88,12 @@ protocol and the sidecar script with its tests.
   unused parameters and `Write-Host` (suppressed with a reason, they mirror the real cmdlets) and the release
   script's `Write-Host` (now `Write-Output`); `--version` printed the commit suffix once the repo had a commit
   (`IncludeSourceRevisionInInformationalVersion=false`)
+- 2026-10-28 — two more `deps` findings on `main`, fixed in two commits: `shadcn init` had added its CLI package
+  as a runtime dependency (a `deepmerge` advisory, low; the CLI is a dev dependency now, only its CSS reaches
+  the build), and the Geist font ships under OFL-1.1, which the allowlist now carries
+- 2026-10-28 — `speti4/m365-aegis` created private; the `ci` run of 6ca41aa green in every Linux job
+  (`dotnet`, `deps`, `frontend`, `sidecar`, `lint`, `workflow-lint`), `windows` and `release` skipped on a push
+  as D-005 wants; `commit-rules` green on every push
 
 ## Deviations from the plan
 
@@ -99,7 +105,18 @@ protocol and the sidecar script with its tests.
 
 ## Verification
 
-- (to be written at the close)
+- 2026-10-28 — on commit 6ca41aa: `dotnet restore --locked-mode`, `dotnet format --verify-no-changes`,
+  `dotnet build -c Release -p:SkipFrontendBuild=true` (0 warnings), `dotnet test -c Release` (22 tests passed),
+  `npm run lint`, `npm run typecheck`, `npm test` (6 tests) and `npm run build` in `gui/web`, `Invoke-Pester
+  tests/sidecar` (9 tests passed), PSScriptAnalyzer (0 findings), `python -I scripts/check-vulnerable.py` (0),
+  `dotnet nuget-license …` (every license on the allowlist; exit 11 verified on a narrowed list),
+  `python -I scripts/npm-licenses.py` (20 shipped packages, 0 outside), `npm audit --omit=dev` (0),
+  `uvx zizmor .github` (no findings), `python -I scripts/changelog.py --check`, `python -I
+  scripts/check-fixtures.py` (0 findings), `sh scripts/check-commit.sh --self-test` (38 cases), `tasks_check`
+  (0 errors, 0 warnings); `m365-aegis --version` prints `0.1.0`, `m365-aegis --json doctor --offline` prints the
+  envelope with exit 0 on this machine, `m365-aegis-gui --smoke` exits 0 with the React page loaded through
+  the bridge; on GitHub the `ci` run of 6ca41aa and the `commit-rules` runs succeeded
+  (https://github.com/speti4/m365-aegis/actions)
 
 ## Closing checklist
 
