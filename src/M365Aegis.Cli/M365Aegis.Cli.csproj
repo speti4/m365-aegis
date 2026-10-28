@@ -5,9 +5,11 @@
     <OutputType>Exe</OutputType>
     <AssemblyName>m365-aegis</AssemblyName>
     <RootNamespace>M365Aegis.Cli</RootNamespace>
-    <!-- Framework-dependent, ReadyToRun on publish (D-007): the runtime is Windows Update's to patch. -->
-    <PublishReadyToRun>true</PublishReadyToRun>
-    <SelfContained>false</SelfContained>
+    <!-- The publish is framework-dependent and ReadyToRun for win-x64 (D-007), with the flags on the publish command
+         in scripts/release.ps1, never here: PublishReadyToRun in the project would make every restore infer the
+         machine's runtime identifier and the lock file would differ between Windows and Linux. The plural property
+         puts the win-x64 targets into the lock file on every platform, so the locked publish restore matches. -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
   </PropertyGroup>
 
   <ItemGroup>

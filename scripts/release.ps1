@@ -98,13 +98,13 @@ $sums = Join-Path $outDir "SHA256SUMS.txt"
 
 $publishMb = [math]::Round(((Get-ChildItem $publish -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB, 1)
 $zipMb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
-Write-Host "version:  $version (exe properties: $stamped)"
-Write-Host "publish:  $publish ($publishMb MB unpacked)"
-Write-Host "zip:      $zip ($zipMb MB)"
-Write-Host "sha256:   $hash ($sums)"
-Write-Host "notes:    $notes"
+Write-Output "version:  $version (exe properties: $stamped)"
+Write-Output "publish:  $publish ($publishMb MB unpacked)"
+Write-Output "zip:      $zip ($zipMb MB)"
+Write-Output "sha256:   $hash ($sums)"
+Write-Output "notes:    $notes"
 if ($DryRun) {
-    Write-Host "dry run: nothing written under $Out"
+    Write-Output "dry run: nothing written under $Out"
     Remove-Item -Recurse -Force $stage
 } else {
     Remove-Item -Recurse -Force $publish

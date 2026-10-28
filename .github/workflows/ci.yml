@@ -123,9 +123,12 @@ jobs:
       - name: PSScriptAnalyzer
         shell: pwsh
         run: |
-          $findings = Invoke-ScriptAnalyzer -Path src/M365Aegis.Core/Exchange/Sidecar, tests/sidecar, scripts -Recurse -Severity Warning, Error
+          # -Path takes one folder at a time.
+          $findings = foreach ($folder in @('src/M365Aegis.Core/Exchange/Sidecar', 'tests/sidecar', 'scripts')) {
+            Invoke-ScriptAnalyzer -Path $folder -Recurse -Severity Warning, Error
+          }
           $findings | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
-          if ($findings) { exit 1 }
+          if (@($findings).Count -gt 0) { exit 1 }
       - name: Pester
         shell: pwsh
         run: |

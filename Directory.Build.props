@@ -31,6 +31,8 @@
     <InvariantGlobalization>false</InvariantGlobalization>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <Deterministic>true</Deterministic>
+    <!-- The exes print the plain version (0.1.0), not the version with the commit appended. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <!-- The lock files: every project writes packages.lock.json, and CI restores in locked mode, so a lock file out

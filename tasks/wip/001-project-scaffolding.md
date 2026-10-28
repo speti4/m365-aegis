@@ -80,6 +80,15 @@ protocol and the sidecar script with its tests.
   script fails on a finding), zizmor flagged the npm cache of setup-node in a workflow that publishes (the cache
   is off), the Windows job runs on pull requests and tags only (D-005)
 
+- 2026-10-28 — the first CI run on `main` failed in three jobs and the second commit fixed them: the lock files
+  carried a `win-x64` runtime target because `PublishReadyToRun` in a project makes every restore infer the
+  machine's runtime identifier (the publish flags moved to `release.ps1`, `RuntimeIdentifiers=win-x64` keeps
+  the publish targets in the lock files on every platform); the analyzer step passed an array to
+  `Invoke-ScriptAnalyzer -Path`, which takes one folder, and the analyzer then found the fake module's
+  unused parameters and `Write-Host` (suppressed with a reason, they mirror the real cmdlets) and the release
+  script's `Write-Host` (now `Write-Output`); `--version` printed the commit suffix once the repo had a commit
+  (`IncludeSourceRevisionInInformationalVersion=false`)
+
 ## Deviations from the plan
 
 - The .NET SDK on the machine is 10.0.204, not the 10.0.403 the design named; `global.json` pins 10.0.204 with

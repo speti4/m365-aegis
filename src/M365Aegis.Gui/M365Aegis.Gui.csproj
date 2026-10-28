@@ -6,8 +6,8 @@
     <OutputType>WinExe</OutputType>
     <AssemblyName>m365-aegis-gui</AssemblyName>
     <RootNamespace>M365Aegis.Gui</RootNamespace>
-    <PublishReadyToRun>true</PublishReadyToRun>
-    <SelfContained>false</SelfContained>
+    <!-- See M365Aegis.Cli.csproj: the publish flags live in scripts/release.ps1, the lock file carries win-x64. -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <!-- The front end's build output; `true` skips the npm build (CI jobs that do not need the window, a quick
          local build) and the window then finds an empty wwwroot. -->
     <SkipFrontendBuild Condition="'$(SkipFrontendBuild)' == ''">false</SkipFrontendBuild>
