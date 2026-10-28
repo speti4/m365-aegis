@@ -112,7 +112,8 @@ step with its project fails instead of being rewritten.
 Some of the setup lives in the repository settings, not in a file (task 012, applied 2026-10-29): a ruleset
 protects `main` (changes arrive through a pull request with squash merge only, the checks `dotnet`, `deps`,
 `frontend`, `sidecar`, `lint`, `workflow-lint`, `windows` and `commit-rules` must pass, the history stays
-linear, and force pushes and deletion are blocked, with no bypass for anyone; a job skipped by its `if:` still
+linear, and force pushes and deletion are blocked; the repository admin may bypass the ruleset for a small
+housekeeping commit, see `docs/git-workflow.md`; a job skipped by its `if:` still
 satisfies its required check; the checks are not "strict", so a branch need not be rebased on the head of
 `main` before the merge, which spares the minutes budget); another ruleset keeps `v*` tags from being moved or
 deleted; squash merge is the only merge method, with the pull request title and description as the commit
