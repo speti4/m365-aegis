@@ -16,6 +16,22 @@ public sealed record EnvelopeError(string Code, string Message, string? Hint = n
 /// <param name="Backend">Which backend answered: graph, admin-api, pwsh, local.</param>
 public sealed record EnvelopeMeta(IReadOnlyList<string> RequestIds, long ElapsedMs, string Backend);
 
+/// <summary>The names of the backends an envelope's meta reports.</summary>
+public static class Backend
+{
+    /// <summary>No service was called: the doctor, a usage error, the local state.</summary>
+    public const string Local = "local";
+
+    /// <summary>Microsoft Graph.</summary>
+    public const string Graph = "graph";
+
+    /// <summary>The Exchange Online Admin API.</summary>
+    public const string AdminApi = "admin-api";
+
+    /// <summary>The pwsh sidecar running ExchangeOnlineManagement.</summary>
+    public const string Pwsh = "pwsh";
+}
+
 /// <summary>
 /// The JSON envelope of the command line (D-006): every machine-readable answer has this shape, success or not,
 /// so a caller parses one thing. <c>ok</c> says which of <c>data</c> and <c>error</c> is set.
@@ -34,16 +50,21 @@ public static class Envelope
         new(false, data, error, meta);
 }
 
-/// <summary>Serializes envelopes the one way the contract names: camelCase, nulls left out, one line.</summary>
+/// <summary>
+/// Serializes envelopes the one way the contract names: camelCase, nulls left out, enums as kebab-case strings
+/// (<c>"status":"pass"</c>, never a number), one line.
+/// </summary>
 public static class EnvelopeJson
 {
-    private static readonly JsonSerializerOptions Options = new()
+    /// <summary>The options of the contract; the tests read the scrubbed samples back with them.</summary>
+    internal static JsonSerializerOptions Options { get; } = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         WriteIndented = false,
         // Accented names and the like stay readable in the output instead of é escapes.
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.KebabCaseLower) },
     };
 
     /// <summary>The envelope as one JSON line, without a trailing newline.</summary>

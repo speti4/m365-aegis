@@ -76,8 +76,11 @@ python -I scripts/check-fixtures.py
 `--locked-mode` fails when a `packages.lock.json` is out of step with its project instead of rewriting it (a
 package change runs `dotnet restore` once without it and commits the lock files). The changelog check wants
 `CHANGELOG.md` to match `tasks/done/` exactly, so a change that closes a task runs `python -I
-scripts/changelog.py` and commits the result with it. The commit messages and the pull request text follow the
-commit rules, which the hook above checks locally and the `commit-rules` job again in CI.
+scripts/changelog.py` and commits the result with it. A snapshot test that fails writes a `*.received.*` file
+next to its `*.verified.*` under a test project's `Snapshots/`; when the new rendering is the intended one,
+rename the received file to `.verified.` and commit it ([docs/development.md](docs/development.md#the-output-contract)).
+The commit messages and the pull request text follow the commit rules, which the hook above checks locally and
+the `commit-rules` job again in CI.
 
 When `gui/web/` changes, also:
 

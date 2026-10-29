@@ -20,6 +20,10 @@ updates:
       # System.CommandLine 3.0 is an API migration, a task of its own (Directory.Packages.props).
       - dependency-name: System.CommandLine
         update-types: ["version-update:semver-major"]
+      # Verify 33 is under the Open Source Maintenance Fee EULA and needs a sponsorship or an exemption declared in
+      # the build; staying on the MIT line is a decision of the maintainer's (Directory.Packages.props).
+      - dependency-name: Verify.XunitV3
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: dotnet-sdk
     directory: /

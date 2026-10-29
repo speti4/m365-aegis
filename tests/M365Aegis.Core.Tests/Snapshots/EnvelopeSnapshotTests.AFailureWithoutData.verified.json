@@ -1,0 +1,1 @@
+﻿{"ok":false,"error":{"code":"not-found","message":"no group named 'Finance'","hint":"list the groups with `m365-aegis group list`"},"meta":{"requestIds":["00000000-0000-0000-0000-000000000001"],"elapsedMs":345,"backend":"graph"}}

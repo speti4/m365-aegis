@@ -1,5 +1,6 @@
 <!-- The command line end to end: the tests start the built m365-aegis assembly as a child process and check its
-     output and exit code, the way a shell or a Claude Code session sees it. -->
+     output and exit code, the way a shell or a Claude Code session sees it; the snapshot tests (Verify) render
+     the result types in process and keep their files under Snapshots/. -->
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
@@ -12,7 +13,18 @@
     <!-- The exe project reference puts m365-aegis.dll and its runtimeconfig next to the tests. -->
     <ProjectReference Include="..\..\src\M365Aegis.Cli\M365Aegis.Cli.csproj" />
     <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Verify.XunitV3" />
     <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The sample reader both test projects share (tests/shared). -->
+    <Compile Include="..\shared\DoctorSamples.cs" Link="shared\DoctorSamples.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The scrubbed doctor reports the snapshot tests render (tests/fixtures/doctor). -->
+    <Content Include="..\fixtures\doctor\*.json" Link="fixtures\doctor\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

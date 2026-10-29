@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using M365Aegis.Core.Config;
+using M365Aegis.Core.Output;
 
 namespace M365Aegis.Core.Diagnostics;
 
@@ -33,6 +34,16 @@ public sealed record DoctorReport(string Home, IReadOnlyList<DoctorCheck> Checks
 {
     /// <summary>False when a required check failed.</summary>
     public bool Healthy => Checks.All(check => check.Status != CheckStatus.Fail || !check.Required);
+
+    /// <summary>
+    /// The report as a command result: a success when healthy, else a <see cref="FailureKind.DoctorFailed"/>
+    /// failure (exit code 10) with the report as its partial data, so the caller still sees every check.
+    /// </summary>
+    public CommandResult<DoctorReport> ToResult() => Healthy
+        ? CommandResult.Success(this)
+        : CommandResult.Failure(
+            new AegisFailure(FailureKind.DoctorFailed, "a required check failed", "the checks marked FAIL name what is missing"),
+            this);
 }
 
 /// <summary>

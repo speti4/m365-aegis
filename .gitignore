@@ -7,6 +7,9 @@ TestResults/
 *.suo
 artifacts/
 dist/
+# A failed snapshot test writes the rendering it got next to the expected one; accepting it is renaming it to
+# .verified. (docs/development.md, "The output contract"), so the received file never travels.
+*.received.*
 
 # The front end's packages and build; the build travels as wwwroot/ inside the GUI's output, never in git
 gui/web/node_modules/

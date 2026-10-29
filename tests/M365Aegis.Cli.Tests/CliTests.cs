@@ -7,6 +7,7 @@ namespace M365Aegis.Cli.Tests;
 public sealed class CliTests
 {
     private static readonly string Assembly = Path.Combine(AppContext.BaseDirectory, "m365-aegis.dll");
+    private static readonly string[] Statuses = ["pass", "warn", "fail", "skipped"];
 
     [Fact]
     public void VersionPrintsTheProductVersion()
@@ -18,12 +19,29 @@ public sealed class CliTests
     }
 
     [Fact]
-    public void AnUnknownCommandIsAUsageError()
+    public void AnUnknownCommandInAPipeIsAUsageEnvelope()
     {
-        (int exitCode, _, string stderr) = Run("frobnicate");
+        (int exitCode, string stdout, string stderr) = Run("frobnicate");
 
         Assert.Equal(2, exitCode);
+        Assert.Equal("", stderr);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement root = document.RootElement;
+        Assert.False(root.GetProperty("ok").GetBoolean());
+        Assert.Equal("usage", root.GetProperty("error").GetProperty("code").GetString());
+        Assert.Contains("frobnicate", root.GetProperty("error").GetProperty("message").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnUnknownCommandAtATerminalIsAnErrorLineOnStderr()
+    {
+        (int exitCode, string stdout, string stderr) = Run("--table", "frobnicate");
+
+        Assert.Equal(2, exitCode);
+        Assert.Equal("", stdout);
+        Assert.StartsWith("error: ", stderr, StringComparison.Ordinal);
         Assert.Contains("frobnicate", stderr, StringComparison.Ordinal);
+        Assert.Contains("(usage)", stderr, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -37,7 +55,25 @@ public sealed class CliTests
         Assert.Equal(ok ? 0 : 10, exitCode);
         Assert.Equal("local", root.GetProperty("meta").GetProperty("backend").GetString());
         JsonElement checks = root.GetProperty("data").GetProperty("checks");
-        Assert.Contains(checks.EnumerateArray(), check => check.GetProperty("name").GetString() == "pwsh");
+        JsonElement pwsh = Assert.Single(checks.EnumerateArray(), check => check.GetProperty("name").GetString() == "pwsh");
+        // The status is a word of the contract, never a number.
+        Assert.Contains(pwsh.GetProperty("status").GetString(), Statuses);
+    }
+
+    [Fact]
+    public void DoctorWithoutPwshFailsWithTenAndKeepsTheReport()
+    {
+        // An empty PATH hides pwsh from the doctor; the dotnet host is resolved by this process, not by the child.
+        (int exitCode, string stdout, _) = RunWith(new() { ["PATH"] = "" }, "--json", "doctor", "--offline");
+
+        Assert.Equal(10, exitCode);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement root = document.RootElement;
+        Assert.False(root.GetProperty("ok").GetBoolean());
+        Assert.Equal("doctor-failed", root.GetProperty("error").GetProperty("code").GetString());
+        JsonElement checks = root.GetProperty("data").GetProperty("checks");
+        JsonElement pwsh = Assert.Single(checks.EnumerateArray(), check => check.GetProperty("name").GetString() == "pwsh");
+        Assert.Equal("fail", pwsh.GetProperty("status").GetString());
     }
 
     [Fact]
@@ -58,9 +94,12 @@ public sealed class CliTests
         Assert.StartsWith("check", lines[0], StringComparison.Ordinal);
         Assert.StartsWith("-----", lines[1], StringComparison.Ordinal);
         Assert.Contains(lines, line => line.StartsWith("pwsh", StringComparison.Ordinal));
+        Assert.Contains(lines, line => line.StartsWith("home: ", StringComparison.Ordinal));
     }
 
-    private static (int ExitCode, string Stdout, string Stderr) Run(params string[] args)
+    private static (int ExitCode, string Stdout, string Stderr) Run(params string[] args) => RunWith([], args);
+
+    private static (int ExitCode, string Stdout, string Stderr) RunWith(Dictionary<string, string> environment, params string[] args)
     {
         var startInfo = new ProcessStartInfo("dotnet")
         {
@@ -76,6 +115,10 @@ public sealed class CliTests
 
         // The doctor's home check must not touch the real %LOCALAPPDATA%.
         startInfo.Environment["M365AEGIS_HOME"] = Path.Combine(Path.GetTempPath(), "m365-aegis-tests", "cli");
+        foreach ((string name, string value) in environment)
+        {
+            startInfo.Environment[name] = value;
+        }
 
         using Process process = Process.Start(startInfo) ?? throw new InvalidOperationException("dotnet did not start");
         string stdout = process.StandardOutput.ReadToEnd();

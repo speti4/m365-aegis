@@ -13,6 +13,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The Cli tests render the result types in process (the snapshot tests of the table). -->
+    <InternalsVisibleTo Include="M365Aegis.Cli.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\M365Aegis.Core\M365Aegis.Core.csproj" />
     <PackageReference Include="System.CommandLine" />
   </ItemGroup>

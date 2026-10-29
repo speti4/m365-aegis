@@ -11,6 +11,10 @@ The repository, the task standard and the empty solution: no product yet.
 
 <!-- The summary above is written by hand; the list below is generated from tasks/done/ by scripts/changelog.py. -->
 
+### M1 Foundation
+
+- Output contract (D-006): the envelope and the table for every command, exit codes, snapshot tests ([004](https://github.com/speti4/m365-aegis/blob/main/tasks/done/004-output-contract-envelope-table-and-exit-codes.md))
+
 ### Project housekeeping
 
 - Project scaffolding: repo structure, task standard, decisions, origin and research ([001](https://github.com/speti4/m365-aegis/blob/main/tasks/done/001-project-scaffolding.md))

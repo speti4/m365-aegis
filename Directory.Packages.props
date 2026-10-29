@@ -31,8 +31,11 @@
     <!-- The test framework of the Core and Cli tests, on Microsoft.Testing.Platform (global.json names the
          runner). -->
     <PackageVersion Include="xunit.v3" Version="4.0.2" />
-    <!-- Snapshot tests of the JSON envelope and the table output; scrubs GUIDs and dates by default (task 004). -->
-    <PackageVersion Include="Verify.XunitV3" Version="33.3.4" />
+    <!-- Snapshot tests of the JSON envelope and the table output (task 004). The 32 line is the last one under MIT:
+         from 33 the packages are under the Open Source Maintenance Fee EULA and the build fails (SC021) unless a
+         sponsorship or a time-bounded exemption is declared in MSBuild, which is the maintainer's decision, so
+         Dependabot ignores that major (.github/dependabot.yml). -->
+    <PackageVersion Include="Verify.XunitV3" Version="32.0.1" />
     <!-- Line coverage under Microsoft.Testing.Platform, MIT (the Microsoft code coverage extension's license is
          not on the allowlist). -->
     <PackageVersion Include="coverlet.MTP" Version="10.1.0" />

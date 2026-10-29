@@ -11,16 +11,18 @@ checks before a commit and the project rules are in [CONTRIBUTING.md](../CONTRIB
   contract (`Output`: the envelope, the exit codes, D-006), the home folder (`Config`), the doctor
   (`Diagnostics`) and the window's message protocol (`Bridge`). Plain `net10.0`, so the tests run on Linux; the
   Windows-only paths sit behind `OperatingSystem.IsWindows()`.
-- `src/M365Aegis.Cli` — the `m365-aegis` executable: the commands under `Commands/`, the table writer and the
-  output mode under `Output/`. `--json` and `--table` are recursive options; without them a terminal gets the
-  table and a pipe the envelope.
+- `src/M365Aegis.Cli` — the `m365-aegis` executable: the commands under `Commands/`, each with the table view of
+  its result type, and the one rendering path under `Output/` (the command runner, the renderer, the table view
+  contract, the table writer, the output mode; see [The output contract](#the-output-contract)). `--json` and
+  `--table` are recursive options; without them a terminal gets the table and a pipe the envelope.
 - `src/M365Aegis.Gui` — the `m365-aegis-gui` executable: the window behind `Host/IUiHost` (Photino today), the
   bridge dispatch to the Core, `--dev-url` for the Vite dev server and `--smoke` for CI.
 - `gui/web` — the front end (see [The front end](#the-front-end)).
 - `tests/` — `M365Aegis.Core.Tests` and `M365Aegis.Cli.Tests` (xUnit v3 on Microsoft.Testing.Platform; the Cli
-  tests start the built assembly as a child process), `sidecar/` (Pester, with the fake module under
-  `sidecar/modules/ExchangeOnlineManagement`), `contracts/bridge/` (the message samples the C# and TypeScript
-  tests share), `fixtures/` (recorded, scrubbed answers; `fixtures/README.md`).
+  tests start the built assembly as a child process; each project keeps its Verify snapshots under
+  `Snapshots/`), `shared/` (the source files both C# test projects link), `sidecar/` (Pester, with the fake
+  module under `sidecar/modules/ExchangeOnlineManagement`), `contracts/bridge/` (the message samples the C# and
+  TypeScript tests share), `fixtures/` (recorded, scrubbed answers; `fixtures/README.md`).
 - `scripts/` — the helper scripts: the release, the changelog, the commit rules, the fixture check, the
   vulnerability check, the front end's license check, the Pester version pin.
 - `docs/` — this page, the git workflow, the maintainer sessions, origin and research.
@@ -88,6 +90,31 @@ the JSON envelope `{"ok":…,"data":…,"error":{"code","message","hint"},"meta"
 `ExitCode` enum in the Core (0 ok, 2 usage, 3 auth, 4 not found, 5 throttled, 6 partial, 7 refused without
 `--yes`, 10 a required doctor check failed) and never change meaning. A write is a plan the command prints
 under `--dry-run` and applies under `--yes`; the window shows the same plan and asks for a confirmation.
+
+In code the path is one. A command's work returns a `CommandResult<T>` (`M365Aegis.Core.Output`): the data,
+whole on success or partial on a failure, and an `AegisFailure` when something went wrong, which is a
+`FailureKind` (its stable kebab-case error code and its exit code follow from the kind), one sentence and a
+hint. An operation of the core that cannot finish throws an `AegisException` carrying such a failure.
+`CommandRunner` in the Cli times the work, turns the exception into the failed result, builds the meta
+(`Backend` names the backend) and hands the result to `Renderer`, which writes the envelope on stdout, or the
+table: the data on stdout through the result type's `ITableView<T>` (the columns, a row per item, the footer
+lines), and the failure as an `error: <message> (<code>)` line and a `hint:` line on stderr. The exit code is
+the result's. A usage error takes the same path, so a shell or an agent never meets a third shape. A new
+command therefore adds a result type to the Core (plain data without presentation; the window carries the same
+type over the bridge), an `ITableView<T>` next to the command, and `CommandRunner.Run(mode, backend, work,
+view)` as the command's action; it never writes to the console itself. A new failure condition gets a new
+`FailureKind` with a new code and a new `ExitCode` number, never a reused one. `doctor` is the first command on
+the path: its result type is `DoctorReport`, its table view sits in `DoctorCommand`.
+
+The snapshot tests (Verify) hold both renderings byte for byte over the scrubbed doctor reports under
+`tests/fixtures/doctor/`, which `tests/shared/DoctorSamples.cs` reads back with the contract's own JSON options:
+the envelope in `tests/M365Aegis.Core.Tests/Snapshots/*.verified.json`, the table and the renderer in
+`tests/M365Aegis.Cli.Tests/Snapshots/*.verified.txt`. A snapshot test that fails writes the rendering it got as
+a `*.received.*` file next to the expected one (gitignored) and prints both. When the new rendering is the
+intended one, the change of the contract is accepted by renaming the received file to `.verified.` and
+committing it; `scripts/check-fixtures.py` scans the snapshot folders with the fixtures, so an accepted
+snapshot cannot carry tenant data either. `DiffEngine_Disabled=true` in the environment keeps Verify from
+opening a diff tool in a non-interactive run.
 
 ## CI and releases
 

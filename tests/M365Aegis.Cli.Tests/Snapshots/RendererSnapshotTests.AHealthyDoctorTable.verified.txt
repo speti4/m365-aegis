@@ -1,0 +1,14 @@
+﻿--- stdout ---
+check                   status  detail
+----------------------  ------  ----------------------------------------------------------------------------
+home                    pass    D:\aegis-home
+dotnet-runtime          pass    10.0.4
+pwsh                    pass    7.6.9 at D:\tools\pwsh\pwsh.exe
+exchange-online-module  skip    not checked yet (task 008)
+webview2-runtime        skip    not checked yet (task 008)
+config                  warn    D:\aegis-home\config.json not found; `m365-aegis login` writes it (task 002)
+sign-in                 skip    offline run
+
+home: D:\aegis-home
+ok
+--- stderr ---

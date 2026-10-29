@@ -1,0 +1,4 @@
+﻿--- stdout ---
+--- stderr ---
+error: Unrecognized command or argument 'frobnicate'. (usage)
+hint: see 'm365-aegis --help'

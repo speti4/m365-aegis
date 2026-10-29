@@ -67,3 +67,13 @@ max_line_length = 120
 
 [*.md]
 trim_trailing_whitespace = false
+
+# The snapshot files of the Verify tests are the rendering as it was produced, down to the last byte (Verify
+# writes them with a byte order mark).
+[*.{received,verified}.{json,txt}]
+charset = utf-8-bom
+end_of_line = lf
+indent_size = unset
+indent_style = unset
+insert_final_newline = false
+trim_trailing_whitespace = false

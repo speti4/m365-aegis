@@ -1,5 +1,5 @@
 <!-- The Core tests: xUnit v3 on Microsoft.Testing.Platform (an executable test project), offline, against the
-     fixtures under tests/fixtures. -->
+     fixtures under tests/fixtures; the snapshot tests (Verify) keep their files under Snapshots/. -->
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
@@ -11,12 +11,20 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\M365Aegis.Core\M365Aegis.Core.csproj" />
     <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Verify.XunitV3" />
     <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The sample reader both test projects share (tests/shared). -->
+    <Compile Include="..\shared\DoctorSamples.cs" Link="shared\DoctorSamples.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- The bridge contract samples, shared with the front end's Vitest tests (tests/contracts/bridge). -->
     <Content Include="..\contracts\bridge\*.json" Link="contracts\bridge\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The scrubbed doctor reports the snapshot tests render (tests/fixtures/doctor). -->
+    <Content Include="..\fixtures\doctor\*.json" Link="fixtures\doctor\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

@@ -1,5 +1,4 @@
 using System.CommandLine;
-using System.CommandLine.Parsing;
 using M365Aegis.Cli.Commands;
 using M365Aegis.Cli.Output;
 using M365Aegis.Core;
@@ -34,12 +33,10 @@ internal static class Program
         ParseResult parsed = root.Parse(args);
         if (parsed.Errors.Count > 0)
         {
-            foreach (ParseError error in parsed.Errors)
-            {
-                Console.Error.WriteLine(error.Message);
-            }
-
-            return (int)ExitCode.Usage;
+            // A usage error is an answer too (D-006): the envelope in a pipe, the error line at a terminal.
+            string message = string.Join(" ", parsed.Errors.Select(error => error.Message));
+            var failure = new AegisFailure(FailureKind.Usage, message, $"see '{ProductInfo.Name} --help'");
+            return CommandRunner.Fail(ResolveMode(parsed, json, table), failure);
         }
 
         return parsed.Invoke();

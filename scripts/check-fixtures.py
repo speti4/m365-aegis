@@ -3,7 +3,8 @@
 A recorded Graph or Exchange answer is scrubbed before it is committed (CONTRIBUTING.md, "Tenant data never
 enters the repo"): every domain is contoso.com, fabrikam.com, example.com or their .onmicrosoft.com forms,
 every GUID is of the form 00000000-0000-0000-0000-0000000000NN, and nothing looks like a JWT. This script walks
-tests/fixtures and tests/sidecar and fails on anything else, so a real value cannot slip in with a recording.
+tests/fixtures, tests/sidecar, tests/contracts and the snapshot folders of the test projects and fails on anything
+else, so a real value cannot slip in with a recording or with an accepted snapshot.
 
     python -I scripts/check-fixtures.py            # exit 1 on a finding, with the file and the line
 """
@@ -15,7 +16,13 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-FOLDERS = [ROOT / "tests" / "fixtures", ROOT / "tests" / "sidecar", ROOT / "tests" / "contracts"]
+FOLDERS = [
+    ROOT / "tests" / "fixtures",
+    ROOT / "tests" / "sidecar",
+    ROOT / "tests" / "contracts",
+    # The accepted snapshots of the Verify tests render the fixtures, so they are held to the same rules.
+    *sorted((ROOT / "tests").glob("M365Aegis.*.Tests/Snapshots")),
+]
 TEXT_SUFFIXES = {".json", ".headers", ".txt", ".md", ".ps1", ".psm1", ".psd1", ".csv"}
 
 ALLOWED_DOMAINS = re.compile(
