@@ -24,3 +24,4 @@ The repository, the task standard and the empty solution: no product yet.
 - Decide on Verify 33 and the Open Source Maintenance Fee, then move or keep the pin ([020](https://github.com/speti4/m365-aegis/blob/main/tasks/done/020-decide-on-verify-33-and-the-maintenance-fee.md))
 - TypeScript 7 migration of the front end ([022](https://github.com/speti4/m365-aegis/blob/main/tasks/done/022-typescript-7-migration-of-the-front-end.md))
 - CI skips the build jobs when only docs, tasks, memory or the changelog changed ([023](https://github.com/speti4/m365-aegis/blob/main/tasks/done/023-ci-skips-the-build-steps-for-docs-only-changes.md))
+- A dated note in D-003: the broker's silent path never reaches the file cache's refresh token ([026](https://github.com/speti4/m365-aegis/blob/main/tasks/done/026-d003-note-on-the-broker-and-the-file-cache.md))

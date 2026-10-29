@@ -53,6 +53,17 @@ workplace-registered to the tenant rather than Entra-joined, over a Remote Deskt
 The fallback order of task 002 follows: silent with the operating system account, silent with the profile's
 account, interactive through the broker when a window exists, device code otherwise.
 
+## Note 2026-10-29 — the broker's silent path never reaches the file cache's refresh token (task 002)
+
+The signed-in round of task 002 measured a case the decision's text does not cover. After a device-code
+sign-in (every stream redirected), the next silent call for the same account failed: with the broker enabled,
+MSAL.NET answers a silent call for an account the broker lists from the broker alone and never falls back to the
+refresh token the file cache holds from the device-code sign-in. The adapter therefore tries the same account
+through a second client over the same cache file without the broker when the broker's silent call fails; that
+call answered from the cache in 0.3 s. So the file cache holds the full token set of a device-code sign-in, not
+only accounts and id tokens, and it is registered for that reason as much as for sharing the cache between the
+command line and the window.
+
 ## Not chosen
 
 - The Graph PowerShell SDK's first-party client id (the earlier draft): not ours to depend on, and useless for the
