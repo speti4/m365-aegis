@@ -1,0 +1,36 @@
+{
+  "@odata.context": "https://outlook.office365.com/adminapi/v2.0/00000000-0000-0000-0000-0000000000a0/$metadata#MailboxFolderPermission",
+  "@adminapi.warnings": [],
+  "value": [
+    {
+      "Identity": "reception:\\Kalender",
+      "FolderName": "Kalender",
+      "User": {
+        "@odata.type": "#Exchange.MailboxFolderUserId",
+        "DisplayName": "Default",
+        "Name": "Default",
+        "PrimarySmtpAddress": null
+      },
+      "AccessRights": [
+        "AvailabilityOnly"
+      ],
+      "SharingPermissionFlags": null,
+      "IsValid": true
+    },
+    {
+      "Identity": "reception:\\Kalender",
+      "FolderName": "Kalender",
+      "User": {
+        "@odata.type": "#Exchange.MailboxFolderUserId",
+        "DisplayName": "Bob Example",
+        "Name": "bob",
+        "PrimarySmtpAddress": "bob@contoso.com"
+      },
+      "AccessRights": [
+        "Reviewer"
+      ],
+      "SharingPermissionFlags": null,
+      "IsValid": true
+    }
+  ]
+}

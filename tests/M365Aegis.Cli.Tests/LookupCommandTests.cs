@@ -32,6 +32,22 @@ public sealed class LookupCommandTests
     }
 
     [Fact]
+    public void ViaNamesTheGroupANestedMemberCameThrough()
+    {
+        (int exitCode, string stdout, string stderr) = CliTests.RunWith(Fixtures, "--json", "group", "members", "Finance", "--via");
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("", stderr);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement data = document.RootElement.GetProperty("data");
+        Assert.True(data.GetProperty("via").GetBoolean());
+        JsonElement dave = data.GetProperty("members").EnumerateArray().Single(member => member.GetProperty("displayName").GetString() == "Dave Example");
+        Assert.Equal("Finance EU", dave.GetProperty("via")[0].GetProperty("displayName").GetString());
+        // The resolution, the direct list's two pages, the transitive list and the one $batch.
+        Assert.Equal(5, document.RootElement.GetProperty("meta").GetProperty("requestIds").GetArrayLength());
+    }
+
+    [Fact]
     public void TransitiveGroupMembersMarkTheNestedOnes()
     {
         (int exitCode, string stdout, _) = CliTests.RunWith(Fixtures, "--json", "group", "members", "Finance", "--transitive");
@@ -182,6 +198,16 @@ public sealed class LookupCommandTests
         (GraphClient graph, _) = GraphFixtures.Client();
 
         CommandResult<GroupMembers> result = await GroupLookups.MembersAsync(graph, "Finance", transitive: true, TestContext.Current.CancellationToken);
+
+        await Verify(Render(result, GroupMembersTableView.Instance));
+    }
+
+    [Fact]
+    public async Task AGroupMembersTableWithTheViaColumn()
+    {
+        (GraphClient graph, _) = GraphFixtures.Client();
+
+        CommandResult<GroupMembers> result = await GroupLookups.MembersAsync(graph, "Finance", transitive: true, via: true, TestContext.Current.CancellationToken);
 
         await Verify(Render(result, GroupMembersTableView.Instance));
     }

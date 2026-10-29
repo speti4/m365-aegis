@@ -198,6 +198,34 @@ Describe 'invoke against the fake module' {
         $run.Lines[1].data.errors[0] | Should -Match "couldn't be found"
     }
 
+    It 'refuses the permission list without an identity, as the real module does (task 043)' {
+        $invoke = Get-InvokeLine -Cmdlet 'Get-EXOMailboxPermission' -Parameters @{ ResultSize = 'Unlimited' }
+        $run = Invoke-Sidecar -Lines @($script:Connect, $invoke)
+        $run.Lines[1].type | Should -Be 'error'
+        $run.Lines[1].data.code | Should -Be 'cmdlet-failed'
+        $run.Lines[1].data.message | Should -Match 'Identity is a mandatory value'
+    }
+
+    It 'lists a group holder among a mailbox''s permission entries (task 044)' {
+        $invoke = Get-InvokeLine -Cmdlet 'Get-EXOMailboxPermission' -InputObject @('reception') -Properties @('Identity', 'User')
+        $run = Invoke-Sidecar -Lines @($script:Connect, $invoke)
+        @($run.Lines[1].data.items | Where-Object { $_.User -eq 'Finance Staff' }).Count | Should -Be 1
+    }
+
+    It 'resolves a group holder to a recipient with its object id (task 044)' {
+        $invoke = Get-InvokeLine -Cmdlet 'Get-EXORecipient' -InputObject @('Finance Staff') -Properties @('RecipientTypeDetails', 'ExternalDirectoryObjectId')
+        $run = Invoke-Sidecar -Lines @($script:Connect, $invoke)
+        $run.Lines[1].data.items[0].RecipientTypeDetails | Should -Be 'MailUniversalSecurityGroup'
+        $run.Lines[1].data.items[0].ExternalDirectoryObjectId | Should -Be '00000000-0000-0000-0000-000000000035'
+    }
+
+    It 'names the default calendar in the mailbox''s language (task 042)' {
+        $invoke = Get-InvokeLine -Cmdlet 'Get-EXOMailboxFolderStatistics' -Parameters @{ Identity = 'reception'; FolderScope = 'Calendar' } -Properties @('FolderPath', 'FolderType')
+        $run = Invoke-Sidecar -Lines @($script:Connect, $invoke)
+        $run.Lines[1].type | Should -Be 'result'
+        @($run.Lines[1].data.items | Where-Object { $_.FolderType -eq 'Calendar' }).FolderPath | Should -Be '/Kalender'
+    }
+
     It 'refuses a cmdlet that is not on the allow-list' {
         $run = Invoke-Sidecar -Lines @($script:Connect, (Get-InvokeLine -Cmdlet 'Remove-Mailbox' -Parameters @{ Identity = 'alice' }))
         $run.Lines[1].type | Should -Be 'error'

@@ -22,12 +22,17 @@ internal static class GroupCommand
         {
             Description = "Also list the members of the nested groups, each marked direct or nested.",
         };
+        Option<bool> via = new("--via")
+        {
+            Description = "With the nested members, name the direct member group each one comes through (a members request per nested group, batched); implies --transitive.",
+        };
         Command members = new("members", "List a group's direct members, or with --transitive every member of its nested groups too.");
         members.Arguments.Add(membersOf);
         members.Options.Add(transitive);
+        members.Options.Add(via);
         members.SetAction((parsed, cancellationToken) => GraphRunner.RunAsync(
             parsed, json, table, profile,
-            (graph, ct) => GroupLookups.MembersAsync(graph, parsed.GetValue(membersOf) ?? "", parsed.GetValue(transitive), ct),
+            (graph, ct) => GroupLookups.MembersAsync(graph, parsed.GetValue(membersOf) ?? "", parsed.GetValue(transitive), parsed.GetValue(via), ct),
             GroupMembersTableView.Instance,
             cancellationToken));
 
@@ -87,6 +92,7 @@ internal static class GroupCommand
 internal sealed class GroupMembersTableView : ITableView<GroupMembers>
 {
     private static readonly string[] TransitiveHeaders = ["type", "name", "sign-in name or address", "membership", "id"];
+    private static readonly string[] ViaHeaders = ["type", "name", "sign-in name or address", "membership", "via", "id"];
 
     internal static GroupMembersTableView Instance { get; } = new();
 
@@ -96,12 +102,25 @@ internal sealed class GroupMembersTableView : ITableView<GroupMembers>
 
     public IReadOnlyList<string> Headers => GroupCommand.MemberHeaders;
 
-    public IReadOnlyList<string> HeadersFor(GroupMembers data) => data.Transitive ? TransitiveHeaders : Headers;
+    public IReadOnlyList<string> HeadersFor(GroupMembers data) => data.Via == true ? ViaHeaders : data.Transitive ? TransitiveHeaders : Headers;
 
-    public IEnumerable<IReadOnlyList<string>> Rows(GroupMembers data) => data.Transitive
-        ? data.Members.Select(member => (IReadOnlyList<string>)
-            [member.Type, member.DisplayName ?? "-", member.UserPrincipalName ?? member.Mail ?? "-", member.Nested == true ? "nested" : "direct", member.Id])
-        : data.Members.Select(GroupCommand.MemberRow);
+    public IEnumerable<IReadOnlyList<string>> Rows(GroupMembers data)
+    {
+        if (data.Via == true)
+        {
+            return data.Members.Select(member => (IReadOnlyList<string>)
+                [member.Type, member.DisplayName ?? "-", member.UserPrincipalName ?? member.Mail ?? "-", member.Nested == true ? "nested" : "direct", Via(member), member.Id]);
+        }
+
+        return data.Transitive
+            ? data.Members.Select(member => (IReadOnlyList<string>)
+                [member.Type, member.DisplayName ?? "-", member.UserPrincipalName ?? member.Mail ?? "-", member.Nested == true ? "nested" : "direct", member.Id])
+            : data.Members.Select(GroupCommand.MemberRow);
+    }
+
+    /// <summary>The direct member groups a nested member comes through, by name; <c>-</c> for a direct member.</summary>
+    private static string Via(GroupMember member) =>
+        member.Via is { Count: > 0 } groups ? string.Join(", ", groups.Select(group => group.DisplayName)) : "-";
 
     public IEnumerable<string> Footer(GroupMembers data)
     {

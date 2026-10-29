@@ -1,0 +1,20 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#groups(id,displayName,mail,mailNickname)",
+  "@odata.count": 2,
+  "value": [
+    {
+      "@odata.type": "#microsoft.graph.group",
+      "id": "00000000-0000-0000-0000-000000000035",
+      "displayName": "Finance Staff",
+      "mail": "finance-staff@contoso.com",
+      "mailNickname": "finance-staff"
+    },
+    {
+      "@odata.type": "#microsoft.graph.group",
+      "id": "00000000-0000-0000-0000-000000000031",
+      "displayName": "Finance",
+      "mail": "finance@contoso.com",
+      "mailNickname": "finance"
+    }
+  ]
+}

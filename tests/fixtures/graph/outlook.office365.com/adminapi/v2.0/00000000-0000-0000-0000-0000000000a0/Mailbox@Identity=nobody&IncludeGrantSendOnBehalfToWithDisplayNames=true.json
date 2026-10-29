@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "NotFound",
+    "message": "The operation couldn't be performed because object 'nobody' couldn't be found."
+  }
+}

@@ -51,7 +51,7 @@ $script:ProtocolVersion = 1
 # The cmdlets the sidecar runs, in the order of ExoCmdlets.Allowed in the Core; a test compares the two lists.
 $script:AllowedCmdlets = @(
     'Get-EXOMailbox', 'Get-EXOMailboxPermission', 'Get-EXORecipientPermission', 'Get-EXOMailboxStatistics',
-    'Get-EXORecipient', 'Get-AcceptedDomain'
+    'Get-EXORecipient', 'Get-AcceptedDomain', 'Get-EXOMailboxFolderStatistics'
 )
 $script:Connected = $false
 # The tokens this process was handed, so an error message that quotes one is scrubbed before it is written.

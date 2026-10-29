@@ -8,7 +8,11 @@
 #   carol      UserMailbox     carol@contoso.com      forwards to the finance mailbox (internal)
 #   dave       UserMailbox     dave@contoso.com       forwards to the mail contact "Dave Private" (dave@example.com, external)
 #   finance    SharedMailbox   finance@contoso.com    FullAccess alice, Send As alice, Send on Behalf bob
-#   reception  SharedMailbox   reception@contoso.com  FullAccess alice and bob, Send As bob
+#   reception  SharedMailbox   reception@contoso.com  FullAccess alice, bob and the group Finance Staff, Send As bob
+#
+# The mail-enabled security group Finance Staff (finance-staff@contoso.com, object id ...035) is a recipient only, whose
+# members the Graph fixtures hold (task 044). Get-EXOMailboxPermission without an identity fails as the real one does
+# (task 043 measured it).
 #
 # Identities that fail on purpose: 'broken' (a terminating error), 'nobody' (not found, a non-terminating error),
 # 'busy' (throttled).
@@ -56,6 +60,7 @@ $script:FullAccess = @(
     @{ Mailbox = 'finance'; User = 'NT AUTHORITY\SYSTEM'; Inherited = $true; Deny = $false }
     @{ Mailbox = 'reception'; User = 'alice@contoso.com'; Inherited = $false; Deny = $false }
     @{ Mailbox = 'reception'; User = 'bob@contoso.com'; Inherited = $false; Deny = $false }
+    @{ Mailbox = 'reception'; User = 'Finance Staff'; Inherited = $false; Deny = $false }
     @{ Mailbox = 'bob'; User = 'carol@contoso.com'; Inherited = $false; Deny = $true }
 )
 $script:SendAs = @(
@@ -65,6 +70,7 @@ $script:SendAs = @(
 )
 $script:Contacts = @(
     [pscustomobject]@{ Name = 'Dave Private'; Alias = 'dave-private'; DisplayName = 'Dave Private'; Identity = 'Dave Private'; PrimarySmtpAddress = 'dave@example.com'; RecipientTypeDetails = 'MailContact'; ExternalDirectoryObjectId = '00000000-0000-0000-0000-000000000030'; DistinguishedName = 'CN=Dave Private' }
+    [pscustomobject]@{ Name = 'Finance Staff'; Alias = 'finance-staff'; DisplayName = 'Finance Staff'; Identity = 'Finance Staff'; PrimarySmtpAddress = 'finance-staff@contoso.com'; RecipientTypeDetails = 'MailUniversalSecurityGroup'; ExternalDirectoryObjectId = '00000000-0000-0000-0000-000000000035'; DistinguishedName = 'CN=Finance Staff' }
 )
 
 function Assert-FakeConnected {
@@ -150,7 +156,7 @@ function Get-EXORecipient {
     process {
         Assert-FakeConnected
         if (-not (Assert-FakeIdentity $Identity)) { return }
-        $contact = @($script:Contacts | Where-Object { $_.Name -eq $Identity -or $_.PrimarySmtpAddress -eq $Identity })
+        $contact = @($script:Contacts | Where-Object { $_.Name -eq $Identity -or $_.PrimarySmtpAddress -eq $Identity -or $_.ExternalDirectoryObjectId -eq $Identity })
         if ($contact.Count -gt 0) { return $contact[0] }
         Find-FakeMailbox -Identity $Identity
     }
@@ -161,6 +167,10 @@ function Get-EXOMailboxPermission {
     param([Parameter(ValueFromPipeline)] [string] $Identity, [string] $User, [object] $ResultSize = 1000)
     process {
         Assert-FakeConnected
+        # The real cmdlet refuses to run without an identity, whatever its documented default parameter set says.
+        if (-not $Identity) {
+            throw 'Identity is a mandatory value to provide for running Get-ExoMailboxPermission. You can specify identity by using any one of the three available parameters: Identity, ExternalDirectoryObjectId, UserPrincipalName.'
+        }
         if (-not (Assert-FakeIdentity $Identity)) { return }
         $mailbox = Find-FakeMailbox -Identity $Identity
         if (-not $mailbox) { return }
@@ -221,6 +231,30 @@ function Get-EXOMailboxStatistics {
             DeletedItemCount = 3
             TotalDeletedItemSize = '1.5 KB (1,536 bytes)'
         }
+    }
+}
+
+function Get-EXOMailboxFolderStatistics {
+    # The calendar folders of a mailbox: the default one (FolderType Calendar) is named in the mailbox's language, so
+    # Reception's is 'Kalender' (task 042); Finance also has a calendar of its own under the default one.
+    [CmdletBinding()]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = 'the real cmdlet''s name')]
+    param([Parameter(ValueFromPipeline)] [string] $Identity, [string] $FolderScope, [string[]] $Properties)
+    process {
+        Assert-FakeConnected
+        if (-not (Assert-FakeIdentity $Identity)) { return }
+        $mailbox = Find-FakeMailbox -Identity $Identity
+        if (-not $mailbox) { return }
+        $calendar = if ($mailbox.Name -eq 'reception') { 'Kalender' } else { 'Calendar' }
+        $folders = @(
+            [pscustomobject]@{ Name = 'Inbox'; FolderPath = '/Inbox'; FolderType = 'Inbox' }
+            [pscustomobject]@{ Name = $calendar; FolderPath = "/$calendar"; FolderType = 'Calendar' }
+        )
+        if ($mailbox.Name -eq 'finance') {
+            $folders += [pscustomobject]@{ Name = 'Holidays'; FolderPath = '/Calendar/Holidays'; FolderType = 'User Created' }
+        }
+        if ($FolderScope -eq 'Calendar') { $folders = @($folders | Where-Object { $_.FolderType -ne 'Inbox' }) }
+        $folders
     }
 }
 

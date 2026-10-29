@@ -1,0 +1,25 @@
+{
+  "@odata.context": "https://outlook.office365.com/adminapi/v2.0/00000000-0000-0000-0000-0000000000a0/$metadata#Mailbox",
+  "@adminapi.warnings": [],
+  "value": [
+    {
+      "Identity": "alice",
+      "Identity@odata.type": "#String",
+      "Id": "alice",
+      "Name": "alice",
+      "DisplayName": "Alice Example",
+      "UserPrincipalName": "alice@contoso.com",
+      "Alias": "alice",
+      "ExternalDirectoryObjectId": "00000000-0000-0000-0000-000000000011",
+      "RecipientType": "UserMailbox",
+      "RecipientTypeDetails": "UserMailbox",
+      "EmailAddresses": [
+        "SMTP:alice@contoso.com"
+      ],
+      "PrimarySmtpAddress": "alice@contoso.com",
+      "MaxSendSize": "35 MB (36,700,160 bytes)",
+      "HiddenFromAddressListsEnabled": false,
+      "GrantSendOnBehalfTo": []
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "@odata.context": "https://outlook.office365.com/adminapi/v2.0/00000000-0000-0000-0000-0000000000a0/$metadata#Mailbox",
+  "@adminapi.warnings": [],
+  "value": [
+    {
+      "Identity": "reception",
+      "Identity@odata.type": "#String",
+      "Id": "reception",
+      "Name": "reception",
+      "DisplayName": "Reception",
+      "UserPrincipalName": "reception@contoso.com",
+      "Alias": "reception",
+      "ExternalDirectoryObjectId": "00000000-0000-0000-0000-000000000016",
+      "RecipientType": "UserMailbox",
+      "RecipientTypeDetails": "SharedMailbox",
+      "EmailAddresses": [
+        "SMTP:reception@contoso.com"
+      ],
+      "PrimarySmtpAddress": "reception@contoso.com",
+      "MaxSendSize": "35 MB (36,700,160 bytes)",
+      "HiddenFromAddressListsEnabled": false,
+      "GrantSendOnBehalfTo": []
+    }
+  ]
+}

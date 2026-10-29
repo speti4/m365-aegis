@@ -1,0 +1,19 @@
+{
+  "@odata.context": "https://outlook.office365.com/adminapi/v2.0/00000000-0000-0000-0000-0000000000a0/$metadata#DistributionGroupMember",
+  "@adminapi.warnings": [],
+  "value": [
+    {
+      "Identity": "alice",
+      "Alias": "alice",
+      "Name": "Alice Example",
+      "DisplayName": "Alice Example",
+      "PrimarySmtpAddress": "alice@contoso.com",
+      "EmailAddresses": [
+        "SMTP:alice@contoso.com"
+      ],
+      "RecipientType": "UserMailbox",
+      "RecipientTypeDetails": "UserMailbox",
+      "HiddenFromAddressListsEnabled": true
+    }
+  ]
+}

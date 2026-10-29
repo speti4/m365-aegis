@@ -1,0 +1,83 @@
+{
+  "@odata.context": "https://outlook.office365.com/adminapi/v2.0/00000000-0000-0000-0000-0000000000a0/$metadata#Mailbox",
+  "@adminapi.warnings": [],
+  "@odata.nextLink": "https://outlook.office365.com/adminapi/v2.0/00000000-0000-0000-0000-0000000000a0/Mailbox?$skiptoken=page-2",
+  "value": [
+    {
+      "Identity": "alice",
+      "Identity@odata.type": "#String",
+      "Id": "alice",
+      "Name": "alice",
+      "DisplayName": "Alice Example",
+      "UserPrincipalName": "alice@contoso.com",
+      "Alias": "alice",
+      "ExternalDirectoryObjectId": "00000000-0000-0000-0000-000000000011",
+      "RecipientType": "UserMailbox",
+      "RecipientTypeDetails": "UserMailbox",
+      "EmailAddresses": [
+        "SMTP:alice@contoso.com"
+      ],
+      "PrimarySmtpAddress": "alice@contoso.com",
+      "MaxSendSize": "35 MB (36,700,160 bytes)",
+      "HiddenFromAddressListsEnabled": false,
+      "GrantSendOnBehalfTo": []
+    },
+    {
+      "Identity": "bob",
+      "Identity@odata.type": "#String",
+      "Id": "bob",
+      "Name": "bob",
+      "DisplayName": "Bob Example",
+      "UserPrincipalName": "bob@contoso.com",
+      "Alias": "bob",
+      "ExternalDirectoryObjectId": "00000000-0000-0000-0000-000000000012",
+      "RecipientType": "UserMailbox",
+      "RecipientTypeDetails": "UserMailbox",
+      "EmailAddresses": [
+        "SMTP:bob@contoso.com"
+      ],
+      "PrimarySmtpAddress": "bob@contoso.com",
+      "MaxSendSize": "35 MB (36,700,160 bytes)",
+      "HiddenFromAddressListsEnabled": false,
+      "GrantSendOnBehalfTo": []
+    },
+    {
+      "Identity": "carol",
+      "Identity@odata.type": "#String",
+      "Id": "carol",
+      "Name": "carol",
+      "DisplayName": "Carol Example",
+      "UserPrincipalName": "carol@contoso.com",
+      "Alias": "carol",
+      "ExternalDirectoryObjectId": "00000000-0000-0000-0000-000000000013",
+      "RecipientType": "UserMailbox",
+      "RecipientTypeDetails": "UserMailbox",
+      "EmailAddresses": [
+        "SMTP:carol@contoso.com"
+      ],
+      "PrimarySmtpAddress": "carol@contoso.com",
+      "MaxSendSize": "35 MB (36,700,160 bytes)",
+      "HiddenFromAddressListsEnabled": false,
+      "GrantSendOnBehalfTo": []
+    },
+    {
+      "Identity": "dave",
+      "Identity@odata.type": "#String",
+      "Id": "dave",
+      "Name": "dave",
+      "DisplayName": "Dave Example",
+      "UserPrincipalName": "dave@contoso.com",
+      "Alias": "dave",
+      "ExternalDirectoryObjectId": "00000000-0000-0000-0000-000000000014",
+      "RecipientType": "UserMailbox",
+      "RecipientTypeDetails": "UserMailbox",
+      "EmailAddresses": [
+        "SMTP:dave@contoso.com"
+      ],
+      "PrimarySmtpAddress": "dave@contoso.com",
+      "MaxSendSize": "35 MB (36,700,160 bytes)",
+      "HiddenFromAddressListsEnabled": false,
+      "GrantSendOnBehalfTo": []
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+﻿--- stdout ---
+right       holder                 address                 through
+----------  ---------------------  ----------------------  --------------------------
+FullAccess  alice@contoso.com      alice@contoso.com       -
+FullAccess  bob@contoso.com        bob@contoso.com         -
+FullAccess  Finance Staff (group)  -                       -
+FullAccess    Carol Example        carol@contoso.com       Finance Staff
+FullAccess    Dave Example         dave@contoso.com        Finance Staff > Finance EU
+FullAccess    FIN-KIOSK-01         -                       Finance Staff > Finance EU
+FullAccess    Finance EU           finance-eu@contoso.com  Finance Staff
+Send As     bob@contoso.com        bob@contoso.com         -
+
+4 grant(s) on Reception <reception@contoso.com> (SharedMailbox); 1 held by a group, expanded into 4 member(s) over every nesting level
+--- stderr ---
+--- stdout ---
+mailbox    address                type           right       through
+---------  ---------------------  -------------  ----------  -------------
+Reception  reception@contoso.com  SharedMailbox  FullAccess  Finance Staff
+
+1 grant(s) for dave@contoso.com (Dave Example) over 6 mailbox(es), 1 of them through one of the user's 3 group(s)
+--- stderr ---
+--- stdout ---
+mailbox        address              type           size      items  deleted
+-------------  -------------------  -------------  --------  -----  -------
+Finance        finance@contoso.com  SharedMailbox  3.0 GB    40900  1.5 KB
+Alice Example  alice@contoso.com    UserMailbox    1.2 GB    5100   1.5 KB
+Bob Example    bob@contoso.com      UserMailbox    499.7 MB  2040   1.5 KB
+Carol Example  carol@contoso.com    UserMailbox    9.9 MB    298    1.5 KB
+Dave Example   dave@contoso.com     UserMailbox    0 B       0      1.5 KB
+
+5 of 6 mailbox(es), 4.7 GB in all
+sizes from the mailbox usage report of 2026-10-28; 1 mailbox(es) not in the report yet
+--- stderr ---
+--- stdout ---
+user           access rights     sharing flags
+-------------  ----------------  -----------------------------
+Default        AvailabilityOnly  -
+Anonymous      None              -
+Alice Example  Editor            Delegate, CanViewPrivateItems
+
+3 entr(ies) on the folder Calendar of finance; Default is everyone in the organization, Anonymous everyone outside it
+--- stderr ---
+--- stdout ---
+name           address                   type         hidden
+-------------  ------------------------  -----------  ------
+Alice Example  alice@contoso.com         UserMailbox  yes
+Bob Example    bob@contoso.com           UserMailbox  no
+Dave Private   dave-private@example.com  MailContact  no
+
+3 direct member(s) of sales, 1 of them hidden from the address lists
+--- stderr ---
+--- stdout ---
+setting                            value
+---------------------------------  ---------------------------------------
+name                               contoso.onmicrosoft.com
+MailTips                           on
+MailTip for external recipients    off
+MailTip for a large audience from  25
+accepted domain                    contoso.com (Authoritative, default)
+accepted domain                    contoso.onmicrosoft.com (Authoritative)
+
+2 accepted domain(s)
+--- stderr ---

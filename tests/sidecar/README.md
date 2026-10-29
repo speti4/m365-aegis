@@ -10,9 +10,9 @@ machine's real module; nothing reaches a tenant (docs/development.md, "The Excha
 `contoso.onmicrosoft.com`: `Connect-ExchangeOnline` (any token for that organization, with `-Organization` or `-UserPrincipalName`;
 `fabrikam.onmicrosoft.com` is refused, `expired-token` is a 401, `refuse.contoso.onmicrosoft.com` refuses with the
 token in its message, which the script must scrub), `Disconnect-ExchangeOnline` (the connect writes the variant it got, `-SkipLoadingFormatData` and `-CommandName`, to
-the console, which is the sidecar's stderr), and the six cmdlets of the
+the console, which is the sidecar's stderr), and the seven cmdlets of the
 allow-list: `Get-EXOMailbox`, `Get-EXOMailboxPermission`, `Get-EXORecipientPermission`, `Get-EXOMailboxStatistics`,
-`Get-EXORecipient` and `Get-AcceptedDomain` (`contoso.com`, `contoso.onmicrosoft.com`). The permission cmdlets accept
+`Get-EXORecipient`, `Get-AcceptedDomain` (`contoso.com`, `contoso.onmicrosoft.com`) and `Get-EXOMailboxFolderStatistics`. The permission cmdlets accept
 piped identities, as the real ones do.
 
 | mailbox | type | object id | forwarding | rights on it | size |
@@ -22,9 +22,12 @@ piped identities, as the real ones do.
 | carol@contoso.com | UserMailbox | `…013` | the Finance mailbox (internal) | | 10 MB |
 | dave@contoso.com | UserMailbox | `…014` | the mail contact "Dave Private", `dave@example.com` (external) | | empty |
 | finance@contoso.com | SharedMailbox | `…015` | none | FullAccess alice, Send As alice, Send on Behalf "Bob Example" | 3 GB |
-| reception@contoso.com | SharedMailbox | `…016` | none | FullAccess alice and bob, Send As bob | 100 MB |
+| reception@contoso.com | SharedMailbox | `…016` | none | FullAccess alice, bob and the group Finance Staff, Send As bob | 100 MB |
 
-The ids are `00000000-0000-0000-0000-0000000000NN` (the `ExchangeGuid` of each mailbox is `…04N`); every list
+`Get-EXORecipient` also knows the mail-enabled security group Finance Staff (`finance-staff@contoso.com`, object id
+`…035`, whose members the Graph fixtures hold; task 044), and `Get-EXOMailboxPermission` without an identity
+refuses to run, as the real one does (task 043). `Get-EXOMailboxFolderStatistics -FolderScope Calendar` names each
+mailbox's calendar folders: the default one is `Calendar`, but Reception's is the localized `Kalender` (task 042). The ids are `00000000-0000-0000-0000-0000000000NN` (the `ExchangeGuid` of each mailbox is `…04N`); every list
 also carries the `NT AUTHORITY\…` and inherited entries the real service returns, which the lookups leave out.
 Three identities fail on purpose: `broken` (a terminating error, exit code 13), `nobody` (not found, a
 non-terminating error, exit code 4) and `busy` (throttled, exit code 5). `scripts/check-fixtures.py` holds this

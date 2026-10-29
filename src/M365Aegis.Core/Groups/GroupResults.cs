@@ -45,13 +45,33 @@ public sealed record GroupInfo(string Id, string DisplayName, GroupKind Kind, st
 /// In a transitive list (<c>group members --transitive</c>), true for a member through a nested group and false for a
 /// direct one; null in a direct list.
 /// </param>
-public sealed record GroupMember(string Type, string? DisplayName, string? UserPrincipalName, string? Mail, string Id, bool? Nested = null);
+public sealed record GroupMember(string Type, string? DisplayName, string? UserPrincipalName, string? Mail, string Id, bool? Nested = null)
+{
+    /// <summary>
+    /// In a transitive list asked for with the via groups (<c>group members --via</c>, task 041): for a nested member,
+    /// the direct member group (or groups) of the listed group it is reached through, by name; null otherwise.
+    /// </summary>
+    public IReadOnlyList<MemberGroup>? Via { get; init; }
+}
+
+/// <summary>A group a nested member is reached through.</summary>
+/// <param name="Id">The group's object id.</param>
+/// <param name="DisplayName">The group's display name, or its id when Graph gave none.</param>
+public sealed record MemberGroup(string Id, string DisplayName);
 
 /// <summary>The result of <c>group members</c>.</summary>
 /// <param name="Group">The group the name resolved to.</param>
 /// <param name="Members">The members, by name: the direct ones, or with <paramref name="Transitive"/> every member of the nested groups too.</param>
 /// <param name="Transitive">Whether the list is transitive (<c>--transitive</c>), each member marked direct or nested.</param>
-public sealed record GroupMembers(GroupInfo Group, IReadOnlyList<GroupMember> Members, bool Transitive = false);
+public sealed record GroupMembers(GroupInfo Group, IReadOnlyList<GroupMember> Members, bool Transitive = false)
+{
+    /// <summary>
+    /// Whether each nested member names the direct member group it came through (<see cref="GroupMember.Via"/>,
+    /// <c>--via</c>, task 041): one <c>members</c> request per group of the transitive list, batched. True when asked
+    /// for, null otherwise, so the envelope of a list without it is unchanged.
+    /// </summary>
+    public bool? Via { get; init; }
+}
 
 /// <summary>The result of <c>group owners</c>.</summary>
 /// <param name="Group">The group the name resolved to.</param>
@@ -151,4 +171,23 @@ internal sealed record GraphSite : GraphObject
     public string? WebUrl { get; init; }
 
     public DateTimeOffset? LastModifiedDateTime { get; init; }
+}
+
+/// <summary>A group a user is a member of, with the names a mailbox permission entry may use for it (task 044).</summary>
+/// <param name="Id">The group's object id.</param>
+/// <param name="DisplayName">The display name.</param>
+/// <param name="Mail">The primary address, or null.</param>
+/// <param name="MailNickname">The alias, or null.</param>
+internal sealed record UserGroup(string Id, string DisplayName, string? Mail, string? MailNickname);
+
+/// <summary>A group as <c>transitiveMemberOf</c> returns it to the lookup's <c>$select</c>.</summary>
+internal sealed record GraphUserGroup : GraphObject
+{
+    public string Id { get; init; } = "";
+
+    public string? DisplayName { get; init; }
+
+    public string? Mail { get; init; }
+
+    public string? MailNickname { get; init; }
 }

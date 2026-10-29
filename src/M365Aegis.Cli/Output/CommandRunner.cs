@@ -41,6 +41,13 @@ internal static class CommandRunner
     internal static Task<int> RunAsync<T>(OutputMode mode, string backend, Func<RequestLog, Task<CommandResult<T>>> work, ITableView<T> view) =>
         RunAsync(mode, backend, work, view, Console.Out, Console.Error, LogInternalError);
 
+    /// <summary>
+    /// The form for the work whose backend is known only after it ran: a mailbox command that reads through several
+    /// layers names each one it used (<c>admin-api+pwsh</c>, task 042), read when the meta is built.
+    /// </summary>
+    internal static Task<int> RunAsync<T>(OutputMode mode, Func<string> backend, Func<RequestLog, Task<CommandResult<T>>> work, ITableView<T> view) =>
+        RunAsync(mode, backend, work, view, Console.Out, Console.Error, LogInternalError);
+
     /// <summary>The runner with its writers and its internal-error log given (the tests render in process).</summary>
     /// <param name="mode">The rendering the caller asked for.</param>
     /// <param name="backend">Which backend answers, for the envelope's meta.</param>
@@ -70,15 +77,34 @@ internal static class CommandRunner
     /// <param name="output">Standard output.</param>
     /// <param name="error">Standard error.</param>
     /// <param name="logInternalError">Writes an unexpected exception to the log and returns the file, or null when it could not.</param>
-    internal static async Task<int> RunAsync<T>(
+    internal static Task<int> RunAsync<T>(
         OutputMode mode,
         string backend,
         Func<RequestLog, Task<CommandResult<T>>> work,
         ITableView<T> view,
         TextWriter output,
         TextWriter error,
+        Func<Exception, string?> logInternalError) =>
+        RunAsync(mode, () => backend, work, view, output, error, logInternalError);
+
+    /// <summary>The runner with the backend read after the work, the request log, its writers and its internal-error log given.</summary>
+    /// <param name="mode">The rendering the caller asked for.</param>
+    /// <param name="backend">Which backend answered, read once the work has finished.</param>
+    /// <param name="work">The command's work, given the request log the envelope's meta reads.</param>
+    /// <param name="view">The table view of the result type.</param>
+    /// <param name="output">Standard output.</param>
+    /// <param name="error">Standard error.</param>
+    /// <param name="logInternalError">Writes an unexpected exception to the log and returns the file, or null when it could not.</param>
+    internal static async Task<int> RunAsync<T>(
+        OutputMode mode,
+        Func<string> backend,
+        Func<RequestLog, Task<CommandResult<T>>> work,
+        ITableView<T> view,
+        TextWriter output,
+        TextWriter error,
         Func<Exception, string?> logInternalError)
     {
+        ArgumentNullException.ThrowIfNull(backend);
         ArgumentNullException.ThrowIfNull(work);
         ArgumentNullException.ThrowIfNull(logInternalError);
 
@@ -105,7 +131,7 @@ internal static class CommandRunner
         }
 
         stopwatch.Stop();
-        var meta = new EnvelopeMeta(requestLog.Ids, stopwatch.ElapsedMilliseconds, backend);
+        var meta = new EnvelopeMeta(requestLog.Ids, stopwatch.ElapsedMilliseconds, backend());
         return (int)Renderer.Render(result, meta, view, mode, output, error);
     }
 

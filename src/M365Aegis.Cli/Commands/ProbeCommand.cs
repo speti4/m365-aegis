@@ -41,14 +41,21 @@ internal static class ProbeCommand
                 ConnectProbeTableView.Instance);
         });
 
+        Option<string?> probeMailbox = new("--mailbox") { Description = "Also read this mailbox's Send on Behalf delegates by name and its folder's permissions (task 042)." };
+        Option<string?> probeFolder = new("--folder") { Description = "The folder of --mailbox, as the mailbox's language names it (Calendar by default)." };
+        Option<string?> probeGroup = new("--group") { Description = "Also read the first members of this distribution group (task 042)." };
         Command adminApi = new("admin-api", "Call the Exchange Online Admin API v2.0 (OrganizationConfig, one page of Mailbox) with the broker's token; print the statuses and the shapes.");
+        adminApi.Options.Add(probeMailbox);
+        adminApi.Options.Add(probeFolder);
+        adminApi.Options.Add(probeGroup);
         adminApi.SetAction((parsed, cancellationToken) => CommandRunner.RunAsync(
             Program.ResolveMode(parsed, json, table),
             Backend.AdminApi,
             async () =>
             {
                 TokenResult token = await AuthService.Create().GetTokenAsync(Resource.Exchange, parsed.GetValue(profile), cancellationToken).ConfigureAwait(false);
-                AdminApiProbeReport report = await ExchangeProbes.AdminApiAsync(Http, ExchangeConnection.ToExchangeToken(token), cancellationToken).ConfigureAwait(false);
+                var targets = new AdminApiProbeTargets(parsed.GetValue(probeMailbox), parsed.GetValue(probeFolder), parsed.GetValue(probeGroup));
+                AdminApiProbeReport report = await ExchangeProbes.AdminApiAsync(Http, ExchangeConnection.ToExchangeToken(token), targets, cancellationToken).ConfigureAwait(false);
                 return CommandResult.Success(report);
             },
             AdminApiProbeTableView.Instance));

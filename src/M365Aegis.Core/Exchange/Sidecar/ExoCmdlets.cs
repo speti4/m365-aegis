@@ -28,9 +28,15 @@ public static class ExoCmdlets
     /// <summary>The organization's accepted domains, which tell an external forwarding address.</summary>
     public const string GetAcceptedDomain = "Get-AcceptedDomain";
 
+    /// <summary>
+    /// A mailbox's folders of one kind: the default calendar's name in the mailbox's own language (task 042), which
+    /// <c>Get-MailboxFolderPermission</c> needs in its folder path.
+    /// </summary>
+    public const string GetMailboxFolderStatistics = "Get-EXOMailboxFolderStatistics";
+
     /// <summary>Every allowed cmdlet, in the order the script lists them.</summary>
     public static IReadOnlyList<string> Allowed { get; } =
-        [GetMailbox, GetMailboxPermission, GetRecipientPermission, GetMailboxStatistics, GetRecipient, GetAcceptedDomain];
+        [GetMailbox, GetMailboxPermission, GetRecipientPermission, GetMailboxStatistics, GetRecipient, GetAcceptedDomain, GetMailboxFolderStatistics];
 
     /// <summary>Whether the cmdlet is on the list (PowerShell names compare without case).</summary>
     public static bool IsAllowed(string? cmdlet) =>

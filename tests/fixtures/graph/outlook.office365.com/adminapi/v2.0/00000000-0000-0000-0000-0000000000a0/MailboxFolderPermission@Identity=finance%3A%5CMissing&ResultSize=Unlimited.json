@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "BadRequest",
+    "message": "The operation couldn't be performed because 'finance:\\Missing' couldn't be found."
+  }
+}

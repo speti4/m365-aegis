@@ -1,5 +1,9 @@
 using System.CommandLine;
+using M365Aegis.Core.Auth;
+using M365Aegis.Core.Exchange;
+using M365Aegis.Core.Exchange.AdminApi;
 using M365Aegis.Core.Exchange.Sidecar;
+using M365Aegis.Core.Graph;
 using M365Aegis.Core.Output;
 
 namespace M365Aegis.Cli.Output;
@@ -33,6 +37,43 @@ internal static class ExchangeRunner
             {
                 await using ExchangeSession session = ExchangeConnection.Create(parsed.GetValue(profile), requestLog);
                 return await work(session, cancellationToken).ConfigureAwait(false);
+            },
+            view);
+    }
+
+    /// <summary>
+    /// Runs a mailbox command that reads through several layers (task 042): its <see cref="ExchangeBackends"/> are the
+    /// sidecar, the Admin API (null in the sidecar-only offline tests), Graph and more sidecars on demand, all over one
+    /// sign-in of the profile (the fixtures when <c>M365AEGIS_GRAPH_FIXTURES</c> is set); the envelope's backend names
+    /// the layers the command used (<c>admin-api+pwsh</c>).
+    /// </summary>
+    internal static Task<int> RunAsync<T>(
+        ParseResult parsed,
+        Option<bool> json,
+        Option<bool> table,
+        Option<string?> profile,
+        Func<ExchangeBackends, CancellationToken, Task<CommandResult<T>>> work,
+        ITableView<T> view,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(parsed);
+        ArgumentNullException.ThrowIfNull(work);
+        ExchangeBackends? used = null;
+        return CommandRunner.RunAsync(
+            Program.ResolveMode(parsed, json, table),
+            () => used?.Backend ?? Backend.Pwsh,
+            async requestLog =>
+            {
+                string? name = parsed.GetValue(profile);
+                var auth = new Lazy<AuthService>(AuthService.Create);
+                await using ExchangeSession session = ExchangeConnection.Create(name, requestLog, () => auth.Value);
+                await using var backends = new ExchangeBackends(
+                    session,
+                    AdminApiConnection.Create(name, requestLog, () => auth.Value),
+                    () => GraphConnection.Create(name, requestLog, () => auth.Value),
+                    () => ExchangeConnection.Create(name, requestLog, () => auth.Value));
+                used = backends;
+                return await work(backends, cancellationToken).ConfigureAwait(false);
             },
             view);
     }

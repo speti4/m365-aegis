@@ -188,7 +188,13 @@ with its table view in the Cli (task 005, task 007):
   (task 033) reads `/groups/{id}/transitiveMembers`, the flat list of every member of the nested groups too; it
   does not say through which group a member came, so the direct list is asked for beside it and the row's
   membership column says `direct` or `nested` (the envelope's `nested` field), next to the member's type (`user`,
-  `group`, `device`, `servicePrincipal`, `orgContact`).
+  `group`, `device`, `servicePrincipal`, `orgContact`). `group members --via` (task 041, implies `--transitive`)
+  names on each nested member the direct member group (or groups) it is reached through (the envelope's `via`, a
+  list of `{id, displayName}`, and a `via` column): the direct members of every group of the transitive list are
+  read with one `members` request per group, twenty to a `$batch` call (one more request whatever the nesting up to
+  twenty groups), and followed down from each direct member group, a group met twice followed once. A batch item
+  with more than a page reads the rest from its next link. The plain transitive list stays the two lists beside
+  the resolution, and its envelope is unchanged (`via` is left out).
 - `group owners-missing [--all-types]`: advanced queries on `owners/$count eq 0`, never a request per group.
   Graph keeps no owners for distribution, mail-enabled security and synced groups, so by default only the two
   kinds it keeps them for are asked for, side by side (task 032): the Microsoft 365 groups
@@ -205,6 +211,10 @@ with its table view in the Cli (task 005, task 007):
   took two pages), against 7.9 s for the one wide query of task 005, the rest being the process start and the
   token. `call GET "<path>" --advanced` sends the same `ConsistencyLevel: eventual` for a raw
   advanced query.
+- The mailbox lookups are listed with [the sidecar](#the-exchange-online-sidecar), which runs most of them:
+  `mailbox access … --expand-groups` (task 044) reads a group holder's members and a user's groups through the
+  group lookups above, batched; `mailbox access --user` splits its bulk read across sidecars and `mailbox size`
+  reads Graph's mailbox usage report by default (task 043), `--method` picks another way.
 - `team list` (`Groups/WorkspaceLookups.cs`): `GET /teams`, which fills the id, the name, the description and the
   visibility only. `site list [--search <words>]`: `GET /sites?search=` (`*` for every site the account can see).
 - `trace --sender <address> | --recipient <address> [--days N] [--until <time>]` (`Exchange/MessageTraceLookup.cs`):
@@ -246,8 +256,8 @@ with its table view in the Cli (task 005, task 007):
 
 Exchange Online is reached in three layers behind one interface (D-004): Graph where the feature exists (message
 trace, the usage report, mailbox settings), the Exchange Online Admin API where its six preview endpoints
-reach, and otherwise a long-lived `pwsh` child process running `aegis-exo-sidecar.ps1` with the
-`ExchangeOnlineManagement` module (tasks 015 and 016). The doctor checks pwsh 7.6, the module version and the
+reach (task 042, "The Admin API backend" below), and otherwise a long-lived `pwsh` child process running
+`aegis-exo-sidecar.ps1` with the `ExchangeOnlineManagement` module (tasks 015 and 016). The doctor checks pwsh 7.6, the module version and the
 script's hash: the script is also embedded in the Core (`Exchange/SidecarScript.cs`), and the copy next to the exe
 has to have the same SHA-256, since it runs with the administrator's Exchange Online token (see
 [The doctor](#the-doctor)); the session refuses to start a copy the doctor would fail.
@@ -269,8 +279,8 @@ returned none is an error reply. An error reply carries `code`, `message`, and P
 the script replaces every token it was handed, and anything shaped like a JWT, in all of them.
 
 **The allow-list.** `Exchange/Sidecar/ExoCmdlets.cs` is the one place a cmdlet is admitted: `Get-EXOMailbox`,
-`Get-EXOMailboxPermission`, `Get-EXORecipientPermission`, `Get-EXOMailboxStatistics`, `Get-EXORecipient` and
-`Get-AcceptedDomain`, exactly the cmdlets the lookups use. The session refuses any other name before anything is
+`Get-EXOMailboxPermission`, `Get-EXORecipientPermission`, `Get-EXOMailboxStatistics`, `Get-EXORecipient`,
+`Get-AcceptedDomain` and `Get-EXOMailboxFolderStatistics` (task 042), exactly the cmdlets the lookups use. The session refuses any other name before anything is
 sent (exit code 12); the script carries the same list as its own guard (`$script:AllowedCmdlets`), a Core test
 holds the two equal, and the session also compares the list the script reports in `hello`. A cmdlet joins the list
 with the lookup that needs it.
@@ -313,27 +323,98 @@ saves:
 - `mailbox list [--shared]`: `Get-EXOMailbox -ResultSize Unlimited` (`-RecipientTypeDetails SharedMailbox`), by
   display name.
 - `mailbox access <mailbox>`: FullAccess (`Get-EXOMailboxPermission`), Send As (`Get-EXORecipientPermission
-  -AccessRights SendAs`) and Send on Behalf (the mailbox's `GrantSendOnBehalfTo`, resolved to addresses with one
-  piped `Get-EXORecipient`); the direct, allowed grants only, without `NT AUTHORITY\…` entries. A grant to a group
-  is listed as the group; its members are not expanded.
+  -AccessRights SendAs`) and Send on Behalf; the direct, allowed grants only, without `NT AUTHORITY\…` entries.
+  The mailbox and its Send on Behalf delegates with their display names come from the Admin API (`Get-Mailbox
+  -IncludeGrantSendOnBehalfToWithDisplayNames`, asked for again without the parameter, which is in staged rollout,
+  when the service refuses it) while the sidecar reads the two rights, side by side; when the Admin API cannot
+  answer (a refused permission, not enabled; a missing mailbox is exit code 4 as it is) or the run has none, the
+  sidecar reads the mailbox too and resolves the delegates' names with one piped `Get-EXORecipient` (task 016). A
+  grant to a group is listed as the group; `--expand-groups` (task 044) resolves the holders with one piped
+  `Get-EXORecipient`, and a group among them (a recipient type with `Group` in it) lists its members over every
+  nesting level from Graph, each marked direct or nested with the group it comes through (task 041): two rounds of
+  `$batch` whatever the number of groups, the direct and the transitive members of every group, then the direct
+  members of the groups nested in them. The table puts a group's members under its row with a `through` column; a
+  dynamic distribution group, which Graph does not hold, is marked and not expanded. Measured on 2026-10-29 at
+  5.5 s for a shared mailbox, sidecar only.
 - `mailbox access --user <upn>`: the reverse lookup in four bulk calls whatever the tenant's size: the user as a
   recipient (the names Exchange may use for it in a permission entry), every mailbox with its Send on Behalf list,
   the FullAccess entries of every mailbox (the mailboxes' object ids piped into `Get-EXOMailboxPermission`), and
   the organization's Send As entries. A mailbox whose permissions could not be read makes the answer partial (exit
   code 6). The throttling budget is the module's: the `Get-EXO*` cmdlets back off and retry a throttled request
   themselves, and a request that still fails is exit code 5. The module sends one request per piped mailbox, about
-  0.2 s each: over 620 mailboxes the lookup took 138 s, unthrottled (task 016, measured 2026-10-29).
+  0.2 s each: over 620 mailboxes the lookup took 138 s, unthrottled (task 016, measured 2026-10-29). So the
+  FullAccess entries are read in parallel by default (task 043): the piped mailboxes split into `--sidecars N`
+  shares, 2 to 8, 4 by default, each on its own sidecar connected with the same token at once. Measured 2026-10-30
+  over 620 mailboxes for an account with 8 grants: piped 122 s, 4 sidecars 41 s, 8 sidecars 37 s, so the floor is
+  the service's time per mailbox, about 0.2 s, spread over the sidecars, and 8 buy almost nothing over 4.
+  `--method piped` keeps the one sidecar. `Get-EXOMailboxPermission` without an identity, the cmdlet's documented
+  default parameter set, would be one listing call, but the module refuses it ("Identity is a mandatory value",
+  exit code 13 in 6 s), so it is not offered. With
+  `--expand-groups` (task 044) the grants the user holds through a group count too: the user's groups at every
+  nesting level from Graph (`/users/{upn}/transitiveMemberOf/microsoft.graph.group`, an advanced query, beside the
+  sidecar's reads), matched against the entries' holders by display name, address, alias or object id, and a
+  holder no name matched, and no mailbox is, resolved with one piped `Get-EXORecipient` to its object id; such a
+  grant names the group (`via`), and the user's group count is in the envelope (`groups`).
 - `mailbox forwarders`: every mailbox with `ForwardingSmtpAddress` or `ForwardingAddress` set, whether it keeps a
   copy (`DeliverToMailboxAndForward`), and whether the target is outside the accepted domains (`Get-AcceptedDomain`;
   a `ForwardingAddress` is a recipient, resolved to its address with one piped `Get-EXORecipient`), the external
   ones first.
-- `mailbox size [<mailbox>] [--top N]`: `Get-EXOMailboxStatistics` for one mailbox or every mailbox (piped), the
-  largest first; the size is read from the service's text (`1.2 GB (1,288,490,188 bytes)`). Every mailbox costs a
-  request, about 0.12 s each (80 s over 620 mailboxes).
+- `mailbox size [<mailbox>] [--top N]`: the largest first. Every mailbox's size comes by default from Graph's
+  mailbox usage report (task 043: `/reports/getMailboxUsageDetail(period='D7')`, a CSV behind a redirect, a few days
+  old, three days on 2026-10-30; `Reports.Read.All` and a reports reader role), joined by user principal name to the
+  Admin API's mailbox list (with `$select` on the fields the table shows; the sidecar's list when the run has none),
+  both read side by side: no sidecar at all. The footer names the report's day and the mailboxes the report has no
+  row for yet; a report row carries the bytes and no `totalItemSize` text, which the table does not show anyway; a
+  report whose names are concealed (the tenant's privacy setting for the reports) cannot be joined and is exit code
+  9 with the setting in the hint, and without the permission it is exit code 8 naming it. One mailbox, and
+  `--method piped`, read the live size: `Get-EXOMailboxStatistics`, the size read from the service's text (`1.2 GB
+  (1,288,490,188 bytes)`), a request per mailbox, about 0.1 s each; `--method parallel` splits the piped mailboxes
+  across `--sidecars N`. Measured 2026-10-30 over 620 mailboxes, `--top 5`: report 16 s, piped 56 s, 4 sidecars
+  35 s, 8 sidecars 37 s.
+- `mailbox folder-permissions <mailbox> [--folder <path>]` (task 042): `Get-MailboxFolderPermission -Identity
+  <mailbox>:\<folder>` through the Admin API. The folder path is the folder's name in the mailbox's own language
+  (`:\Calendar` is not found in a Hungarian mailbox, whose calendar is `Naptár`; measured 2026-10-30), and the cmdlet
+  documents no language-free form, so without `--folder` the sidecar names the default calendar first
+  (`Get-EXOMailboxFolderStatistics -FolderScope Calendar`, the folder whose type is `Calendar`), and the English
+  `Calendar` is tried only when that call cannot answer. A given folder (a nested one as `Inbox/Reports`) is read
+  through the Admin API alone; a folder not found is exit code 4 with the language in the hint.
+- `mailbox group-members <group>` (task 042, the Admin API only): `Get-DistributionGroupMember`, a distribution
+  group's direct members as Exchange keeps them, the hidden ones included, over every page.
+- `mailbox organization` (task 042, the Admin API only): `Get-OrganizationConfig` (the name and the MailTips
+  settings the endpoint documents) and `Get-AcceptedDomain` side by side, the default domain first.
 
 The account needs an Exchange Online role that reads recipients and their permissions (View-Only Organization
 Management or Recipient Management; the Exchange Administrator and Global Administrator roles include them); the
-app registration needs `Exchange.Manage`.
+app registration needs `Exchange.Manage`, and `Exchange.ManageV2` for the Admin API.
+
+**The Admin API backend** (task 042, `Exchange/AdminApi/`). `AdminApiClient` runs a cmdlet behind the sidecar's
+interface (`IExoCmdletRunner`), so a lookup reads either layer's objects the same way: a cmdlet of
+`AdminApiCmdlets` (`Get-Mailbox`, `Get-MailboxFolderPermission`, `Get-DistributionGroupMember`,
+`Get-OrganizationConfig`, `Get-AcceptedDomain`: the reads of the documented endpoints, any other refused before
+anything is sent with exit code 12) becomes `POST https://outlook.office365.com/adminapi/v2.0/<tenant id>/<endpoint>`
+with a `{"CmdletInput":{"CmdletName","Parameters"}}` body, `X-AnchorMailbox: UPN:<the signed-in administrator>` (the
+delegated flow's key for a call, which task 010 proved in the tenant) and the properties to keep as `$select`;
+every page is read by posting the same body to its `@odata.nextLink` (valid 5 to 10 minutes;
+https://learn.microsoft.com/exchange/reference/admin-api-get-started). The token is the broker's for
+`https://outlook.office365.com/.default`, the sidecar's own (`HttpAdminApiTransport` sends it to that host only),
+and the tenant's id comes with it. A 429 or 503 is retried within the Graph client's budget; a failed answer is
+the contract's failure: 401 is 3, 403 is 8, a 404 or a 400 that says the object was not found is 4, throttling 5,
+any other 400 a cmdlet failure (13), a server error or no network 9. The undocumented `adminapi/beta/InvokeCommand`
+endpoint is never called. `ExchangeBackends` gives a mailbox command its three layers over one sign-in (the
+sidecar, the Admin API, Graph, and more sidecars on demand for `--method parallel`), and the envelope's
+`meta.backend` names each layer the command used, in the order first used, joined with `+` (`admin-api+pwsh`,
+`graph+admin-api`); a command that reads the sidecar alone still says `pwsh`. Which read goes through which layer:
+
+| read | layer |
+| --- | --- |
+| `mailbox list`, `mailbox forwarders` | sidecar |
+| `mailbox access <mailbox>`: the mailbox and its Send on Behalf delegates by name | Admin API (the sidecar when it cannot answer) |
+| `mailbox access <mailbox>`: FullAccess, Send As | sidecar |
+| `mailbox access --user`: every mailbox, every FullAccess and Send As entry | sidecar (FullAccess split across 4 by default) |
+| `--expand-groups`: the group holders' members, the user's groups | Graph (the holders resolved by the sidecar) |
+| `mailbox size` | every mailbox: Graph's usage report and the Admin API's mailbox list; one mailbox or `--method piped`/`parallel`: sidecar |
+| `mailbox folder-permissions` | Admin API (without `--folder`, the calendar's name from the sidecar first) |
+| `mailbox group-members`, `mailbox organization` | Admin API |
 
 **Tests and measurements.** `M365AEGIS_EXO_MODULE_ROOT` makes the script look for the module in one folder only,
 which the tests point at the fake module under `tests/sidecar/modules` (its made-up mailboxes are listed in
@@ -349,7 +430,10 @@ first REST cmdlet, with the median and the spread per variant, the versions and 
 path and the Documents folder; `connect` takes `skipLoadingFormatData` and `commandName` set to false for the other
 variants) and `probe admin-api` (task 010). They print timings, permissions, statuses and the shape of an answer,
 never a token, a path or a value, and none of them signs in interactively: the module's own sign-in is never
-used.
+used. `probe admin-api --mailbox <address> [--folder <name>] [--group <address>]` (task 042) also reads that
+mailbox with its delegates by name, that folder's permissions and the group's first members, and prints a list's
+first entry as its pattern (a run of letters an `a`, of digits a `9`: `a a <a@a.a>`), so the form of an entry the
+documentation leaves open shows and its value does not.
 
 ## The front end
 
@@ -709,3 +793,12 @@ bridge contract samples under `tests/contracts/bridge/`, and the fake `ExchangeO
 line in that task's Verification; nothing it printed is committed before it is scrubbed. A Graph fixture's file
 name comes from the hidden `m365-aegis call GET "<path>" --fixture-name`, which computes it as the fixture
 transport does, sends nothing and needs no sign-in (task 036).
+
+The Exchange Online Admin API answers from the same folder (task 042): its host, `outlook.office365.com/adminapi/…`,
+mirrored as a path beside Graph's, for the made-up tenant `00000000-0000-0000-0000-0000000000a0` and the account
+`alice@contoso.com`, so `M365AEGIS_GRAPH_FIXTURES` makes the command line read both. Every Admin API call is a POST
+to the endpoint's one URL, so the cmdlet's parameters name its fixture too, sorted with the query after the `@`
+(`Mailbox@Identity=finance&IncludeGrantSendOnBehalfToWithDisplayNames=true.json`). A Graph `$batch` call without a
+recorded answer of its own is answered item by item from each item's own fixture (task 041), and an answer that is
+not JSON, the usage report's CSV, is a `.csv` file (task 043). With `M365AEGIS_EXO_TEST_ORGANIZATION` alone the
+command line has no Admin API and the mailbox lookups read the fake module only.

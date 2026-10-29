@@ -68,8 +68,7 @@ The tasks that add the fixtures name the files; the layout mirrors the request:
   a managed identity. The IP addresses are from the documentation ranges (`203.0.113.0/24`, `198.51.100.0/24`).
   The Exchange Online connect reads the tenant's initial domain from
   `v1.0/organization@$select=verifiedDomains.json` (task 015).
-- `adminapi/<path>.json` — an Exchange Online Admin API answer in the same shape, once an Admin API backend exists
-  (task 010 probed the API; its test answers with a scripted handler).
+- `graph/outlook.office365.com/adminapi/…` — the Exchange Online Admin API's answers, the next section.
 - The Exchange Online cmdlets have no recorded answers here: the sidecar tests run the real script against the fake
   `ExchangeOnlineManagement` module, whose made-up mailboxes are listed in `tests/sidecar/README.md` (tasks 015 and
   016).
@@ -86,3 +85,24 @@ The tasks that add the fixtures name the files; the layout mirrors the request:
 
 The bridge contract samples the C# and the TypeScript tests share are under `tests/contracts/bridge/`, and the
 fake Exchange Online module the sidecar tests run against is under `tests/sidecar/modules/`.
+
+## The Exchange M2 bundle: the Admin API, the group expansion, the usage report
+
+Tasks 041 to 044. The Exchange Online Admin API answers live under
+`graph/outlook.office365.com/adminapi/v2.0/00000000-0000-0000-0000-0000000000a0/` (the made-up tenant
+`AdminApiConnection.TestTenantId`), named like a Graph fixture with the cmdlet's parameters of the POST body joined
+to the query (`FixtureGraphTransport.RelativePath(uri, body)`): `Mailbox@Identity=finance&IncludeGrantSendOnBehalfToWithDisplayNames=true`
+(Finance with its delegate Bob Example by name, in the form the service writes, `(bob@contoso.com, Bob Example)`),
+`reception` the same without delegates, `alice` refusing the display names parameter (400) and answering without it, `bob` a 403,
+`nobody` a 404; `Mailbox@$select=…&ResultSize=Unlimited` (in the short form) the six mailboxes over two pages; `MailboxFolderPermission` for
+`finance:\Calendar` (Default, Anonymous, and Alice Example as an object with delegate flags), `reception:\Kalender`
+(the localized default calendar the fake module names) and a missing folder
+(a 400 that says so); `DistributionGroupMember` for `sales` over two pages (Bob Example, the contact Dave Private,
+Alice Example hidden), `nobody` (404) and `busy` (a 429, then an empty list); `OrganizationConfig` and
+`AcceptedDomain`. On the Graph side: the members and transitive members of the mail-enabled security group Finance
+Staff (`groups/…035`: Carol Example and Finance EU, whose members are Dave Example and FIN-KIOSK-01, read from
+`groups/…032/members`), the groups of carol and dave (`users/<upn>/transitiveMemberOf/microsoft.graph.group@…`, in
+the short form), and the mailbox usage report `reports/getMailboxUsageDetail(period='D7').csv` (refreshed
+2026-10-28: five of the six mailboxes, and a deleted one). The client's `$batch` test answers from its items' own
+fixtures (`users/…001`, `users/…099`, `groups/…031` throttled once), with `$batch.try-n.headers` for the batch call's
+request ids.

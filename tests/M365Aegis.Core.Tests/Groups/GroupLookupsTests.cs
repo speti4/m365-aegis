@@ -107,6 +107,65 @@ public sealed class GroupLookupsTests
     }
 
     [Fact]
+    public async Task TransitiveMembersWithViaNameTheGroupTheyCameThrough()
+    {
+        (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
+
+        CommandResult<GroupMembers> result = await GroupLookups.MembersAsync(graph, "Finance", transitive: false, via: true, None);
+
+        GroupMembers members = result.Data!;
+        Assert.True(members.Transitive);
+        Assert.True(members.Via);
+        Assert.Equal(["Finance EU"], members.Members.Single(member => member.DisplayName == "Dave Example").Via!.Select(group => group.DisplayName));
+        Assert.Equal(["00000000-0000-0000-0000-000000000032"], members.Members.Single(member => member.DisplayName == "FIN-KIOSK-01").Via!.Select(group => group.Id));
+        Assert.All(members.Members.Where(member => member.Nested == false), member => Assert.Null(member.Via));
+        // The resolution, the direct list over two pages, the transitive list, and one $batch with a members request
+        // per group of the transitive list (Finance EU).
+        Assert.Equal(5, transport.Requests.Count);
+        Assert.EndsWith("/$batch", transport.Requests[^1].Uri.AbsolutePath, StringComparison.Ordinal);
+        GraphHttpRequest item = Assert.Single(transport.BatchItems);
+        Assert.EndsWith("/groups/00000000-0000-0000-0000-000000000032/members", item.Uri.AbsolutePath, StringComparison.Ordinal);
+        Assert.Equal("eventual", item.Headers["ConsistencyLevel"]);
+    }
+
+    [Fact]
+    public void ViaFollowsEveryPathDownFromTheDirectGroupsAndEndsACycle()
+    {
+        GroupMember Group(string id) => new("group", id.ToUpperInvariant(), null, null, id);
+        GroupMember User(string id) => new("user", id, null, null, id);
+        // Top holds a and b; a holds c; b holds c and u2; c holds u1 and, in a cycle, a.
+        IReadOnlyList<GroupMember> direct = [Group("a"), Group("b"), User("u0")];
+        IReadOnlyList<GroupMember> all = [Group("a"), Group("b"), User("u0"), Group("c"), User("u1"), User("u2")];
+        var membersOf = new Dictionary<string, IReadOnlyList<GroupMember>>
+        {
+            ["a"] = [Group("c")],
+            ["b"] = [Group("c"), User("u2")],
+            ["c"] = [User("u1"), Group("a")],
+        };
+
+        IReadOnlyList<GroupMember> marked = GroupLookups.Mark(direct, all, membersOf);
+
+        string Via(string id) => string.Join(",", marked.Single(member => member.Id == id).Via?.Select(group => group.DisplayName) ?? ["(none)"]);
+        Assert.Equal("A,B", Via("c"));
+        Assert.Equal("A,B", Via("u1"));
+        Assert.Equal("B", Via("u2"));
+        Assert.Equal("(none)", Via("a"));
+        Assert.Equal("(none)", Via("u0"));
+    }
+
+    [Fact]
+    public async Task ThePlainTransitiveListSendsNoBatch()
+    {
+        (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
+
+        CommandResult<GroupMembers> result = await GroupLookups.MembersAsync(graph, "Finance", transitive: true, None);
+
+        Assert.Null(result.Data!.Via);
+        Assert.All(result.Data.Members, member => Assert.Null(member.Via));
+        Assert.Empty(transport.BatchItems);
+    }
+
+    [Fact]
     public async Task DirectMembersCarryNoMembershipMark()
     {
         (GraphClient graph, _) = GraphFixtures.Client();

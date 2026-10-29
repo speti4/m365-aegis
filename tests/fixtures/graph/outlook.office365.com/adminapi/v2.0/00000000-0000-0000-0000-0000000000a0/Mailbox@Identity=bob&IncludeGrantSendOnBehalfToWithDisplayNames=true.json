@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "Forbidden",
+    "message": "The user is not authorized to access this resource."
+  }
+}

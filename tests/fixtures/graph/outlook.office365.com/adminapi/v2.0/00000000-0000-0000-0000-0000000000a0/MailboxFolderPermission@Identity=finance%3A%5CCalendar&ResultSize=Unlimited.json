@@ -1,0 +1,39 @@
+{
+  "@odata.context": "https://outlook.office365.com/adminapi/v2.0/00000000-0000-0000-0000-0000000000a0/$metadata#MailboxFolderPermission",
+  "@adminapi.warnings": [],
+  "value": [
+    {
+      "Identity": "finance:\\Calendar",
+      "FolderName": "Calendar",
+      "User": "Default",
+      "AccessRights": [
+        "AvailabilityOnly"
+      ],
+      "SharingPermissionFlags": null,
+      "IsValid": true
+    },
+    {
+      "Identity": "finance:\\Calendar",
+      "FolderName": "Calendar",
+      "User": "Anonymous",
+      "AccessRights": [
+        "None"
+      ],
+      "SharingPermissionFlags": null,
+      "IsValid": true
+    },
+    {
+      "Identity": "finance:\\Calendar",
+      "FolderName": "Calendar",
+      "User": {
+        "DisplayName": "Alice Example",
+        "UserType": "Internal"
+      },
+      "AccessRights": [
+        "Editor"
+      ],
+      "SharingPermissionFlags": "Delegate, CanViewPrivateItems",
+      "IsValid": true
+    }
+  ]
+}

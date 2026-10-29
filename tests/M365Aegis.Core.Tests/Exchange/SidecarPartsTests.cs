@@ -203,6 +203,33 @@ public sealed class SidecarPartsTests
         Assert.Equal("AAD-UPN:alice@contoso.com", handler.Requests[1].Headers.GetValues("X-AnchorMailbox").Single());
     }
 
+    [Fact]
+    public async Task TheAdminApiProbeShowsTheFormOfTheDelegatesAndNoValue()
+    {
+        var handler = new ScriptedHandler(request => request.RequestUri!.AbsolutePath.EndsWith("/OrganizationConfig", StringComparison.Ordinal)
+            ? (HttpStatusCode.OK, """{"value":[{"Name":"contoso.onmicrosoft.com"}]}""")
+            : (HttpStatusCode.OK, """{"value":[{"DisplayName":"Finance","GrantSendOnBehalfToWithDisplayNames":["Bob Example <bob@contoso.com>"],"User":{"DisplayName":"Alice Example","UserType":"Internal"}}]}"""));
+        using var http = new HttpClient(handler);
+
+        AdminApiProbeReport report = await ExchangeProbes.AdminApiAsync(
+            http, SidecarFixtures.Token(DateTimeOffset.UtcNow.AddHours(1)), new AdminApiProbeTargets("finance@contoso.com", null, "sales@contoso.com"), Ct);
+
+        Assert.Equal(["OrganizationConfig", "Mailbox", "Mailbox", "MailboxFolderPermission", "DistributionGroupMember"], report.Calls.Select(call => call.Endpoint));
+        AdminApiCall delegates = report.Calls[2];
+        Assert.Contains("value[0].GrantSendOnBehalfToWithDisplayNames[0]: string 'a a <a@a.a>'", delegates.Shape);
+        Assert.Contains("value[0].User: object {DisplayName,UserType}", delegates.Shape);
+        Assert.DoesNotContain(report.Calls.SelectMany(call => call.Shape), line => line.Contains("contoso", StringComparison.Ordinal) || line.Contains("Bob", StringComparison.Ordinal));
+        Assert.Contains("\"IncludeGrantSendOnBehalfToWithDisplayNames\":true", handler.Bodies[2], StringComparison.Ordinal);
+        Assert.Contains("finance@contoso.com:\\\\Calendar", handler.Bodies[3], StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Bob Example <bob@contoso.com>", "a a <a@a.a>")]
+    [InlineData("SMTP:bob2@contoso.com", "a:a9@a.a")]
+    [InlineData("Zoë Ötvös", "a a")]
+    public void APatternKeepsTheFormAndDropsTheValue(string text, string pattern) =>
+        Assert.Equal(pattern, ExchangeProbes.Pattern(text));
+
     /// <summary>An HTTP handler that answers from a script and keeps the requests and their bodies.</summary>
     private sealed class ScriptedHandler(Func<HttpRequestMessage, (HttpStatusCode Status, string Body)> answer) : HttpMessageHandler
     {

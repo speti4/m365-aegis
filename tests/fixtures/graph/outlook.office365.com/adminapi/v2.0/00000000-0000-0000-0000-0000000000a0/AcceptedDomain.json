@@ -1,0 +1,20 @@
+{
+  "@odata.context": "https://outlook.office365.com/adminapi/v2.0/00000000-0000-0000-0000-0000000000a0/$metadata#AcceptedDomain",
+  "@adminapi.warnings": [],
+  "value": [
+    {
+      "DomainName": "contoso.onmicrosoft.com",
+      "DomainType": "Authoritative",
+      "Default": false,
+      "Name": "contoso.onmicrosoft.com",
+      "Guid": "00000000-0000-0000-0000-0000000000a6"
+    },
+    {
+      "DomainName": "contoso.com",
+      "DomainType": "Authoritative",
+      "Default": true,
+      "Name": "contoso.com",
+      "Guid": "00000000-0000-0000-0000-0000000000a7"
+    }
+  ]
+}

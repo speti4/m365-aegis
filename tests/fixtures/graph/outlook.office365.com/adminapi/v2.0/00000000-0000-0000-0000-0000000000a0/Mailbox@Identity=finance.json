@@ -1,0 +1,30 @@
+{
+  "@odata.context": "https://outlook.office365.com/adminapi/v2.0/00000000-0000-0000-0000-0000000000a0/$metadata#Mailbox",
+  "@adminapi.warnings": [],
+  "value": [
+    {
+      "Identity": "finance",
+      "Identity@odata.type": "#String",
+      "Id": "finance",
+      "Name": "finance",
+      "DisplayName": "Finance",
+      "UserPrincipalName": "finance@contoso.com",
+      "Alias": "finance",
+      "ExternalDirectoryObjectId": "00000000-0000-0000-0000-000000000015",
+      "RecipientType": "UserMailbox",
+      "RecipientTypeDetails": "SharedMailbox",
+      "EmailAddresses": [
+        "SMTP:finance@contoso.com"
+      ],
+      "PrimarySmtpAddress": "finance@contoso.com",
+      "MaxSendSize": "35 MB (36,700,160 bytes)",
+      "HiddenFromAddressListsEnabled": false,
+      "GrantSendOnBehalfTo": [
+        "bob@contoso.com"
+      ],
+      "GrantSendOnBehalfToWithDisplayNames": [
+        "(bob@contoso.com, Bob Example)"
+      ]
+    }
+  ]
+}

@@ -68,6 +68,9 @@ public sealed class ExoObject
     /// <summary>The property names, as the sidecar sent them.</summary>
     public IEnumerable<string> Names => _values.Keys;
 
+    /// <summary>A value as it came, or null when missing: an Admin API answer may nest an object (task 042).</summary>
+    internal JsonElement? Value(string name) => _values.TryGetValue(name, out JsonElement value) ? value : null;
+
     /// <summary>A value as text: null when missing or null or empty, a list joined with a comma.</summary>
     public string? Text(string name)
     {

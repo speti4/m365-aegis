@@ -1,0 +1,7 @@
+﻿Report Refresh Date,User Principal Name,Display Name,Is Deleted,Deleted Date,Created Date,Last Activity Date,Item Count,Storage Used (Byte),Issue Warning Quota (Byte),Prohibit Send Quota (Byte),Prohibit Send/Receive Quota (Byte),Deleted Item Count,Deleted Item Size (Byte),Deleted Item Quota (Byte),Has Archive,Report Period
+2026-10-28,alice@contoso.com,"Alice Example",False,,2025-01-15,2026-10-27,5100,1288000000,52613349376,53687091200,53687091200,3,1536,32212254720,False,7
+2026-10-28,bob@contoso.com,"Bob Example",False,,2025-01-15,2026-10-27,2040,524000000,52613349376,53687091200,53687091200,3,1536,32212254720,False,7
+2026-10-28,carol@contoso.com,"Carol Example",False,,2025-01-15,2026-10-27,298,10400000,52613349376,53687091200,53687091200,3,1536,32212254720,False,7
+2026-10-28,dave@contoso.com,"Dave Example",False,,2025-01-15,2026-10-27,0,0,52613349376,53687091200,53687091200,3,1536,32212254720,False,7
+2026-10-28,finance@contoso.com,"Finance",False,,2025-01-15,2026-10-27,40900,3221000000,52613349376,53687091200,53687091200,3,1536,32212254720,False,7
+2026-10-28,old@contoso.com,"Old, Example",True,2026-10-01,2024-03-01,2026-09-30,10,2048,52613349376,53687091200,53687091200,0,0,32212254720,False,7

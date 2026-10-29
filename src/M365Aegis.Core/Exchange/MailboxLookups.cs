@@ -50,25 +50,7 @@ public static partial class MailboxLookups
         MailboxInfo info = ToMailbox(found);
         string key = info.ObjectId ?? info.PrimarySmtpAddress;
 
-        var holders = new List<MailboxHolder>();
-        ExoResult fullAccess = await exo.InvokeAsync(
-            new ExoCommand(ExoCmdlets.GetMailboxPermission)
-            {
-                Parameters = new Dictionary<string, object?> { ["Identity"] = key },
-                Properties = ["User", "AccessRights", "IsInherited", "Deny"],
-            },
-            cancellationToken).ConfigureAwait(false);
-        holders.AddRange(fullAccess.Items.Where(IsDirectFullAccess).Select(item => Holder(MailboxRight.FullAccess, item.Text("User")!)));
-
-        ExoResult sendAs = await exo.InvokeAsync(
-            new ExoCommand(ExoCmdlets.GetRecipientPermission)
-            {
-                Parameters = new Dictionary<string, object?> { ["Identity"] = key, ["AccessRights"] = SendAsRight },
-                Properties = ["Trustee", "AccessRights", "AccessControlType", "IsInherited"],
-            },
-            cancellationToken).ConfigureAwait(false);
-        holders.AddRange(sendAs.Items.Where(IsDirectSendAs).Select(item => Holder(MailboxRight.SendAs, item.Text("Trustee")!)));
-
+        List<MailboxHolder> holders = await RightsAsync(exo, key, identity, cancellationToken).ConfigureAwait(false);
         IReadOnlyList<string> onBehalf = found.Texts("GrantSendOnBehalfTo");
         if (onBehalf.Count > 0)
         {
@@ -92,85 +74,10 @@ public static partial class MailboxLookups
     /// <c>Get-EXOMailboxPermission</c>), and the Send As entries of the organization. A mailbox whose permissions
     /// could not be read makes the answer partial (exit code 6) with the others still listed.
     /// </summary>
-    public static async Task<CommandResult<UserAccess>> AccessForUserAsync(IExoCmdletRunner exo, string user, CancellationToken cancellationToken)
+    public static Task<CommandResult<UserAccess>> AccessForUserAsync(IExoCmdletRunner exo, string user, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(exo);
-        string name = RequireName(user, "--user");
-
-        // The names Exchange may use for the user in a permission entry: the user principal name, the name, the
-        // display name, the address, the object id. A user Exchange does not know as a recipient keeps the name given.
-        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { name };
-        string? displayName = null;
-        IReadOnlyList<ExoObject> recipient = await RecipientsAsync(exo, [name], cancellationToken).ConfigureAwait(false);
-        foreach (ExoObject item in recipient)
-        {
-            names.UnionWith(Keys(item));
-            displayName ??= item.Text("DisplayName");
-        }
-
-        IReadOnlyList<ExoObject> mailboxes = await AllMailboxesAsync(exo, sharedOnly: false, ["GrantSendOnBehalfTo"], cancellationToken).ConfigureAwait(false);
-        var byKey = new Dictionary<string, MailboxInfo>(StringComparer.OrdinalIgnoreCase);
-        foreach (ExoObject mailbox in mailboxes)
-        {
-            MailboxInfo info = ToMailbox(mailbox);
-            foreach (string key in Keys(mailbox))
-            {
-                byKey.TryAdd(key, info);
-            }
-
-            if (string.Equals(info.UserPrincipalName, name, StringComparison.OrdinalIgnoreCase) || string.Equals(info.PrimarySmtpAddress, name, StringComparison.OrdinalIgnoreCase))
-            {
-                names.UnionWith(Keys(mailbox));
-                displayName ??= info.DisplayName;
-            }
-        }
-
-        var grants = new List<UserGrant>();
-        var failed = new List<string>();
-        if (mailboxes.Count > 0)
-        {
-            ExoResult fullAccess = await exo.InvokeAsync(
-                new ExoCommand(ExoCmdlets.GetMailboxPermission)
-                {
-                    Input = mailboxes.Select(mailbox => mailbox.Text("ExternalDirectoryObjectId") ?? mailbox.Text("PrimarySmtpAddress") ?? "").Where(key => key.Length > 0).ToList(),
-                    Properties = ["Identity", "User", "AccessRights", "IsInherited", "Deny"],
-                },
-                cancellationToken).ConfigureAwait(false);
-            failed.AddRange(fullAccess.Errors);
-            grants.AddRange(fullAccess.Items
-                .Where(item => IsDirectFullAccess(item) && names.Contains(item.Text("User")!))
-                .Select(item => new UserGrant(MailboxRight.FullAccess, Resolve(byKey, item.Text("Identity")))));
-        }
-
-        ExoResult sendAs = await exo.InvokeAsync(
-            new ExoCommand(ExoCmdlets.GetRecipientPermission)
-            {
-                Parameters = new Dictionary<string, object?> { ["AccessRights"] = SendAsRight, ["ResultSize"] = Unlimited },
-                Properties = ["Identity", "Trustee", "AccessRights", "AccessControlType", "IsInherited"],
-            },
-            cancellationToken).ConfigureAwait(false);
-        failed.AddRange(sendAs.Errors);
-        grants.AddRange(sendAs.Items
-            .Where(item => IsDirectSendAs(item) && names.Contains(item.Text("Trustee")!))
-            .Select(item => new UserGrant(MailboxRight.SendAs, Resolve(byKey, item.Text("Identity")))));
-
-        grants.AddRange(mailboxes
-            .Where(mailbox => mailbox.Texts("GrantSendOnBehalfTo").Any(names.Contains))
-            .Select(mailbox => new UserGrant(MailboxRight.SendOnBehalf, ToMailbox(mailbox))));
-
-        var result = new UserAccess(
-            name,
-            displayName,
-            grants
-                .DistinctBy(grant => (grant.Right, grant.Mailbox.PrimarySmtpAddress))
-                .OrderBy(grant => grant.Mailbox.DisplayName, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(grant => grant.Right)
-                .ToList(),
-            mailboxes.Count,
-            failed);
-        return failed.Count == 0
-            ? CommandResult.Success(result)
-            : CommandResult.Failure(Partial(failed.Count, "mailbox permission list(s)"), result);
+        return ReverseAsync(exo, null, user, new UserAccessOptions(Method: PermissionReadMethod.Piped), cancellationToken);
     }
 
     /// <summary>
@@ -220,59 +127,10 @@ public static partial class MailboxLookups
     /// <c>mailbox size [&lt;mailbox&gt;] [--top N]</c>: the live size and item count of one mailbox, or of every
     /// mailbox (piped into <c>Get-EXOMailboxStatistics</c>), the largest first.
     /// </summary>
-    public static async Task<CommandResult<MailboxSizes>> SizeAsync(IExoCmdletRunner exo, string? mailbox, int? top, CancellationToken cancellationToken)
+    public static Task<CommandResult<MailboxSizes>> SizeAsync(IExoCmdletRunner exo, string? mailbox, int? top, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(exo);
-        if (top is <= 0)
-        {
-            throw new AegisException(FailureKind.Usage, $"--top must be 1 or more, not {top}", "leave --top out to list every mailbox");
-        }
-
-        string[] extra = ["ExchangeGuid"];
-        IReadOnlyList<ExoObject> mailboxes = string.IsNullOrWhiteSpace(mailbox)
-            ? await AllMailboxesAsync(exo, sharedOnly: false, extra, cancellationToken).ConfigureAwait(false)
-            : [await OneMailboxAsync(exo, mailbox.Trim(), extra, cancellationToken).ConfigureAwait(false)];
-
-        var failed = new List<string>();
-        var sizes = new List<MailboxSize>();
-        if (mailboxes.Count > 0)
-        {
-            ExoResult statistics = await exo.InvokeAsync(
-                new ExoCommand(ExoCmdlets.GetMailboxStatistics)
-                {
-                    Input = mailboxes.Select(item => item.Text("ExternalDirectoryObjectId") ?? item.Text("PrimarySmtpAddress") ?? "").Where(key => key.Length > 0).ToList(),
-                    Properties = ["DisplayName", "MailboxGuid", "ItemCount", "TotalItemSize", "DeletedItemCount", "TotalDeletedItemSize"],
-                },
-                cancellationToken).ConfigureAwait(false);
-            failed.AddRange(statistics.Errors);
-            var byGuid = mailboxes.Where(item => item.Text("ExchangeGuid") is not null)
-                .GroupBy(item => item.Text("ExchangeGuid")!, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
-            foreach (ExoObject item in statistics.Items)
-            {
-                ExoObject? owner = item.Text("MailboxGuid") is { } guid && byGuid.TryGetValue(guid, out ExoObject? byId)
-                    ? byId
-                    : mailboxes.FirstOrDefault(candidate => string.Equals(candidate.Text("DisplayName"), item.Text("DisplayName"), StringComparison.OrdinalIgnoreCase));
-                MailboxInfo info = owner is not null
-                    ? ToMailbox(owner)
-                    : new MailboxInfo(item.Text("DisplayName") ?? "?", "-", "?", null, null);
-                sizes.Add(new MailboxSize(
-                    info,
-                    item.Number("ItemCount") ?? 0,
-                    Bytes(item.Text("TotalItemSize")),
-                    item.Text("TotalItemSize"),
-                    item.Number("DeletedItemCount") ?? 0,
-                    Bytes(item.Text("TotalDeletedItemSize"))));
-            }
-        }
-
-        IEnumerable<MailboxSize> ordered = sizes
-            .OrderByDescending(size => size.TotalItemBytes ?? -1)
-            .ThenBy(size => size.Mailbox.DisplayName, StringComparer.OrdinalIgnoreCase);
-        var result = new MailboxSizes((top is { } limit ? ordered.Take(limit) : ordered).ToList(), mailboxes.Count, failed);
-        return failed.Count == 0
-            ? CommandResult.Success(result)
-            : CommandResult.Failure(Partial(failed.Count, "mailbox size(s)"), result);
+        return SizesAsync(exo, null, mailbox, top, new MailboxSizeOptions(MailboxSizeMethod.Piped), cancellationToken);
     }
 
     /// <summary>The bytes of a size as the service writes it (<c>1.2 GB (1,288,490,188 bytes)</c>), or null.</summary>

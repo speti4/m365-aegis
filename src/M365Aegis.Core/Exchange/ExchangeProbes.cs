@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using M365Aegis.Core.Exchange.AdminApi;
 using M365Aegis.Core.Exchange.Sidecar;
 
 namespace M365Aegis.Core.Exchange;
@@ -65,6 +66,12 @@ public sealed record AdminApiCall(
 /// <param name="Calls">The calls, in the order they were made.</param>
 public sealed record AdminApiProbeReport(bool Answered, IReadOnlyList<string> TokenPermissions, IReadOnlyList<AdminApiCall> Calls);
 
+/// <summary>What the Admin API probe reads beyond the organization (task 042); nothing more when both are null.</summary>
+/// <param name="Mailbox">A mailbox whose delegates by name and whose folder permissions are read.</param>
+/// <param name="Folder">The folder of that mailbox (<c>Calendar</c> when null), as the mailbox's language names it.</param>
+/// <param name="Group">A distribution group whose first members are read.</param>
+public sealed record AdminApiProbeTargets(string? Mailbox = null, string? Folder = null, string? Group = null);
+
 /// <summary>
 /// The two live probes of the Exchange bundle, behind the hidden <c>probe</c> command: the sidecar's connect with
 /// the broker's token and its renewal (task 009), and one read of the Exchange Online Admin API v2.0 (task 010).
@@ -120,7 +127,49 @@ public static class ExchangeProbes
     /// <c>@odata.nextLink</c>. Every call is a read; the undocumented <c>adminapi/beta/InvokeCommand</c> is never
     /// called (D-004).
     /// </summary>
-    public static async Task<AdminApiProbeReport> AdminApiAsync(HttpMessageInvoker http, ExchangeToken token, CancellationToken cancellationToken)
+    public static Task<AdminApiProbeReport> AdminApiAsync(HttpMessageInvoker http, ExchangeToken token, CancellationToken cancellationToken) =>
+        AdminApiAsync(http, token, new AdminApiProbeTargets(), cancellationToken);
+
+    /// <summary>
+    /// The probe of task 010, and for task 042 the shapes of the reads the backend makes: one mailbox with its Send on
+    /// Behalf delegates by display name, the permissions of one of its folders, and a distribution group's members.
+    /// The shape of a list's first entry is printed as its pattern (every letter an <c>a</c>, every digit a <c>9</c>),
+    /// so the form of an entry shows and its value does not.
+    /// </summary>
+    public static async Task<AdminApiProbeReport> AdminApiAsync(HttpMessageInvoker http, ExchangeToken token, AdminApiProbeTargets targets, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(targets);
+        AdminApiProbeReport report = await OrganizationProbeAsync(http, token, cancellationToken).ConfigureAwait(false);
+        string tenant = token.TenantId!;
+        string anchor = report.Calls.LastOrDefault(call => call.Endpoint == "OrganizationConfig" && call.Status is >= 200 and < 300)?.AnchorForm ?? "UPN:";
+        var calls = report.Calls.ToList();
+        if (targets.Mailbox is { } mailbox)
+        {
+            string delegates = AdminApiClient.Body(new ExoCommand(AdminApiCmdlets.GetMailbox)
+            {
+                Parameters = new Dictionary<string, object?> { ["Identity"] = mailbox, ["IncludeGrantSendOnBehalfToWithDisplayNames"] = true },
+            });
+            calls.Add(await CallAsync(http, token, tenant, "Mailbox", anchor, delegates, cancellationToken).ConfigureAwait(false));
+            string folder = AdminApiClient.Body(new ExoCommand(AdminApiCmdlets.GetMailboxFolderPermission)
+            {
+                Parameters = new Dictionary<string, object?> { ["Identity"] = $"{mailbox}:\\{targets.Folder ?? "Calendar"}" },
+            });
+            calls.Add(await CallAsync(http, token, tenant, "MailboxFolderPermission", anchor, folder, cancellationToken).ConfigureAwait(false));
+        }
+
+        if (targets.Group is { } group)
+        {
+            string members = AdminApiClient.Body(new ExoCommand(AdminApiCmdlets.GetDistributionGroupMember)
+            {
+                Parameters = new Dictionary<string, object?> { ["Identity"] = group, ["ResultSize"] = 5 },
+            });
+            calls.Add(await CallAsync(http, token, tenant, "DistributionGroupMember", anchor, members, cancellationToken).ConfigureAwait(false));
+        }
+
+        return report with { Calls = calls };
+    }
+
+    private static async Task<AdminApiProbeReport> OrganizationProbeAsync(HttpMessageInvoker http, ExchangeToken token, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(http);
         ArgumentNullException.ThrowIfNull(token);
@@ -196,6 +245,7 @@ public static class ExchangeProbes
                 if (items > 0 && value[0].ValueKind == JsonValueKind.Object)
                 {
                     shape.AddRange(Shape(value[0], "value[0]."));
+                    shape.AddRange(Inner(value[0], "value[0]."));
                 }
             }
         }
@@ -219,6 +269,50 @@ public static class ExchangeProbes
 
     private static IEnumerable<string> Shape(JsonElement element, string prefix) =>
         element.EnumerateObject().Select(property => string.Create(CultureInfo.InvariantCulture, $"{prefix}{property.Name}: {Kind(property.Value)}"));
+
+    /// <summary>
+    /// What an item's nested values look like (task 042): an object's property names, and a list's first entry as
+    /// its kind and, for a text, its pattern.
+    /// </summary>
+    private static IEnumerable<string> Inner(JsonElement element, string prefix)
+    {
+        foreach (JsonProperty property in element.EnumerateObject())
+        {
+            JsonElement value = property.Value;
+            if (value.ValueKind == JsonValueKind.Object)
+            {
+                yield return $"{prefix}{property.Name}: object {{{string.Join(",", value.EnumerateObject().Select(inner => inner.Name))}}}";
+            }
+            else if (value.ValueKind == JsonValueKind.Array && value.GetArrayLength() > 0)
+            {
+                JsonElement first = value[0];
+                yield return first.ValueKind switch
+                {
+                    JsonValueKind.String => $"{prefix}{property.Name}[0]: string '{Pattern(first.GetString() ?? "")}'",
+                    JsonValueKind.Object => $"{prefix}{property.Name}[0]: object {{{string.Join(",", first.EnumerateObject().Select(inner => inner.Name))}}}",
+                    _ => $"{prefix}{property.Name}[0]: {Kind(first)}",
+                };
+            }
+        }
+    }
+
+    /// <summary>A text as its pattern: a run of letters an <c>a</c>, a run of digits a <c>9</c>, the rest as it is.</summary>
+    internal static string Pattern(string text)
+    {
+        var pattern = new System.Text.StringBuilder();
+        foreach (char character in text)
+        {
+            char mark = char.IsLetter(character) ? 'a' : char.IsDigit(character) ? '9' : character;
+            if ((mark is 'a' or '9') && pattern.Length > 0 && pattern[^1] == mark)
+            {
+                continue;
+            }
+
+            pattern.Append(mark);
+        }
+
+        return pattern.ToString();
+    }
 
     private static string Kind(JsonElement value) => value.ValueKind switch
     {

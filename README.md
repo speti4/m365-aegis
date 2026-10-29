@@ -117,7 +117,7 @@ with the same account (`Exchange.Manage`, and an Exchange role that reads recipi
 & $aegis mailbox access finance@contoso.com            # who holds FullAccess, Send As, Send on Behalf
 & $aegis mailbox access --user alice@contoso.com       # every mailbox alice can open or send as
 & $aegis mailbox forwarders                            # forwarding mailboxes, the external targets first
-& $aegis mailbox size --top 10                         # live sizes, the largest first
+& $aegis mailbox size --top 10                         # sizes from the usage report, the largest first
 ```
 
 The audit lookups read the logs of the last `--days N` (1 by default, 30 at most) or from `--since <date>`, the
@@ -141,6 +141,28 @@ and sign-in as the command line. Its first page shows the signed-in account, rea
 a group's members in a table, as `group members` lists them; a lookup that fails is a notification with the hint.
 `m365-aegis-gui --verbose` writes the sign-in library's log to the same `logs\` folder as the command line's
 `--verbose`.
+
+## Mailbox reads through the Admin API and group expansion
+
+Some mailbox reads go through the Exchange Online Admin API, a REST call with the same sign-in and no PowerShell
+start (`Exchange.ManageV2` for the app registration); a group that holds a grant, or nests other groups, is read
+through Graph:
+
+```powershell
+& $aegis mailbox access finance@contoso.com --expand-groups     # a group holder's members, every nesting level
+& $aegis mailbox access --user alice@contoso.com --expand-groups # also the mailboxes alice reaches through a group
+& $aegis mailbox folder-permissions finance@contoso.com         # the calendar's, in any language; --folder Inbox for another
+& $aegis mailbox group-members sales@contoso.com                # a distribution group's members, hidden ones too
+& $aegis mailbox organization                                   # MailTips settings and the accepted domains
+& $aegis group members Finance --via                            # the nested group each nested member comes through
+& $aegis mailbox size finance@contoso.com                       # one mailbox's live size
+```
+
+A folder given with `--folder` is named as the mailbox's own language names it. `mailbox access --user` reads every
+mailbox's permissions with 4 sidecars at once (about 40 s over 620 mailboxes; `--sidecars N`, or `--method piped`
+for one). `mailbox size` over every mailbox reads Microsoft 365's mailbox usage report, a few days old, whose day
+is under the table (`Reports.Read.All` for the app registration); `--method piped` or `parallel` reads the live
+sizes instead.
 
 ## The window: sign-in and the mailbox page
 

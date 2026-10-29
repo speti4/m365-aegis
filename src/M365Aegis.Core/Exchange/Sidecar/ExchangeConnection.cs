@@ -41,8 +41,20 @@ public static class ExchangeConnection
     /// What a session of a command is made of (the start, the token, the target), for a caller that drives the
     /// sidecar itself: the connect measurement of task 011 starts a fresh one per run with the same token.
     /// </summary>
-    public static ExchangeSessionOptions Options(string? profileName, RequestLog requestLog, ExchangeConnectWith? connectWith = null)
+    public static ExchangeSessionOptions Options(string? profileName, RequestLog requestLog, ExchangeConnectWith? connectWith = null) =>
+        Options(profileName, requestLog, AuthService.Create, connectWith);
+
+    /// <summary>
+    /// The session of a command whose other layers share its sign-in (task 042: the Admin API and Graph beside the
+    /// sidecar): the offline tests' organization when the variable is set, else the sign-in <paramref name="auth"/> makes.
+    /// </summary>
+    public static ExchangeSession Create(string? profileName, RequestLog requestLog, Func<AuthService> auth) =>
+        new(Options(profileName, requestLog, auth));
+
+    /// <summary>What a session is made of, over the sign-in <paramref name="auth"/> makes (not called in the offline tests).</summary>
+    public static ExchangeSessionOptions Options(string? profileName, RequestLog requestLog, Func<AuthService> auth, ExchangeConnectWith? connectWith = null)
     {
+        ArgumentNullException.ThrowIfNull(auth);
         ExchangeConnectWith with = connectWith ?? ParseConnectWith(Environment.GetEnvironmentVariable(ConnectWithVariable));
         string? testOrganization = Environment.GetEnvironmentVariable(TestOrganizationVariable);
         if (!string.IsNullOrWhiteSpace(testOrganization))
@@ -55,7 +67,7 @@ public static class ExchangeConnection
             };
         }
 
-        return Options(AuthService.Create(), profileName, requestLog, with, StartAsync);
+        return Options(auth(), profileName, requestLog, with, StartAsync);
     }
 
     /// <summary>The session's parts over the given sign-in and sidecar start.</summary>

@@ -1,0 +1,18 @@
+{
+  "@odata.context": "https://outlook.office365.com/adminapi/v2.0/00000000-0000-0000-0000-0000000000a0/$metadata#OrganizationConfig",
+  "@adminapi.warnings": [],
+  "value": [
+    {
+      "Name": "contoso.onmicrosoft.com",
+      "Name@odata.type": "#String",
+      "Identity": "contoso.onmicrosoft.com",
+      "Identity@odata.type": "#String",
+      "Guid": "00000000-0000-0000-0000-0000000000a5",
+      "Guid@odata.type": "#Guid",
+      "MailTipsAllTipsEnabled": true,
+      "MailTipsExternalRecipientsTipsEnabled": false,
+      "MailTipsLargeAudienceThreshold": 25,
+      "Id": "contoso.onmicrosoft.com"
+    }
+  ]
+}

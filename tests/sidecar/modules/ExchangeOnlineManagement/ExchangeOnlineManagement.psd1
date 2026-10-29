@@ -9,5 +9,5 @@
     Description = 'Fake ExchangeOnlineManagement for the sidecar tests; no network.'
     PowerShellVersion = '7.6'
     FunctionsToExport = @('Connect-ExchangeOnline', 'Disconnect-ExchangeOnline', 'Get-EXOMailbox', 'Get-EXORecipient', 'Get-EXOMailboxPermission',
-        'Get-EXORecipientPermission', 'Get-EXOMailboxStatistics', 'Get-AcceptedDomain')
+        'Get-EXORecipientPermission', 'Get-EXOMailboxStatistics', 'Get-AcceptedDomain', 'Get-EXOMailboxFolderStatistics')
 }
