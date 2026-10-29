@@ -4,6 +4,7 @@ origin: done/003-graph-client-with-paging-throttling-and-batch.md
 created: 2026-10-29
 started: 2026-10-29
 plan: none
+closed: 2026-10-29
 milestone: M1 Foundation
 ---
 

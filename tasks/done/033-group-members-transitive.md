@@ -4,6 +4,7 @@ origin: done/005-group-teams-and-sharepoint-lookups.md
 created: 2026-10-29
 started: 2026-10-29
 plan: none
+closed: 2026-10-29
 milestone: M1 Foundation
 ---
 
@@ -55,7 +56,8 @@ and may reshape them. The live check runs in the main session's signed-in round.
 ## Deviations from the plan
 
 - The row does not name the group a nested member came through: the endpoint does not give it, and finding it
-  costs a members request per nested group (a follow-up).
+  costs a members request per nested group (a follow-up, filed as backlog 041 by the main session at the close
+  on `main` after #20, 2026-10-29).
 
 ## Verification
 

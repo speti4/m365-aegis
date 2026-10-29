@@ -25,6 +25,14 @@ The repository, the task standard and the empty solution: no product yet.
 - `profile list`, `profile use` and `profile remove` over the tenant profiles of `config.json` ([024](https://github.com/speti4/m365-aegis/blob/main/tasks/done/024-profile-commands-list-use-remove.md))
 - MSAL's non-PII log into `logs\` behind a `--verbose` flag ([025](https://github.com/speti4/m365-aegis/blob/main/tasks/done/025-msal-logging-behind-verbose.md))
 - The WebView2 license override follows the package's version ([029](https://github.com/speti4/m365-aegis/blob/main/tasks/done/029-webview2-license-override-without-a-version.md))
+- `group owners-missing` under a second ([032](https://github.com/speti4/m365-aegis/blob/main/tasks/done/032-group-owners-missing-under-a-second.md))
+- `group members --transitive` ([033](https://github.com/speti4/m365-aegis/blob/main/tasks/done/033-group-members-transitive.md))
+- Message trace details per recipient ([034](https://github.com/speti4/m365-aegis/blob/main/tasks/done/034-message-trace-details-by-recipient.md))
+- `trace --status` and `--subject` filters ([035](https://github.com/speti4/m365-aegis/blob/main/tasks/done/035-trace-status-and-subject-filters.md))
+- A helper that prints a fixture's file name for a URL ([036](https://github.com/speti4/m365-aegis/blob/main/tasks/done/036-fixture-name-helper.md))
+- `audit list --user <upn>`: the directory audit by the initiating user ([037](https://github.com/speti4/m365-aegis/blob/main/tasks/done/037-audit-list-by-initiating-user.md))
+- `audit list` says how far the 1000-entry default reached ([038](https://github.com/speti4/m365-aegis/blob/main/tasks/done/038-audit-list-footer-names-the-oldest-entry.md))
+- Non-interactive and service principal sign-ins ([039](https://github.com/speti4/m365-aegis/blob/main/tasks/done/039-non-interactive-and-service-principal-sign-ins.md))
 
 ### M4 Window
 

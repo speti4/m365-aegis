@@ -4,6 +4,7 @@ origin: done/005-group-teams-and-sharepoint-lookups.md
 created: 2026-10-29
 started: 2026-10-29
 plan: none
+closed: 2026-10-29
 milestone: M1 Foundation
 ---
 
