@@ -36,11 +36,15 @@ The repository, the task standard and the empty solution: no product yet.
 - `audit list --user <upn>`: the directory audit by the initiating user ([037](https://github.com/speti4/m365-aegis/blob/main/tasks/done/037-audit-list-by-initiating-user.md))
 - `audit list` says how far the 1000-entry default reached ([038](https://github.com/speti4/m365-aegis/blob/main/tasks/done/038-audit-list-footer-names-the-oldest-entry.md))
 - Non-interactive and service principal sign-ins ([039](https://github.com/speti4/m365-aegis/blob/main/tasks/done/039-non-interactive-and-service-principal-sign-ins.md))
+- `group members --transitive` names the group a nested member came through ([041](https://github.com/speti4/m365-aegis/blob/main/tasks/done/041-transitive-members-name-the-group-they-came-through.md))
 
 ### M2 Exchange
 
 - The sidecar in the core: the process, the protocol client, the allow-list, connect and reconnect ([015](https://github.com/speti4/m365-aegis/blob/main/tasks/done/015-sidecar-protocol-allow-list-and-connect.md))
 - Mailbox access in both directions, external forwarders, shared mailboxes and sizes ([016](https://github.com/speti4/m365-aegis/blob/main/tasks/done/016-mailbox-access-reverse-lookup-and-forwarders.md))
+- The Exchange Online Admin API backend: Send on Behalf, folder permissions, group membership, organization reads ([042](https://github.com/speti4/m365-aegis/blob/main/tasks/done/042-admin-api-backend.md))
+- A faster `mailbox access --user` and `mailbox size` over every mailbox ([043](https://github.com/speti4/m365-aegis/blob/main/tasks/done/043-faster-reverse-lookup-and-mailbox-sizes.md))
+- `mailbox access` expands a grant made to a group into the group's members ([044](https://github.com/speti4/m365-aegis/blob/main/tasks/done/044-mailbox-access-expands-group-grants.md))
 
 ### M4 Window
 

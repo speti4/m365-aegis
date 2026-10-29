@@ -4,6 +4,7 @@ origin: done/016-mailbox-access-reverse-lookup-and-forwarders.md
 created: 2026-10-29
 started: 2026-10-29
 plan: none
+closed: 2026-10-30
 milestone: M2 Exchange
 ---
 
@@ -90,5 +91,5 @@ may reshape them. The live check runs in the main session's signed-in round.
 - [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [x] `tasks_check` green on the branch (a stale index is expected), the file stays in `wip/`; the main session
-      closes it on `main` after the merge
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after #22)
+- [x] moved to `done/` with `closed: 2026-10-30`

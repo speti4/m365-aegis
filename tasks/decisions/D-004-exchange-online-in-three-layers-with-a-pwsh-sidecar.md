@@ -52,6 +52,18 @@ The Admin API v2.0 answers in the tenant with the broker's delegated token (`Exc
 stands: an Admin API backend (backlog 042) serves Send on Behalf, folder permissions, distribution group
 membership and the organization reads.
 
+## Note 2026-10-30 — the second layer exists (task 042)
+
+An Admin API backend (`Exchange/AdminApi/AdminApiClient`) implements the same `IExoCmdletRunner` interface as the
+sidecar and answers the mailbox with its Send on Behalf delegates by display name, the folder permissions, the
+distribution group members and the organization reads, each in about a second after one sign-in; its own
+allow-list is held to the same rule as the sidecar's (exit 12 for a cmdlet off it). `mailbox access` reads the
+Admin API and the sidecar side by side with the sidecar as the fallback, and `meta.backend` names the layers used
+(`admin-api+pwsh`). The layer table in `docs/development.md` says which read goes through which layer. The
+reverse lookup splits its FullAccess read across four sidecars by default (task 043: 122 s to 41 s over 620
+mailboxes, no gain past four), and the sizes over every mailbox come from Graph's usage report (16 s, a few days
+old, no sidecar); the live cmdlets stay behind `--method`.
+
 ## Not chosen
 
 - Graph only: it cannot cover the mailbox domain the tool exists for.
