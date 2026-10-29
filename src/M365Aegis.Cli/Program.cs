@@ -59,6 +59,9 @@ internal static class Program
         root.Subcommands.Add(TeamCommand.Build(json, table, profile));
         root.Subcommands.Add(SiteCommand.Build(json, table, profile));
         root.Subcommands.Add(TraceCommand.Build(json, table, profile));
+        root.Subcommands.Add(SignInListCommand.Build(json, table, profile));
+        root.Subcommands.Add(SecretsCommand.Build(json, table, profile));
+        root.Subcommands.Add(AuditCommand.Build(json, table, profile));
 
         ParseResult parsed = root.Parse(args);
         if (parsed.Errors.Count > 0)

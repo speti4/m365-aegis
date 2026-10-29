@@ -1,0 +1,10 @@
+﻿--- stdout ---
+time (UTC)           user               app                         IP address     location      result
+-------------------  -----------------  --------------------------  -------------  ------------  ------------------------------------------------------------
+2026-10-29 09:15:02  alice@contoso.com  Office 365 Exchange Online  203.0.113.10   Budapest, HU  success
+2026-10-29 08:47:31  alice@contoso.com  Microsoft Teams             198.51.100.23  Vienna, AT    50126 Error validating credentials due to invalid username …
+2026-10-28 16:02:44  alice@contoso.com  Microsoft Teams             203.0.113.10   Budapest, HU  50074 Strong Authentication is required.
+2026-10-28 13:20:05  alice@contoso.com  Microsoft Edge              203.0.113.10   -             success
+
+4 sign-in(s) of alice@contoso.com since 2026-10-28 12:00:00 UTC
+--- stderr ---

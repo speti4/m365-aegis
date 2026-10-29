@@ -1,0 +1,97 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#auditLogs/signIns",
+  "value": [
+    {
+      "id": "00000000-0000-0000-0000-0000000000a3",
+      "createdDateTime": "2026-10-28T16:02:44Z",
+      "userDisplayName": "Alice Example",
+      "userPrincipalName": "alice@contoso.com",
+      "userId": "00000000-0000-0000-0000-000000000011",
+      "appId": "00000000-0000-0000-0000-000000000071",
+      "appDisplayName": "Microsoft Teams",
+      "ipAddress": "203.0.113.10",
+      "clientAppUsed": "Mobile Apps and Desktop clients",
+      "correlationId": "00000000-0000-0000-0000-000000000081",
+      "conditionalAccessStatus": "failure",
+      "isInteractive": true,
+      "riskDetail": "none",
+      "riskLevelAggregated": "none",
+      "riskLevelDuringSignIn": "none",
+      "riskState": "none",
+      "riskEventTypes": [],
+      "resourceDisplayName": "Microsoft Graph",
+      "resourceId": "00000000-0000-0000-0000-000000000072",
+      "status": {
+        "errorCode": 50074,
+        "failureReason": "Strong Authentication is required.",
+        "additionalDetails": null
+      },
+      "deviceDetail": {
+        "deviceId": "",
+        "displayName": null,
+        "operatingSystem": "Windows 11",
+        "browser": "Edge 141.0.0",
+        "isCompliant": null,
+        "isManaged": null,
+        "trustType": null
+      },
+      "location": {
+        "city": "Budapest",
+        "state": null,
+        "countryOrRegion": "HU",
+        "geoCoordinates": {
+          "altitude": null,
+          "latitude": null,
+          "longitude": null
+        }
+      },
+      "appliedConditionalAccessPolicies": []
+    },
+    {
+      "id": "00000000-0000-0000-0000-0000000000a4",
+      "createdDateTime": "2026-10-28T13:20:05Z",
+      "userDisplayName": "Alice Example",
+      "userPrincipalName": "alice@contoso.com",
+      "userId": "00000000-0000-0000-0000-000000000011",
+      "appId": "00000000-0000-0000-0000-000000000071",
+      "appDisplayName": "Microsoft Edge",
+      "ipAddress": "203.0.113.10",
+      "clientAppUsed": "Browser",
+      "correlationId": "00000000-0000-0000-0000-000000000081",
+      "conditionalAccessStatus": "notApplied",
+      "isInteractive": false,
+      "riskDetail": "none",
+      "riskLevelAggregated": "none",
+      "riskLevelDuringSignIn": "none",
+      "riskState": "none",
+      "riskEventTypes": [],
+      "resourceDisplayName": "Microsoft Graph",
+      "resourceId": "00000000-0000-0000-0000-000000000072",
+      "status": {
+        "errorCode": 0,
+        "failureReason": null,
+        "additionalDetails": null
+      },
+      "deviceDetail": {
+        "deviceId": "",
+        "displayName": null,
+        "operatingSystem": "Windows 11",
+        "browser": "Edge 141.0.0",
+        "isCompliant": null,
+        "isManaged": null,
+        "trustType": null
+      },
+      "location": {
+        "city": "",
+        "state": null,
+        "countryOrRegion": "",
+        "geoCoordinates": {
+          "altitude": null,
+          "latitude": null,
+          "longitude": null
+        }
+      },
+      "appliedConditionalAccessPolicies": []
+    }
+  ]
+}

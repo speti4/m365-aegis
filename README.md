@@ -105,6 +105,16 @@ name, its address, its object id or a word of its name:
 Each needs its delegated permission consented for the app registration (docs/development.md, "The sign-in and
 the home folder"); the message trace also needs a service principal created once per tenant.
 
+The audit lookups read the logs of the last `--days N` (1 by default, 30 at most) or from `--since <date>`, the
+newest first:
+
+```powershell
+& $aegis signin list --user alice@contoso.com --days 7  # the sign-ins of a user (needs Microsoft Entra ID P1)
+& $aegis signin list --failures                         # the failed sign-ins of every user in the last day
+& $aegis secrets expiring 30                            # app secrets and certificates that expire within a month
+& $aegis audit list --days 7 --activity "Add member"    # the directory audit, by the start of the activity's name
+```
+
 ## Documentation
 
 - [Development](docs/development.md): layout, CI, releases and helper scripts

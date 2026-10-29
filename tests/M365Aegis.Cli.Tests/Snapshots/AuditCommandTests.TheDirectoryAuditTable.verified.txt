@@ -1,0 +1,9 @@
+﻿--- stdout ---
+time (UTC)           activity             initiated by       target                    result
+-------------------  -------------------  -----------------  ------------------------  --------------------------------------------------
+2026-10-29 10:05:12  Add member to group  alice@contoso.com  Finance, bob@contoso.com  success
+2026-10-29 07:30:00  Update user          Contoso HR Sync    carol@contoso.com         success
+2026-10-28 18:44:09  Reset user password  alice@contoso.com  bob@contoso.com           failure: The password does not meet the complexit…
+
+3 entry(ies) since 2026-10-28 12:00:00 UTC
+--- stderr ---

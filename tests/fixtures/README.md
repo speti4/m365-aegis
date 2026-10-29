@@ -41,6 +41,13 @@ The tasks that add the fixtures name the files; the layout mirrors the request:
   under `v1.0/admin/exchange/tracing/` with a window ending 2026-10-20T12:00:00Z (task 007). The tests read these files from the source
   tree (`tests/shared/GraphFixtures.cs`), and the command line reads them when `M365AEGIS_GRAPH_FIXTURES` names
   the folder.
+  The audit lookups (task 006) answer from `v1.0/auditLogs/signIns@…` (the window from 2026-10-28T12:00:00Z:
+  alice's four sign-ins over two pages, two of them failed; bob's 403 of a tenant without Microsoft Entra ID P1;
+  carol's 403 of a missing permission), `v1.0/applications@…` (two pages: two secrets that expire in the 30 days
+  after 2026-10-29T12:00:00Z, one expired, a certificate beyond the window) and `v1.0/servicePrincipals@…` (a
+  SAML signing certificate in the window), and `v1.0/auditLogs/directoryAudits@…` (three entries, and the one an
+  `--activity "Add member"` filter keeps; it and alice's second page in the short form). The IP addresses are from
+  the documentation ranges (`203.0.113.0/24`, `198.51.100.0/24`).
 - `adminapi/<path>.json` — an Exchange Online Admin API answer in the same shape (task 010).
 - `exo/<cmdlet>.json` — the objects an Exchange Online cmdlet returns through the sidecar (task 015).
 - `doctor/<state>.json` — a doctor report as the envelope carries it, the samples the snapshot tests of both

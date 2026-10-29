@@ -69,7 +69,7 @@ permissions the domains need. The sign-in itself needs `User.Read` (Microsoft Gr
 backends `Exchange.Manage` and `Exchange.ManageV2` (Office 365 Exchange Online; tasks 009 and 010); the lookups
 of the other domains add theirs as their tasks settle them (the groups, Teams and SharePoint lookups of task 005,
 the audit lookups of task 006, `ExchangeMessageTrace.Read.All` for the message trace of task 007), each with a
-line here.
+line here:
 
 - `call` (task 003): nothing of its own; the endpoint it calls needs what its reference page names.
 - Groups (task 005): `GroupMember.Read.All` for the groups, their members and owners and `group owners-missing`,
@@ -78,6 +78,11 @@ line here.
 - Teams (task 005): `Team.ReadBasic.All` for `team list`.
 - SharePoint (task 005): `Sites.Read.All` for `site list`; with a delegated token the site search is trimmed to the
   sites the signed-in account can open (`getAllSites`, every site regardless, is application-only).
+- Audit (task 006): `AuditLog.Read.All` for `signin list` and `audit list`, the sign-in log and the directory
+  audit log; the account also needs a role that reads them (Reports Reader, Security Reader or Global Reader), and
+  the sign-in log a Microsoft Entra ID P1 or P2 license in the tenant (without one `signin list` exits 8 with a
+  sentence that says so). `Application.Read.All` for `secrets expiring`, the secrets and certificates of the
+  application registrations and the service principals.
 - Message trace (task 007): `ExchangeMessageTrace.Read.All`, and once per tenant the service principal of
   Microsoft's message trace application (application id `8bd644d1-64a1-4d4b-ae52-2e0cbf64e373`, the same in every
   tenant), which an administrator creates with `Connect-MgGraph -Scopes Application.ReadWrite.All` and
