@@ -21,7 +21,7 @@ updates:
       - dependency-name: System.CommandLine
         update-types: ["version-update:semver-major"]
       # Verify 33 is under the Open Source Maintenance Fee EULA and needs a sponsorship or an exemption declared in
-      # the build; staying on the MIT line is a decision of the maintainer's (Directory.Packages.props).
+      # the build; the repo stays on the MIT line (D-008, Directory.Packages.props).
       - dependency-name: Verify.XunitV3
         update-types: ["version-update:semver-major"]
 

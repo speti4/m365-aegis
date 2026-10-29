@@ -1,4 +1,4 @@
-<!-- Central package management: every package version is written here, a project only names the package. Each
+﻿<!-- Central package management: every package version is written here, a project only names the package. Each
      entry carries a one-line reason, as CONTRIBUTING.md asks ("Dependencies"): why it is needed and why the ones
      already here do not cover it. Transitive pinning keeps a transitive package at the version listed here when
      one is listed. Dependabot bumps these lines (the nuget ecosystem reads this file and the lock files). -->
@@ -33,7 +33,7 @@
     <PackageVersion Include="xunit.v3" Version="4.0.2" />
     <!-- Snapshot tests of the JSON envelope and the table output (task 004). The 32 line is the last one under MIT:
          from 33 the packages are under the Open Source Maintenance Fee EULA and the build fails (SC021) unless a
-         sponsorship or a time-bounded exemption is declared in MSBuild, which is the maintainer's decision, so
+         sponsorship or a time-bounded exemption is declared in MSBuild; the repo stays on 32 (D-008) and
          Dependabot ignores that major (.github/dependabot.yml). -->
     <PackageVersion Include="Verify.XunitV3" Version="32.0.1" />
     <!-- Line coverage under Microsoft.Testing.Platform, MIT (the Microsoft code coverage extension's license is

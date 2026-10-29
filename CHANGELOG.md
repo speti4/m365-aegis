@@ -19,3 +19,4 @@ The repository, the task standard and the empty solution: no product yet.
 
 - Project scaffolding: repo structure, task standard, decisions, origin and research ([001](https://github.com/speti4/m365-aegis/blob/main/tasks/done/001-project-scaffolding.md))
 - GitHub repository settings by hand after the first push ([012](https://github.com/speti4/m365-aegis/blob/main/tasks/done/012-github-repository-settings.md))
+- Decide on Verify 33 and the Open Source Maintenance Fee, then move or keep the pin ([020](https://github.com/speti4/m365-aegis/blob/main/tasks/done/020-decide-on-verify-33-and-the-maintenance-fee.md))
