@@ -1,9 +1,16 @@
-﻿<!-- The m365-aegis-gui executable: a Photino window (behind IUiHost) that loads the React front end built from
-     gui/web into wwwroot/ and bridges its messages to the Core. -->
+﻿<!-- The m365-aegis-gui executable: a WinForms window with the WebView2 control (behind IUiHost, D-009) that loads
+     the React front end built from gui/web into wwwroot/ and bridges its messages to the Core. -->
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <!-- WinForms needs the Windows target framework; the Core and the Cli stay plain net10.0. EnableWindowsTargeting
+         lets the Linux CI job restore and compile this project (the Windows Desktop targeting pack is a download
+         there); the exe runs on Windows only. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <AssemblyName>m365-aegis-gui</AssemblyName>
     <RootNamespace>M365Aegis.Gui</RootNamespace>
     <!-- See M365Aegis.Cli.csproj: the publish flags live in scripts/release.ps1, the lock file carries win-x64. -->
@@ -17,8 +24,18 @@
 
   <ItemGroup>
     <ProjectReference Include="..\M365Aegis.Core\M365Aegis.Core.csproj" />
-    <PackageReference Include="Photino.NET" />
+    <PackageReference Include="Microsoft.Web.WebView2" />
   </ItemGroup>
+
+  <!-- The WebView2 package references its WPF control on every .NET 5+ project, WinForms ones included; that
+       assembly asks for the WPF WindowsBase and the build reports a version conflict (MSB3277). Only the core and the
+       WinForms control are used here, so the WPF one is dropped before the references are resolved (and is not
+       shipped). The package's targets add the reference after the project body, hence a target, not an item. -->
+  <Target Name="DropWebView2Wpf" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)" Condition="'%(Filename)' == 'Microsoft.Web.WebView2.Wpf'" />
+    </ItemGroup>
+  </Target>
 
   <!-- Build the front end before this project when its sources are newer than its output: `npm ci` for the
        lock file's packages, then `npm run build` (Vite) into gui/web/dist. dist is never committed. -->

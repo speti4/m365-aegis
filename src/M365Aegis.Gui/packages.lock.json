@@ -1,15 +1,12 @@
 {
   "version": 2,
   "dependencies": {
-    "net10.0": {
-      "Photino.NET": {
+    "net10.0-windows7.0": {
+      "Microsoft.Web.WebView2": {
         "type": "Direct",
-        "requested": "[4.0.16, )",
-        "resolved": "4.0.16",
-        "contentHash": "2oTFsxt8XpLlVvtChlBD8HzLw6MgfHF+DQ4aLEDfgc4GbYjumEywB1JMfWDChm2Whfkr4ZF7DV2deRrpitiBcw==",
-        "dependencies": {
-          "Photino.Native": "4.0.22"
-        }
+        "requested": "[1.0.4258.31, )",
+        "resolved": "1.0.4258.31",
+        "contentHash": "sHVZ2MQrHT1J3q5/6csn0fIP27rzpTO/RRC+wPQDrZheB7T4t2n+vVbY6SdCKr4WRV9s/gmBM3PPMWWJtoDzMg=="
       },
       "Microsoft.Identity.Client.NativeInterop": {
         "type": "Transitive",
@@ -20,16 +17,6 @@
         "type": "Transitive",
         "resolved": "8.14.0",
         "contentHash": "iwbCpSjD3ehfTwBhtSNEtKPK0ICun6ov7Ibx6ISNA9bfwIyzI2Siwyi9eJFCJBwxowK9xcA1mj+jBWiigeqgcQ=="
-      },
-      "Photino.Native": {
-        "type": "Transitive",
-        "resolved": "4.0.22",
-        "contentHash": "VIHipEOe4CZ7HElZE8zTwcvANOsCZ2yak/4nQ4LXzjdlwIjdbY8htmHfNR6rRPgWlCfTfT349GCa6V6Id2/Xyg=="
-      },
-      "System.Security.Cryptography.ProtectedData": {
-        "type": "Transitive",
-        "resolved": "4.5.0",
-        "contentHash": "wLBKzFnDCxP12VL9ANydSYhk59fC4cvOr9ypYQLPnAj48NQIhqnjdD2yhP8yEKyBJEjERWS9DisKL7rX5eU25Q=="
       },
       "m365aegis.core": {
         "type": "Project",
@@ -64,26 +51,21 @@
         "resolved": "4.91.1",
         "contentHash": "hAiV5z7kfc2mRg43z4fsHsw8Q5LQxxQGzofv4X4e8QJCB3na+LCWvjAzOpjSlitSGuO/+pOZKAgEc6rRjsw3vg==",
         "dependencies": {
-          "Microsoft.Identity.Client": "4.91.1",
-          "System.Security.Cryptography.ProtectedData": "4.5.0"
+          "Microsoft.Identity.Client": "4.91.1"
         }
       }
     },
-    "net10.0/win-x64": {
+    "net10.0-windows7.0/win-x64": {
+      "Microsoft.Web.WebView2": {
+        "type": "Direct",
+        "requested": "[1.0.4258.31, )",
+        "resolved": "1.0.4258.31",
+        "contentHash": "sHVZ2MQrHT1J3q5/6csn0fIP27rzpTO/RRC+wPQDrZheB7T4t2n+vVbY6SdCKr4WRV9s/gmBM3PPMWWJtoDzMg=="
+      },
       "Microsoft.Identity.Client.NativeInterop": {
         "type": "Transitive",
         "resolved": "0.20.6",
         "contentHash": "noyfdMfVxyWpM6xUDmlW6gUvZ5ci24z7Qoy15JvynTQfZV5vTD2NEdsnT5Gy4ngViwgdIp5iRjRy10jAKXFAgw=="
-      },
-      "Photino.Native": {
-        "type": "Transitive",
-        "resolved": "4.0.22",
-        "contentHash": "VIHipEOe4CZ7HElZE8zTwcvANOsCZ2yak/4nQ4LXzjdlwIjdbY8htmHfNR6rRPgWlCfTfT349GCa6V6Id2/Xyg=="
-      },
-      "System.Security.Cryptography.ProtectedData": {
-        "type": "Transitive",
-        "resolved": "4.5.0",
-        "contentHash": "wLBKzFnDCxP12VL9ANydSYhk59fC4cvOr9ypYQLPnAj48NQIhqnjdD2yhP8yEKyBJEjERWS9DisKL7rX5eU25Q=="
       }
     }
   }

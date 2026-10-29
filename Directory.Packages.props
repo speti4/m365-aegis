@@ -23,10 +23,11 @@
     <PackageVersion Include="Microsoft.Identity.Client.Broker" Version="4.91.1" />
     <PackageVersion Include="Microsoft.Identity.Client.Extensions.Msal" Version="4.91.1" />
 
-    <!-- The window of the GUI: a WebView2 host with a string message bridge, Apache-2.0, for the React front end
-         under gui/web (task 001 / D-002). Dormant upstream since 2025-01; the window sits behind IUiHost so a
-         WinForms + WebView2 host can replace it (task 014). -->
-    <PackageVersion Include="Photino.NET" Version="4.0.16" />
+    <!-- The window of the GUI (D-009): the WinForms control and the CoreWebView2 API of Microsoft's WebView2 SDK,
+         which hosts the React front end under gui/web with a string message bridge; BSD-3-Clause, shipped as a license
+         file, so licenses/overrides.json names it (and has to follow a version bump). A monthly release; Photino.NET,
+         the scaffold's host, was dormant upstream and lost the spike of task 014. -->
+    <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
 
     <!-- The test framework of the Core and Cli tests, on Microsoft.Testing.Platform (global.json names the
          runner). -->

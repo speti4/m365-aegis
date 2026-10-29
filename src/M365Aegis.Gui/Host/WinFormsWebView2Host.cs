@@ -1,0 +1,155 @@
+using M365Aegis.Core;
+using M365Aegis.Core.Config;
+using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.WinForms;
+
+namespace M365Aegis.Gui.Host;
+
+/// <summary>
+/// A WinForms window with Microsoft's WebView2 control. The shipped front end is served from <c>wwwroot/</c> under a
+/// virtual host (<c>https://m365-aegis.example/</c>, <c>SetVirtualHostNameToFolderMapping</c>), so the page has an
+/// https origin and its ES modules load without any file access flag; a <c>--dev-url</c> page is loaded as given.
+/// The bridge: a document-created script defines <c>window.external.sendMessage</c> and <c>receiveMessage</c> over
+/// <c>chrome.webview</c>, which the transport of gui/web looks for. Messages are taken from the page's own origin
+/// only, and navigation away from it is cancelled.
+/// </summary>
+internal sealed class WinFormsWebView2Host : IUiHost
+{
+    /// <summary>The virtual host of the shipped front end; <c>.example</c> is reserved (RFC 6761), never a real site.</summary>
+    internal const string AppHostName = "m365-aegis.example";
+
+    // The bridge as the front end's transport expects it (the script the Photino host injected until D-009).
+    private const string BridgeScript =
+        "window.external = { sendMessage: function (message) { window.chrome.webview.postMessage(message); }, " +
+        "receiveMessage: function (callback) { window.chrome.webview.addEventListener('message', " +
+        "function (e) { callback(e.data); }); } };";
+
+    private Func<string, string?>? _handler;
+    private Form? _form;
+    private string? _origin;
+    private volatile bool _closeRequested;
+
+    public nint WindowHandle { get; private set; }
+
+    public void OnMessage(Func<string, string?> handler) => _handler = handler;
+
+    public void Run(Uri page)
+    {
+        Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+
+        using var form = new Form
+        {
+            Text = ProductInfo.Name,
+            AutoScaleDimensions = new SizeF(96F, 96F),
+            AutoScaleMode = AutoScaleMode.Dpi,
+            ClientSize = new Size(1100, 760),
+            StartPosition = FormStartPosition.CenterScreen,
+        };
+        using var webView = new WebView2 { Dock = DockStyle.Fill };
+        form.Controls.Add(webView);
+        form.HandleCreated += (_, _) => WindowHandle = form.Handle;
+        form.Load += async (_, _) =>
+        {
+            try
+            {
+                await InitializeAsync(webView, page);
+            }
+            catch (Exception exception) when (exception is WebView2RuntimeNotFoundException or InvalidOperationException
+                                              or UnauthorizedAccessException or IOException
+                                              or System.Runtime.InteropServices.COMException)
+            {
+                Console.Error.WriteLine($"winforms host: WebView2 failed to start: {exception.Message}");
+                form.Close();
+            }
+        };
+        _form = form;
+        Application.Run(form);
+        _form = null;
+    }
+
+    public void Close()
+    {
+        Form? form = _form;
+        if (form is null || !form.IsHandleCreated)
+        {
+            _closeRequested = true;
+            return;
+        }
+
+        // Posted, never called inline: Close may come from inside a WebView2 event or from another thread.
+        form.BeginInvoke(form.Close);
+    }
+
+    private async Task InitializeAsync(WebView2 webView, Uri page)
+    {
+        string userDataFolder = Path.Combine(AegisHome.Resolve(), "webview2");
+        CoreWebView2Environment environment = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
+        await webView.EnsureCoreWebView2Async(environment);
+        CoreWebView2 core = webView.CoreWebView2;
+
+        // The developer tools and the browser's context menu only for a dev server page.
+        bool development = !page.IsFile;
+        core.Settings.AreDevToolsEnabled = development;
+        core.Settings.AreDefaultContextMenusEnabled = development;
+        core.Settings.AreHostObjectsAllowed = false;
+        core.Settings.IsStatusBarEnabled = false;
+
+        Uri start = page;
+        if (page.IsFile)
+        {
+            string folder = Path.GetDirectoryName(page.LocalPath) ?? AppContext.BaseDirectory;
+            core.SetVirtualHostNameToFolderMapping(AppHostName, folder, CoreWebView2HostResourceAccessKind.Deny);
+            start = new Uri($"https://{AppHostName}/{Path.GetFileName(page.LocalPath)}");
+        }
+
+        _origin = start.GetLeftPart(UriPartial.Authority);
+        await core.AddScriptToExecuteOnDocumentCreatedAsync(BridgeScript);
+        core.WebMessageReceived += OnWebMessageReceived;
+        core.NavigationStarting += (_, e) =>
+        {
+            if (!IsOwnOrigin(e.Uri))
+            {
+                e.Cancel = true;
+            }
+        };
+        core.NewWindowRequested += (_, e) => e.Handled = true;
+
+        if (_closeRequested)
+        {
+            _form?.BeginInvoke(_form.Close);
+            return;
+        }
+
+        core.Navigate(start.AbsoluteUri);
+    }
+
+    private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        if (!IsOwnOrigin(e.Source) || sender is not CoreWebView2 core)
+        {
+            return;
+        }
+
+        string text;
+        try
+        {
+            text = e.TryGetWebMessageAsString();
+        }
+        catch (ArgumentException)
+        {
+            return; // not a string message: not of this protocol
+        }
+
+        string? reply = _handler?.Invoke(text);
+        if (reply is not null)
+        {
+            core.PostWebMessageAsString(reply);
+        }
+    }
+
+    private bool IsOwnOrigin(string uri) =>
+        _origin is not null && Uri.TryCreate(uri, UriKind.Absolute, out Uri? parsed)
+        && string.Equals(parsed.GetLeftPart(UriPartial.Authority), _origin, StringComparison.OrdinalIgnoreCase);
+}

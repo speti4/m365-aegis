@@ -1,30 +1,30 @@
 import { type BridgeMessage, parseMessage, writeMessage } from "./protocol";
 
 /**
- * How messages reach the host. In the window, Photino injects `window.external.sendMessage` and
- * `window.external.receiveMessage`; in a plain browser (the Vite dev server without the host, the tests) the mock
- * answers `ping` itself, so the page renders without the exe.
+ * How messages reach the host. In the window, the WinForms + WebView2 host (D-009) injects
+ * `window.external.sendMessage` and `window.external.receiveMessage` over `chrome.webview`; in a plain browser (the
+ * Vite dev server without the host, the tests) the mock answers `ping` itself, so the page renders without the exe.
  */
 export interface Transport {
   send(message: BridgeMessage): void;
   onMessage(handler: (message: BridgeMessage) => void): void;
 }
 
-interface PhotinoExternal {
+interface HostExternal {
   sendMessage(message: string): void;
   receiveMessage(handler: (message: string) => void): void;
 }
 
-function photinoExternal(): PhotinoExternal | null {
-  const external = (window as unknown as { external?: Partial<PhotinoExternal> }).external;
+function hostExternal(): HostExternal | null {
+  const external = (window as unknown as { external?: Partial<HostExternal> }).external;
   if (external && typeof external.sendMessage === "function" && typeof external.receiveMessage === "function") {
-    return external as PhotinoExternal;
+    return external as HostExternal;
   }
   return null;
 }
 
-class PhotinoTransport implements Transport {
-  constructor(private readonly external: PhotinoExternal) {}
+class HostTransport implements Transport {
+  constructor(private readonly external: HostExternal) {}
 
   send(message: BridgeMessage): void {
     this.external.sendMessage(writeMessage(message));
@@ -63,10 +63,10 @@ export class MockTransport implements Transport {
   }
 }
 
-/** The transport of this page: Photino when the host injected its bridge, the mock otherwise. */
+/** The transport of this page: the host's when it injected its bridge, the mock otherwise. */
 export function createTransport(): { transport: Transport; hosted: boolean } {
-  const external = photinoExternal();
+  const external = hostExternal();
   return external
-    ? { transport: new PhotinoTransport(external), hosted: true }
+    ? { transport: new HostTransport(external), hosted: true }
     : { transport: new MockTransport(), hosted: false };
 }

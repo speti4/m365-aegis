@@ -16,8 +16,9 @@ checks before a commit and the project rules are in [CONTRIBUTING.md](../CONTRIB
   its result type, and the one rendering path under `Output/` (the command runner, the renderer, the table view
   contract, the table writer, the output mode; see [The output contract](#the-output-contract)). `--json` and
   `--table` are recursive options; without them a terminal gets the table and a pipe the envelope.
-- `src/M365Aegis.Gui` — the `m365-aegis-gui` executable: the window behind `Host/IUiHost` (Photino today), the
-  bridge dispatch to the Core, `--dev-url` for the Vite dev server and `--smoke` for CI.
+- `src/M365Aegis.Gui` — the `m365-aegis-gui` executable: the window behind `Host/IUiHost` (a WinForms form with
+  the WebView2 control, D-009), the bridge dispatch to the Core, `--dev-url` for the Vite dev server and `--smoke`
+  for CI. The one project on `net10.0-windows` (see [The front end](#the-front-end)).
 - `gui/web` — the front end (see [The front end](#the-front-end)).
 - `tests/` — `M365Aegis.Core.Tests` and `M365Aegis.Cli.Tests` (xUnit v3 on Microsoft.Testing.Platform; the Cli
   tests start the built assembly as a child process; each project keeps its Verify snapshots under
@@ -128,11 +129,34 @@ administrator's Exchange Online token (see [The doctor](#the-doctor)).
 style, components generated into `src/components/ui` and committed as the CLI writes them), Biome for lint and
 format, Vitest for the tests. The bridge to the host is `src/bridge/`: the protocol (the same shape as
 `M365Aegis.Core.Bridge`, checked against the shared samples under `tests/contracts/bridge`) and the transport,
-which uses Photino's `window.external` when the host injected it and a mock in a plain browser, so `npm run dev`
+which uses the host's `window.external` when the host injected it and a mock in a plain browser, so `npm run dev`
 shows the page without the exe. The GUI project's `BuildFrontend` target runs `npm ci` and `npm run build` when
 the sources are newer than `dist/index.html` and copies `dist/` next to the exe as `wwwroot/`;
 `-p:SkipFrontendBuild=true` skips both. During development, `m365-aegis-gui --dev-url http://localhost:5173`
-loads the dev server with hot reload.
+loads the dev server with hot reload, with the developer tools and the browser's context menu on.
+
+The host (D-009, measured against Photino.NET in task 014) is a WinForms form with the `WebView2` control of
+Microsoft's WebView2 SDK, in `src/M365Aegis.Gui/Host/WinFormsWebView2Host.cs` behind `IUiHost`:
+
+- The shipped `wwwroot/` is served from the virtual host `https://m365-aegis.example/`
+  (`SetVirtualHostNameToFolderMapping`, no cross-origin access; `.example` never resolves to a real site), so the
+  page has an https origin and its ES modules load without a browser flag; a `file://` page would refuse them.
+- The bridge: a script added on document creation defines `window.external.sendMessage` and `receiveMessage` over
+  `chrome.webview`; the host takes a message (`WebMessageReceived`) only from the page's own origin, answers with
+  `PostWebMessageAsString`, cancels a navigation away from that origin and refuses new windows.
+- The browser's data folder is `webview2\` under the home folder (`CoreWebView2Environment.CreateAsync` with it as
+  the user data folder), never next to the exe.
+- The form's handle (`IUiHost.WindowHandle`) exists before the page starts and is the top-level window the
+  broker's account picker takes as its parent; `--smoke` prints the time to `ready` and whether the handle is a
+  top-level window.
+- WinForms needs the `net10.0-windows` target, so the GUI project is the only one on it; the Core and the Cli stay
+  plain `net10.0`. `EnableWindowsTargeting` lets the Linux `dotnet` job restore the Windows Desktop targeting pack
+  and build the project. The window therefore needs the .NET Desktop Runtime 10, the command line only the .NET
+  Runtime 10. The WebView2 package references its WPF control on every .NET project; the GUI project drops that
+  reference before the build (it would pull in WPF's `WindowsBase` and fail on a version conflict), so nothing WPF
+  ships. The WebView2 runtime itself is the Evergreen one Windows 11 carries.
+- The WebView2 browser processes outlive a closed window by a few seconds (about six, measured 2026-10-29), so a
+  `Start-Process -Wait` on the exe, as the `windows` job's smoke step runs it, waits for them too.
 
 The front end's packages, with their reasons (`package.json` carries no comments): `react` and `react-dom`
 (the UI); `vite` and `@vitejs/plugin-react` (the build and the dev server); `typescript` (strict types; the 7.x
@@ -236,7 +260,9 @@ condition passes its check. The jobs: `dotnet` (locked restore, `dotnet format -
 Core and Cli tests), `deps` (the vulnerability script, `nuget-license` against `licenses/allowed.json` over the
 shipped projects, with `licenses/overrides.json`, which the release script's notices read too, naming the
 license of a package that ships it as a file instead of an SPDX expression: the broker's native runtime, `Microsoft.Identity.Client.NativeInterop`, comes
-under the Microsoft Software License Terms and is allowed as `LicenseRef-Microsoft-Software-License-Terms`;
+under the Microsoft Software License Terms and is allowed as `LicenseRef-Microsoft-Software-License-Terms`, and
+the WebView2 SDK, `Microsoft.Web.WebView2`, ships a BSD-3-Clause text and is named `BSD-3-Clause`; an override
+names one version, so a bump of either package updates its line;
 `npm audit` and the front end's license script), `frontend` (Biome, the type check, Vitest,
 the Vite build), `sidecar` (PSScriptAnalyzer and the Pester tests against the fake module, with the runner's own
 pwsh), all four skipped on a docs-only change, `lint` (the changelog check, skipped on a tag, see [The changelog](#the-changelog); the fixture check; the

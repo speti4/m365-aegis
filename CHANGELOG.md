@@ -25,6 +25,7 @@ The repository, the task standard and the empty solution: no product yet.
 - Project scaffolding: repo structure, task standard, decisions, origin and research ([001](https://github.com/speti4/m365-aegis/blob/main/tasks/done/001-project-scaffolding.md))
 - GitHub repository settings by hand after the first push ([012](https://github.com/speti4/m365-aegis/blob/main/tasks/done/012-github-repository-settings.md))
 - Spike: the Windows account manager from a console process, and where device code has to take over ([013](https://github.com/speti4/m365-aegis/blob/main/tasks/done/013-spike-wam-from-a-console-process.md))
+- Spike: Photino.NET 4.0.16 on .NET 10 against a WinForms and WebView2 host, recorded as a decision ([014](https://github.com/speti4/m365-aegis/blob/main/tasks/done/014-spike-photino-against-winforms-and-webview2.md))
 - Decide on Verify 33 and the Open Source Maintenance Fee, then move or keep the pin ([020](https://github.com/speti4/m365-aegis/blob/main/tasks/done/020-decide-on-verify-33-and-the-maintenance-fee.md))
 - TypeScript 7 migration of the front end ([022](https://github.com/speti4/m365-aegis/blob/main/tasks/done/022-typescript-7-migration-of-the-front-end.md))
 - CI skips the build jobs when only docs, tasks, memory or the changelog changed ([023](https://github.com/speti4/m365-aegis/blob/main/tasks/done/023-ci-skips-the-build-steps-for-docs-only-changes.md))

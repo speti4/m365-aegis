@@ -35,11 +35,19 @@ lookups:
 - **A window for the team.** Task cards for the daily Exchange and group work the admin centers make slow, each
   ending in a confirmation.
 
+## Requirements
+
+Windows 11 with the .NET 10 runtime: the command line (`m365-aegis.exe`) needs the .NET Runtime 10, the window
+(`m365-aegis-gui.exe`) the .NET Desktop Runtime 10, which includes the former (`winget install
+Microsoft.DotNet.DesktopRuntime.10`). The Exchange Online commands need PowerShell 7.6 and the
+`ExchangeOnlineManagement` module 3.10; the window's WebView2 runtime comes with Windows 11. `m365-aegis doctor`
+says what is missing.
+
 ## Build from source
 
-m365-aegis is a .NET 10 core with a `System.CommandLine` command line and a Photino window hosting a React front
-end; why is in [D-002](tasks/decisions/D-002-dotnet-10-core-cli-and-window-with-react.md). You need the .NET 10
-SDK, Node 24 and PowerShell 7.6 (details in [CONTRIBUTING.md](CONTRIBUTING.md)):
+m365-aegis is a .NET 10 core with a `System.CommandLine` command line and a WinForms window hosting a React front
+end in WebView2; why is in [D-002](tasks/decisions/D-002-dotnet-10-core-cli-and-window-with-react.md) and D-009.
+You need the .NET 10 SDK, Node 24 and PowerShell 7.6 (details in [CONTRIBUTING.md](CONTRIBUTING.md)):
 
 ```powershell
 dotnet build -c Release

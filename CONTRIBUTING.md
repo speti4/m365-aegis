@@ -40,7 +40,7 @@ dotnet build -c Release                                      # the three project
 dotnet build -c Release -p:SkipFrontendBuild=true            # without the front end
 dotnet test -c Release
 src\M365Aegis.Cli\bin\Release\net10.0\m365-aegis.exe doctor --offline --table
-src\M365Aegis.Gui\bin\Release\net10.0\m365-aegis-gui.exe     # the window
+src\M365Aegis.Gui\bin\Release\net10.0-windows\m365-aegis-gui.exe   # the window
 npm run dev --prefix gui/web                                 # the front end alone, at http://localhost:5173 with a mock host
 ```
 
