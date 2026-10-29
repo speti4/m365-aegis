@@ -21,6 +21,8 @@
     <!-- The sample reader both test projects share (tests/shared). -->
     <Compile Include="..\shared\DoctorSamples.cs" Link="shared\DoctorSamples.cs" />
     <Compile Include="..\shared\AuthSamples.cs" Link="shared\AuthSamples.cs" />
+    <!-- The recorded Graph answers are read from the source tree, not copied (tests/fixtures/graph). -->
+    <Compile Include="..\shared\GraphFixtures.cs" Link="shared\GraphFixtures.cs" />
   </ItemGroup>
 
   <ItemGroup>

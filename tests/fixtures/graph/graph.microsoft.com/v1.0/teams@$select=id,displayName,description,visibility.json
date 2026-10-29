@@ -1,0 +1,7 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#teams(id,displayName,description,visibility)",
+  "value": [
+    { "id": "00000000-0000-0000-0000-000000000033", "displayName": "Project Phoenix", "description": "The Phoenix project team", "visibility": "public" },
+    { "id": "00000000-0000-0000-0000-000000000031", "displayName": "Finance", "description": "Finance and controlling", "visibility": "private" }
+  ]
+}

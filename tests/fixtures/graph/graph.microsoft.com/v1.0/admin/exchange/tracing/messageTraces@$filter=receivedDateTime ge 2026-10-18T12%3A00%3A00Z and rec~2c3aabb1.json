@@ -1,0 +1,41 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#admin/exchange/tracing/messageTraces",
+  "value": [
+    {
+      "id": "00000000-0000-0000-0000-000000000053",
+      "senderAddress": "alice@contoso.com",
+      "recipientAddress": "dave@fabrikam.com",
+      "messageId": "<00000000-0000-0000-0000-000000000052@contoso.com>",
+      "receivedDateTime": "2026-10-20T08:15:42Z",
+      "subject": "Invoice 2026-0412",
+      "size": 18234,
+      "fromIP": "203.0.113.10",
+      "toIP": "198.51.100.25",
+      "status": "failed"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000051",
+      "senderAddress": "alice@contoso.com",
+      "recipientAddress": "carol@contoso.com",
+      "messageId": "<00000000-0000-0000-0000-000000000050@contoso.com>",
+      "receivedDateTime": "2026-10-19T09:30:00Z",
+      "subject": "Quarterly report",
+      "size": 45678,
+      "fromIP": "203.0.113.10",
+      "toIP": "",
+      "status": "delivered"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000051",
+      "senderAddress": "alice@contoso.com",
+      "recipientAddress": "bob@contoso.com",
+      "messageId": "<00000000-0000-0000-0000-000000000050@contoso.com>",
+      "receivedDateTime": "2026-10-19T09:30:00Z",
+      "subject": "Quarterly report",
+      "size": 45678,
+      "fromIP": "203.0.113.10",
+      "toIP": "",
+      "status": "delivered"
+    }
+  ]
+}

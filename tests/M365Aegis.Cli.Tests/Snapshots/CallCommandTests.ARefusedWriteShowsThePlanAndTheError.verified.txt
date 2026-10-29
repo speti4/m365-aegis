@@ -1,0 +1,9 @@
+﻿--- stdout ---
+field   value
+------  ----------------------------------------------------------------------------
+method  DELETE
+url     https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000031
+body    -
+--- stderr ---
+error: DELETE changes the tenant; nothing was sent (refused-without-yes)
+hint: check the request in the data and run the command again with --yes

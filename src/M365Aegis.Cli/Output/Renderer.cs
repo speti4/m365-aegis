@@ -32,9 +32,9 @@ internal static class Renderer
             return result.ExitCode;
         }
 
-        if (result.Data is not null && view.Headers.Count > 0)
+        if (result.Data is not null && view.HeadersFor(result.Data) is { Count: > 0 } headers)
         {
-            output.Write(TableWriter.Render(view.Headers, view.Rows(result.Data).ToList()));
+            output.Write(TableWriter.Render(headers, view.Rows(result.Data).ToList()));
             bool first = true;
             foreach (string line in view.Footer(result.Data))
             {

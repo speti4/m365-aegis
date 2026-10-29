@@ -1,8 +1,8 @@
 """Holds the recorded fixtures to made-up data: no real tenant, name, id or token under tests/fixtures.
 
 A recorded Graph or Exchange answer is scrubbed before it is committed (CONTRIBUTING.md, "Tenant data never
-enters the repo"): every domain is contoso.com, fabrikam.com, example.com or their .onmicrosoft.com forms,
-every GUID is of the form 00000000-0000-0000-0000-0000000000NN, and nothing looks like a JWT. This script walks
+enters the repo"): every domain is contoso.com, fabrikam.com, example.com or their .onmicrosoft.com and
+.sharepoint.com forms, every GUID is of the form 00000000-0000-0000-0000-0000000000NN, and nothing looks like a JWT. This script walks
 tests/fixtures, tests/sidecar, tests/contracts and the snapshot folders of the test projects and fails on anything
 else, so a real value cannot slip in with a recording or with an accepted snapshot.
 
@@ -25,8 +25,9 @@ FOLDERS = [
 ]
 TEXT_SUFFIXES = {".json", ".headers", ".txt", ".md", ".ps1", ".psm1", ".psd1", ".csv"}
 
+# The made-up tenants' SharePoint hosts (contoso.sharepoint.com, contoso-my.sharepoint.com) are theirs too.
 ALLOWED_DOMAINS = re.compile(
-    r"\b(?:[a-z0-9-]+\.)*(?:contoso|fabrikam|example)(?:\.onmicrosoft)?\.com\b", re.IGNORECASE
+    r"\b(?:[a-z0-9-]+\.)*(?:contoso|fabrikam|example)(?:\.onmicrosoft|(?:-my)?\.sharepoint)?\.com\b", re.IGNORECASE
 )
 ANY_DOMAIN = re.compile(r"\b[a-z0-9-]+(?:\.[a-z0-9-]+)+\.(?:com|net|org|hu|io|dev|microsoft\.com)\b", re.IGNORECASE)
 # Hosts of the services themselves are fine in a URL-shaped fixture path or header.

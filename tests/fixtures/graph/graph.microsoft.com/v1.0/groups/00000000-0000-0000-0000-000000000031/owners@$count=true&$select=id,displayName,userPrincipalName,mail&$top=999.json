@@ -1,0 +1,7 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#directoryObjects(id,displayName,userPrincipalName,mail)",
+  "@odata.count": 1,
+  "value": [
+    { "@odata.type": "#microsoft.graph.user", "id": "00000000-0000-0000-0000-000000000001", "displayName": "Alice Example", "userPrincipalName": "alice@contoso.com", "mail": "alice@contoso.com" }
+  ]
+}

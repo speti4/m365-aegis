@@ -54,6 +54,11 @@ internal static class Program
         root.Subcommands.Add(LogoutCommand.Build(json, table, profile));
         root.Subcommands.Add(DoctorCommand.Build(json, table, profile));
         root.Subcommands.Add(ProfileCommand.Build(json, table));
+        root.Subcommands.Add(CallCommand.Build(json, table, profile));
+        root.Subcommands.Add(GroupCommand.Build(json, table, profile));
+        root.Subcommands.Add(TeamCommand.Build(json, table, profile));
+        root.Subcommands.Add(SiteCommand.Build(json, table, profile));
+        root.Subcommands.Add(TraceCommand.Build(json, table, profile));
 
         ParseResult parsed = root.Parse(args);
         if (parsed.Errors.Count > 0)

@@ -1,0 +1,29 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#sites",
+  "value": [
+    {
+      "createdDateTime": "2026-01-10T09:00:00Z",
+      "id": "contoso.sharepoint.com,00000000-0000-0000-0000-000000000041,00000000-0000-0000-0000-000000000042",
+      "lastModifiedDateTime": "2026-10-27T15:20:00Z",
+      "name": "finance",
+      "webUrl": "https://contoso.sharepoint.com/sites/finance",
+      "displayName": "Finance"
+    },
+    {
+      "createdDateTime": "2025-11-02T08:00:00Z",
+      "id": "contoso.sharepoint.com,00000000-0000-0000-0000-000000000043,00000000-0000-0000-0000-000000000044",
+      "lastModifiedDateTime": "2026-10-28T07:45:00Z",
+      "name": "",
+      "webUrl": "https://contoso.sharepoint.com",
+      "displayName": "Communication site"
+    },
+    {
+      "createdDateTime": "2026-03-05T12:00:00Z",
+      "id": "contoso.sharepoint.com,00000000-0000-0000-0000-000000000045,00000000-0000-0000-0000-000000000046",
+      "lastModifiedDateTime": "2026-10-20T10:10:00Z",
+      "name": "phoenix",
+      "webUrl": "https://contoso.sharepoint.com/sites/phoenix",
+      "displayName": "Project Phoenix"
+    }
+  ]
+}

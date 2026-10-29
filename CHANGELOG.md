@@ -14,7 +14,10 @@ The repository, the task standard and the empty solution: no product yet.
 ### M1 Foundation
 
 - Auth: MSAL.NET with the Windows account manager, interactive and device-code fallback, `login`, `logout`, `whoami` ([002](https://github.com/speti4/m365-aegis/blob/main/tasks/done/002-auth-with-msal-and-the-windows-account-manager.md))
+- Graph client: HttpClient and System.Text.Json, paging, throttling, `$batch`, v1.0 and beta; the raw `call` ([003](https://github.com/speti4/m365-aegis/blob/main/tasks/done/003-graph-client-with-paging-throttling-and-batch.md))
 - Output contract (D-006): the envelope and the table for every command, exit codes, snapshot tests ([004](https://github.com/speti4/m365-aegis/blob/main/tasks/done/004-output-contract-envelope-table-and-exit-codes.md))
+- Group, Teams and SharePoint lookups: members and owners, groups without owners, team list, site list ([005](https://github.com/speti4/m365-aegis/blob/main/tasks/done/005-group-teams-and-sharepoint-lookups.md))
+- Message trace through Graph v1.0 ([007](https://github.com/speti4/m365-aegis/blob/main/tasks/done/007-message-trace-through-graph.md))
 - `doctor` with the full check list: the module version, WebView2, the sidecar hash, the sign-in, the endpoints ([008](https://github.com/speti4/m365-aegis/blob/main/tasks/done/008-doctor-with-the-full-check-list.md))
 - Spike: Photino.NET 4.0.16 on .NET 10 against a WinForms and WebView2 host, recorded as a decision ([014](https://github.com/speti4/m365-aegis/blob/main/tasks/done/014-spike-photino-against-winforms-and-webview2.md))
 - An exit code for an unexpected internal error ([021](https://github.com/speti4/m365-aegis/blob/main/tasks/done/021-exit-code-for-an-unexpected-internal-error.md))

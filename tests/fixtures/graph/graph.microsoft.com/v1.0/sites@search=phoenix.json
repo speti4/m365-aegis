@@ -1,0 +1,12 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#sites",
+  "value": [
+    {
+      "id": "contoso.sharepoint.com,00000000-0000-0000-0000-000000000045,00000000-0000-0000-0000-000000000046",
+      "lastModifiedDateTime": "2026-10-20T10:10:00Z",
+      "name": "phoenix",
+      "webUrl": "https://contoso.sharepoint.com/sites/phoenix",
+      "displayName": "Project Phoenix"
+    }
+  ]
+}

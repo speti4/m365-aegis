@@ -5,17 +5,20 @@ whose answers a shell, a script or an agent can parse, and a window with guided 
 Groups, Teams and SharePoint; Exchange Online mailboxes; audit, sign-ins and reports. Every write behind a plan
 and a confirmation.
 
-Planned output (M1):
+What it prints (M1, against a made-up tenant):
 
 ```text
 > m365-aegis group owners-missing
-name                     id                                    members
------------------------  ------------------------------------  -------
-Finance                  00000000-0000-0000-0000-000000000031  14
-Project Phoenix          00000000-0000-0000-0000-000000000032  6
+name             type           address              id
+---------------  -------------  -------------------  ------------------------------------
+Helpdesk Admins  security       -                    00000000-0000-0000-0000-000000000034
+Project Phoenix  Microsoft 365  phoenix@contoso.com  00000000-0000-0000-0000-000000000033
 
-> m365-aegis mailbox access finance@contoso.com --json
-{"ok":true,"data":[{"user":"alice@contoso.com","rights":["FullAccess"]}],"meta":{"requestIds":[],"elapsedMs":412,"backend":"pwsh"}}
+2 group(s) without an owner
+3 distribution, mail-enabled security or synced group(s) left out: Graph keeps no owners for them (--all-types lists them)
+
+> m365-aegis group owners Finance --json
+{"ok":true,"data":{"group":{"id":"00000000-0000-0000-0000-000000000031","displayName":"Finance","kind":"microsoft365","mail":"finance@contoso.com","synced":false},"owners":[{"type":"user","displayName":"Alice Example","userPrincipalName":"alice@contoso.com","mail":"alice@contoso.com","id":"00000000-0000-0000-0000-000000000001"}]},"meta":{"requestIds":["00000000-0000-0000-0000-0000000000e1","00000000-0000-0000-0000-0000000000e5"],"elapsedMs":412,"backend":"graph"}}
 ```
 
 ## What it will do
@@ -77,6 +80,30 @@ When something does not work, `doctor` checks the prerequisites (pwsh and the Ex
 script, WebView2, the device's join state, the sign-in, the endpoints) and says what to install or do for each
 warning and failure. A sign-in that fails is diagnosed with `--verbose login`: the sign-in library's log, without
 tokens or personal data, goes to `%LOCALAPPDATA%\m365-aegis\logs\`.
+
+Any Graph request goes through `call`, its answer unchanged inside the envelope; a method other than GET is a
+write and is sent only with `--yes` (without it the request is printed as the plan):
+
+```powershell
+& $aegis call GET /me                    # v1.0; /beta/me or --beta for the beta endpoint
+& $aegis call GET "/groups?`$top=5" --all # every page
+```
+
+The first lookups, each a table at a terminal and the envelope with `--json`; a group is named by its display
+name, its address, its object id or a word of its name:
+
+```powershell
+& $aegis group members Finance
+& $aegis group owners finance@contoso.com
+& $aegis group owners-missing            # --all-types adds the groups Graph keeps no owners for
+& $aegis team list
+& $aegis site list --search finance
+& $aegis trace --sender alice@contoso.com --days 3              # at most 10 days per trace
+& $aegis trace --recipient bob@contoso.com --until 2026-10-01   # up to 90 days back
+```
+
+Each needs its delegated permission consented for the app registration (docs/development.md, "The sign-in and
+the home folder"); the message trace also needs a service principal created once per tenant.
 
 ## Documentation
 

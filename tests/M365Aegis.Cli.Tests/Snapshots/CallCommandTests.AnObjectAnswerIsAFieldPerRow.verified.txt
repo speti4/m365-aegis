@@ -1,0 +1,15 @@
+﻿--- stdout ---
+field              value
+-----------------  ------------------------------------
+businessPhones     []
+displayName        Alice Example
+givenName          Alice
+jobTitle           IT administrator
+mail               alice@contoso.com
+mobilePhone        -
+officeLocation     Building 1
+preferredLanguage  en-US
+surname            Example
+userPrincipalName  alice@contoso.com
+id                 00000000-0000-0000-0000-000000000001
+--- stderr ---

@@ -27,6 +27,18 @@ public enum ExitCode
     /// <summary>A write was asked for without --yes and without a confirmation; the plan was printed instead.</summary>
     RefusedWithoutYes = 7,
 
+    /// <summary>
+    /// The service refused the signed-in account or the app: a delegated permission is not consented, or the
+    /// account lacks the role (HTTP 403). The hint names the permission when the command knows it.
+    /// </summary>
+    Forbidden = 8,
+
+    /// <summary>
+    /// The service answered with an error no other code covers (a bad request, a server error after the retries),
+    /// or could not be reached.
+    /// </summary>
+    ServiceError = 9,
+
     /// <summary>A required doctor check failed; the report names it.</summary>
     DoctorFailed = 10,
 

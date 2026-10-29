@@ -292,7 +292,8 @@ public sealed class CliTests
 
     private static (int ExitCode, string Stdout, string Stderr) Run(params string[] args) => RunWith([], args);
 
-    private static (int ExitCode, string Stdout, string Stderr) RunWith(Dictionary<string, string> environment, params string[] args)
+    /// <summary>Runs the built exe with extra environment variables; the other command tests use it too.</summary>
+    internal static (int ExitCode, string Stdout, string Stderr) RunWith(Dictionary<string, string> environment, params string[] args)
     {
         var startInfo = new ProcessStartInfo("dotnet")
         {

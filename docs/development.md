@@ -24,7 +24,8 @@ checks before a commit and the project rules are in [CONTRIBUTING.md](../CONTRIB
   tests start the built assembly as a child process; each project keeps its Verify snapshots under
   `Snapshots/`), `shared/` (the source files both C# test projects link), `sidecar/` (Pester, with the fake
   module under `sidecar/modules/ExchangeOnlineManagement`), `contracts/bridge/` (the message samples the C# and
-  TypeScript tests share), `fixtures/` (recorded, scrubbed answers; `fixtures/README.md`).
+  TypeScript tests share), `fixtures/` (recorded, scrubbed answers; `fixtures/README.md`; the Graph
+  answers are read from the source tree through `shared/GraphFixtures.cs`).
 - `scripts/` — the helper scripts: the release, the changelog, the commit rules, the fixture check, the
   vulnerability check, the front end's license check, the Pester version pin.
 - `docs/` — this page, the git workflow, the maintainer sessions, origin and research.
@@ -70,6 +71,20 @@ of the other domains add theirs as their tasks settle them (the groups, Teams an
 the audit lookups of task 006, `ExchangeMessageTrace.Read.All` for the message trace of task 007), each with a
 line here.
 
+- `call` (task 003): nothing of its own; the endpoint it calls needs what its reference page names.
+- Groups (task 005): `GroupMember.Read.All` for the groups, their members and owners and `group owners-missing`,
+  and `User.ReadBasic.All` for the names of members and owners that are users (without it Graph returns their ids
+  and types only).
+- Teams (task 005): `Team.ReadBasic.All` for `team list`.
+- SharePoint (task 005): `Sites.Read.All` for `site list`; with a delegated token the site search is trimmed to the
+  sites the signed-in account can open (`getAllSites`, every site regardless, is application-only).
+- Message trace (task 007): `ExchangeMessageTrace.Read.All`, and once per tenant the service principal of
+  Microsoft's message trace application (application id `8bd644d1-64a1-4d4b-ae52-2e0cbf64e373`, the same in every
+  tenant), which an administrator creates with `Connect-MgGraph -Scopes Application.ReadWrite.All` and
+  `New-MgServicePrincipal -AppId 8bd644d1-64a1-4d4b-ae52-2e0cbf64e373`. Provisioning can take several hours; until
+  then the service answers 401 naming the service principal, which `trace` reports as exit code 8 with this step
+  as the hint. After a new consent, `login` fetches a token that carries it.
+
 Everything the tool keeps lives under `%LOCALAPPDATA%\m365-aegis\` (D-005): `config.json` with the tenant
 profiles, `msal-cache.bin` (DPAPI, with a `.lockfile` next to it while a process reads or writes it, so the
 command line and the window share one cache), `webview2\`, `logs\` and `plans\` with the plan records.
@@ -107,6 +122,69 @@ the hint:
   }
 }
 ```
+
+## The Graph client
+
+`Graph/` in the Core is the one way to Microsoft Graph (task 003): `HttpClient` and System.Text.Json, no SDK
+(D-002), and everything D-006 keeps out of the commands. A lookup describes a request as a `GraphRequest` (the
+method, the path under the version built with `GraphQuery.Path` so every value is escaped, `GraphQuery.Literal`
+for an OData string, `Version = GraphVersion.Beta` for the beta endpoint, `EventualConsistency = true` for an
+advanced query on directory objects, `Permission` for the delegated permission a 403 hint names) and reads the
+answer through `GraphClient`:
+
+- `GetAsync<T>` reads one answer typed; `GetPagesAsync<T>`, `GetAllAsync<T>` (an async stream) and `ListAsync<T>`
+  follow `@odata.nextLink` with the same headers to the last page; `SendAsync` returns the answer as it came;
+  `BatchAsync` sends up to twenty requests per `$batch` call and returns one `GraphBatchResponse` per request in
+  the order given (`EnsureSuccess` turns a failed item into the contract's failure).
+- Typed records derive from `GraphObject`: the `@odata.type`, and every field the record does not name kept in
+  `AdditionalData` (`JsonExtensionData`), so nothing Graph sent is dropped.
+- A 429 or 503 is retried after its `Retry-After` (seconds or a date) plus up to 250 ms of jitter, or, without the
+  header, after an exponential back-off with jitter (1, 2, 4, 8 s); four retries per request, and at most 60 s of
+  waiting per command, so a `Retry-After` past the budget fails at once with exit code 5 and the wait in the hint.
+  A throttled item inside a batch is sent again in a new batch after the longest `Retry-After`.
+- A failed answer becomes an `AegisException`: 401 auth (3), 403 forbidden (8, the hint names the permission and
+  the consent), 404 not found (4), 429/503 throttled (5), anything else, and no network, a service error (9).
+- Every answer's `request-id` goes into the command's `RequestLog`, which the command runner puts into the
+  envelope's `meta.requestIds`, a failed command's included.
+
+The token comes from `AuthService.GetAccessTokenAsync` for the Graph resource, silently, on the first request
+(`GraphConnection.Create`), and is sent to `https://graph.microsoft.com` only. The transport is a seam,
+`IGraphTransport`: `HttpGraphTransport` in the product, `FixtureGraphTransport` in the tests, which answers from
+`tests/fixtures/graph` (the URL mirrored as the path, `tests/fixtures/README.md`). `M365AEGIS_GRAPH_FIXTURES`
+pointed at such a folder makes the command line itself use the fixtures and ask for no token, which is how the
+child-process tests run every Graph command offline; like `M365AEGIS_EXO_MODULE_ROOT`, it only ever makes the
+tool read local files. A command in the Cli is one call: `GraphRunner.RunAsync(parsed, json, table, profile,
+(graph, ct) => Lookup(graph, …, ct), View.Instance, cancellationToken)`, with the lookup in the Core returning a
+`CommandResult<T>`.
+
+`call <METHOD> <path> [--beta] [--body <json|@file>] [--all] [--yes]` is the raw request: the path under the
+version (`/me`), with the version in front (`/v1.0/me`, `/beta/me`; a version in the path and `--beta` that
+disagree are a usage error) or a full Graph URL; the answer is the envelope's data unchanged, `--all` merges every
+page's `value`, and the table shows a collection as a row per item and an object as a field per row. A GET is
+sent as it is; any other method is a write and is sent only with `--yes`: without it the request (method, URL,
+body) is the data, nothing is sent and the exit code is 7 (D-006).
+
+## The lookups
+
+Each lookup is a static method in the Core over the `GraphClient`, returning a `CommandResult<T>`, and a command
+with its table view in the Cli (task 005, task 007):
+
+- `group members|owners <group>` (`Groups/GroupLookups.cs`): the group is an object id (`GET /groups/{id}`), an
+  exact display name, or with an `@` an exact address (`$filter` … `eq`, an advanced query), else the one group whose
+  name `$search` matches (`"displayName:<words>"`); no match is exit code 4, and more than one is exit code 4 with
+  the candidates and their ids in the hint. The members and owners come over every page with `$select`, which on
+  these lists is an advanced query (`ConsistencyLevel: eventual`, `$count=true`).
+- `group owners-missing [--all-types]`: one paged advanced query, `$filter=owners/$count eq 0`, never a request per
+  group. Graph keeps no owners for distribution, mail-enabled security and synced groups, so they are left out and
+  counted under the table unless `--all-types` asks for them.
+- `team list` (`Groups/WorkspaceLookups.cs`): `GET /teams`, which fills the id, the name, the description and the
+  visibility only. `site list [--search <words>]`: `GET /sites?search=` (`*` for every site the account can see).
+- `trace --sender <address> | --recipient <address> [--days N] [--until <time>]` (`Exchange/MessageTraceLookup.cs`):
+  `GET /admin/exchange/tracing/messageTraces` with a `receivedDateTime` window and the addresses as `$filter`, pages
+  of 5000. The service answers at most 10 days per request, back to 90 days, ending no later than now: a window
+  outside that is a usage error with a hint (`--until` moves the window back) and is never sent, so an empty answer
+  always means no message. The service allows 100 requests per 5 minutes per tenant; a 429 goes through the
+  client's throttling budget.
 
 ## The Exchange Online sidecar
 
@@ -183,6 +261,8 @@ the JSON envelope `{"ok":…,"data":…,"error":{"code","message","hint"},"meta"
 | 5 | `throttled` | the service throttled the request and the retries ran out |
 | 6 | `partial` | some items of a bulk operation failed; the data lists both |
 | 7 | `refused-without-yes` | a write without `--yes`; the plan is the data |
+| 8 | `forbidden` | the service refused the account or the app: a permission not consented, a role missing (task 003) |
+| 9 | `service-error` | the service answered with an error no other code covers (a bad request, a server error after the retries), or could not be reached (task 003) |
 | 10 | `doctor-failed` | a required doctor check failed; the report is the data |
 | 70 | `internal` | the tool broke: an unexpected exception stopped the command (task 021); `EX_SOFTWARE` of sysexits.h |
 

@@ -1,0 +1,17 @@
+﻿--- stdout ---
+name             visibility  id
+---------------  ----------  ------------------------------------
+Finance          private     00000000-0000-0000-0000-000000000031
+Project Phoenix  public      00000000-0000-0000-0000-000000000033
+
+2 team(s)
+--- stderr ---
+--- stdout ---
+name                address                                       last modified
+------------------  --------------------------------------------  -------------
+Communication site  https://contoso.sharepoint.com                2026-10-28
+Finance             https://contoso.sharepoint.com/sites/finance  2026-10-27
+Project Phoenix     https://contoso.sharepoint.com/sites/phoenix  2026-10-20
+
+3 site(s) the signed-in account can see
+--- stderr ---

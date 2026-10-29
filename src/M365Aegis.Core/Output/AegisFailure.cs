@@ -29,6 +29,11 @@ public enum FailureKind
 
     /// <summary>An unexpected internal error stopped the command; the stack trace is in the log, not in the answer.</summary>
     Internal,
+    /// <summary>The service refused the account or the app: a permission is not consented, or a role is missing.</summary>
+    Forbidden,
+
+    /// <summary>The service answered with an error no other kind covers, or could not be reached.</summary>
+    ServiceError,
 }
 
 /// <summary>The exit code and the error code of each failure kind: the mapping the tests hold fixed.</summary>
@@ -45,6 +50,8 @@ public static class FailureKinds
         FailureKind.RefusedWithoutYes => ExitCode.RefusedWithoutYes,
         FailureKind.DoctorFailed => ExitCode.DoctorFailed,
         FailureKind.Internal => ExitCode.Internal,
+        FailureKind.Forbidden => ExitCode.Forbidden,
+        FailureKind.ServiceError => ExitCode.ServiceError,
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "a failure kind without an exit code"),
     };
 
@@ -59,6 +66,8 @@ public static class FailureKinds
         FailureKind.RefusedWithoutYes => "refused-without-yes",
         FailureKind.DoctorFailed => "doctor-failed",
         FailureKind.Internal => "internal",
+        FailureKind.Forbidden => "forbidden",
+        FailureKind.ServiceError => "service-error",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "a failure kind without an error code"),
     };
 }

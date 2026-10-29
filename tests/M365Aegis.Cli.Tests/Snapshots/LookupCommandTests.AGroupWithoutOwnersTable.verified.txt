@@ -1,0 +1,6 @@
+﻿--- stdout ---
+type  name  sign-in name or address  id
+----  ----  -----------------------  --
+
+0 owner(s) of Project Phoenix (Microsoft 365, 00000000-0000-0000-0000-000000000033)
+--- stderr ---

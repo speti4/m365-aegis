@@ -11,6 +11,12 @@ internal interface ITableView<in T>
     /// <summary>The column headers; empty when the result has no table (a plain failure).</summary>
     IReadOnlyList<string> Headers { get; }
 
+    /// <summary>
+    /// The column headers for this data; <see cref="Headers"/> by default. A view whose columns follow the data
+    /// (the raw <c>call</c>, whose answer can be any shape) overrides it.
+    /// </summary>
+    IReadOnlyList<string> HeadersFor(T data) => Headers;
+
     /// <summary>The rows, each with as many cells as there are headers.</summary>
     IEnumerable<IReadOnlyList<string>> Rows(T data);
 

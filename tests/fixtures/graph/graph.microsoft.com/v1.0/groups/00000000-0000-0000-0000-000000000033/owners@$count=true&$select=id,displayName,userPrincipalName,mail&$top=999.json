@@ -1,0 +1,5 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#directoryObjects(id,displayName,userPrincipalName,mail)",
+  "@odata.count": 0,
+  "value": []
+}

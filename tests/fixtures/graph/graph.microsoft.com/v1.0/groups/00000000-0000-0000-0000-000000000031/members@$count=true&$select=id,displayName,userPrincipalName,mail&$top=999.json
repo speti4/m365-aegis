@@ -1,0 +1,10 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#directoryObjects(id,displayName,userPrincipalName,mail)",
+  "@odata.count": 4,
+  "@odata.nextLink": "https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000031/members?$count=true&$select=id,displayName,userPrincipalName,mail&$top=999&$skiptoken=page-2",
+  "value": [
+    { "@odata.type": "#microsoft.graph.user", "id": "00000000-0000-0000-0000-000000000003", "displayName": "Bob Example", "userPrincipalName": "bob@contoso.com", "mail": "bob@contoso.com" },
+    { "@odata.type": "#microsoft.graph.user", "id": "00000000-0000-0000-0000-000000000001", "displayName": "Alice Example", "userPrincipalName": "alice@contoso.com", "mail": "alice@contoso.com" },
+    { "@odata.type": "#microsoft.graph.group", "id": "00000000-0000-0000-0000-000000000032", "displayName": "Finance EU", "mail": "finance-eu@contoso.com" }
+  ]
+}

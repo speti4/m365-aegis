@@ -1,0 +1,10 @@
+{
+  "responses": [
+    {
+      "id": "3",
+      "status": 200,
+      "headers": { "Content-Type": "application/json" },
+      "body": { "id": "00000000-0000-0000-0000-000000000031", "displayName": "Finance", "mailNickname": "finance" }
+    }
+  ]
+}

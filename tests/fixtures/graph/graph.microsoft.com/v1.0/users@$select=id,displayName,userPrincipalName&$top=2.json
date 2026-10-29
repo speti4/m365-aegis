@@ -1,0 +1,8 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users(id,displayName,userPrincipalName)",
+  "@odata.nextLink": "https://graph.microsoft.com/v1.0/users?$select=id,displayName,userPrincipalName&$top=2&$skiptoken=page-2",
+  "value": [
+    { "id": "00000000-0000-0000-0000-000000000001", "displayName": "Alice Example", "userPrincipalName": "alice@contoso.com" },
+    { "id": "00000000-0000-0000-0000-000000000003", "displayName": "Bob Example", "userPrincipalName": "bob@contoso.com" }
+  ]
+}

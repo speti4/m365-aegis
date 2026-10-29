@@ -1,0 +1,10 @@
+﻿--- stdout ---
+type   name           sign-in name or address  id
+-----  -------------  -----------------------  ------------------------------------
+user   Alice Example  alice@contoso.com        00000000-0000-0000-0000-000000000001
+user   Bob Example    bob@contoso.com          00000000-0000-0000-0000-000000000003
+user   Carol Example  carol@contoso.com        00000000-0000-0000-0000-000000000004
+group  Finance EU     finance-eu@contoso.com   00000000-0000-0000-0000-000000000032
+
+4 direct member(s) of Finance (Microsoft 365, 00000000-0000-0000-0000-000000000031)
+--- stderr ---

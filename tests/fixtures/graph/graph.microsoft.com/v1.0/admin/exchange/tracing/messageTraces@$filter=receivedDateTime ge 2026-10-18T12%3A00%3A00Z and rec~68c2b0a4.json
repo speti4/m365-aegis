@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "UnknownError",
+    "message": "Service principal-less authentication failed: The service principal for App ID 00000000-0000-0000-0000-000000000060 was not found. Please create a service principal for this app in your tenant. Provisioning may take several hours to complete."
+  }
+}

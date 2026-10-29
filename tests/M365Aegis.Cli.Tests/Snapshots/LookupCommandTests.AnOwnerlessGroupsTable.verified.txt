@@ -1,0 +1,9 @@
+﻿--- stdout ---
+name             type           address              id
+---------------  -------------  -------------------  ------------------------------------
+Helpdesk Admins  security       -                    00000000-0000-0000-0000-000000000034
+Project Phoenix  Microsoft 365  phoenix@contoso.com  00000000-0000-0000-0000-000000000033
+
+2 group(s) without an owner
+3 distribution, mail-enabled security or synced group(s) left out: Graph keeps no owners for them (--all-types lists them)
+--- stderr ---
