@@ -4,6 +4,7 @@ origin: session 2026-10-28
 created: 2026-10-28
 started: 2026-10-29
 plan: none
+closed: 2026-10-30
 milestone: M4 Window
 ---
 
@@ -38,12 +39,15 @@ remarks land in this Log then.
 2. [x] The states: signed out, working, refused, partial; light and dark
 3. [x] Front-end tests for the sketch's state machine; lint, typecheck and build green; the published window unchanged
 4. [x] Docs
-5. [ ] The colleague's review (the maintainer's, after the merge): the remarks in this Log, the first card task
-   written from it
+5. [x] The colleague's review: moved out of this task (Log, 2026-10-30) — the remarks go into the first card task
 
 ## Log
 
 - 2026-10-29 — promoted by the main session into the window M4 bundle (040, 045, 018)
+- 2026-10-30 — closed with the sketch built and the review still ahead (decided 2026-10-30): the colleague's remarks
+  land in the first real card task, which is written after the review and the M3 plan rather than filed now; the
+  pull request's third follow-up ("build the first real task card from the sketch") was not filed for the same
+  reason. The sketch runs with `npm run dev --prefix gui/web` at `#/sketch/task-cards`.
 - 2026-10-29 — the sketch under `gui/web/src/sketch/`: `task-card-flow.ts` (the flow as a reducer: list, pick,
   planning, plan or refused, confirming, applying, result; signed out closes and locks the cards; the made-up plan
   and outcome types, marked SKETCH ONLY), `sketch-data.ts` (three cards — grant FullAccess on a shared mailbox, add a
@@ -77,5 +81,5 @@ remarks land in this Log then.
 - [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [x] `tasks_check` green on the branch (a stale index is expected), the file stays in `wip/`; the main session
-      closes it on `main` after the merge
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after #21)
+- [x] moved to `done/` with `closed: 2026-10-30`

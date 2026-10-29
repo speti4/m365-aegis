@@ -4,6 +4,7 @@ origin: done/017-window-hello-bridge-behind-iuihost.md
 created: 2026-10-29
 started: 2026-10-29
 plan: none
+closed: 2026-10-30
 milestone: M4 Window
 ---
 
@@ -101,5 +102,6 @@ and may reshape them. The live check (the sign-in on the maintainer's machine) r
 - [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [x] `tasks_check` green on the branch (a stale index is expected), the file stays in `wip/`; the main session
-      closes it on `main` after the merge
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after #21)
+- [x] moved to `done/` with `closed: 2026-10-30`; the two follow-ups of the pull request filed as backlog 046
+      (window-specific sign-in hints) and 047 (the "Open in browser" button)

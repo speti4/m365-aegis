@@ -45,8 +45,11 @@ The repository, the task standard and the empty solution: no product yet.
 ### M4 Window
 
 - The window's first real page: the sign-in state and a lookup over the bridge, behind `IUiHost` ([017](https://github.com/speti4/m365-aegis/blob/main/tasks/done/017-window-hello-bridge-behind-iuihost.md))
+- Task card design sketch: the plan-and-confirm flow for the support team, before the first card ([018](https://github.com/speti4/m365-aegis/blob/main/tasks/done/018-task-card-design-sketch-for-the-support-team.md))
 - Verbose MSAL logging for the window ([027](https://github.com/speti4/m365-aegis/blob/main/tasks/done/027-verbose-msal-log-for-the-window.md))
 - The front end's transport talks to `chrome.webview` directly ([030](https://github.com/speti4/m365-aegis/blob/main/tasks/done/030-transport-talks-to-chrome-webview-directly.md))
+- The window signs in: `login` over the bridge, the account picker parented to the window ([040](https://github.com/speti4/m365-aegis/blob/main/tasks/done/040-window-sign-in-over-the-bridge.md))
+- The window holds one `ExchangeSession` through the bridge ([045](https://github.com/speti4/m365-aegis/blob/main/tasks/done/045-window-holds-one-exchange-session.md))
 
 ### M6 Release and team
 
