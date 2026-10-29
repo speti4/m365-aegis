@@ -3,6 +3,7 @@ size: S
 origin: session 2026-10-29
 created: 2026-10-29
 started: 2026-10-29
+closed: 2026-10-29
 plan: none
 milestone: M1 Foundation
 changelog: housekeeping
@@ -44,30 +45,49 @@ names the rule.
 
 ## Steps
 
-1. [ ] `changes` job in `ci.yml`: the diff against the base (the pull request's merge base, the push's
+1. [x] `changes` job in `ci.yml`: the diff against the base (the pull request's merge base, the push's
    `before`; a tag, a manual run or an unknown base is the full run), the `code` output
-2. [ ] `dotnet`, `deps`, `frontend`, `sidecar`, `windows`: `needs: [changes]` and the job-level skip condition
-3. [ ] `docs/development.md` ("CI and releases") and the `ci.yml` header comment name the rule
-4. [ ] Verification: zizmor clean; this pull request runs the full build; a docs-only pull request against the
+2. [x] `dotnet`, `deps`, `frontend`, `sidecar`, `windows`: `needs: [changes]` and the job-level skip condition
+3. [x] `docs/development.md` ("CI and releases") and the `ci.yml` header comment name the rule
+4. [x] Verification: zizmor clean; this pull request runs the full build; a docs-only pull request against the
    task branch skips the five build jobs and is green within a minute
 
 ## Log
 
 - 2026-10-29 — promoted from the backlog; planned in the main session, no worktree (a workflow and docs change
   on a `task/023-…` branch, the task-file commits on `main` under the admin bypass)
+- 2026-10-29 — the `changes` job and the five conditions in `ci.yml`, the rule in `docs/development.md`
+  (commit a4d0895, pull request #11). The step's script run by hand in the clone over six cases: a task-only
+  range (81d8aa8..04c212a) gives `code=false` as a pull request and as a push, the TypeScript 7 range
+  (da2cb38..43f6cef) `code=true`, and a zero `before`, an unknown `before` and `workflow_dispatch` each fall
+  back to `code=true`. `uvx zizmor .github/workflows` (1.31.1): no findings, 12 suppressed.
+- 2026-10-29 — the docs-only proof: branch `test/023-docs-only-proof` off the task branch with one line in
+  `docs/origin.md`, pull request #12 with the task branch as base, closed without a merge once the run was in,
+  the branch deleted.
+- 2026-10-29 — closed; no follow-up: the two docs moved with the change, and the `.github/` markdown counting as
+  code is a scope line of this task, not open work.
 
 ## Deviations from the plan
 
-- none yet
+- none
 
 ## Verification
 
-- <dated, concrete: what was run, what it showed, before/after where a number changed>
+- 2026-10-29 — pull request #11 (`ci.yml` and `docs/development.md` changed): run 40893520387, `changes`
+  says `code=true` in 5 s, every build job ran and passed (`dotnet` 34 s, `deps` 36 s, `frontend` 23 s,
+  `sidecar` 39 s, `windows` 2 min 37 s), the run took 2 min 48 s; `commit-rules` green in its own run.
+- 2026-10-29 — pull request #12 (one line in `docs/origin.md`, base the task branch): run 40893585259,
+  `changes` logs `docs  docs/origin.md` and `code=false` in 6 s, `dotnet`, `deps`, `frontend`, `sidecar` and
+  `windows` skipped, `lint` 7 s, `workflow-lint` 12 s, `commit-rules` 6 s; the run was green in 16 s. Before
+  this change the same kind of pull request (run 40891150208, a memory note) took 2 min 32 s.
+- 2026-10-29 — `uvx zizmor .github/workflows` 1.31.1: no findings; `python -I scripts/changelog.py --check`,
+  `python -I scripts/check-fixtures.py` (16 files, 0 findings) and `scripts/check-commit.sh --self-test` (38
+  cases) pass.
 
 ## Closing checklist
 
-- [ ] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
+- [x] `tasks_check` green, README index regenerated
+- [x] moved to `done/` with `closed: 2026-10-29`

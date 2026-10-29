@@ -4,9 +4,12 @@
 # package audit and license check, the front end's lint, type check, tests and build, the sidecar's Pester tests,
 # the changelog and fixture checks, the workflow lint), and the one Windows job (the published exes, the window's
 # smoke test, the Windows-only tests) runs on pull requests and tags only. The ruleset on `main` requires every
-# job, a skipped job included, so no path filter skips them (the commit rules have their own workflow,
-# commit-rules.yml). A tag also publishes the zip, its checksum, its build provenance attestation and the notes
-# from the changelog. Every restore runs in locked mode (RestoreLockedMode in CI), so a stale lock file fails
+# job, so no path filter on the trigger (a required check whose workflow never starts stays pending and blocks
+# the merge); instead the first job, `changes`, diffs the change, and the five build jobs are skipped, which
+# still passes their required checks, when only docs, tasks, memory, the changelog or a root markdown file
+# changed. `lint`, `workflow-lint` and the commit rules (their own workflow, commit-rules.yml) run on every
+# change. A tag also publishes the zip, its checksum, its build provenance attestation and the notes from the
+# changelog. Every restore runs in locked mode (RestoreLockedMode in CI), so a stale lock file fails
 # instead of being rewritten. Actions are pinned by commit SHA and bumped by dependabot.
 name: ci
 
@@ -32,9 +35,64 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # What the change touches: `code` is false when every changed path is docs, tasks, memory, the changelog or a
+  # root markdown file, and the build jobs below skip on it. A pull request is diffed against its merge base, a
+  # push against the commit before it; a tag, a manual run, a first push or an unknown base is the full run.
+  # The build jobs read the output through `needs`, with `!cancelled()` so a failed `changes` job (an empty
+  # output) runs them all rather than skipping them.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The base of the diff must be in the clone.
+          fetch-depth: 0
+      - id: diff
+        name: Is there code in the change?
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            files=$(git diff --name-only "$BASE...$HEAD")
+          elif [ "$EVENT" = push ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ] &&
+               git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            files=$(git diff --name-only "$BEFORE" "$AFTER")
+          else
+            files=
+          fi
+          if [ -z "$files" ]; then
+            echo "no diff to classify ($EVENT): the full run"
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          code=false
+          for file in $files; do
+            case "$file" in
+              docs/*|tasks/*|.claude/memory/*|CHANGELOG.md) kind=docs ;;
+              */*) kind=code ;;
+              *.md) kind=docs ;;
+              *) kind=code ;;
+            esac
+            echo "$kind  $file"
+            if [ "$kind" = code ]; then code=true; fi
+          done
+          echo "code=$code"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   # The .NET side on the cheapest runner: locked restore, format, the analyzers in the build, the Core and Cli
   # tests (the Cli ones start the built assembly as a child process; the doctor finds the runner's pwsh).
   dotnet:
+    needs: [changes]
+    # Skipped on a docs-only change (see `changes`); a skipped job still passes its required check.
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -54,6 +112,9 @@ jobs:
   # license outside licenses/allowed.json (nuget-license over the shipped packages; the front end's packages from
   # the lock file), and npm's own audit of the shipped packages.
   deps:
+    needs: [changes]
+    # Skipped on a docs-only change, as `dotnet`.
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -82,6 +143,9 @@ jobs:
   # The front end: Biome (lint and format), the type check, the Vitest tests (they read the same bridge samples
   # the C# tests read) and the Vite build.
   frontend:
+    needs: [changes]
+    # Skipped on a docs-only change, as `dotnet`.
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -108,6 +172,9 @@ jobs:
   # child pwsh against the fake module (tests/sidecar/modules), never against a tenant. The runner image carries
   # pwsh; Pester is installed in the version scripts/pester-version.txt names.
   sidecar:
+    needs: [changes]
+    # Skipped on a docs-only change, as `dotnet`.
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -173,7 +240,9 @@ jobs:
   # with the front end, the command line answers, the window loads the page and the bridge works (--smoke), and
   # the Windows-only tests run.
   windows:
-    if: github.event_name == 'pull_request' || github.ref_type == 'tag'
+    needs: [changes]
+    # Skipped on a docs-only change, as `dotnet`, and outside pull requests and tags.
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' && (github.event_name == 'pull_request' || github.ref_type == 'tag') }}
     runs-on: windows-latest
     timeout-minutes: 30
     steps:

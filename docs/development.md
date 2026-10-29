@@ -119,15 +119,22 @@ opening a diff tool in a non-interactive run.
 
 ## CI and releases
 
-`.github/workflows/ci.yml` runs on every push to `main` and every pull request, under a minutes budget (D-005):
-the Linux jobs `dotnet` (locked restore, `dotnet format --verify-no-changes`, the build with the analyzers, the
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request, under a minutes budget (D-005).
+Its first job, `changes`, diffs the change (a pull request against its merge base, a push against the commit
+before it) and sets a `code` output: when every changed path is under `docs/`, `tasks/` or `.claude/memory/`, or
+is `CHANGELOG.md` or a root markdown file, the five build jobs below are skipped and the run is green in under a
+minute; `lint`, `workflow-lint` and `commit-rules` run on every change, and a tag, a manual run or an unknown
+base is always the full run (task 023). The skip is a job-level `if:`, never a path filter on the trigger: a
+required check whose workflow never starts stays pending and blocks the merge, while a job skipped by its
+condition passes its check. The jobs: `dotnet` (locked restore, `dotnet format --verify-no-changes`, the build with the analyzers, the
 Core and Cli tests), `deps` (the vulnerability script, `nuget-license` against `licenses/allowed.json` over the
 shipped projects, `npm audit` and the front end's license script), `frontend` (Biome, the type check, Vitest,
 the Vite build), `sidecar` (PSScriptAnalyzer and the Pester tests against the fake module, with the runner's own
-pwsh), `lint` (the changelog check, skipped on a tag, see [The changelog](#the-changelog); the fixture check; the
+pwsh), all four skipped on a docs-only change, `lint` (the changelog check, skipped on a tag, see [The changelog](#the-changelog); the fixture check; the
 commit-rules self-test) and `workflow-lint` (zizmor over the workflows and `dependabot.yml`; a finding accepted on
 purpose carries `# zizmor: ignore[<audit>]` on the step's name line with its reason in the comment above). The
-one Windows job, `windows`, runs on pull requests and tags only: the full build with the front end, the tests,
+one Windows job, `windows`, runs on pull requests and tags only, and not on a docs-only change: the full build
+with the front end, the tests,
 `m365-aegis --version` and `doctor --offline`, the window's `--smoke` run (the page loads and the bridge sends
 `ready`), and the release script's dry run. `.github/workflows/commit-rules.yml` runs `commit-rules`
 (`scripts/check-commit.sh` over every pushed commit and the pull request text) on the same pushes and pull
