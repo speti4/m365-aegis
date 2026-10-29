@@ -1,49 +1,70 @@
-import { useEffect, useMemo, useState } from "react";
-import { notification, request } from "./bridge/protocol";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Toaster } from "@/components/ui/sonner";
+import { BridgeClient } from "./bridge/client";
+import { type BridgeError, MessageType } from "./bridge/protocol";
 import { createTransport } from "./bridge/transport";
-
-interface Pong {
-  product: string;
-  version: string;
-}
+import { GroupMembersCard } from "./components/group-members-card";
+import { SignInCard, type SignInState } from "./components/sign-in-card";
 
 /**
- * The scaffold's page: it tells the host it is ready (the smoke test waits for that), pings it, and shows the
- * answer. The task cards of M4 replace this.
+ * The window's first page (task 017): it tells the host it is ready (the smoke run waits for that), shows the
+ * sign-in state and looks up a group's members; an `error` reply is a toast. The task cards of M4 grow from here.
  */
 export function App() {
   const { transport, hosted } = useMemo(() => createTransport(), []);
-  const [pong, setPong] = useState<Pong | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const client = useMemo(() => new BridgeClient(transport), [transport]);
+  const [version, setVersion] = useState<string | null>(null);
+  const [signIn, setSignIn] = useState<SignInState>({ status: "checking" });
+
+  const showError = useCallback((error: BridgeError) => {
+    toast.error(error.message, { description: error.hint });
+  }, []);
+
+  const checkSignIn = useCallback(async () => {
+    setSignIn({ status: "checking" });
+    const reply = await client.call(MessageType.whoami);
+    switch (reply.type) {
+      case MessageType.signedIn:
+        setSignIn({ status: "signed-in", info: reply.data });
+        break;
+      case MessageType.signedOut:
+        setSignIn({ status: "signed-out", info: reply.data });
+        break;
+      case MessageType.error:
+        setSignIn({ status: "unknown" });
+        showError(reply.data);
+        break;
+      default:
+        setSignIn({ status: "unknown" });
+    }
+  }, [client, showError]);
 
   useEffect(() => {
-    transport.onMessage((message) => {
-      if (message.type === "pong") {
-        setPong(message.data as Pong);
-      } else if (message.type === "error") {
-        const data = message.data as { message?: string } | undefined;
-        setError(data?.message ?? "unknown error");
+    client.notify(MessageType.ready);
+    void client.call(MessageType.ping).then((reply) => {
+      if (reply.type === MessageType.pong) {
+        setVersion(reply.data.version);
       }
     });
-    transport.send(notification("ready"));
-    transport.send(request("ping"));
-  }, [transport]);
+    void checkSignIn();
+  }, [client, checkSignIn]);
 
   return (
-    <main className="min-h-screen bg-background text-foreground flex items-center justify-center p-8">
-      <section className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">m365-aegis</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {hosted ? "Connected to the host." : "No host: running in a browser with the mock transport."}
-        </p>
-        <dl className="mt-6 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-          <dt className="text-muted-foreground">product</dt>
-          <dd data-testid="product">{pong?.product ?? "…"}</dd>
-          <dt className="text-muted-foreground">version</dt>
-          <dd data-testid="version">{pong?.version ?? "…"}</dd>
-        </dl>
-        {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
-      </section>
+    <main className="min-h-screen bg-background text-foreground">
+      <div className="mx-auto max-w-5xl space-y-6 p-6">
+        <header className="flex flex-wrap items-baseline gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">m365-aegis</h1>
+          <span className="text-sm text-muted-foreground" data-testid="version">
+            {version ?? "…"}
+          </span>
+          {hosted ? null : <Badge variant="outline">browser mock: made-up data, no host</Badge>}
+        </header>
+        <SignInCard state={signIn} onRefresh={() => void checkSignIn()} />
+        <GroupMembersCard client={client} onError={showError} />
+      </div>
+      <Toaster position="bottom-right" />
     </main>
   );
 }

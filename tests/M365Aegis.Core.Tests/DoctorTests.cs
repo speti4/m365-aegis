@@ -27,7 +27,7 @@ public sealed class DoctorTests
         Assert.True(report.Healthy);
         Assert.All(report.Checks, check => Assert.Equal(CheckStatus.Pass, check.Status));
         Assert.Equal(
-            ["home", "dotnet-runtime", "pwsh", "exchange-online-module", "sidecar-script", "webview2-runtime", "config", "device", "sign-in", "endpoint-login", "endpoint-graph", "endpoint-exchange"],
+            ["home", "dotnet-runtime", "dotnet-desktop-runtime", "pwsh", "exchange-online-module", "sidecar-script", "webview2-runtime", "config", "device", "sign-in", "endpoint-login", "endpoint-graph", "endpoint-exchange"],
             report.Checks.Select(check => check.Name));
         Assert.All(report.Checks, check => Assert.Null(check.Hint));
         Assert.Equal(ExitCode.Ok, report.ToResult().ExitCode);
@@ -157,12 +157,32 @@ public sealed class DoctorTests
         AssertHint(hint, check);
     }
 
+    [Theory]
+    [InlineData(new[] { "8.0.11", "10.0.4" }, CheckStatus.Pass, "10.0.4", null)]
+    [InlineData(new[] { "10.0.5" }, CheckStatus.Pass, "10.0.5", null)]
+    [InlineData(new[] { "10.0.1", "10.0.0" }, CheckStatus.Warn, "10.0.1 is older than the .NET Runtime 10.0.4", "winget upgrade Microsoft.DotNet.DesktopRuntime.10")]
+    [InlineData(new[] { "8.0.11", "9.0.6" }, CheckStatus.Fail, "(installed: 8.0.11, 9.0.6)", "winget install Microsoft.DotNet.DesktopRuntime.10")]
+    [InlineData(new string[0], CheckStatus.Fail, "the .NET Desktop Runtime 10 is not installed", "winget install Microsoft.DotNet.DesktopRuntime.10")]
+    public void TheDesktopRuntimeOfTheWindow(string[] installed, CheckStatus status, string detail, string? hint)
+    {
+        DoctorEnvironment environment = Fake(ProfileStoreTests.TempHome()) with { ReadDesktopRuntimeVersions = () => installed };
+
+        DoctorCheck check = Doctor.CheckDesktopRuntime(environment);
+
+        Assert.Equal("dotnet-desktop-runtime", check.Name);
+        Assert.Equal(status, check.Status);
+        Assert.Contains(detail, check.Detail, StringComparison.Ordinal);
+        Assert.False(check.Required);
+        AssertHint(hint, check);
+    }
+
     [Fact]
     public void WebView2AndTheDeviceAreSkippedOffWindows()
     {
         DoctorEnvironment environment = Fake(ProfileStoreTests.TempHome()) with { IsWindows = false };
 
         Assert.Equal(CheckStatus.Skipped, Doctor.CheckWebView2(environment).Status);
+        Assert.Equal(CheckStatus.Skipped, Doctor.CheckDesktopRuntime(environment).Status);
         Assert.Equal(CheckStatus.Skipped, Doctor.CheckDevice(environment).Status);
     }
 
@@ -330,7 +350,7 @@ public sealed class DoctorTests
         // No assumption about the machine: the checks run and each has an outcome; nothing touches the network.
         DoctorReport report = await Doctor.RunAsync(ProfileStoreTests.TempHome(), null, offline: true, CancellationToken.None);
 
-        Assert.Equal(12, report.Checks.Count);
+        Assert.Equal(13, report.Checks.Count);
         DoctorCheck pwsh = Assert.Single(report.Checks, check => check.Name == "pwsh");
         string? found = Doctor.FindPwsh();
         Assert.Equal(found is null ? CheckStatus.Fail : pwsh.Status, pwsh.Status);
@@ -380,6 +400,7 @@ public sealed class DoctorTests
             RuntimeVersion = "10.0.4",
             FindPwsh = () => @"D:\tools\pwsh\pwsh.exe",
             RunPwsh = (_, _) => "pwsh=7.6.9\nmodule=3.10.0\n",
+            ReadDesktopRuntimeVersions = () => ["8.0.11", "10.0.4"],
             ReadWebView2Versions = () => webView2 ?? ["141.0.3537.71", null],
             ReadDeviceState = () => deviceState == "" ? Fixture("dsregcmd-entra-joined.txt") : deviceState,
             ReadInstalledSidecar = () => Script,

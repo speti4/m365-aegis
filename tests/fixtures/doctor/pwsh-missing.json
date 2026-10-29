@@ -3,6 +3,7 @@
   "checks": [
     { "name": "home", "status": "warn", "detail": "D:\\aegis-home does not exist yet; the first sign-in creates it", "required": true },
     { "name": "dotnet-runtime", "status": "pass", "detail": "10.0.4", "required": false },
+    { "name": "dotnet-desktop-runtime", "status": "pass", "detail": "10.0.4", "required": false },
     { "name": "pwsh", "status": "fail", "detail": "pwsh not found on PATH; PowerShell 7.6 or later is needed for Exchange Online", "required": true, "hint": "winget install Microsoft.PowerShell" },
     { "name": "exchange-online-module", "status": "skipped", "detail": "pwsh did not answer", "required": false },
     { "name": "sidecar-script", "status": "pass", "detail": "sha256 0123456789ab matches the build", "required": true },

@@ -3,6 +3,7 @@
   "checks": [
     { "name": "home", "status": "pass", "detail": "D:\\aegis-home", "required": true },
     { "name": "dotnet-runtime", "status": "pass", "detail": "10.0.4", "required": false },
+    { "name": "dotnet-desktop-runtime", "status": "warn", "detail": "10.0.1 is older than the .NET Runtime 10.0.4: an update reached one of the two only", "required": false, "hint": "winget upgrade Microsoft.DotNet.DesktopRuntime.10" },
     { "name": "pwsh", "status": "pass", "detail": "7.6.9 at D:\\tools\\pwsh\\pwsh.exe", "required": true },
     { "name": "exchange-online-module", "status": "warn", "detail": "3.9.0 is older than 3.10, which the sidecar is written against", "required": false, "hint": "Update-Module ExchangeOnlineManagement" },
     { "name": "sidecar-script", "status": "pass", "detail": "sha256 0123456789ab matches the build", "required": true },

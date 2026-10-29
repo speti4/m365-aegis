@@ -1,14 +1,20 @@
 using System.Globalization;
 using M365Aegis.Core.Bridge;
+using M365Aegis.Core.Config;
+using M365Aegis.Core.Diagnostics;
 using M365Aegis.Gui.Host;
 
 namespace M365Aegis.Gui;
 
 /// <summary>
 /// The m365-aegis-gui executable. Loads the built front end from <c>wwwroot/</c> next to the exe, or a Vite dev
-/// server with <c>--dev-url http://localhost:5173</c>; <c>--smoke</c> exits 0 as soon as the front end reports
-/// <c>ready</c> (CI's check that the window, the page and the bridge work) and 1 after a minute without it, and
-/// prints the time to <c>ready</c> and whether the window handle is a top-level window (the broker's parent).
+/// server with <c>--dev-url http://localhost:5173</c>, and answers the page's requests through the Core's
+/// <see cref="BridgeDispatcher"/> with the sign-in and the Graph client the command line uses (the default tenant
+/// profile of the home folder). <c>--verbose</c> writes MSAL's log, without PII and scrubbed, into the home
+/// folder's <c>logs</c> folder, as the command line's option does (task 027). <c>--smoke</c> exits 0 as soon as the
+/// front end reports <c>ready</c> (CI's check that the window, the page and the bridge work) and 1 after a minute
+/// without it, and prints the time to <c>ready</c> and whether the window handle is a top-level window (the
+/// broker's parent); a smoke run answers no request, so it never reaches the sign-in or the network.
 /// </summary>
 internal static class Program
 {
@@ -19,13 +25,21 @@ internal static class Program
     {
         bool smoke = args.Contains("--smoke", StringComparer.Ordinal);
         Uri page = ResolvePage(args);
+        string home = AegisHome.Resolve();
+        if (args.Contains("--verbose", StringComparer.Ordinal))
+        {
+            // Before the dispatcher builds any MSAL client, so every sign-in of the window logs into the sink.
+            LogSink.EnableVerbose(home);
+        }
 
         IUiHost host = CreateHost();
+        var dispatcher = new BridgeDispatcher(BridgeServices.ForWindow(home, profile: null, () => host.WindowHandle));
         var started = System.Diagnostics.Stopwatch.StartNew();
         int exitCode = smoke ? 1 : 0;
         using var timeout = new CancellationTokenSource();
+        using var closing = new CancellationTokenSource();
 
-        host.OnMessage(text =>
+        host.OnMessage(async text =>
         {
             BridgeMessage? message = BridgeProtocol.TryParse(text);
             if (message is null)
@@ -33,19 +47,23 @@ internal static class Program
                 return null;
             }
 
-            if (smoke && message.Type == "ready")
+            if (smoke)
             {
-                nint window = host.WindowHandle;
-                Console.Error.WriteLine(string.Format(CultureInfo.InvariantCulture,
-                    "smoke: ready after {0} ms, window 0x{1:x} ({2})", started.ElapsedMilliseconds, window,
-                    WindowCheck.Describe(window)));
-                exitCode = 0;
-                timeout.Cancel();
-                host.Close();
+                if (message.Type == BridgeMessageType.Ready)
+                {
+                    nint window = host.WindowHandle;
+                    Console.Error.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                        "smoke: ready after {0} ms, window 0x{1:x} ({2})", started.ElapsedMilliseconds, window,
+                        WindowCheck.Describe(window)));
+                    exitCode = 0;
+                    await timeout.CancelAsync().ConfigureAwait(true);
+                    host.Close();
+                }
+
                 return null;
             }
 
-            BridgeMessage? reply = BridgeDispatcher.Dispatch(message);
+            BridgeMessage? reply = await dispatcher.DispatchAsync(message, closing.Token).ConfigureAwait(true);
             return reply is null ? null : BridgeProtocol.Write(reply);
         });
 
@@ -63,6 +81,7 @@ internal static class Program
         }
 
         host.Run(page);
+        closing.Cancel();
         return exitCode;
     }
 

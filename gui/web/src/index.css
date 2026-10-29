@@ -51,6 +51,18 @@
     --muted-foreground: oklch(0.705 0.015 286.067);
     --border: oklch(1 0 0 / 10%);
     --destructive: oklch(0.704 0.191 22.216);
+    /* The rest as under .dark, so the buttons, the inputs, the badges and the toasts follow the system's dark mode. */
+    --popover: oklch(0.21 0.006 285.885);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.922 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
   }
 }
 

@@ -105,6 +105,7 @@ public static class Doctor
         {
             CheckHome(environment.Home),
             new("dotnet-runtime", CheckStatus.Pass, environment.RuntimeVersion, Required: false),
+            CheckDesktopRuntime(environment),
             CheckPwsh(pwshPath, pwsh),
             CheckExchangeModule(pwshPath, pwsh),
             CheckSidecarScript(environment.ReadInstalledSidecar(), environment.ReadBuildSidecar()),
@@ -232,6 +233,41 @@ public static class Doctor
         return SidecarScript.Sha256(WithLf(installed)) == SidecarScript.Sha256(WithLf(build))
             ? new(name, CheckStatus.Warn, $"sha256 {Short(actual)} differs from the build ({Short(expected)}) in the line endings only", Required: true, reinstall)
             : new(name, CheckStatus.Fail, $"sha256 {Short(actual)} differs from the build ({Short(expected)}): the script was changed after the build", Required: true, reinstall);
+    }
+
+    /// <summary>
+    /// The .NET Desktop Runtime the window needs (a WinForms form, D-009), in the major version of the .NET Runtime:
+    /// missing fails (the window's apphost would only say that a framework is missing), a patch behind the .NET
+    /// Runtime warns (an update reached one and not the other). Not required: the command line runs without it.
+    /// </summary>
+    internal static DoctorCheck CheckDesktopRuntime(DoctorEnvironment environment)
+    {
+        const string name = "dotnet-desktop-runtime";
+        const string winget = "Microsoft.DotNet.DesktopRuntime.10";
+        if (!environment.IsWindows)
+        {
+            return new(name, CheckStatus.Skipped, "not Windows; the window runs on Windows only", Required: false);
+        }
+
+        Version? runtime = Version.TryParse(environment.RuntimeVersion, out Version? parsed) ? parsed : null;
+        int major = runtime?.Major ?? 10;
+        List<Version> installed = [.. environment.ReadDesktopRuntimeVersions()
+            .Select(value => Version.TryParse(value, out Version? version) ? version : null)
+            .OfType<Version>()
+            .Order()];
+        Version? newest = installed.LastOrDefault(version => version.Major == major);
+        if (newest is null)
+        {
+            string others = installed.Count == 0 ? "" : $" (installed: {string.Join(", ", installed)})";
+            return new(name, CheckStatus.Fail,
+                $"the .NET Desktop Runtime {major} is not installed: the window cannot start (the command line can){others}",
+                Required: false, $"winget install {winget}");
+        }
+
+        return runtime is not null && newest < runtime
+            ? new(name, CheckStatus.Warn, $"{newest} is older than the .NET Runtime {runtime}: an update reached one of the two only", Required: false,
+                $"winget upgrade {winget}")
+            : new(name, CheckStatus.Pass, newest.ToString(), Required: false);
     }
 
     internal static DoctorCheck CheckWebView2(DoctorEnvironment environment)

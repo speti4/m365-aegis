@@ -2,9 +2,28 @@
  * The message protocol between the front end and the host (M365Aegis.Core.Bridge in C#): one JSON object per
  * message, tagged with the protocol version. A request carries an id the answer repeats; a notification (such as
  * `ready`) carries none. The samples under tests/contracts/bridge are read by the C# and the Vitest tests alike.
+ * A reply's payload is the core's result written the way the command line's `--json` envelope writes its data
+ * (camelCase, nulls left out, enums as kebab-case strings).
  */
 
 export const PROTOCOL_VERSION = 1;
+
+/** The message types; `BridgeMessageType` in C# names the same strings. */
+export const MessageType = {
+  /** The page is loaded and listening (a notification; the smoke run waits for it). */
+  ready: "ready",
+  ping: "ping",
+  pong: "pong",
+  /** The sign-in state, silently: answered with `signed-in` or `signed-out`. */
+  whoami: "whoami",
+  signedIn: "signed-in",
+  signedOut: "signed-out",
+  /** A group's direct members, `{ group }` as the payload: answered with `members`. */
+  groupMembers: "group-members",
+  members: "members",
+  /** A request that failed: the code, the message and the hint. */
+  error: "error",
+} as const;
 
 export interface BridgeMessage {
   aegis: number;
@@ -12,6 +31,77 @@ export interface BridgeMessage {
   type: string;
   data?: unknown;
 }
+
+export interface Pong {
+  product: string;
+  version: string;
+}
+
+/** One resource's token: the expiry and the scopes, never the token; `error` when there is none. */
+export interface ResourceToken {
+  resource: string;
+  expiresOn?: string;
+  scopes: string[];
+  origin?: string;
+  error?: string;
+}
+
+/** The signed-in account (`SignInInfo` of the core, as `whoami --json` shows it). */
+export interface SignInInfo {
+  profile: string;
+  account: string;
+  displayName?: string;
+  tenantId?: string;
+  objectId?: string;
+  tokens: ResourceToken[];
+}
+
+/** No usable silent sign-in: the profile it was tried for, if there is one, why, and what to do. */
+export interface SignedOutInfo {
+  profile?: string;
+  account?: string;
+  message: string;
+  hint?: string;
+}
+
+export type GroupKind = "microsoft365" | "security" | "mail-enabled-security" | "distribution";
+
+export interface GroupInfo {
+  id: string;
+  displayName: string;
+  kind: GroupKind;
+  mail?: string;
+  synced: boolean;
+}
+
+export interface GroupMember {
+  type: string;
+  displayName?: string;
+  userPrincipalName?: string;
+  mail?: string;
+  id: string;
+}
+
+/** The result of `group members`. */
+export interface GroupMembers {
+  group: GroupInfo;
+  members: GroupMember[];
+}
+
+/** A failure as the envelope's `error` carries it: a stable code, one sentence, and what to do about it. */
+export interface BridgeError {
+  code: string;
+  message: string;
+  hint?: string;
+}
+
+/** A reply the page can read: its type and its payload, checked. */
+export type Reply =
+  | { type: typeof MessageType.pong; data: Pong }
+  | { type: typeof MessageType.signedIn; data: SignInInfo }
+  | { type: typeof MessageType.signedOut; data: SignedOutInfo }
+  | { type: typeof MessageType.members; data: GroupMembers }
+  | { type: typeof MessageType.error; data: BridgeError };
 
 /** Parses a line from the host; null when it is not a message of this protocol. */
 export function parseMessage(text: string): BridgeMessage | null {
@@ -39,6 +129,25 @@ export function parseMessage(text: string): BridgeMessage | null {
   };
 }
 
+/** The reply's type and payload when the payload has the shape its type promises; null otherwise. */
+export function readReply(message: BridgeMessage): Reply | null {
+  const { type, data } = message;
+  switch (type) {
+    case MessageType.pong:
+      return isPong(data) ? { type, data } : null;
+    case MessageType.signedIn:
+      return isSignInInfo(data) ? { type, data } : null;
+    case MessageType.signedOut:
+      return isSignedOutInfo(data) ? { type, data } : null;
+    case MessageType.members:
+      return isGroupMembers(data) ? { type, data } : null;
+    case MessageType.error:
+      return isBridgeError(data) ? { type, data } : null;
+    default:
+      return null;
+  }
+}
+
 /** A request with a fresh id. */
 export function request(type: string, data?: unknown, id: string = nextId()): BridgeMessage {
   return data === undefined ? { aegis: PROTOCOL_VERSION, id, type } : { aegis: PROTOCOL_VERSION, id, type, data };
@@ -58,4 +167,65 @@ let counter = 0;
 function nextId(): string {
   counter += 1;
   return String(counter);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+function isOptionalString(value: unknown): boolean {
+  return value === undefined || typeof value === "string";
+}
+
+function isPong(value: unknown): value is Pong {
+  return isRecord(value) && isString(value.product) && isString(value.version);
+}
+
+function isSignedOutInfo(value: unknown): value is SignedOutInfo {
+  return (
+    isRecord(value) &&
+    isString(value.message) &&
+    isOptionalString(value.profile) &&
+    isOptionalString(value.account) &&
+    isOptionalString(value.hint)
+  );
+}
+
+function isBridgeError(value: unknown): value is BridgeError {
+  return isRecord(value) && isString(value.code) && isString(value.message) && isOptionalString(value.hint);
+}
+
+function isSignInInfo(value: unknown): value is SignInInfo {
+  return (
+    isRecord(value) &&
+    isString(value.profile) &&
+    isString(value.account) &&
+    isOptionalString(value.displayName) &&
+    Array.isArray(value.tokens) &&
+    value.tokens.every(
+      (token) =>
+        isRecord(token) && isString(token.resource) && Array.isArray(token.scopes) && isOptionalString(token.error),
+    )
+  );
+}
+
+const groupKinds: readonly string[] = ["microsoft365", "security", "mail-enabled-security", "distribution"];
+
+function isGroupMembers(value: unknown): value is GroupMembers {
+  if (!isRecord(value) || !isRecord(value.group) || !Array.isArray(value.members)) {
+    return false;
+  }
+  const { group, members } = value;
+  return (
+    isString(group.id) &&
+    isString(group.displayName) &&
+    isString(group.kind) &&
+    groupKinds.includes(group.kind) &&
+    typeof group.synced === "boolean" &&
+    members.every((member) => isRecord(member) && isString(member.type) && isString(member.id))
+  );
 }

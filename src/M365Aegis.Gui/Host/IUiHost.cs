@@ -13,8 +13,11 @@ internal interface IUiHost
     /// </summary>
     nint WindowHandle { get; }
 
-    /// <summary>Called with every message the front end sends; the return value, if any, is sent back.</summary>
-    void OnMessage(Func<string, string?> handler);
+    /// <summary>
+    /// Called with every message the front end sends; the reply the task ends with, if any, is sent back. Several
+    /// requests may be in flight at once; each reply carries its request's id.
+    /// </summary>
+    void OnMessage(Func<string, Task<string?>> handler);
 
     /// <summary>Opens the window on the given page and blocks until it is closed.</summary>
     void Run(Uri page);

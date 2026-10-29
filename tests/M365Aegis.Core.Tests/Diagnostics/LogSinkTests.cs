@@ -59,6 +59,45 @@ public sealed class LogSinkTests
         Assert.Equal(ScriptedLines.Length, File.ReadAllLines(sink.CurrentFile).Length);
     }
 
+    /// <summary>
+    /// Lines of the window's run under <c>m365-aegis-gui --verbose</c> (task 027): the broker's calls with the window
+    /// as the account picker's parent, the silent sign-in of the page's <c>whoami</c>, and the bridge's internal error.
+    /// </summary>
+    private static readonly string[] WindowLines =
+    [
+        "False MSAL 4.91.1.0 MSAL.NetCore .NET 10.0.4 [2026-10-29 10:00:00Z - 00000000-0000-0000-0000-000000000005] [WAM] Parent window handle: 0x5b036c, the account picker is owned by m365-aegis-gui",
+        "[RuntimeBroker] Silent request for account alice@fabrikam.com (home account id 00000000-0000-0000-0000-000000000001.00000000-0000-0000-0000-000000000002) in tenant fabrikam.com",
+        "[RuntimeBroker] AcquireTokenInteractive: login_hint=alice@fabrikam.com&prompt=select_account; WebView2 data folder webview2",
+        "[RuntimeBroker] Token response: {\"access_token\":\"opaque-window-token\",\"client_info\":\"eyJ1aWQiOiIwMDAwMDAwMCJ9\"}",
+        "System.InvalidOperationException: the client broke for alice@fabrikam.com\n   at M365Aegis.Core.Bridge.BridgeDispatcher.GroupMembersAsync(BridgeMessage request, CancellationToken cancellationToken)",
+    ];
+
+    [Fact]
+    public void TheWindowsLinesReachTheFileWithoutATokenOrAnAccount()
+    {
+        var sink = new LogSink(Folder());
+        sink.Redact(Profile.Tenant);
+        sink.Redact(Profile.ClientId);
+        sink.Redact(Profile.Account);
+
+        LogCallback callback = MsalTokenBroker.ToSink(sink);
+        foreach (string line in WindowLines.SkipLast(1))
+        {
+            callback(LogLevel.Verbose, line, containsPii: false);
+        }
+
+        Assert.True(sink.Write("internal-error", WindowLines[^1]));
+
+        string text = File.ReadAllText(sink.CurrentFile);
+        string[] never = ["opaque-window-token", "eyJ1aWQi", "alice@fabrikam.com", "fabrikam.com", "00000000-0000-0000-0000-0000000000"];
+        Assert.All(never, secret => Assert.DoesNotContain(secret, text, StringComparison.OrdinalIgnoreCase));
+        // The step, the window handle and the failing frame stay: that is what a support case needs.
+        Assert.Contains("Parent window handle: 0x5b036c", text, StringComparison.Ordinal);
+        Assert.Contains("login_hint=<redacted>", text, StringComparison.Ordinal);
+        Assert.Contains("BridgeDispatcher.GroupMembersAsync", text, StringComparison.Ordinal);
+        Assert.Equal(WindowLines.Length + 1, File.ReadAllLines(sink.CurrentFile).Length);
+    }
+
     [Fact]
     public void ThePatternsAloneCatchAnAccountThatWasNotRegistered()
     {

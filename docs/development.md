@@ -97,8 +97,9 @@ command line and the window share one cache), `webview2\`, `logs\` and `plans\` 
 
 `logs\` holds one file a day, `m365-aegis-yyyy-MM-dd.log`, appended to by every process (tasks 021 and 025): the
 stack trace of an unexpected internal error, always (exit code 70, see [The output contract](#the-output-contract)),
-and, only under the recursive `--verbose` option, MSAL's own log of the sign-in (`WithLogging` with PII logging
-off, every level, so a broker error code or a Conditional Access verdict names its step). A run without
+and, only under the recursive `--verbose` option (and `m365-aegis-gui --verbose` for the window, task 027), MSAL's
+own log of the sign-in (`WithLogging` with PII logging off, every level, so a broker error code or a Conditional
+Access verdict names its step). A run without
 `--verbose` registers no logging callback and a run without an error writes nothing, not even the folder. Every
 entry is scrubbed before it is written (`Diagnostics/LogSink.cs`): the profile's tenant, client id and account,
 and anything shaped like a JWT, a bearer header, an OAuth secret or identity parameter (`code=`,
@@ -211,9 +212,29 @@ administrator's Exchange Online token (see [The doctor](#the-doctor)).
 `gui/web` is a Vite app: React 19 with TypeScript, Tailwind 4 through the Vite plugin, shadcn/ui (the `base-nova`
 style, components generated into `src/components/ui` and committed as the CLI writes them), Biome for lint and
 format, Vitest for the tests. The bridge to the host is `src/bridge/`: the protocol (the same shape as
-`M365Aegis.Core.Bridge`, checked against the shared samples under `tests/contracts/bridge`) and the transport,
-which uses the host's `window.external` when the host injected it and a mock in a plain browser, so `npm run dev`
-shows the page without the exe. The GUI project's `BuildFrontend` target runs `npm ci` and `npm run build` when
+`M365Aegis.Core.Bridge`, checked against the shared samples under `tests/contracts/bridge`), the transport, which
+talks to WebView2 directly (task 030: `chrome.webview.postMessage` with the message's JSON text, and
+`chrome.webview`'s `message` event for the host's text replies; the host injects nothing) and a mock in a plain
+browser, so `npm run dev` shows the page with made-up data and without the exe, and the client
+(`src/bridge/client.ts`), which gives each request an id and resolves it with the reply that repeats it, and turns
+a reply it cannot read or a host silent for two minutes into an `error` reply.
+
+The messages (task 017; `BridgeMessageType` in C#, `MessageType` in TypeScript, one sample each under
+`tests/contracts/bridge`): the page sends the `ready` notification, then `ping` (answered with `pong`, the product
+and the version), `whoami` (answered with `signed-in`, the core's `SignInInfo`, or `signed-out`, the profile it was
+tried for, why and what to do) and `group-members` with `{"group": "<name, address, id or word>"}` (answered with
+`members`, the core's `GroupMembers`). Any request can be answered with `error`: the envelope's `code`, `message`
+and `hint` (a failure of the core, `unknown-type`, or `internal` with the stack trace in the log). A payload is
+written the way the envelope writes its data (D-006), so the window reads the shape `--json` shows. The C# tests
+dispatch each request sample over a scripted sign-in and the recorded Graph answers and hold the reply to its
+sample field by field; the Vitest tests read the same samples. The host's `BridgeDispatcher`
+(`M365Aegis.Core.Bridge`) runs on `BridgeServices.ForWindow`: the command line's `AuthService` over the same home
+folder (MSAL through the Windows account manager, the window as the picker's parent), `GraphConnection` for the
+Graph client (`M365AEGIS_GRAPH_FIXTURES` makes the window read the fixtures too, which is how the page is tried
+without a tenant) and the internal-error log the command line writes; the window takes the default profile and
+signs in silently only, so `login` stays on the command line for now. The page (`src/App.tsx`,
+`src/components/`): the sign-in card, the group members card with the table, and a toast (sonner) for every
+`error` reply. The GUI project's `BuildFrontend` target runs `npm ci` and `npm run build` when
 the sources are newer than `dist/index.html` and copies `dist/` next to the exe as `wwwroot/`;
 `-p:SkipFrontendBuild=true` skips both. During development, `m365-aegis-gui --dev-url http://localhost:5173`
 loads the dev server with hot reload, with the developer tools and the browser's context menu on.
@@ -224,9 +245,13 @@ Microsoft's WebView2 SDK, in `src/M365Aegis.Gui/Host/WinFormsWebView2Host.cs` be
 - The shipped `wwwroot/` is served from the virtual host `https://m365-aegis.example/`
   (`SetVirtualHostNameToFolderMapping`, no cross-origin access; `.example` never resolves to a real site), so the
   page has an https origin and its ES modules load without a browser flag; a `file://` page would refuse them.
-- The bridge: a script added on document creation defines `window.external.sendMessage` and `receiveMessage` over
-  `chrome.webview`; the host takes a message (`WebMessageReceived`) only from the page's own origin, answers with
-  `PostWebMessageAsString`, cancels a navigation away from that origin and refuses new windows.
+- The bridge is WebView2's own messaging, with no injected script (task 030): the host takes a message
+  (`WebMessageReceived`) only from the page's own origin, hands it to the dispatcher off the UI thread and posts the
+  reply with `PostWebMessageAsString` back on it, so several requests can be in flight; it cancels a navigation away
+  from that origin and refuses new windows. `--smoke` answers no request, only waits for `ready`, so it never
+  reaches the sign-in or the network.
+- `--verbose` registers the command line's scrubbing MSAL sink before the first sign-in (task 027): the same
+  `logs\` folder, PII logging off, nothing written without the flag.
 - The browser's data folder is `webview2\` under the home folder (`CoreWebView2Environment.CreateAsync` with it as
   the user data folder), never next to the exe.
 - The form's handle (`IUiHost.WindowHandle`) exists before the page starts and is the top-level window the
@@ -247,7 +272,9 @@ native compiler, which dropped `baseUrl`, so the `@/*` mapping in `tsconfig.json
 Vite's `resolve.alias` resolves it at build time); `tailwindcss` and `@tailwindcss/vite` (the utility CSS the shadcn
 components are written in); `shadcn`, `@base-ui/react`, `class-variance-authority`, `cn`, `lucide-react`,
 `tw-animate-css` and `@fontsource-variable/geist` (what `shadcn init` and its components import: the component
-primitives, variant classes, the class-name helper, the icons, the animations, the font); `vitest` (the tests);
+primitives, variant classes, the class-name helper, the icons, the animations, the font); `sonner` and
+`next-themes` (the toast of shadcn's `sonner` component, which reads the theme through `next-themes`; without a
+theme provider it follows the system's light or dark mode, as the page does); `vitest` (the tests);
 `@biomejs/biome` (lint and format in one pinned binary); `@types/*` (the type definitions).
 
 ## The output contract
@@ -317,6 +344,7 @@ that need the network.
 | --- | --- | --- | --- | --- |
 | `home` | yes | the folder exists | not created yet | a file, not a folder |
 | `dotnet-runtime` | no | the runtime the process runs on (a fact, so it has no warn or fail) | | |
+| `dotnet-desktop-runtime` | no | the .NET Desktop Runtime the window needs, in the major version of the .NET Runtime (the `Microsoft.WindowsDesktop.App` folders of the same installation) | a patch behind the .NET Runtime (`winget upgrade Microsoft.DotNet.DesktopRuntime.10`) | not installed: the window cannot start (`winget install Microsoft.DotNet.DesktopRuntime.10`); skipped off Windows |
 | `pwsh` | yes | 7.6 or later on PATH | the version is unreadable | missing (`winget install Microsoft.PowerShell`) or older |
 | `exchange-online-module` | no | 3.10 or later | older (`Update-Module`) | not installed (`Install-Module … -Scope CurrentUser`); skipped without pwsh |
 | `sidecar-script` | yes | the SHA-256 of `sidecar\aegis-exo-sidecar.ps1` matches the copy compiled into the Core | differs in its line endings only | missing or changed (reinstall the release zip) |
@@ -329,8 +357,8 @@ that need the network.
 The pwsh and module checks are one pwsh call; the device check reads `AzureAdJoined`, `WorkplaceJoined` and
 `AzureAdPrt` of `dsregcmd /status` and nothing that names the tenant. Everything a check reads comes through
 `DoctorEnvironment` (`Diagnostics/DoctorEnvironment.cs`), which the tests replace part by part: the pwsh call, the
-registry, `dsregcmd` (the made-up outputs under `tests/fixtures/doctor/dsregcmd-*.txt`), the two copies of the
-script, the sign-in and the endpoint probe.
+registry, `dsregcmd` (the made-up outputs under `tests/fixtures/doctor/dsregcmd-*.txt`), the installed Desktop
+Runtime versions, the two copies of the script, the sign-in and the endpoint probe.
 
 ## CI and releases
 
@@ -343,11 +371,16 @@ base is always the full run (task 023). The skip is a job-level `if:`, never a p
 required check whose workflow never starts stays pending and blocks the merge, while a job skipped by its
 condition passes its check. The jobs: `dotnet` (locked restore, `dotnet format --verify-no-changes`, the build with the analyzers, the
 Core and Cli tests), `deps` (the vulnerability script, `nuget-license` against `licenses/allowed.json` over the
-shipped projects, with `licenses/overrides.json`, which the release script's notices read too, naming the
+shipped projects, with `licenses/license-texts.json`, which the release script's notices read too, naming the
 license of a package that ships it as a file instead of an SPDX expression: the broker's native runtime, `Microsoft.Identity.Client.NativeInterop`, comes
 under the Microsoft Software License Terms and is allowed as `LicenseRef-Microsoft-Software-License-Terms`, and
-the WebView2 SDK, `Microsoft.Web.WebView2`, ships a BSD-3-Clause text and is named `BSD-3-Clause`; an override
-names one version, so a bump of either package updates its line;
+the WebView2 SDK, `Microsoft.Web.WebView2`, ships a BSD-3-Clause text and is named `BSD-3-Clause`. The file maps
+each package's license text, kept verbatim under `licenses/texts/`, to its license (nuget-license's
+`--licensefile-to-license-mappings`), not a package version: a version bump that ships the same text, as every
+Dependabot bump of the two does, passes without an edit (task 029, tried over WebView2 1.0.4314.35 and NativeInterop
+0.20.7 on 2026-10-29; the tool's `--override-package-information` takes one exact version per entry and would have
+failed both). A bump whose license text changed fails the job: read the new text, and when the license is still
+the one named, replace the file under `licenses/texts/` with it;
 `npm audit` and the front end's license script), `frontend` (Biome, the type check, Vitest,
 the Vite build), `sidecar` (PSScriptAnalyzer and the Pester tests against the fake module, with the runner's own
 pwsh), all four skipped on a docs-only change, `lint` (the changelog check, skipped on a tag, see [The changelog](#the-changelog); the fixture check; the
@@ -400,7 +433,10 @@ release of ours), checks that `m365-aegis.exe` carries the version of `Directory
 is written), writes `THIRD-PARTY-NOTICES.md` (nuget-license over the shipped packages in Markdown, then the
 front end's packages from the lock file by `scripts/npm-licenses.py`), copies the README as `GUIDE.md`, and
 packs everything into `dist\m365-aegis-<version>.zip`: the two exes, their assemblies, `wwwroot\`,
-`sidecar\aegis-exo-sidecar.ps1`, the notices and the guide. Next to the zip it writes `SHA256SUMS.txt` (the
+`sidecar\aegis-exo-sidecar.ps1`, the notices and the guide. No XML documentation file ships, neither ours nor the
+packages' (`PublishDocumentationFile` and `PublishReferencesDocumentationFiles` off, task 031; the script fails
+when one is left in the folder): they were 919 KB, the WebView2 SDK's 639 KB of it. The publish of 2026-10-29
+with the window's first page is 9.8 MB unpacked and 4 MB zipped. Next to the zip it writes `SHA256SUMS.txt` (the
 zip's SHA-256 in the `sha256sum -c` format) and `release-notes-<version>.md`. `-DryRun` does all of it in a
 temporary folder and prints the sizes, which is what the `windows` job runs on every pull request.
 

@@ -63,11 +63,14 @@ if ($LASTEXITCODE -ne 0) { throw "release notes failed ($LASTEXITCODE)" }
 if ($LASTEXITCODE -ne 0) { throw "dotnet tool restore failed ($LASTEXITCODE)" }
 
 # One publish folder for both exes (D-007): framework-dependent, ReadyToRun, win-x64, the shared assemblies once.
+# No XML documentation files, neither ours nor the packages' (task 031): an editor reads them, nobody does in the zip.
 $publish = Join-Path $stage "publish"
 foreach ($project in @("src\M365Aegis.Cli\M365Aegis.Cli.csproj", "src\M365Aegis.Gui\M365Aegis.Gui.csproj")) {
-    & dotnet publish (Join-Path $root $project) -c Release -r win-x64 --self-contained false -p:PublishReadyToRun=true -o $publish --nologo
+    & dotnet publish (Join-Path $root $project) -c Release -r win-x64 --self-contained false -p:PublishReadyToRun=true -p:PublishDocumentationFile=false -p:PublishReferencesDocumentationFiles=false -o $publish --nologo
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed for $project ($LASTEXITCODE)" }
 }
+$xml = @(Get-ChildItem $publish -Filter *.xml -Recurse -File)
+if ($xml.Count -gt 0) { throw "documentation files in the publish folder: $($xml.Name -join ', ')" }
 # msalruntime.dll is the broker's native half (Microsoft.Identity.Client.NativeInterop); a win-x64 publish puts it
 # next to the exes, and the sign-in fails without it.
 foreach ($file in @("m365-aegis.exe", "m365-aegis-gui.exe", "msalruntime.dll", "wwwroot\index.html", "sidecar\aegis-exo-sidecar.ps1")) {
@@ -81,10 +84,10 @@ if ($stamped -ne $version) {
 }
 
 # The notices: the NuGet packages shipped with the exes (nuget-license, the allowlist of licenses/allowed.json, the
-# license overrides of licenses/overrides.json for a package that ships its license as a file), then the front
+# license texts of licenses/license-texts.json for a package that ships its license as a file), then the front
 # end's packages from the lock file (scripts\npm-licenses.py, the same allowlist).
 $notices = Join-Path $publish "THIRD-PARTY-NOTICES.md"
-& dotnet nuget-license -i (Join-Path $root "M365Aegis.slnx") -t -a (Join-Path $root "licenses\allowed.json") -ignore (Join-Path $root "licenses\ignored.json") -override (Join-Path $root "licenses\overrides.json") -exclude-projects "*.Tests" -o Markdown -fo $notices
+& dotnet nuget-license -i (Join-Path $root "M365Aegis.slnx") -t -a (Join-Path $root "licenses\allowed.json") -ignore (Join-Path $root "licenses\ignored.json") -file-mapping (Join-Path $root "licenses\license-texts.json") -exclude-projects "*.Tests" -o Markdown -fo $notices
 if ($LASTEXITCODE -ne 0) { throw "nuget-license failed ($LASTEXITCODE)" }
 & $python @pythonArgs -I (Join-Path $root "scripts\npm-licenses.py") --notices $notices
 if ($LASTEXITCODE -ne 0) { throw "npm-licenses failed ($LASTEXITCODE)" }

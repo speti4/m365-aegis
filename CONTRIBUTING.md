@@ -105,7 +105,7 @@ change, also:
 ```powershell
 python -I scripts/check-vulnerable.py                                   # the NuGet advisories
 dotnet tool restore
-dotnet nuget-license -i M365Aegis.slnx -t -a licenses/allowed.json -ignore licenses/ignored.json -exclude-projects "*.Tests" -err
+dotnet nuget-license -i M365Aegis.slnx -t -a licenses/allowed.json -ignore licenses/ignored.json -file-mapping licenses/license-texts.json -exclude-projects "*.Tests" -err
 python -I scripts/npm-licenses.py                                       # the front end's packages
 npm audit --omit=dev --prefix gui/web
 uvx zizmor .github

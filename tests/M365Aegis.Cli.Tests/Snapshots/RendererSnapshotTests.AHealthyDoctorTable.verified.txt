@@ -3,6 +3,7 @@ check                   status  detail
 ----------------------  ------  ----------------------------------------------------------------------------------------------------------
 home                    pass    D:\aegis-home
 dotnet-runtime          pass    10.0.4
+dotnet-desktop-runtime  pass    10.0.4
 pwsh                    pass    7.6.9 at D:\tools\pwsh\pwsh.exe
 exchange-online-module  pass    3.10.0
 sidecar-script          pass    sha256 0123456789ab matches the build

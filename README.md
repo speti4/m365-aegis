@@ -44,7 +44,7 @@ Windows 11 with the .NET 10 runtime: the command line (`m365-aegis.exe`) needs t
 (`m365-aegis-gui.exe`) the .NET Desktop Runtime 10, which includes the former (`winget install
 Microsoft.DotNet.DesktopRuntime.10`). The Exchange Online commands need PowerShell 7.6 and the
 `ExchangeOnlineManagement` module 3.10; the window's WebView2 runtime comes with Windows 11. `m365-aegis doctor`
-says what is missing.
+says what is missing, the Desktop Runtime of the window included (its `dotnet-desktop-runtime` row).
 
 ## Build from source
 
@@ -76,8 +76,8 @@ Without a window (an SSH session, a scheduled task) `login` falls back to a devi
 is another `login --profile <name> …`; `profile list` shows the profiles, `profile use <name>` picks the default
 and `profile remove <name>` signs one out and deletes it.
 
-When something does not work, `doctor` checks the prerequisites (pwsh and the Exchange Online module, the sidecar
-script, WebView2, the device's join state, the sign-in, the endpoints) and says what to install or do for each
+When something does not work, `doctor` checks the prerequisites (the .NET Desktop Runtime of the window, pwsh and
+the Exchange Online module, the sidecar script, WebView2, the device's join state, the sign-in, the endpoints) and says what to install or do for each
 warning and failure. A sign-in that fails is diagnosed with `--verbose login`: the sign-in library's log, without
 tokens or personal data, goes to `%LOCALAPPDATA%\m365-aegis\logs\`.
 
@@ -114,6 +114,12 @@ newest first:
 & $aegis secrets expiring 30                            # app secrets and certificates that expire within a month
 & $aegis audit list --days 7 --activity "Add member"    # the directory audit, by the start of the activity's name
 ```
+
+The window, `src\M365Aegis.Gui\bin\Release\net10.0-windows\m365-aegis-gui.exe`, works with the same tenant profile
+and sign-in as the command line. Its first page shows the signed-in account, read silently as `whoami` does, and
+a group's members in a table, as `group members` lists them; a lookup that fails is a notification with the hint.
+It does not sign in yet: `login` on the command line does. `m365-aegis-gui --verbose` writes the sign-in library's
+log to the same `logs\` folder as the command line's `--verbose`.
 
 ## Documentation
 

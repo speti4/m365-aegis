@@ -1,0 +1,10 @@
+{
+  "aegis": 1,
+  "id": "4",
+  "type": "error",
+  "data": {
+    "code": "not-found",
+    "message": "no group named 'Nothing'",
+    "hint": "give the exact display name, the address, the object id, or a word of the name"
+  }
+}

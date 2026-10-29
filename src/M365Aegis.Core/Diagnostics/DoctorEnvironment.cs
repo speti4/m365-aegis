@@ -31,6 +31,12 @@ public sealed record DoctorEnvironment
     /// <summary>The .NET runtime the process runs on.</summary>
     public string RuntimeVersion { get; init; } = Environment.Version.ToString();
 
+    /// <summary>
+    /// The versions of the installed .NET Desktop Runtime (the <c>Microsoft.WindowsDesktop.App</c> shared framework the
+    /// window needs, D-009), read from the shared folder of the .NET installation this process runs on.
+    /// </summary>
+    public Func<IReadOnlyList<string>> ReadDesktopRuntimeVersions { get; init; } = ReadDesktopRuntimeVersionsFromDisk;
+
     /// <summary>The pwsh executable, or null when there is none on PATH.</summary>
     public Func<string?> FindPwsh { get; init; } = Doctor.FindPwsh;
 
@@ -76,6 +82,27 @@ public sealed record DoctorEnvironment
     {
         string path = SidecarScript.InstalledPath;
         return File.Exists(path) ? File.ReadAllBytes(path) : null;
+    }
+
+    /// <summary>
+    /// The folder names under <c>shared\Microsoft.WindowsDesktop.App</c> of the .NET installation whose
+    /// <c>Microsoft.NETCore.App</c> runs this process: the same installation the window's apphost resolves.
+    /// </summary>
+    private static IReadOnlyList<string> ReadDesktopRuntimeVersionsFromDisk()
+    {
+        try
+        {
+            // <root>\shared\Microsoft.NETCore.App\<version>\: three levels up is the installation's root.
+            DirectoryInfo? root = new DirectoryInfo(System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory()).Parent?.Parent?.Parent;
+            string? desktop = root is null ? null : Path.Combine(root.FullName, "shared", "Microsoft.WindowsDesktop.App");
+            return desktop is not null && Directory.Exists(desktop)
+                ? [.. Directory.GetDirectories(desktop).Select(Path.GetFileName).OfType<string>()]
+                : [];
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            return [];
+        }
     }
 
     private static IReadOnlyList<string?> ReadWebView2VersionsFromRegistry()

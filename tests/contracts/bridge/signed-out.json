@@ -1,0 +1,11 @@
+{
+  "aegis": 1,
+  "id": "2",
+  "type": "signed-out",
+  "data": {
+    "profile": "work",
+    "account": "alice@contoso.com",
+    "message": "no silent sign-in for alice@contoso.com (operating system account: failed_to_acquire_token_silently_from_broker; alice@contoso.com is not among the 1 known account(s))",
+    "hint": "run `m365-aegis login`"
+  }
+}

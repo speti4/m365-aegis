@@ -25,7 +25,7 @@
 
     <!-- The window of the GUI (D-009): the WinForms control and the CoreWebView2 API of Microsoft's WebView2 SDK,
          which hosts the React front end under gui/web with a string message bridge; BSD-3-Clause, shipped as a license
-         file, so licenses/overrides.json names it (and has to follow a version bump). A monthly release; Photino.NET,
+         file, which licenses/license-texts.json maps to its license whatever the version. A monthly release; Photino.NET,
          the scaffold's host, was dormant upstream and lost the spike of task 014. -->
     <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
 

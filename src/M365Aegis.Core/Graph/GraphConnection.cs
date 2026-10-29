@@ -18,15 +18,25 @@ public static class GraphConnection
     /// <summary>The client of a command: the real home folder's sign-in, or the fixtures when the variable is set.</summary>
     /// <param name="profileName">The tenant profile (<c>--profile</c>), or null for the default one.</param>
     /// <param name="requestLog">Where the request ids go (the command runner's log).</param>
-    public static GraphClient Create(string? profileName, RequestLog requestLog)
+    public static GraphClient Create(string? profileName, RequestLog requestLog) => Create(profileName, requestLog, AuthService.Create);
+
+    /// <summary>
+    /// The client of a caller that holds its own sign-in (the window, whose broker takes the window as the picker's
+    /// parent): the fixtures when the variable is set, else the network with the sign-in <paramref name="auth"/> makes.
+    /// </summary>
+    /// <param name="profileName">The tenant profile, or null for the default one.</param>
+    /// <param name="requestLog">Where the request ids go.</param>
+    /// <param name="auth">The sign-in; not called when the fixtures answer.</param>
+    public static GraphClient Create(string? profileName, RequestLog requestLog, Func<AuthService> auth)
     {
+        ArgumentNullException.ThrowIfNull(auth);
         string? fixtures = Environment.GetEnvironmentVariable(FixturesEnvironmentVariable);
         if (!string.IsNullOrWhiteSpace(fixtures))
         {
             return new GraphClient(new FixtureGraphTransport(Path.GetFullPath(fixtures)), requestLog);
         }
 
-        return Create(AuthService.Create(), profileName, requestLog);
+        return Create(auth(), profileName, requestLog);
     }
 
     /// <summary>The client over the network with the given sign-in; the token is asked for on the first request.</summary>

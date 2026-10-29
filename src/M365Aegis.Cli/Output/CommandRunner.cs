@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using M365Aegis.Core.Config;
 using M365Aegis.Core.Diagnostics;
 using M365Aegis.Core.Output;
 
@@ -114,33 +113,9 @@ internal static class CommandRunner
     internal static int Fail(OutputMode mode, AegisFailure failure) =>
         Run(mode, Backend.Local, () => CommandResult.Failure<object>(failure), NoTableView<object>.Instance);
 
-    /// <summary>
-    /// The failure of an unexpected exception: its type and its message, scrubbed like a log line (a message may
-    /// name an account), and the log file with the stack trace as the hint. The stack trace itself never reaches the
-    /// answer.
-    /// </summary>
-    internal static AegisFailure InternalFailure(Exception exception, string? logFile)
-    {
-        ArgumentNullException.ThrowIfNull(exception);
-        string message = $"an unexpected internal error stopped the command ({exception.GetType().Name}: {LogSink.ScrubPatterns(exception.Message)})";
-        string hint = logFile is null
-            ? "the log could not be written; run the command again, and report it with the command line if it happens again"
-            : $"the stack trace is in {logFile}; report it with that log";
-        return new AegisFailure(FailureKind.Internal, message, hint);
-    }
+    /// <summary>The failure of an unexpected exception (<see cref="InternalError.ToFailure"/>, shared with the window).</summary>
+    internal static AegisFailure InternalFailure(Exception exception, string? logFile) => InternalError.ToFailure(exception, logFile);
 
     /// <summary>Writes the exception with its stack trace to the home folder's log; the file, or null when it could not.</summary>
-    internal static string? LogInternalError(Exception exception)
-    {
-        ArgumentNullException.ThrowIfNull(exception);
-        try
-        {
-            LogSink sink = LogSink.ForHome(AegisHome.Resolve());
-            return sink.Write("internal-error", exception.ToString()) ? sink.CurrentFile : null;
-        }
-        catch (Exception logException) when (logException is ArgumentException or IOException or UnauthorizedAccessException)
-        {
-            return null;
-        }
-    }
+    internal static string? LogInternalError(Exception exception) => InternalError.WriteToLog(exception);
 }

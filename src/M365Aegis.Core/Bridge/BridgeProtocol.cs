@@ -2,6 +2,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using M365Aegis.Core.Output;
 
 namespace M365Aegis.Core.Bridge;
 
@@ -53,30 +54,77 @@ public static class BridgeProtocol
     public static string Write(BridgeMessage message) => JsonSerializer.Serialize(message, Options);
 
     /// <summary>The answer to a request: the same id, the given type and payload.</summary>
-    public static BridgeMessage Reply(BridgeMessage request, string type, JsonNode? data) =>
-        new(Version, request.Id, type, data);
+    public static BridgeMessage Reply(BridgeMessage request, string type, JsonNode? data)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return new(Version, request.Id, type, data);
+    }
+
+    /// <summary>
+    /// The answer to a request with a result of the core as its payload, written the way the envelope writes its
+    /// data (D-006: camelCase, nulls left out, enums as kebab-case strings), so the window reads the same shape a
+    /// script reads from <c>--json</c>.
+    /// </summary>
+    public static BridgeMessage Reply<T>(BridgeMessage request, string type, T data) =>
+        Reply(request, type, JsonSerializer.SerializeToNode(data, EnvelopeJson.Options));
+
+    /// <summary>The <c>error</c> answer to a request: the failure's code, message and hint, as the envelope's error.</summary>
+    public static BridgeMessage Error(BridgeMessage request, AegisFailure failure)
+    {
+        ArgumentNullException.ThrowIfNull(failure);
+        return Reply(request, BridgeMessageType.Error, failure.ToError());
+    }
 }
 
 /// <summary>
-/// Routes a front-end message to its handler. The scaffold answers <c>ping</c> with <c>pong</c> and the product
-/// version; every later verb (the task cards of M4) registers here, and every write goes through a plan and a
-/// confirmation the front end shows (D-006).
+/// The message types of the protocol. The front end sends <see cref="Ready"/> (a notification) and the requests
+/// <see cref="Ping"/>, <see cref="WhoAmI"/> and <see cref="GroupMembers"/>; the host answers each request with one
+/// reply of the type named here, or with <see cref="Error"/>. gui/web/src/bridge/protocol.ts names the same
+/// strings, and the samples under tests/contracts/bridge hold one message of each.
 /// </summary>
-public static class BridgeDispatcher
+public static class BridgeMessageType
 {
-    /// <summary>The answer to a request, or null for a notification that needs none.</summary>
-    public static BridgeMessage? Dispatch(BridgeMessage request)
-    {
-        switch (request.Type)
-        {
-            case "ping":
-                var data = new JsonObject { ["product"] = ProductInfo.Name, ["version"] = ProductInfo.Version };
-                return BridgeProtocol.Reply(request, "pong", data);
-            case "ready":
-                return null;
-            default:
-                var error = new JsonObject { ["code"] = "unknown-type", ["message"] = $"no handler for '{request.Type}'" };
-                return BridgeProtocol.Reply(request, "error", error);
-        }
-    }
+    /// <summary>The page is loaded and listening (a notification; the smoke run waits for it).</summary>
+    public const string Ready = "ready";
+
+    /// <summary>Asks for the product and the version; answered with <see cref="Pong"/>.</summary>
+    public const string Ping = "ping";
+
+    /// <summary>The answer to <see cref="Ping"/>.</summary>
+    public const string Pong = "pong";
+
+    /// <summary>
+    /// Asks for the sign-in state, silently as the command line's <c>whoami</c>; answered with
+    /// <see cref="SignedIn"/> or <see cref="SignedOut"/>.
+    /// </summary>
+    public const string WhoAmI = "whoami";
+
+    /// <summary>The signed-in account: a <see cref="Auth.SignInInfo"/> as the payload.</summary>
+    public const string SignedIn = "signed-in";
+
+    /// <summary>No usable silent sign-in: a <see cref="SignedOutInfo"/> as the payload.</summary>
+    public const string SignedOut = "signed-out";
+
+    /// <summary>
+    /// Asks for a group's direct members as <c>group members</c> does; the payload is a
+    /// <see cref="GroupMembersRequest"/>. Answered with <see cref="Members"/>.
+    /// </summary>
+    public const string GroupMembers = "group-members";
+
+    /// <summary>The members of a group: a <see cref="Groups.GroupMembers"/> as the payload.</summary>
+    public const string Members = "members";
+
+    /// <summary>A request that failed: an <see cref="EnvelopeError"/> (code, message, hint) as the payload.</summary>
+    public const string Error = "error";
 }
+
+/// <summary>The payload of a <see cref="BridgeMessageType.GroupMembers"/> request.</summary>
+/// <param name="Group">The group: an object id, an exact display name or address, or a word of the name.</param>
+public sealed record GroupMembersRequest(string? Group);
+
+/// <summary>The payload of a <see cref="BridgeMessageType.SignedOut"/> reply.</summary>
+/// <param name="Profile">The tenant profile the sign-in was tried for, or null when there is none.</param>
+/// <param name="Account">The profile's account, or null when there is no profile.</param>
+/// <param name="Message">Why there is no sign-in, one sentence.</param>
+/// <param name="Hint">What to do about it, or null.</param>
+public sealed record SignedOutInfo(string? Profile, string? Account, string Message, string? Hint);
