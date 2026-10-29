@@ -4,6 +4,7 @@ origin: session 2026-10-28
 created: 2026-10-28
 started: 2026-10-29
 plan: none
+closed: 2026-10-29
 milestone: M4 Window
 ---
 
@@ -74,6 +75,10 @@ session owns the steps below and may reshape them. The live check runs in the ma
   `sonner` component imports); `shadcn add table input card sonner badge` wrote the components. The dark
   `prefers-color-scheme` block of `index.css` got the tokens it lacked (popover, primary, secondary, muted,
   accent, input, ring), so the toast and the buttons follow the system's dark mode.
+- 2026-10-29 — closed on `main` by the main session after the squash merge (#18). Of the pull request's three
+  follow-ups the maintainer kept the window sign-in (backlog 040); `--profile` for the window is dropped (one
+  tenant, D-001: the profile switch is a command-line convenience) and the `\u00XX` escapes of the bridge reply
+  are dropped (valid JSON, cosmetic, nobody reads the raw reply).
 
 ## Deviations from the plan
 

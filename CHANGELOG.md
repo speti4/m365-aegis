@@ -24,6 +24,18 @@ The repository, the task standard and the empty solution: no product yet.
 - An exit code for an unexpected internal error ([021](https://github.com/speti4/m365-aegis/blob/main/tasks/done/021-exit-code-for-an-unexpected-internal-error.md))
 - `profile list`, `profile use` and `profile remove` over the tenant profiles of `config.json` ([024](https://github.com/speti4/m365-aegis/blob/main/tasks/done/024-profile-commands-list-use-remove.md))
 - MSAL's non-PII log into `logs\` behind a `--verbose` flag ([025](https://github.com/speti4/m365-aegis/blob/main/tasks/done/025-msal-logging-behind-verbose.md))
+- The WebView2 license override follows the package's version ([029](https://github.com/speti4/m365-aegis/blob/main/tasks/done/029-webview2-license-override-without-a-version.md))
+
+### M4 Window
+
+- The window's first real page: the sign-in state and a lookup over the bridge, behind `IUiHost` ([017](https://github.com/speti4/m365-aegis/blob/main/tasks/done/017-window-hello-bridge-behind-iuihost.md))
+- Verbose MSAL logging for the window ([027](https://github.com/speti4/m365-aegis/blob/main/tasks/done/027-verbose-msal-log-for-the-window.md))
+- The front end's transport talks to `chrome.webview` directly ([030](https://github.com/speti4/m365-aegis/blob/main/tasks/done/030-transport-talks-to-chrome-webview-directly.md))
+
+### M6 Release and team
+
+- The doctor checks the .NET Desktop Runtime 10 for the window ([028](https://github.com/speti4/m365-aegis/blob/main/tasks/done/028-doctor-checks-the-dotnet-desktop-runtime.md))
+- No reference documentation files in the publish ([031](https://github.com/speti4/m365-aegis/blob/main/tasks/done/031-no-reference-documentation-files-in-the-publish.md))
 
 ### Project housekeeping
 

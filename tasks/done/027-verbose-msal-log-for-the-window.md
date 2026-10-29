@@ -4,6 +4,7 @@ origin: done/025-msal-logging-behind-verbose.md
 created: 2026-10-29
 started: 2026-10-29
 plan: none
+closed: 2026-10-29
 milestone: M4 Window
 ---
 
@@ -64,8 +65,9 @@ core's auth (task 017); the task session owns the steps below and may reshape th
   sign-in. `LogSinkTests` green.
 - 2026-10-29 ~22:03 (UTC+1) — live, in the main session's signed-in round: the window with `--verbose` wrote
   1734 lines under its process id into `logs\m365-aegis-2026-10-29.log`, all `msal:`; a scan for `eyJ`, the tenant
-  domain, the tenant id, the client id, both UPNs, the display name and the object id found 0 hits each (MSAL's
-  correlation ids appear as GUIDs, as reported). The run without `--verbose` (a lookup, then closed) wrote 0 lines.
+  domain, the tenant id, the client id, both UPNs, the display name and the object id found 0 hits each; a second
+  scan by the main session before the merge found no raw GUID in the file and `<guid>` on 852 of the window's
+  lines (MSAL's correlation ids, scrubbed). The run without `--verbose` (a lookup, then closed) wrote 0 lines.
 
 ## Closing checklist
 

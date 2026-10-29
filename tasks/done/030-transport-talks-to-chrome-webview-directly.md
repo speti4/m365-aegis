@@ -4,6 +4,7 @@ origin: done/014-spike-photino-against-winforms-and-webview2.md
 created: 2026-10-29
 started: 2026-10-29
 plan: none
+closed: 2026-10-29
 milestone: M4 Window
 ---
 
