@@ -6,7 +6,6 @@ started: 2026-10-29
 closed: 2026-10-29
 plan: none
 milestone: M1 Foundation
-changelog: housekeeping
 ---
 
 # 014 — Spike: Photino.NET 4.0.16 on .NET 10 against a WinForms and WebView2 host, recorded as a decision

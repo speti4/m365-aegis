@@ -1,7 +1,8 @@
 # m365-aegis
 
 A thin Microsoft 365 operations layer for Windows 11: a .NET 10 core, the `m365-aegis` command line and the
-`m365-aegis-gui` window (Photino on WebView2, a React front end), published framework-dependent into one folder.
+`m365-aegis-gui` window (a WinForms form with the WebView2 control, a React front end), published
+framework-dependent into one folder.
 One sign-in through the Windows account manager serves Microsoft Graph (a direct client) and Exchange Online (a
 long-lived `pwsh` sidecar running `ExchangeOnlineManagement` with a cmdlet allow-list). Three domains: groups,
 Teams and SharePoint; Exchange Online mailboxes; audit, sign-ins and reports. Every write goes through a plan and

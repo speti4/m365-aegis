@@ -29,7 +29,7 @@ then an apply, and the tenant's audit log shows exactly the planned changes.
 
 ## M4 Window
 
-The window for the support team: Photino (or the WinForms host the spike picks) with the React front end,
+The window for the support team: a WinForms form with the WebView2 control (D-009) and the React front end,
 task cards that end in a plan and a confirmation, a warm sidecar, the sign-in state. Done when a support
 colleague grants FullAccess on a shared mailbox from the window without touching PowerShell.
 
