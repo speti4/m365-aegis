@@ -31,13 +31,18 @@ A task session:
 - changes only its own task file and the code the task needs. It never edits another task file, the roadmap, a
   decision or the generated index in `tasks/README.md` (`tasks_check` runs without `write`), and never creates
   an id;
-- closes its task in its branch (the move to `done/`); a follow-up goes into the pull request description under
-  `## Follow-ups`, one line each, and the main session proposes them to the maintainer and files the approved
-  ones before the merge;
-- runs `tasks_check` without `write` on the close commit: its report that the index in `tasks/README.md` is
-  stale is expected (the main session regenerates the index when it prepares the pull request); any other
-  finding is fixed. `git status` is clean before the session reports done, so the close commit carries the task
-  file's edits together with the move;
+- finishes its task file in its branch but does not close it: the steps ticked, the Log, a dated Verification
+  and the closing checklist are written into the `wip/` file, which stays in `wip/`, and `CHANGELOG.md` is not
+  regenerated (its check passes while `done/` is unchanged). The main session closes the tasks on `main` after
+  the merge (the move to `done/`, the changelog, the index) in one docs-only commit, so two bundles never
+  conflict on the id-sorted changelog. A follow-up goes into the pull request description under `## Follow-ups`,
+  one line each, and the main session proposes them to the maintainer and files the approved ones at the close;
+- runs `tasks_check` without `write` before each task-file commit: its report that the index in
+  `tasks/README.md` is stale is expected; any other finding is fixed. `git status` is clean before the session
+  reports done;
+- writes its scratch files (a pull request body draft, a live-check script) under a name that carries its task
+  id: the scratchpad folder is shared by every session of one round, and a `pr-body.md` of one session was
+  pushed onto another session's pull request once (2026-10-29);
 - once the task's verification is done, pushes `task/NNN-slug` and opens the pull request with `gh pr create`,
   without asking again: this policy is the permission. It never pushes `main` and never merges;
 - ticks the description's checklist only for what it has seen pass, and edits it after CI with

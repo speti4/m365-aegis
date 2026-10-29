@@ -20,6 +20,9 @@ The repository, the task standard and the empty solution: no product yet.
 - Audit lookups: sign-ins per user and failures, expiring application secrets, the directory audit ([006](https://github.com/speti4/m365-aegis/blob/main/tasks/done/006-audit-lookups-sign-ins-expiring-secrets-directory-audit.md))
 - Message trace through Graph v1.0 ([007](https://github.com/speti4/m365-aegis/blob/main/tasks/done/007-message-trace-through-graph.md))
 - `doctor` with the full check list: the module version, WebView2, the sidecar hash, the sign-in, the endpoints ([008](https://github.com/speti4/m365-aegis/blob/main/tasks/done/008-doctor-with-the-full-check-list.md))
+- Spike: `Connect-ExchangeOnline -AccessToken` with a token the broker acquired for outlook.office365.com ([009](https://github.com/speti4/m365-aegis/blob/main/tasks/done/009-spike-connect-exchangeonline-with-a-wam-token.md))
+- Spike: the Exchange Online Admin API v2.0 in the tenant, `Exchange.ManageV2` for a public client ([010](https://github.com/speti4/m365-aegis/blob/main/tasks/done/010-spike-exchange-online-admin-api-in-the-tenant.md))
+- Measure: cold `Connect-ExchangeOnline` with and without `-CommandName`, and the module path under OneDrive ([011](https://github.com/speti4/m365-aegis/blob/main/tasks/done/011-measure-connect-exchangeonline-and-the-module-path.md))
 - Spike: Photino.NET 4.0.16 on .NET 10 against a WinForms and WebView2 host, recorded as a decision ([014](https://github.com/speti4/m365-aegis/blob/main/tasks/done/014-spike-photino-against-winforms-and-webview2.md))
 - An exit code for an unexpected internal error ([021](https://github.com/speti4/m365-aegis/blob/main/tasks/done/021-exit-code-for-an-unexpected-internal-error.md))
 - `profile list`, `profile use` and `profile remove` over the tenant profiles of `config.json` ([024](https://github.com/speti4/m365-aegis/blob/main/tasks/done/024-profile-commands-list-use-remove.md))
@@ -33,6 +36,11 @@ The repository, the task standard and the empty solution: no product yet.
 - `audit list --user <upn>`: the directory audit by the initiating user ([037](https://github.com/speti4/m365-aegis/blob/main/tasks/done/037-audit-list-by-initiating-user.md))
 - `audit list` says how far the 1000-entry default reached ([038](https://github.com/speti4/m365-aegis/blob/main/tasks/done/038-audit-list-footer-names-the-oldest-entry.md))
 - Non-interactive and service principal sign-ins ([039](https://github.com/speti4/m365-aegis/blob/main/tasks/done/039-non-interactive-and-service-principal-sign-ins.md))
+
+### M2 Exchange
+
+- The sidecar in the core: the process, the protocol client, the allow-list, connect and reconnect ([015](https://github.com/speti4/m365-aegis/blob/main/tasks/done/015-sidecar-protocol-allow-list-and-connect.md))
+- Mailbox access in both directions, external forwarders, shared mailboxes and sizes ([016](https://github.com/speti4/m365-aegis/blob/main/tasks/done/016-mailbox-access-reverse-lookup-and-forwarders.md))
 
 ### M4 Window
 

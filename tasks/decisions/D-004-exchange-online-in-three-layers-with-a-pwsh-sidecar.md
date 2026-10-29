@@ -35,6 +35,23 @@ The module and pwsh 7.6 are prerequisites the `doctor` checks, not something the
 `InvokeCommand` endpoint is never called. In-process hosting through `Microsoft.PowerShell.SDK` stays an option
 for later if the sidecar proves too narrow. Cost: medium. Decided 2026-10-28.
 
+## Note 2026-10-29 — the sidecar connects with the broker's token (task 009)
+
+The sidecar connects with `Connect-ExchangeOnline -AccessToken <the broker's token for
+https://outlook.office365.com/.default> -Organization <tenant>.onmicrosoft.com -SkipLoadingFormatData
+-CommandName <the REST cmdlets of the allow-list>`; one token carries `Exchange.Manage` and `Exchange.ManageV2`;
+the core renews it with a `reconnect` five minutes before its expiry (375 ms); the module's own sign-in is not
+needed, so the one sign-in of D-003 serves Graph and Exchange Online. Cold on the maintainer's machine: pwsh to
+hello 0.45 s, the module's import 1.2 s, the connect 0.48 s (task 011; `docs/origin.md` has the three variants).
+
+## Note 2026-10-29 — the Admin API answers in the tenant (task 010)
+
+The Admin API v2.0 answers in the tenant with the broker's delegated token (`Exchange.ManageV2` on the same
+`outlook.office365.com` resource as the sidecar; POST with a `CmdletInput` body, `X-AnchorMailbox: UPN:<admin>`;
+`OrganizationConfig` 200 in 0.6 s, `Mailbox` 200 in 0.16 s with `@odata.nextLink` paging). The second layer
+stands: an Admin API backend (backlog 042) serves Send on Behalf, folder permissions, distribution group
+membership and the organization reads.
+
 ## Not chosen
 
 - Graph only: it cannot cover the mailbox domain the tool exists for.

@@ -4,6 +4,7 @@ origin: session 2026-10-28
 created: 2026-10-28
 started: 2026-10-29
 plan: none
+closed: 2026-10-29
 milestone: M1 Foundation
 ---
 
