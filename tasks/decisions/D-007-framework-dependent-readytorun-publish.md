@@ -23,6 +23,13 @@ no release of ours; a missing runtime makes the apphost print the download link.
 Windows 11 (the Evergreen runtime); Photino's data folder is set under the tool's home. Cost: cheap, a publish
 setting. Decided 2026-10-28.
 
+## Note 2026-10-29 — the window host after D-009
+
+With the window on WinForms and the WebView2 control (D-009, task 014), Photino's native library no longer
+travels with the exes; the WebView2 loader does, and the window needs the .NET Desktop Runtime 10 next to the
+.NET Runtime 10 (the command line keeps needing only the latter). The publish stays framework-dependent,
+ReadyToRun, `win-x64`, one folder; the measured cost of the host is about 1.6 MB unpacked and 0.3 MB zipped.
+
 ## Not chosen
 
 - Self-contained: about 70 MB unpacked, and every runtime CVE would mean a release of ours.

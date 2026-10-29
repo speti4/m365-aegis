@@ -32,6 +32,13 @@ team on Entra-joined machines under Conditional Access.
   port starts from a core that builds off Windows.
 - The cost is one-way: the stack shapes every project. Decided 2026-10-28.
 
+## Note 2026-10-29 — the host after the spike (task 014, D-009)
+
+The spike of task 014 compared the two hosts and the maintainer picked WinForms with the WebView2 control
+(D-009): Photino.NET is removed, the GUI project targets `net10.0-windows`, and the window's prerequisite is the
+.NET Desktop Runtime 10. The front end, the bridge protocol and the core did not change with the host, as this
+decision expected.
+
 ## Not chosen
 
 - Rust with Tauri 2 (the mboxer and mrgl pattern): no MSAL and no broker (`azure_identity` 1.0 ships no delegated
