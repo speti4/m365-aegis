@@ -68,6 +68,13 @@ public static class BridgeProtocol
     public static BridgeMessage Reply<T>(BridgeMessage request, string type, T data) =>
         Reply(request, type, JsonSerializer.SerializeToNode(data, EnvelopeJson.Options));
 
+    /// <summary>
+    /// A notification from the host (no id, no answer expected) with a result of the core as its payload, written as
+    /// <see cref="Reply{T}"/> writes one: the device code of a sign-in in flight (task 040).
+    /// </summary>
+    public static BridgeMessage Notification<T>(string type, T data) =>
+        new(Version, null, type, JsonSerializer.SerializeToNode(data, EnvelopeJson.Options));
+
     /// <summary>The <c>error</c> answer to a request: the failure's code, message and hint, as the envelope's error.</summary>
     public static BridgeMessage Error(BridgeMessage request, AegisFailure failure)
     {
@@ -78,9 +85,11 @@ public static class BridgeProtocol
 
 /// <summary>
 /// The message types of the protocol. The front end sends <see cref="Ready"/> (a notification) and the requests
-/// <see cref="Ping"/>, <see cref="WhoAmI"/> and <see cref="GroupMembers"/>; the host answers each request with one
-/// reply of the type named here, or with <see cref="Error"/>. gui/web/src/bridge/protocol.ts names the same
-/// strings, and the samples under tests/contracts/bridge hold one message of each.
+/// <see cref="Ping"/>, <see cref="WhoAmI"/>, <see cref="Login"/>, <see cref="Logout"/>, <see cref="GroupMembers"/>,
+/// <see cref="MailboxList"/> and <see cref="MailboxAccess"/>; the host answers each request with one reply of the
+/// type named here, or with <see cref="Error"/>, and sends <see cref="DeviceCode"/> as a notification while a
+/// sign-in waits for the browser step. gui/web/src/bridge/protocol.ts names the same strings, and the samples under
+/// tests/contracts/bridge hold one message of each.
 /// </summary>
 public static class BridgeMessageType
 {
@@ -106,6 +115,51 @@ public static class BridgeMessageType
     public const string SignedOut = "signed-out";
 
     /// <summary>
+    /// Signs in as <c>m365-aegis login</c> does for the window's profile: silently when it can, else the broker's
+    /// account picker over the window, else (or with <see cref="LoginRequest.DeviceCode"/>) a device code, which the
+    /// host sends as a <see cref="DeviceCode"/> notification. Answered with <see cref="SignedIn"/> (task 040).
+    /// </summary>
+    public const string Login = "login";
+
+    /// <summary>
+    /// The page to open and the code to type for a device-code sign-in in flight: a notification from the host, a
+    /// <see cref="Auth.DeviceCodePrompt"/> as the payload.
+    /// </summary>
+    public const string DeviceCode = "device-code";
+
+    /// <summary>Signs the profile's account out as <c>m365-aegis logout</c> does; answered with <see cref="LoggedOut"/>.</summary>
+    public const string Logout = "logout";
+
+    /// <summary>The answer to <see cref="Logout"/>: a <see cref="Auth.SignOutInfo"/> as the payload.</summary>
+    public const string LoggedOut = "logged-out";
+
+    /// <summary>
+    /// Asks for the mailboxes as <c>mailbox list [--shared]</c> does; the payload is a <see cref="MailboxListRequest"/>.
+    /// Answered with <see cref="Mailboxes"/> (task 045).
+    /// </summary>
+    public const string MailboxList = "mailbox-list";
+
+    /// <summary>The mailboxes: an <see cref="Exchange.MailboxList"/> as the payload.</summary>
+    public const string Mailboxes = "mailboxes";
+
+    /// <summary>
+    /// Asks who holds which right on a mailbox, or which mailboxes a user holds a right on, as
+    /// <c>mailbox access</c> does; the payload is a <see cref="MailboxAccessRequest"/>. Answered with
+    /// <see cref="MailboxHolders"/> or <see cref="UserGrants"/> (task 045).
+    /// </summary>
+    public const string MailboxAccess = "mailbox-access";
+
+    /// <summary>Who holds which right on a mailbox: an <see cref="Exchange.MailboxAccess"/> as the payload.</summary>
+    public const string MailboxHolders = "mailbox-holders";
+
+    /// <summary>
+    /// The mailboxes a user holds a right on: an <see cref="Exchange.UserAccess"/> as the payload; a partial answer
+    /// (some lists could not be read) is this reply with its <c>failed</c> list, as the envelope carries the data of
+    /// exit code 6.
+    /// </summary>
+    public const string UserGrants = "user-grants";
+
+    /// <summary>
     /// Asks for a group's direct members as <c>group members</c> does; the payload is a
     /// <see cref="GroupMembersRequest"/>. Answered with <see cref="Members"/>.
     /// </summary>
@@ -121,6 +175,19 @@ public static class BridgeMessageType
 /// <summary>The payload of a <see cref="BridgeMessageType.GroupMembers"/> request.</summary>
 /// <param name="Group">The group: an object id, an exact display name or address, or a word of the name.</param>
 public sealed record GroupMembersRequest(string? Group);
+
+/// <summary>The payload of a <see cref="BridgeMessageType.Login"/> request; none is a sign-in through the broker.</summary>
+/// <param name="DeviceCode">Skip the broker and sign in through a browser with a device code.</param>
+public sealed record LoginRequest(bool DeviceCode);
+
+/// <summary>The payload of a <see cref="BridgeMessageType.MailboxList"/> request.</summary>
+/// <param name="Shared">Only the shared mailboxes.</param>
+public sealed record MailboxListRequest(bool Shared);
+
+/// <summary>The payload of a <see cref="BridgeMessageType.MailboxAccess"/> request: one of the two, never both.</summary>
+/// <param name="Mailbox">The mailbox (its address, name or object id): who holds which right on it.</param>
+/// <param name="User">A user principal name: which mailboxes the user holds a right on.</param>
+public sealed record MailboxAccessRequest(string? Mailbox, string? User);
 
 /// <summary>The payload of a <see cref="BridgeMessageType.SignedOut"/> reply.</summary>
 /// <param name="Profile">The tenant profile the sign-in was tried for, or null when there is none.</param>

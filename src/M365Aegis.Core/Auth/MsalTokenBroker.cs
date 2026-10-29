@@ -15,7 +15,8 @@ namespace M365Aegis.Core.Auth;
 /// here and nowhere else. Nothing is built until the first call, so a command that fails before a token (no
 /// profile) never loads the library. Under <c>--verbose</c> (<see cref="LogSink.Verbose"/>) the library's own log,
 /// without PII, goes into the home folder's <c>logs</c> folder through the scrubbing sink (task 025); without the
-/// flag no logging callback is registered at all.
+/// flag no logging callback is registered at all. The window passes its own handle and a way onto its UI thread,
+/// where MSAL wants the account picker's call to start (task 040; <c>MsalError.WamUiThread</c>).
 /// </summary>
 public sealed class MsalTokenBroker : ITokenBroker
 {
@@ -31,15 +32,17 @@ public sealed class MsalTokenBroker : ITokenBroker
     private readonly TenantProfile _profile;
     private readonly string _home;
     private readonly Func<IntPtr> _parentWindow;
+    private readonly Func<Func<Task>, Task>? _onWindowThread;
     private readonly LogSink? _log;
     private readonly Lazy<Task<IPublicClientApplication>> _application;
     private readonly Lazy<Task<IPublicClientApplication>> _cacheOnlyApplication;
 
-    private MsalTokenBroker(TenantProfile profile, string home, Func<IntPtr> parentWindow, LogSink? log)
+    private MsalTokenBroker(TenantProfile profile, string home, Func<IntPtr> parentWindow, Func<Func<Task>, Task>? onWindowThread, LogSink? log)
     {
         _profile = profile;
         _home = home;
         _parentWindow = parentWindow;
+        _onWindowThread = onWindowThread;
         _log = log;
         _application = new Lazy<Task<IPublicClientApplication>>(() => BuildAsync(withBroker: true));
         _cacheOnlyApplication = new Lazy<Task<IPublicClientApplication>>(() => BuildAsync(withBroker: false));
@@ -58,7 +61,21 @@ public sealed class MsalTokenBroker : ITokenBroker
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentException.ThrowIfNullOrWhiteSpace(home);
         ArgumentNullException.ThrowIfNull(parentWindow);
-        return new MsalTokenBroker(profile, home, parentWindow, log);
+        return new MsalTokenBroker(profile, home, parentWindow, null, log);
+    }
+
+    /// <summary>
+    /// A broker for the window: <paramref name="parentWindow"/> is the window's handle, and
+    /// <paramref name="onWindowThread"/> starts a call on the thread that owns it and completes when the call does,
+    /// so the account picker is started from the window's UI thread, as MSAL asks of a UI application (task 040).
+    /// </summary>
+    public static ITokenBroker Create(TenantProfile profile, string home, Func<IntPtr> parentWindow, Func<Func<Task>, Task> onWindowThread)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentException.ThrowIfNullOrWhiteSpace(home);
+        ArgumentNullException.ThrowIfNull(parentWindow);
+        ArgumentNullException.ThrowIfNull(onWindowThread);
+        return new MsalTokenBroker(profile, home, parentWindow, onWindowThread, LogSink.Verbose);
     }
 
     /// <summary>
@@ -140,11 +157,16 @@ public sealed class MsalTokenBroker : ITokenBroker
     }
 
     /// <inheritdoc/>
-    public Task<TokenResult> AcquireInteractiveAsync(string scope, string loginHint, CancellationToken cancellationToken) =>
-        GuardAsync(async application =>
-            await application.AcquireTokenInteractive([scope])
+    public async Task<TokenResult> AcquireInteractiveAsync(string scope, string loginHint, CancellationToken cancellationToken)
+    {
+        // The client is built first, off the window's thread; only the picker's call starts on it.
+        IPublicClientApplication application = await _application.Value.ConfigureAwait(false);
+        AuthenticationResult result = await Guard(() => OnWindowThreadAsync(() =>
+            application.AcquireTokenInteractive([scope])
                 .WithLoginHint(loginHint)
-                .ExecuteAsync(cancellationToken).ConfigureAwait(false));
+                .ExecuteAsync(cancellationToken))).ConfigureAwait(false);
+        return ToResult(result);
+    }
 
     /// <inheritdoc/>
     public Task<TokenResult> AcquireWithDeviceCodeAsync(string scope, Func<DeviceCodePrompt, Task> prompt, CancellationToken cancellationToken)
@@ -225,6 +247,19 @@ public sealed class MsalTokenBroker : ITokenBroker
         {
             throw new BrokerException(BrokerErrorKind.Other, exception.ErrorCode, exception.Message, exception);
         }
+    }
+
+    /// <summary>Starts a call on the window's thread when there is one (the window), here otherwise (a console).</summary>
+    private async Task<T> OnWindowThreadAsync<T>(Func<Task<T>> call)
+    {
+        if (_onWindowThread is null)
+        {
+            return await call().ConfigureAwait(false);
+        }
+
+        Task<T>? started = null;
+        await _onWindowThread(() => started = call()).ConfigureAwait(false);
+        return await started!.ConfigureAwait(false);
     }
 
     private async Task<TokenResult> GuardAsync(Func<IPublicClientApplication, Task<AuthenticationResult>> call)

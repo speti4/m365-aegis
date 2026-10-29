@@ -18,9 +18,23 @@ export const MessageType = {
   whoami: "whoami",
   signedIn: "signed-in",
   signedOut: "signed-out",
+  /** Signs in for the window's profile (silently, else the account picker, else a device code): answered with `signed-in`. */
+  login: "login",
+  /** A notification from the host while a sign-in waits for the browser step: the page to open and the code. */
+  deviceCode: "device-code",
+  /** Signs the profile's account out: answered with `logged-out`. */
+  logout: "logout",
+  loggedOut: "logged-out",
   /** A group's direct members, `{ group }` as the payload: answered with `members`. */
   groupMembers: "group-members",
   members: "members",
+  /** The mailboxes, `{ shared }` as the payload: answered with `mailboxes`. */
+  mailboxList: "mailbox-list",
+  mailboxes: "mailboxes",
+  /** `{ mailbox }` (who holds which right on it) or `{ user }` (the mailboxes the user holds a right on). */
+  mailboxAccess: "mailbox-access",
+  mailboxHolders: "mailbox-holders",
+  userGrants: "user-grants",
   /** A request that failed: the code, the message and the hint. */
   error: "error",
 } as const;
@@ -88,6 +102,63 @@ export interface GroupMembers {
   members: GroupMember[];
 }
 
+/** The page and the code of a device-code sign-in (`DeviceCodePrompt` of the core). */
+export interface DeviceCodePrompt {
+  verificationUri: string;
+  userCode: string;
+  message: string;
+  expiresOn: string;
+}
+
+/** The result of `logout`: the profile stays, the account's records are gone. */
+export interface SignOutInfo {
+  profile: string;
+  account: string;
+  removedAccounts: number;
+}
+
+export interface MailboxInfo {
+  displayName: string;
+  primarySmtpAddress: string;
+  type: string;
+  userPrincipalName?: string;
+  objectId?: string;
+}
+
+/** The result of `mailbox list [--shared]`. */
+export interface MailboxList {
+  mailboxes: MailboxInfo[];
+  sharedOnly: boolean;
+}
+
+export type MailboxRight = "full-access" | "send-as" | "send-on-behalf";
+
+export interface MailboxHolder {
+  right: MailboxRight;
+  holder: string;
+  address?: string;
+}
+
+/** The result of `mailbox access <mailbox>`. */
+export interface MailboxAccess {
+  mailbox: MailboxInfo;
+  holders: MailboxHolder[];
+}
+
+export interface UserGrant {
+  right: MailboxRight;
+  mailbox: MailboxInfo;
+}
+
+/** The result of `mailbox access --user <upn>`; `failed` lists what could not be read (a partial answer). */
+export interface UserAccess {
+  user: string;
+  displayName?: string;
+  grants: UserGrant[];
+  mailboxesScanned: number;
+  failed: string[];
+}
+
 /** A failure as the envelope's `error` carries it: a stable code, one sentence, and what to do about it. */
 export interface BridgeError {
   code: string;
@@ -101,7 +172,14 @@ export type Reply =
   | { type: typeof MessageType.signedIn; data: SignInInfo }
   | { type: typeof MessageType.signedOut; data: SignedOutInfo }
   | { type: typeof MessageType.members; data: GroupMembers }
+  | { type: typeof MessageType.loggedOut; data: SignOutInfo }
+  | { type: typeof MessageType.mailboxes; data: MailboxList }
+  | { type: typeof MessageType.mailboxHolders; data: MailboxAccess }
+  | { type: typeof MessageType.userGrants; data: UserAccess }
   | { type: typeof MessageType.error; data: BridgeError };
+
+/** A notification of the host the page can read. */
+export type HostNotification = { type: typeof MessageType.deviceCode; data: DeviceCodePrompt };
 
 /** Parses a line from the host; null when it is not a message of this protocol. */
 export function parseMessage(text: string): BridgeMessage | null {
@@ -141,11 +219,28 @@ export function readReply(message: BridgeMessage): Reply | null {
       return isSignedOutInfo(data) ? { type, data } : null;
     case MessageType.members:
       return isGroupMembers(data) ? { type, data } : null;
+    case MessageType.loggedOut:
+      return isSignOutInfo(data) ? { type, data } : null;
+    case MessageType.mailboxes:
+      return isMailboxList(data) ? { type, data } : null;
+    case MessageType.mailboxHolders:
+      return isMailboxAccess(data) ? { type, data } : null;
+    case MessageType.userGrants:
+      return isUserAccess(data) ? { type, data } : null;
     case MessageType.error:
       return isBridgeError(data) ? { type, data } : null;
     default:
       return null;
   }
+}
+
+/** A notification of the host (no id) when its payload has the shape its type promises; null otherwise. */
+export function readNotification(message: BridgeMessage): HostNotification | null {
+  if (message.id !== undefined) {
+    return null;
+  }
+  const { type, data } = message;
+  return type === MessageType.deviceCode && isDeviceCodePrompt(data) ? { type, data } : null;
 }
 
 /** A request with a fresh id. */
@@ -227,5 +322,75 @@ function isGroupMembers(value: unknown): value is GroupMembers {
     groupKinds.includes(group.kind) &&
     typeof group.synced === "boolean" &&
     members.every((member) => isRecord(member) && isString(member.type) && isString(member.id))
+  );
+}
+
+function isDeviceCodePrompt(value: unknown): value is DeviceCodePrompt {
+  return (
+    isRecord(value) &&
+    isString(value.verificationUri) &&
+    isString(value.userCode) &&
+    isString(value.message) &&
+    isString(value.expiresOn)
+  );
+}
+
+function isSignOutInfo(value: unknown): value is SignOutInfo {
+  return (
+    isRecord(value) && isString(value.profile) && isString(value.account) && typeof value.removedAccounts === "number"
+  );
+}
+
+const rights: readonly string[] = ["full-access", "send-as", "send-on-behalf"];
+
+function isMailboxInfo(value: unknown): value is MailboxInfo {
+  return (
+    isRecord(value) &&
+    isString(value.displayName) &&
+    isString(value.primarySmtpAddress) &&
+    isString(value.type) &&
+    isOptionalString(value.userPrincipalName) &&
+    isOptionalString(value.objectId)
+  );
+}
+
+function isMailboxList(value: unknown): value is MailboxList {
+  return (
+    isRecord(value) &&
+    typeof value.sharedOnly === "boolean" &&
+    Array.isArray(value.mailboxes) &&
+    value.mailboxes.every(isMailboxInfo)
+  );
+}
+
+function isMailboxAccess(value: unknown): value is MailboxAccess {
+  return (
+    isRecord(value) &&
+    isMailboxInfo(value.mailbox) &&
+    Array.isArray(value.holders) &&
+    value.holders.every(
+      (holder) =>
+        isRecord(holder) &&
+        isString(holder.right) &&
+        rights.includes(holder.right) &&
+        isString(holder.holder) &&
+        isOptionalString(holder.address),
+    )
+  );
+}
+
+function isUserAccess(value: unknown): value is UserAccess {
+  return (
+    isRecord(value) &&
+    isString(value.user) &&
+    isOptionalString(value.displayName) &&
+    typeof value.mailboxesScanned === "number" &&
+    Array.isArray(value.failed) &&
+    value.failed.every(isString) &&
+    Array.isArray(value.grants) &&
+    value.grants.every(
+      (grant) =>
+        isRecord(grant) && isString(grant.right) && rights.includes(grant.right) && isMailboxInfo(grant.mailbox),
+    )
   );
 }

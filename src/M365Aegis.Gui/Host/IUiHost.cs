@@ -19,6 +19,18 @@ internal interface IUiHost
     /// </summary>
     void OnMessage(Func<string, Task<string?>> handler);
 
+    /// <summary>
+    /// Sends a message the front end did not ask for (a notification, such as the device code of a sign-in in
+    /// flight), from any thread; dropped when the page is not loaded or the window is closing.
+    /// </summary>
+    void Post(string message);
+
+    /// <summary>
+    /// Starts <paramref name="work"/> on the window's UI thread and completes when it does (MSAL starts the broker's
+    /// account picker there, task 040); runs it where it is called when there is no window.
+    /// </summary>
+    Task InvokeOnUiThreadAsync(Func<Task> work);
+
     /// <summary>Opens the window on the given page and blocks until it is closed.</summary>
     void Run(Uri page);
 

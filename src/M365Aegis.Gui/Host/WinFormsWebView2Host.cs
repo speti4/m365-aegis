@@ -20,12 +20,78 @@ internal sealed class WinFormsWebView2Host : IUiHost
 
     private Func<string, Task<string?>>? _handler;
     private Form? _form;
+    private CoreWebView2? _core;
     private string? _origin;
     private volatile bool _closeRequested;
 
     public nint WindowHandle { get; private set; }
 
     public void OnMessage(Func<string, Task<string?>> handler) => _handler = handler;
+
+    public void Post(string message)
+    {
+        Form? form = _form;
+        if (form is null || !form.IsHandleCreated)
+        {
+            return;
+        }
+
+        try
+        {
+            // CoreWebView2 belongs to the UI thread: the post is marshalled there.
+            form.BeginInvoke(() => PostOnUiThread(message));
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException)
+        {
+            // The window closed in between: nobody is left to read the message.
+        }
+    }
+
+    public Task InvokeOnUiThreadAsync(Func<Task> work)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+        Form? form = _form;
+        if (form is null || !form.IsHandleCreated || !form.InvokeRequired)
+        {
+            return work();
+        }
+
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        form.BeginInvoke(() =>
+        {
+            Task task;
+            try
+            {
+                task = work();
+            }
+            catch (Exception exception)
+            {
+                done.TrySetException(exception);
+                return;
+            }
+
+            task.ContinueWith(
+                finished =>
+                {
+                    if (finished.IsCanceled)
+                    {
+                        done.TrySetCanceled();
+                    }
+                    else if (finished.Exception is { } failure)
+                    {
+                        done.TrySetException(failure.InnerExceptions);
+                    }
+                    else
+                    {
+                        done.TrySetResult();
+                    }
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        });
+        return done.Task;
+    }
 
     public void Run(Uri page)
     {
@@ -61,6 +127,7 @@ internal sealed class WinFormsWebView2Host : IUiHost
         _form = form;
         Application.Run(form);
         _form = null;
+        _core = null;
     }
 
     public void Close()
@@ -82,6 +149,7 @@ internal sealed class WinFormsWebView2Host : IUiHost
         CoreWebView2Environment environment = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
         await webView.EnsureCoreWebView2Async(environment);
         CoreWebView2 core = webView.CoreWebView2;
+        _core = core;
 
         // The developer tools and the browser's context menu only for a dev server page.
         bool development = !page.IsFile;
@@ -160,6 +228,24 @@ internal sealed class WinFormsWebView2Host : IUiHost
                                           or System.Runtime.InteropServices.COMException)
         {
             // The window closed while the request was in flight: nobody is left to read the reply.
+        }
+    }
+
+    private void PostOnUiThread(string message)
+    {
+        if (_core is not { } core || _form is null)
+        {
+            return;
+        }
+
+        try
+        {
+            core.PostWebMessageAsString(message);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException
+                                          or System.Runtime.InteropServices.COMException)
+        {
+            // The window closed while the message was on its way.
         }
     }
 

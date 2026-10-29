@@ -34,11 +34,52 @@ captures/
 .DS_Store
 .vscode/
 .idea/
-.anonilm-map.json
+*.anonilm-map.json
 .claude/settings.local.json
 CLAUDE.local.md
 __pycache__/
 
 # git worktrees that Claude Code creates under .claude/worktrees (docs/maintainer-sessions.md)
 .claude/worktrees/
-.claude/memory/.consolidate-lock
+
+# The maintainer's Claude memory lives next to the repo, never in it; the committed .claude/settings.json keeps
+# pointing at it
+.claude/memory/
+
+# An MSBuild binary log carries the whole environment, a dump carries memory
+*.binlog
+*.dmp
+
+# Keys and local secrets beyond the certificates listed above
+*.pem
+*.key
+*.snk
+*.publishsettings
+secrets.json
+.env.*
+
+# Test and coverage output written to the working folder (Pester -CI, coverlet, Playwright)
+testResults.xml
+coverage*.xml
+*.trx
+coverage/
+test-results/
+playwright-report/
+
+# Python
+*.pyc
+.pytest_cache/
+.venv/
+
+# Editor and merge leftovers
+*.DotSettings.user
+.vshistory/
+Thumbs.db
+Desktop.ini
+*.orig
+*.rej
+*~
+
+# The WebView2 user data folder an exe creates next to itself when run outside the home folder
+*.WebView2/
+EBWebView/

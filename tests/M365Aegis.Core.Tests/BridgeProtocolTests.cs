@@ -3,6 +3,7 @@ using M365Aegis.Core.Auth;
 using M365Aegis.Core.Bridge;
 using M365Aegis.Core.Config;
 using M365Aegis.Core.Diagnostics;
+using M365Aegis.Core.Exchange.Sidecar;
 using M365Aegis.Core.Graph;
 using M365Aegis.Core.Tests.Auth;
 using M365Aegis.Core.Tests.Config;
@@ -11,9 +12,10 @@ using M365Aegis.Tests;
 namespace M365Aegis.Core.Tests;
 
 /// <summary>
-/// The bridge between the window's front end and the core (tasks 017 and 030): the protocol, and the dispatcher's
-/// answers held against the samples under tests/contracts/bridge, which the front end's Vitest tests read too. A
-/// request sample dispatched over a scripted sign-in and the recorded Graph answers gives exactly its reply sample.
+/// The bridge between the window's front end and the core (tasks 017, 030, 040 and 045): the protocol, and the
+/// dispatcher's answers held against the samples under tests/contracts/bridge, which the front end's Vitest tests
+/// read too. A request sample dispatched over a scripted sign-in, the recorded Graph answers and the window's
+/// Exchange Online session over the fake module gives exactly its reply sample.
 /// </summary>
 public sealed class BridgeProtocolTests
 {
@@ -160,12 +162,208 @@ public sealed class BridgeProtocolTests
     }
 
     [Fact]
+    public async Task LoginThroughTheAccountPickerIsTheSignedInReply()
+    {
+        var broker = new FakeTokenBroker
+        {
+            Interactive = (scope, _) => FakeTokenBroker.Token(scope, FakeTokenBroker.Alice, TokenOrigin.Broker),
+            Silent = (scope, account) => FakeTokenBroker.Token(scope, account, TokenOrigin.Broker),
+        };
+        var notifications = new List<BridgeMessage>();
+
+        BridgeMessage? reply = await Dispatcher(broker).DispatchAsync(Sample("login.json"), Collect(notifications), None);
+
+        AssertIsSample("signed-in.json", reply, id: "5");
+        Assert.Equal(["os-account", "accounts", "interactive:alice@contoso.com", "silent:alice@contoso.com"], broker.Calls);
+        Assert.Empty(notifications);
+    }
+
+    [Fact]
+    public async Task LoginWithADeviceCodeSendsTheCodeAsANotificationBeforeTheReply()
+    {
+        var broker = new FakeTokenBroker
+        {
+            DeviceCode = scope => FakeTokenBroker.Token(scope, FakeTokenBroker.Alice, TokenOrigin.IdentityProvider),
+            Silent = (scope, account) => FakeTokenBroker.Token(scope, account, TokenOrigin.Cache),
+        };
+        var notifications = new List<BridgeMessage>();
+        BridgeMessage request = Sample("login.json") with { Data = new JsonObject { ["deviceCode"] = true } };
+
+        BridgeMessage? reply = await Dispatcher(broker).DispatchAsync(request, Collect(notifications), None);
+
+        Assert.Equal("signed-in", reply?.Type);
+        Assert.DoesNotContain(broker.Calls, call => call.StartsWith("interactive", StringComparison.Ordinal));
+        BridgeMessage notification = Assert.Single(notifications);
+        AssertHasTheShapeOf("device-code.json", notification);
+        Assert.Equal("ABCD1234", notification.Data?["userCode"]?.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task LoginFallsBackToADeviceCodeWhenThePickerHasNoWindow()
+    {
+        var broker = new FakeTokenBroker
+        {
+            InteractiveFailure = new BrokerException(BrokerErrorKind.WindowHandleRequired, MsalTokenBroker.WindowHandleRequiredCode, "no window"),
+            DeviceCode = scope => FakeTokenBroker.Token(scope, FakeTokenBroker.Alice, TokenOrigin.IdentityProvider),
+            Silent = (scope, account) => FakeTokenBroker.Token(scope, account, TokenOrigin.Cache),
+        };
+        var notifications = new List<BridgeMessage>();
+
+        BridgeMessage? reply = await Dispatcher(broker).DispatchAsync(Sample("login.json"), Collect(notifications), None);
+
+        Assert.Equal("signed-in", reply?.Type);
+        Assert.Contains("interactive:alice@contoso.com", broker.Calls);
+        Assert.Contains("device-code", broker.Calls);
+        Assert.Equal("device-code", Assert.Single(notifications).Type);
+    }
+
+    [Fact]
+    public async Task ALoginCancelledInThePickerIsAnAuthError()
+    {
+        var broker = new FakeTokenBroker
+        {
+            InteractiveFailure = new BrokerException(BrokerErrorKind.Cancelled, "authentication_canceled", "the user closed the picker"),
+        };
+
+        BridgeMessage? reply = await Dispatcher(broker).DispatchAsync(Sample("login.json"), None);
+
+        Assert.Equal("error", reply?.Type);
+        Assert.Equal("5", reply?.Id);
+        Assert.Equal("auth", reply?.Data?["code"]?.GetValue<string>());
+        Assert.Contains("cancelled", reply?.Data?["message"]?.GetValue<string>(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ALoginWithoutAProfileIsAnAuthErrorThatNamesTheCommandLine()
+    {
+        var broker = new FakeTokenBroker();
+
+        BridgeMessage? reply = await Dispatcher(broker, ProfileStoreTests.TempHome()).DispatchAsync(Sample("login.json"), None);
+
+        Assert.Equal("error", reply?.Type);
+        Assert.Equal("auth", reply?.Data?["code"]?.GetValue<string>());
+        Assert.Equal(ProfileStore.LoginHint, reply?.Data?["hint"]?.GetValue<string>());
+        Assert.Empty(broker.Calls);
+    }
+
+    [Fact]
+    public async Task LogoutIsTheLoggedOutSampleAndEndsTheWindowsSidecar()
+    {
+        var broker = new FakeTokenBroker();
+        broker.Accounts.Add(FakeTokenBroker.Alice);
+        await using var exchange = new WindowExchange(() => SidecarFixtures.Session());
+        BridgeDispatcher dispatcher = Dispatcher(broker, exchange: exchange);
+        Assert.Equal("mailboxes", (await dispatcher.DispatchAsync(Sample("mailbox-list.json"), None))?.Type);
+        SidecarClient sidecar = exchange.Session!.Client!;
+
+        BridgeMessage? reply = await dispatcher.DispatchAsync(Sample("logout.json"), None);
+
+        AssertIsSample("logged-out.json", reply);
+        Assert.Equal([FakeTokenBroker.Alice], broker.Removed);
+        Assert.Null(exchange.Session);
+        Assert.True(sidecar.HasExited);
+    }
+
+    [Fact]
+    public async Task MailboxListIsTheMailboxesSample()
+    {
+        await using var exchange = new WindowExchange(() => SidecarFixtures.Session());
+
+        BridgeMessage? reply = await Dispatcher(exchange: exchange).DispatchAsync(Sample("mailbox-list.json"), None);
+
+        AssertIsSample("mailboxes.json", reply);
+    }
+
+    [Fact]
+    public async Task MailboxAccessOfAMailboxIsTheMailboxHoldersSample()
+    {
+        await using var exchange = new WindowExchange(() => SidecarFixtures.Session());
+
+        BridgeMessage? reply = await Dispatcher(exchange: exchange).DispatchAsync(Sample("mailbox-access.json"), None);
+
+        AssertIsSample("mailbox-holders.json", reply);
+    }
+
+    [Fact]
+    public async Task MailboxAccessOfAUserIsTheUserGrantsSample()
+    {
+        await using var exchange = new WindowExchange(() => SidecarFixtures.Session());
+        var request = new BridgeMessage(BridgeProtocol.Version, "9", "mailbox-access", new JsonObject { ["user"] = "bob@contoso.com" });
+
+        BridgeMessage? reply = await Dispatcher(exchange: exchange).DispatchAsync(request, None);
+
+        AssertIsSample("user-grants.json", reply);
+    }
+
+    [Fact]
+    public async Task TwoMailboxRequestsInARowRunOnOneSidecarWithOneConnect()
+    {
+        await using var exchange = new WindowExchange(() => SidecarFixtures.Session());
+        BridgeDispatcher dispatcher = Dispatcher(exchange: exchange);
+        Assert.Null(exchange.Session);
+
+        BridgeMessage? first = await dispatcher.DispatchAsync(Sample("mailbox-list.json"), None);
+        SidecarConnected? connection = exchange.Session?.Connection;
+        BridgeMessage? second = await dispatcher.DispatchAsync(Sample("mailbox-access.json"), None);
+
+        Assert.Equal("mailboxes", first?.Type);
+        Assert.Equal("mailbox-holders", second?.Type);
+        Assert.Equal(1, exchange.Sessions);
+        Assert.Equal(1, exchange.Session!.Starts);
+        Assert.Equal(0, exchange.Session.Renewals);
+        Assert.Same(connection, exchange.Session.Connection);
+    }
+
+    [Fact]
+    public async Task AMailboxThatIsNotThereIsANotFoundError()
+    {
+        await using var exchange = new WindowExchange(() => SidecarFixtures.Session());
+        BridgeMessage request = Sample("mailbox-access.json") with { Data = new JsonObject { ["mailbox"] = "nobody" } };
+
+        BridgeMessage? reply = await Dispatcher(exchange: exchange).DispatchAsync(request, None);
+
+        Assert.Equal("error", reply?.Type);
+        Assert.Equal("not-found", reply?.Data?["code"]?.GetValue<string>());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("{}")]
+    [InlineData("{\"mailbox\":\" \"}")]
+    [InlineData("{\"mailbox\":\"finance@contoso.com\",\"user\":\"alice@contoso.com\"}")]
+    [InlineData("{\"user\":42}")]
+    public async Task AMailboxAccessRequestNeedsAMailboxOrAUserAndStartsNothingWithout(string? data)
+    {
+        await using var exchange = new WindowExchange(() => SidecarFixtures.Session());
+        var request = new BridgeMessage(BridgeProtocol.Version, "10", "mailbox-access", data is null ? null : JsonNode.Parse(data));
+
+        BridgeMessage? reply = await Dispatcher(exchange: exchange).DispatchAsync(request, None);
+
+        Assert.Equal("error", reply?.Type);
+        Assert.Equal("usage", reply?.Data?["code"]?.GetValue<string>());
+        Assert.Null(exchange.Session);
+    }
+
+    [Fact]
+    public async Task AMailboxRequestWithoutAnExchangeSessionIsSidecarUnavailable()
+    {
+        BridgeMessage? reply = await Dispatcher().DispatchAsync(Sample("mailbox-list.json"), None);
+
+        Assert.Equal("error", reply?.Type);
+        Assert.Equal("sidecar-unavailable", reply?.Data?["code"]?.GetValue<string>());
+    }
+
+    [Fact]
     public void EverySampleIsAMessageOfTheProtocol()
     {
         string[] samples = Directory.GetFiles(Contracts, "*.json");
 
         Assert.Equal(
-            ["error.json", "group-members.json", "members.json", "ping.json", "pong.json", "ready.json", "signed-in.json", "signed-out.json", "whoami.json"],
+            [
+                "device-code.json", "error.json", "group-members.json", "logged-out.json", "login.json", "logout.json",
+                "mailbox-access.json", "mailbox-holders.json", "mailbox-list.json", "mailboxes.json", "members.json",
+                "ping.json", "pong.json", "ready.json", "signed-in.json", "signed-out.json", "user-grants.json", "whoami.json",
+            ],
             samples.Select(Path.GetFileName).Order(StringComparer.Ordinal));
         Assert.All(samples, path => Assert.NotNull(BridgeProtocol.TryParse(File.ReadAllText(path))));
     }
@@ -199,11 +397,38 @@ public sealed class BridgeProtocolTests
         BridgeProtocol.TryParse(File.ReadAllText(Path.Combine(Contracts, fileName)))
         ?? throw new InvalidOperationException($"{fileName} is not a message of the protocol");
 
-    /// <summary>The reply, written as the host sends it, is the sample message, field by field.</summary>
-    private static void AssertIsSample(string fileName, BridgeMessage? reply)
+    /// <summary>Collects the host's notifications of a request.</summary>
+    private static Func<BridgeMessage, Task> Collect(List<BridgeMessage> notifications) => notification =>
+    {
+        notifications.Add(notification);
+        return Task.CompletedTask;
+    };
+
+    /// <summary>
+    /// The message, written as the host sends it, has the sample's type, no id when the sample has none, and the
+    /// sample's payload fields: a notification whose values (the code's expiry) are the moment's own.
+    /// </summary>
+    private static void AssertHasTheShapeOf(string fileName, BridgeMessage message)
+    {
+        JsonObject expected = JsonNode.Parse(File.ReadAllText(Path.Combine(Contracts, fileName)))!.AsObject();
+        JsonObject actual = JsonNode.Parse(BridgeProtocol.Write(message))!.AsObject();
+        Assert.Equal(expected.Select(property => property.Key), actual.Select(property => property.Key));
+        Assert.Equal(expected["type"]!.GetValue<string>(), actual["type"]!.GetValue<string>());
+        Assert.Equal(
+            expected["data"]!.AsObject().Select(property => property.Key),
+            actual["data"]!.AsObject().Select(property => property.Key));
+    }
+
+    /// <summary>The reply, written as the host sends it, is the sample message, field by field (with the given id).</summary>
+    private static void AssertIsSample(string fileName, BridgeMessage? reply, string? id = null)
     {
         Assert.NotNull(reply);
         JsonNode expected = JsonNode.Parse(File.ReadAllText(Path.Combine(Contracts, fileName)))!;
+        if (id is not null)
+        {
+            expected["id"] = id;
+        }
+
         JsonNode actual = JsonNode.Parse(BridgeProtocol.Write(reply))!;
         Assert.True(JsonNode.DeepEquals(expected, actual), $"{fileName} differs from the reply:\n{actual.ToJsonString()}");
     }
@@ -216,8 +441,8 @@ public sealed class BridgeProtocolTests
         return home;
     }
 
-    /// <summary>The dispatcher over a scripted sign-in and the recorded Graph answers.</summary>
-    private static BridgeDispatcher Dispatcher(FakeTokenBroker? broker = null, string? home = null)
+    /// <summary>The dispatcher over a scripted sign-in, the recorded Graph answers and, when given, a window's Exchange session.</summary>
+    private static BridgeDispatcher Dispatcher(FakeTokenBroker? broker = null, string? home = null, WindowExchange? exchange = null)
     {
         home ??= WithProfile();
         broker ??= new FakeTokenBroker();
@@ -226,6 +451,9 @@ public sealed class BridgeProtocolTests
             new AuthService(home, _ => broker),
             null,
             _ => graph,
-            exception => InternalError.WriteToLog(exception, home)));
+            exception => InternalError.WriteToLog(exception, home))
+        {
+            Exchange = exchange,
+        });
     }
 }

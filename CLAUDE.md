@@ -59,10 +59,10 @@ lock files, `gui/web` or `.github/` change); a change that closes a task regener
 
 ## Memory
 
-- The Claude memory of this repo lives in `.claude/memory/` (the committed `.claude/settings.json` sets
-  `autoMemoryDirectory` to this checkout's absolute path; another machine falls back to its slug memory until a
-  `.claude/settings.local.json` points here too). The files are Claude Code's own (`MEMORY.md` index + one
-  `name`/`description`/`type` file per fact) under the project-pal memory standard: validated by `memory_check`
-  (`/memory check`, `/memory-check`) before a memory commit, never generated. Business truth goes to the hub, a
-  generic tooling lesson to the setup repo's known-issues doc, a decision to `decisions/` (`/tasks decide`) — a
-  decision-shaped memory note graduates there.
+- The Claude memory of the maintainer's sessions lives in `.claude/memory/`, next to the code and outside git: the
+  folder is ignored, and the committed `.claude/settings.json` points `autoMemoryDirectory` at this checkout's
+  absolute path (another machine falls back to its slug memory until a `.claude/settings.local.json` points at its
+  own folder). The files are Claude Code's own (`MEMORY.md` index + one `name`/`description`/`type` file per fact)
+  under the project-pal memory standard in its ignored mode, validated by `memory_check` (`/memory check`), never
+  generated. Business truth goes to the hub, a generic tooling lesson to the setup repo's known-issues doc, a
+  decision to `decisions/` (`/tasks decide`) — a decision-shaped memory note graduates there.

@@ -1,0 +1,13 @@
+{
+  "aegis": 1,
+  "id": "8",
+  "type": "mailbox-holders",
+  "data": {
+    "mailbox": { "displayName": "Finance", "primarySmtpAddress": "finance@contoso.com", "type": "SharedMailbox", "userPrincipalName": "finance@contoso.com", "objectId": "00000000-0000-0000-0000-000000000015" },
+    "holders": [
+      { "right": "full-access", "holder": "alice@contoso.com", "address": "alice@contoso.com" },
+      { "right": "send-as", "holder": "alice@contoso.com", "address": "alice@contoso.com" },
+      { "right": "send-on-behalf", "holder": "Bob Example", "address": "bob@contoso.com" }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "aegis": 1,
+  "type": "device-code",
+  "data": {
+    "verificationUri": "https://login.microsoftonline.com/common/oauth2/deviceauth",
+    "userCode": "ABCD1234",
+    "message": "To sign in, open the page and enter the code ABCD1234.",
+    "expiresOn": "2026-10-29T14:15:00+00:00"
+  }
+}

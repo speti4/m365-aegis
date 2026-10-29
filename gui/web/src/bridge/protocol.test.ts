@@ -2,10 +2,12 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  type BridgeMessage,
   MessageType,
   notification,
   PROTOCOL_VERSION,
   parseMessage,
+  readNotification,
   readReply,
   request,
   writeMessage,
@@ -30,14 +32,23 @@ describe("the bridge protocol", () => {
         .filter((name) => name.endsWith(".json"))
         .sort(),
     ).toEqual([
+      "device-code.json",
       "error.json",
       "group-members.json",
+      "logged-out.json",
+      "login.json",
+      "logout.json",
+      "mailbox-access.json",
+      "mailbox-holders.json",
+      "mailbox-list.json",
+      "mailboxes.json",
       "members.json",
       "ping.json",
       "pong.json",
       "ready.json",
       "signed-in.json",
       "signed-out.json",
+      "user-grants.json",
       "whoami.json",
     ]);
   });
@@ -143,5 +154,76 @@ describe("the bridge protocol", () => {
 
   it("writes a notification without an id", () => {
     expect(writeMessage(notification("ready"))).toBe('{"aegis":1,"type":"ready"}');
+  });
+  it("writes the login, logout and mailbox requests as the samples have them", () => {
+    const same = (message: BridgeMessage, name: string) =>
+      expect(JSON.parse(writeMessage(message))).toEqual(JSON.parse(sample(name)));
+    same(request(MessageType.login, undefined, "5"), "login.json");
+    same(request(MessageType.logout, undefined, "6"), "logout.json");
+    same(request(MessageType.mailboxList, { shared: true }, "7"), "mailbox-list.json");
+    same(request(MessageType.mailboxAccess, { mailbox: "finance@contoso.com" }, "8"), "mailbox-access.json");
+  });
+
+  it("reads the device-code sample as a notification of the host, never as a reply", () => {
+    const message = parsed("device-code.json");
+    expect(message.id).toBeUndefined();
+    expect(readReply(message)).toBeNull();
+    const read = readNotification(message);
+    expect(read?.type).toBe(MessageType.deviceCode);
+    expect(read?.data.userCode).toBe("ABCD1234");
+    expect(read?.data.verificationUri).toBe("https://login.microsoftonline.com/common/oauth2/deviceauth");
+    // A reply (with an id) or a payload of another shape is not a notification.
+    expect(readNotification({ ...message, id: "1" })).toBeNull();
+    expect(readNotification({ ...message, data: { userCode: "X" } })).toBeNull();
+  });
+
+  it("reads the logged-out sample", () => {
+    expect(readReply(parsed("logged-out.json"))).toEqual({
+      type: "logged-out",
+      data: { profile: "work", account: "alice@contoso.com", removedAccounts: 1 },
+    });
+  });
+
+  it("reads the mailboxes sample: the shared mailboxes by name", () => {
+    const reply = readReply(parsed("mailboxes.json"));
+    expect(reply?.type).toBe(MessageType.mailboxes);
+    if (reply?.type !== MessageType.mailboxes) return;
+    expect(reply.data.sharedOnly).toBe(true);
+    expect(reply.data.mailboxes.map((mailbox) => mailbox.displayName)).toEqual(["Finance", "Reception"]);
+  });
+
+  it("reads the mailbox-holders sample: a right per holder", () => {
+    const reply = readReply(parsed("mailbox-holders.json"));
+    expect(reply?.type).toBe(MessageType.mailboxHolders);
+    if (reply?.type !== MessageType.mailboxHolders) return;
+    expect(reply.data.mailbox.primarySmtpAddress).toBe("finance@contoso.com");
+    expect(reply.data.holders.map((holder) => [holder.right, holder.address])).toEqual([
+      ["full-access", "alice@contoso.com"],
+      ["send-as", "alice@contoso.com"],
+      ["send-on-behalf", "bob@contoso.com"],
+    ]);
+  });
+
+  it("reads the user-grants sample: the mailboxes the user holds a right on, nothing failed", () => {
+    const reply = readReply(parsed("user-grants.json"));
+    expect(reply?.type).toBe(MessageType.userGrants);
+    if (reply?.type !== MessageType.userGrants) return;
+    expect(reply.data.user).toBe("bob@contoso.com");
+    expect(reply.data.grants.map((grant) => `${grant.right} ${grant.mailbox.displayName}`)).toEqual([
+      "send-on-behalf Finance",
+      "full-access Reception",
+      "send-as Reception",
+    ]);
+    expect(reply.data.mailboxesScanned).toBe(6);
+    expect(reply.data.failed).toEqual([]);
+  });
+
+  it("refuses a mailbox reply whose payload does not have its type's shape", () => {
+    const reply = (type: string, data: unknown) => readReply({ aegis: PROTOCOL_VERSION, id: "9", type, data });
+    const finance = { displayName: "Finance", primarySmtpAddress: "finance@contoso.com", type: "SharedMailbox" };
+    expect(reply("mailboxes", { mailboxes: [finance] })).toBeNull();
+    expect(reply("mailbox-holders", { mailbox: finance, holders: [{ right: "owner", holder: "x" }] })).toBeNull();
+    expect(reply("user-grants", { user: "x", grants: [], mailboxesScanned: 1 })).toBeNull();
+    expect(reply("logged-out", { profile: "work", account: "x" })).toBeNull();
   });
 });

@@ -1,45 +1,76 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Toaster } from "@/components/ui/sonner";
-import { BridgeClient } from "./bridge/client";
+import { BridgeClient, SIGN_IN_TIMEOUT_MS } from "./bridge/client";
 import { type BridgeError, MessageType } from "./bridge/protocol";
 import { createTransport } from "./bridge/transport";
 import { GroupMembersCard } from "./components/group-members-card";
-import { SignInCard, type SignInState } from "./components/sign-in-card";
+import { MailboxAccessCard } from "./components/mailbox-access-card";
+import { SignInCard } from "./components/sign-in-card";
+import { signInReducer } from "./components/sign-in-state";
 
 /**
- * The window's first page (task 017): it tells the host it is ready (the smoke run waits for that), shows the
- * sign-in state and looks up a group's members; an `error` reply is a toast. The task cards of M4 grow from here.
+ * The window's page: it tells the host it is ready (the smoke run waits for that), shows the sign-in state and
+ * signs in or out from its card (task 040), looks up a group's members (task 017) and a mailbox's access over the
+ * window's Exchange Online session (task 045); an `error` reply is a toast. The task cards of M4 grow from here
+ * (their design sketch, task 018, is a dev-only page: `npm run dev`, then `#/sketch/task-cards`).
  */
 export function App() {
   const { transport, hosted } = useMemo(() => createTransport(), []);
   const client = useMemo(() => new BridgeClient(transport), [transport]);
   const [version, setVersion] = useState<string | null>(null);
-  const [signIn, setSignIn] = useState<SignInState>({ status: "checking" });
+  const [signIn, dispatch] = useReducer(signInReducer, { status: "checking" });
 
   const showError = useCallback((error: BridgeError) => {
     toast.error(error.message, { description: error.hint });
   }, []);
 
   const checkSignIn = useCallback(async () => {
-    setSignIn({ status: "checking" });
+    dispatch({ type: "check" });
     const reply = await client.call(MessageType.whoami);
-    switch (reply.type) {
-      case MessageType.signedIn:
-        setSignIn({ status: "signed-in", info: reply.data });
-        break;
-      case MessageType.signedOut:
-        setSignIn({ status: "signed-out", info: reply.data });
-        break;
-      case MessageType.error:
-        setSignIn({ status: "unknown" });
-        showError(reply.data);
-        break;
-      default:
-        setSignIn({ status: "unknown" });
+    dispatch({ type: "reply", reply });
+    if (reply.type === MessageType.error) {
+      showError(reply.data);
     }
   }, [client, showError]);
+
+  const signInWith = useCallback(
+    async (deviceCode: boolean) => {
+      dispatch({ type: "login" });
+      const reply = await client.call(
+        MessageType.login,
+        deviceCode ? { deviceCode: true } : undefined,
+        SIGN_IN_TIMEOUT_MS,
+      );
+      dispatch({ type: "reply", reply });
+      if (reply.type === MessageType.error) {
+        showError(reply.data);
+      }
+    },
+    [client, showError],
+  );
+
+  const signOut = useCallback(async () => {
+    dispatch({ type: "logout" });
+    const reply = await client.call(MessageType.logout);
+    dispatch({ type: "reply", reply });
+    if (reply.type === MessageType.error) {
+      showError(reply.data);
+    } else {
+      await checkSignIn();
+    }
+  }, [client, showError, checkSignIn]);
+
+  useEffect(
+    () =>
+      client.onNotification((notification) => {
+        if (notification.type === MessageType.deviceCode) {
+          dispatch({ type: "device-code", prompt: notification.data });
+        }
+      }),
+    [client],
+  );
 
   useEffect(() => {
     client.notify(MessageType.ready);
@@ -61,8 +92,14 @@ export function App() {
           </span>
           {hosted ? null : <Badge variant="outline">browser mock: made-up data, no host</Badge>}
         </header>
-        <SignInCard state={signIn} onRefresh={() => void checkSignIn()} />
+        <SignInCard
+          state={signIn}
+          onRefresh={() => void checkSignIn()}
+          onSignIn={(deviceCode) => void signInWith(deviceCode)}
+          onSignOut={() => void signOut()}
+        />
         <GroupMembersCard client={client} onError={showError} />
+        <MailboxAccessCard client={client} onError={showError} />
       </div>
       <Toaster position="bottom-right" />
     </main>

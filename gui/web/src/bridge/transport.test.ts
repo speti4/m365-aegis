@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BridgeClient } from "./client";
+import { BridgeClient, SIGN_IN_TIMEOUT_MS } from "./client";
+import { MockTransport } from "./mock-transport";
 import { type BridgeMessage, MessageType, notification, PROTOCOL_VERSION, request } from "./protocol";
-import { createTransport, findWebView, MockTransport, type WebViewBridge, WebViewTransport } from "./transport";
+import { createTransport, findWebView, type WebViewBridge, WebViewTransport } from "./transport";
 
 const contracts = path.resolve(__dirname, "../../../../tests/contracts/bridge");
 const sample = (name: string) => readFileSync(path.join(contracts, name), "utf8").trim();
@@ -161,5 +162,98 @@ describe("the browser mock", () => {
     transport.send(notification(MessageType.ready));
     vi.runAllTimers();
     expect(received).toEqual([]);
+  });
+});
+
+describe("the host's notifications", () => {
+  it("reach the notification handlers, never a pending request", async () => {
+    const webview = new FakeWebView();
+    const client = new BridgeClient(new WebViewTransport(webview));
+    const seen: string[] = [];
+    const unsubscribe = client.onNotification((notification) => seen.push(notification.data.userCode));
+
+    const login = client.call(MessageType.login, undefined, 5000);
+    const { id } = JSON.parse(webview.posted[0] as string) as BridgeMessage;
+    webview.hostPosts(sample("device-code.json"));
+    webview.hostPosts('{"aegis":1,"type":"device-code","data":{"userCode":"no"}}'); // not the shape: dropped
+    webview.hostPosts(JSON.stringify({ ...JSON.parse(sample("signed-in.json")), id }));
+
+    expect((await login).type).toBe("signed-in");
+    expect(seen).toEqual(["ABCD1234"]);
+    unsubscribe();
+    webview.hostPosts(sample("device-code.json"));
+    expect(seen).toEqual(["ABCD1234"]);
+  });
+
+  it("let a sign-in wait longer than a lookup", async () => {
+    vi.useFakeTimers();
+    const client = new BridgeClient(new WebViewTransport(new FakeWebView()), 1000);
+
+    let settled = false;
+    const login = client.call(MessageType.login, undefined, SIGN_IN_TIMEOUT_MS).then((reply) => {
+      settled = true;
+      return reply;
+    });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(SIGN_IN_TIMEOUT_MS);
+
+    const reply = await login;
+    expect(reply.type === "error" && reply.data.code).toBe("timeout");
+  });
+});
+
+describe("the browser mock's sign-in and mailboxes", () => {
+  it("starts signed out with ?mock=signed-out, and signs in through a device code", async () => {
+    const { transport, hosted } = createTransport({ location: { search: "?mock=signed-out" } });
+    expect(hosted).toBe(false);
+    const client = new BridgeClient(transport);
+    const codes: string[] = [];
+    client.onNotification((notification) => codes.push(notification.data.userCode));
+
+    expect((await client.call(MessageType.whoami)).type).toBe("signed-out");
+    const login = await client.call(MessageType.login, { deviceCode: true });
+    expect(login.type).toBe("signed-in");
+    expect(codes).toEqual(["MOCK1234"]);
+    expect((await client.call(MessageType.whoami)).type).toBe("signed-in");
+  });
+
+  it("signs out with logout, and whoami says so", async () => {
+    const client = new BridgeClient(new MockTransport());
+    const logout = await client.call(MessageType.logout);
+    expect(logout).toEqual({
+      type: "logged-out",
+      data: { profile: "work", account: "alice@contoso.com", removedAccounts: 1 },
+    });
+    expect((await client.call(MessageType.whoami)).type).toBe("signed-out");
+  });
+
+  it("lists the shared mailboxes and answers the access of a mailbox and of a user", async () => {
+    const client = new BridgeClient(new MockTransport());
+
+    const shared = await client.call(MessageType.mailboxList, { shared: true });
+    expect(shared.type === "mailboxes" && shared.data.mailboxes.map((mailbox) => mailbox.displayName)).toEqual([
+      "Finance",
+      "Reception",
+    ]);
+    const holders = await client.call(MessageType.mailboxAccess, { mailbox: "Finance" });
+    expect(holders.type === "mailbox-holders" && holders.data.holders.length).toBe(3);
+    const grants = await client.call(MessageType.mailboxAccess, { user: "bob@contoso.com" });
+    expect(grants.type).toBe("user-grants");
+    if (grants.type !== "user-grants") return;
+    expect(grants.data.grants.map((grant) => `${grant.right} ${grant.mailbox.displayName}`)).toEqual([
+      "send-on-behalf Finance",
+      "full-access Reception",
+      "send-as Reception",
+    ]);
+    expect(grants.data.failed).toHaveLength(1); // the mock's partial answer
+  });
+
+  it("refuses a mailbox-access request without exactly one of the two, and an unknown mailbox", async () => {
+    const client = new BridgeClient(new MockTransport());
+    const usage = await client.call(MessageType.mailboxAccess, { mailbox: "Finance", user: "bob@contoso.com" });
+    expect(usage.type === "error" && usage.data.code).toBe("usage");
+    const missing = await client.call(MessageType.mailboxAccess, { mailbox: "nobody" });
+    expect(missing.type === "error" && missing.data.code).toBe("not-found");
   });
 });

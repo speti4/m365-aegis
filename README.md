@@ -139,8 +139,20 @@ lists the ones before it.
 The window, `src\M365Aegis.Gui\bin\Release\net10.0-windows\m365-aegis-gui.exe`, works with the same tenant profile
 and sign-in as the command line. Its first page shows the signed-in account, read silently as `whoami` does, and
 a group's members in a table, as `group members` lists them; a lookup that fails is a notification with the hint.
-It does not sign in yet: `login` on the command line does. `m365-aegis-gui --verbose` writes the sign-in library's
-log to the same `logs\` folder as the command line's `--verbose`.
+`m365-aegis-gui --verbose` writes the sign-in library's log to the same `logs\` folder as the command line's
+`--verbose`.
+
+## The window: sign-in and the mailbox page
+
+The window signs in from its sign-in card once the command line has written the tenant profile (`login --tenant …
+--client-id … --account …`, above): "Sign in" opens the Windows account picker over the window, "Sign in with a
+code" shows a device code and the page to enter it on, and the card shows the account as soon as the sign-in
+completes. "Sign out" forgets the account as `logout` does and keeps the profile.
+
+The mailbox access card asks the same questions as `mailbox access`: who holds FullAccess, Send As and Send on
+Behalf on a mailbox, which mailboxes a user holds them on, and which shared mailboxes there are to pick from. The
+window keeps one Exchange Online sidecar for as long as it is open: the first lookup starts it (a few seconds),
+every later one answers in the cmdlet's own time, and the sidecar ends with the window or with "Sign out".
 
 ## Documentation
 

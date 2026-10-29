@@ -1,0 +1,16 @@
+{
+  "aegis": 1,
+  "id": "9",
+  "type": "user-grants",
+  "data": {
+    "user": "bob@contoso.com",
+    "displayName": "Bob Example",
+    "grants": [
+      { "right": "send-on-behalf", "mailbox": { "displayName": "Finance", "primarySmtpAddress": "finance@contoso.com", "type": "SharedMailbox", "userPrincipalName": "finance@contoso.com", "objectId": "00000000-0000-0000-0000-000000000015" } },
+      { "right": "full-access", "mailbox": { "displayName": "Reception", "primarySmtpAddress": "reception@contoso.com", "type": "SharedMailbox", "userPrincipalName": "reception@contoso.com", "objectId": "00000000-0000-0000-0000-000000000016" } },
+      { "right": "send-as", "mailbox": { "displayName": "Reception", "primarySmtpAddress": "reception@contoso.com", "type": "SharedMailbox", "userPrincipalName": "reception@contoso.com", "objectId": "00000000-0000-0000-0000-000000000016" } }
+    ],
+    "mailboxesScanned": 6,
+    "failed": []
+  }
+}

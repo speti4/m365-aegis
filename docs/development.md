@@ -54,7 +54,12 @@ broker with the console window's root owner as its parent, and device code when 
 `window_handle_required` (a redirected shell, a scheduled task) or under `login --device-code`. `whoami` and every lookup take the silent
 paths only and fail with exit code 3 and the login command as the hint; `login` goes all the way; `logout`
 removes the account from the cache and from the broker's record for this app and keeps the profile. The
-device-code sentence is printed on stderr, so stdout stays the envelope. `Auth/MsalTokenBroker.cs` in the Core
+device-code sentence is printed on stderr, so stdout stays the envelope. The window signs in through the same
+`AuthService.LoginAsync` from its sign-in card (task 040): its own form is the picker's parent instead of the
+console's root owner, the picker's call is started on the window's UI thread, as MSAL asks of a UI application
+(`MsalTokenBroker.Create` with the parent and the host's `InvokeOnUiThreadAsync`; checked against the MSAL.NET
+"Acquiring tokens interactively" and WAM pages and `MsalError.WamUiThread` on 2026-10-29), and the device code goes
+to the card as a bridge notification instead of stderr (see [The front end](#the-front-end)). `Auth/MsalTokenBroker.cs` in the Core
 is the one place MSAL is called; the flow (`Auth/SignInFlow.cs`) and `AuthService` are tested offline against a
 scripted broker. One sign-in serves Graph and, through `Connect-ExchangeOnline -AccessToken`, the Exchange
 Online sidecar: each resource gets a token of its own with the `.default` scope
@@ -354,26 +359,82 @@ format, Vitest for the tests. The bridge to the host is `src/bridge/`: the proto
 `M365Aegis.Core.Bridge`, checked against the shared samples under `tests/contracts/bridge`), the transport, which
 talks to WebView2 directly (task 030: `chrome.webview.postMessage` with the message's JSON text, and
 `chrome.webview`'s `message` event for the host's text replies; the host injects nothing) and a mock in a plain
-browser, so `npm run dev` shows the page with made-up data and without the exe, and the client
-(`src/bridge/client.ts`), which gives each request an id and resolves it with the reply that repeats it, and turns
-a reply it cannot read or a host silent for two minutes into an `error` reply.
+browser (`src/bridge/mock-transport.ts`), so `npm run dev` shows the page with made-up data and without the exe
+(`?mock=signed-out` in the address starts it signed out, to try the sign-in card), and the client
+(`src/bridge/client.ts`), which gives each request an id and resolves it with the reply that repeats it, turns a
+reply it cannot read or a host silent for two minutes (sixteen for a `login`, which waits for the user) into an
+`error` reply, and hands a message without an id, a notification of the host, to its `onNotification` handlers.
 
-The messages (task 017; `BridgeMessageType` in C#, `MessageType` in TypeScript, one sample each under
-`tests/contracts/bridge`): the page sends the `ready` notification, then `ping` (answered with `pong`, the product
-and the version), `whoami` (answered with `signed-in`, the core's `SignInInfo`, or `signed-out`, the profile it was
-tried for, why and what to do) and `group-members` with `{"group": "<name, address, id or word>"}` (answered with
-`members`, the core's `GroupMembers`). Any request can be answered with `error`: the envelope's `code`, `message`
-and `hint` (a failure of the core, `unknown-type`, or `internal` with the stack trace in the log). A payload is
-written the way the envelope writes its data (D-006), so the window reads the shape `--json` shows. The C# tests
-dispatch each request sample over a scripted sign-in and the recorded Graph answers and hold the reply to its
-sample field by field; the Vitest tests read the same samples. The host's `BridgeDispatcher`
-(`M365Aegis.Core.Bridge`) runs on `BridgeServices.ForWindow`: the command line's `AuthService` over the same home
-folder (MSAL through the Windows account manager, the window as the picker's parent), `GraphConnection` for the
-Graph client (`M365AEGIS_GRAPH_FIXTURES` makes the window read the fixtures too, which is how the page is tried
-without a tenant) and the internal-error log the command line writes; the window takes the default profile and
-signs in silently only, so `login` stays on the command line for now. The page (`src/App.tsx`,
-`src/components/`): the sign-in card, the group members card with the table, and a toast (sonner) for every
-`error` reply. The GUI project's `BuildFrontend` target runs `npm ci` and `npm run build` when
+The messages (tasks 017, 040 and 045; `BridgeMessageType` in C#, `MessageType` in TypeScript, one sample each under
+`tests/contracts/bridge`): the page sends the `ready` notification, then
+
+- `ping`, answered with `pong` (the product and the version);
+- `whoami`, answered with `signed-in` (the core's `SignInInfo`) or `signed-out` (the profile it was tried for, why
+  and what to do);
+- `login`, with `{"deviceCode": true}` or no payload (task 040): `AuthService.LoginAsync` for the window's profile,
+  silently when it can, else the broker's account picker over the window, else (or when asked) a device code,
+  answered with `signed-in`. While a device-code sign-in waits for the browser step, the host sends the
+  `device-code` notification (no id: the page to open, the code, the service's sentence, the expiry), which the
+  sign-in card shows with a copy button; the page opens no other site, so the address is shown to type. A profile
+  is never written from the window: without one, `login` is the `auth` error with the command line's
+  `login --tenant … --client-id … --account …` as the hint, and the card offers no "Sign in" until it exists;
+- `logout`, answered with `logged-out` (the core's `SignOutInfo`); it also ends the window's Exchange Online
+  session, whose sidecar is connected with the account's token;
+- `group-members` with `{"group": "<name, address, id or word>"}`, answered with `members` (the core's
+  `GroupMembers`);
+- `mailbox-list` with `{"shared": true}` or no payload, answered with `mailboxes` (the core's `MailboxList`), and
+  `mailbox-access` with `{"mailbox": "<address, name or id>"}` or `{"user": "<upn>"}` (one of the two), answered
+  with `mailbox-holders` (`MailboxAccess`) or `user-grants` (`UserAccess`) (task 045). A partial answer of the
+  reverse lookup (exit code 6 on the command line) is the `user-grants` reply, whose `failed` list the page shows as
+  a warning, as the envelope carries the data with the error.
+
+Any request can be answered with `error`: the envelope's `code`, `message` and `hint` (a failure of the core,
+`unknown-type`, or `internal` with the stack trace in the log). A payload is written the way the envelope writes
+its data (D-006), so the window reads the shape `--json` shows. The C# tests dispatch each request sample over a
+scripted sign-in, the recorded Graph answers and a session over the fake Exchange Online module and hold the reply
+to its sample field by field (the `device-code` notification to its sample's shape, its expiry being the moment's
+own); the Vitest tests read the same samples. The host's `BridgeDispatcher` (`M365Aegis.Core.Bridge`) runs on
+`BridgeServices.ForWindow`: the command line's `AuthService` over the same home folder (MSAL through the Windows
+account manager, the window as the picker's parent and its UI thread as the picker's thread, see
+[The sign-in and the home folder](#the-sign-in-and-the-home-folder)), `GraphConnection` for the Graph client
+(`M365AEGIS_GRAPH_FIXTURES` makes the window read the fixtures too, which is how the page is tried without a
+tenant), the window's Exchange Online session and the internal-error log the command line writes; the window takes
+the default profile.
+
+**The window's Exchange Online session** (task 045, `Bridge/WindowExchange.cs`): one `ExchangeSession` for the
+window's lifetime, over the window's own sign-in and the command line's `ExchangeConnection` parts (pwsh from
+`PATH`, the script next to the exe after its hash check, the token silently, the organization), with
+`M365AEGIS_EXO_TEST_ORGANIZATION` and `M365AEGIS_EXO_MODULE_ROOT` working as on the command line, which is how the
+mailbox page is tried against the fake module without a tenant. Nothing starts before the first mailbox request;
+that one pays pwsh, the module's import and the connect (about 2.4 s against the service, task 011), every later
+one only its cmdlets (two lookups in a row against the fake module: 541 ms, then 19 ms, one pwsh, 2026-10-29). The
+session renews its token on the next cmdlet five minutes before the expiry and replaces a sidecar that died (task
+015); a keep-warm timer of the window looks every minute and reconnects with a fresh token seven minutes before the
+expiry, so a request after an idle hour does not wait for the reconnect, and a tick that cannot renew (the sign-in
+expired) leaves it to the next request, which answers the failure. `logout` ends the session; the window's close
+disposes it after the message loop ends, which sends the sidecar `exit` (the script disconnects). Under `--verbose`
+each mailbox request writes one `window:` line to the log: the time and what the session did (`sidecar starts 1,
+renewals 0, last connect … ms`), never a token.
+
+The page (`src/App.tsx`, `src/components/`): the sign-in card (its state machine in
+`components/sign-in-state.ts`: `whoami` reads it, `login` waits with the device code when one comes, `logout`
+reads it again; "Sign in" and "Sign in with a code" when signed out with a profile, "Sign out" when signed in), the
+group members card with the table, the mailbox access card (a mailbox or a user, the shared mailboxes to pick
+from, the holders or the grants in a table, the partial warning, and the time of the answer under the table), and a
+toast (sonner) for every `error` reply.
+
+**The task card design sketch** (task 018, `src/sketch/`): the card list (grant FullAccess on a shared mailbox, add
+a group owner, check a user's access), one card's steps (pick, the plan, the confirmation, the result) and the
+states (signed out, working, refused, partial), light and dark, in the shadcn/ui components, over made-up data and
+without a bridge request: `task-card-flow.ts` is the flow's state machine (tested with Vitest), `sketch-data.ts`
+the made-up core, whose plan shape is made up and marked so on the page (the real `Plan` comes with M3), and
+`task-card-sketch.tsx` the page with its controls (signed in or out, how the made-up core answers, the theme; the
+`.light` tokens in `index.css` let it show light under a dark system). It runs in the dev server only:
+`npm run dev --prefix gui/web`, then `http://localhost:5173/#/sketch/task-cards`. `main.tsx` reaches it only under
+`import.meta.env.DEV`, which the build replaces with false, so neither the route nor the sketch's code is in
+`dist/` and the window never shows it.
+
+The GUI project's `BuildFrontend` target runs `npm ci` and `npm run build` when
 the sources are newer than `dist/index.html` and copies `dist/` next to the exe as `wwwroot/`;
 `-p:SkipFrontendBuild=true` skips both. During development, `m365-aegis-gui --dev-url http://localhost:5173`
 loads the dev server with hot reload, with the developer tools and the browser's context menu on.
@@ -387,8 +448,10 @@ Microsoft's WebView2 SDK, in `src/M365Aegis.Gui/Host/WinFormsWebView2Host.cs` be
 - The bridge is WebView2's own messaging, with no injected script (task 030): the host takes a message
   (`WebMessageReceived`) only from the page's own origin, hands it to the dispatcher off the UI thread and posts the
   reply with `PostWebMessageAsString` back on it, so several requests can be in flight; it cancels a navigation away
-  from that origin and refuses new windows. `--smoke` answers no request, only waits for `ready`, so it never
-  reaches the sign-in or the network.
+  from that origin and refuses new windows. `IUiHost.Post` sends a notification the page did not ask for (the
+  device code), marshalled onto the UI thread, and `IUiHost.InvokeOnUiThreadAsync` starts work there (the account
+  picker's call). `--smoke` answers no request, only waits for `ready`, so it never reaches the sign-in, the network
+  or a sidecar.
 - `--verbose` registers the command line's scrubbing MSAL sink before the first sign-in (task 027): the same
   `logs\` folder, PII logging off, nothing written without the flag.
 - The browser's data folder is `webview2\` under the home folder (`CoreWebView2Environment.CreateAsync` with it as
