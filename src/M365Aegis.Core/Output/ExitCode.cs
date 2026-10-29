@@ -43,6 +43,22 @@ public enum ExitCode
     DoctorFailed = 10,
 
     /// <summary>
+    /// The Exchange Online sidecar could not serve the command (task 015): pwsh or the ExchangeOnlineManagement
+    /// module is missing, the script next to the exe does not match the build, the process died or stopped answering,
+    /// or the connect failed for a reason the service did not name as a sign-in or a permission problem.
+    /// </summary>
+    SidecarUnavailable = 11,
+
+    /// <summary>A cmdlet that is not on the sidecar's allow-list was asked for; nothing ran (task 015, D-004).</summary>
+    CmdletNotAllowed = 12,
+
+    /// <summary>
+    /// An Exchange Online cmdlet failed with an error no other code covers (task 015); a cmdlet that found nothing is
+    /// 4, a throttled one 5, a refused one 8.
+    /// </summary>
+    CmdletFailed = 13,
+
+    /// <summary>
     /// The tool broke: an unexpected internal error stopped the command (task 021). The envelope says so in one
     /// sentence, the stack trace goes to the log under the home folder's <c>logs</c> folder. The number is
     /// <c>EX_SOFTWARE</c> of BSD's sysexits.h ("internal software error"), well apart from the codes that say the

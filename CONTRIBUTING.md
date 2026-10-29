@@ -92,8 +92,10 @@ npm test --prefix gui/web              # Vitest, the bridge contract samples inc
 npm run build --prefix gui/web
 ```
 
-When the sidecar script or its tests change (`src/M365Aegis.Core/Exchange/Sidecar/`, `tests/sidecar/`), also
-the Pester tests, which start the sidecar as a child pwsh against the fake module and never touch a tenant:
+The Core and Cli tests start the Exchange Online sidecar as a child pwsh against the fake module too, so
+`dotnet test` needs pwsh on `PATH`. When the sidecar script or its tests change
+(`src/M365Aegis.Core/Exchange/Sidecar/`, `tests/sidecar/`), also the Pester tests, which drive the script on its own
+and never touch a tenant:
 
 ```powershell
 Invoke-Pester -Path tests/sidecar

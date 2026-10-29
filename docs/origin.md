@@ -17,8 +17,15 @@ The scripted path is slow to start and wide. Measured on 2026-10-21 on a Windows
 `pwsh -NoProfile` taking 0.2 s on its own: importing `Microsoft.Graph.Authentication` takes 0.8 to 1.1 s,
 `Microsoft.Graph.Users` 2.3 to 2.7 s, and Users, Groups and Identity.SignIns together 5.9 s; 81 Graph
 sub-modules were installed, the Users one alone with 207 cmdlets. Every one-off lookup pays that, and an agent
-session that runs each command in a fresh process pays it every time. The Microsoft Graph CLI that would have
-been the lean alternative was retired on 2026-08-28 with no command-line successor. The Exchange Online side has
+session that runs each command in a fresh process pays it every time. The Exchange Online module costs the same
+kind of start: measured on 2026-10-29 on the same workstation (pwsh 7.6.9, ExchangeOnlineManagement 3.10.1, the
+module path and the Documents folder not under OneDrive), five fresh processes per variant connecting with a token
+handed over by the caller, as m365-aegis's sidecar does, a cold pwsh takes 0.45 s to answer, finding and importing
+the module 1.2 s, and `Connect-ExchangeOnline -AccessToken` 2.0 s by default (1.7 to 2.5 s), 1.05 s with
+`-SkipLoadingFormatData` and 0.48 s with `-SkipLoadingFormatData -CommandName` limited to the cmdlets the tool
+runs (0.43 to 0.53 s), so the first answer comes after 4.2 s, 3.2 s or 2.4 s (medians; task 011). The
+Microsoft Graph CLI that would have been the lean alternative was retired on 2026-08-28 with no command-line
+successor. The Exchange Online side has
 no Graph equivalent for most of what an administrator does with mailboxes (permissions, forwarding, retention,
 shared mailboxes, transport rules), so any tool that wants the mailbox domain has to drive the Exchange Online
 PowerShell module. And the support team is served by the admin centers and, since 2026-07, by the Microsoft 365

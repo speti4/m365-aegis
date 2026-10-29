@@ -1,0 +1,51 @@
+﻿--- stdout ---
+name           address                type
+-------------  ---------------------  -------------
+Alice Example  alice@contoso.com      UserMailbox
+Bob Example    bob@contoso.com        UserMailbox
+Carol Example  carol@contoso.com      UserMailbox
+Dave Example   dave@contoso.com       UserMailbox
+Finance        finance@contoso.com    SharedMailbox
+Reception      reception@contoso.com  SharedMailbox
+
+6 mailbox(es)
+--- stderr ---
+--- stdout ---
+right           holder             address
+--------------  -----------------  -----------------
+FullAccess      alice@contoso.com  alice@contoso.com
+Send As         alice@contoso.com  alice@contoso.com
+Send on Behalf  Bob Example        bob@contoso.com
+
+3 grant(s) on Finance <finance@contoso.com> (SharedMailbox); direct grants only, a group is not expanded
+--- stderr ---
+--- stdout ---
+mailbox    address                type           right
+---------  ---------------------  -------------  ----------
+Finance    finance@contoso.com    SharedMailbox  FullAccess
+Finance    finance@contoso.com    SharedMailbox  Send As
+Reception  reception@contoso.com  SharedMailbox  FullAccess
+
+3 grant(s) for alice@contoso.com (Alice Example) over 6 mailbox(es); direct grants only, a group's members are not expanded
+--- stderr ---
+--- stdout ---
+mailbox        address            forwards to                      external  keeps a copy
+-------------  -----------------  -------------------------------  --------  ------------
+Bob Example    bob@contoso.com    bob@fabrikam.com                 EXTERNAL  yes
+Dave Example   dave@contoso.com   Dave Private <dave@example.com>  EXTERNAL  no
+Carol Example  carol@contoso.com  Finance <finance@contoso.com>    no        no
+
+3 forwarding mailbox(es) of 6, 2 to an external address; accepted domains: contoso.com, contoso.onmicrosoft.com
+--- stderr ---
+--- stdout ---
+mailbox        address                type           size      items  deleted
+-------------  ---------------------  -------------  --------  -----  -------
+Finance        finance@contoso.com    SharedMailbox  3.0 GB    40960  1.5 KB
+Alice Example  alice@contoso.com      UserMailbox    1.2 GB    5120   1.5 KB
+Bob Example    bob@contoso.com        UserMailbox    500.0 MB  2048   1.5 KB
+Reception      reception@contoso.com  SharedMailbox  100.0 MB  900    1.5 KB
+Carol Example  carol@contoso.com      UserMailbox    10.0 MB   300    1.5 KB
+Dave Example   dave@contoso.com       UserMailbox    0 B       0      1.5 KB
+
+6 of 6 mailbox(es), 4.8 GB in all
+--- stderr ---

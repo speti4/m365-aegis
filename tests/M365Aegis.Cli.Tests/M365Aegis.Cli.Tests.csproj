@@ -23,6 +23,8 @@
     <Compile Include="..\shared\AuthSamples.cs" Link="shared\AuthSamples.cs" />
     <!-- The recorded Graph answers are read from the source tree, not copied (tests/fixtures/graph). -->
     <Compile Include="..\shared\GraphFixtures.cs" Link="shared\GraphFixtures.cs" />
+    <!-- The sidecar against the fake ExchangeOnlineManagement module (tests/sidecar/modules). -->
+    <Compile Include="..\shared\SidecarFixtures.cs" Link="shared\SidecarFixtures.cs" />
   </ItemGroup>
 
   <ItemGroup>

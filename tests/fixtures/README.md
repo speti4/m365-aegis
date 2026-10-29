@@ -66,8 +66,13 @@ The tasks that add the fixtures name the files; the layout mirrors the request:
   from the same window (task 039): one interactive and two non-interactive sign-ins of alice (one failed by a
   sign-in frequency check), two of the service principal Payroll Connector (one with an expired secret), and one of
   a managed identity. The IP addresses are from the documentation ranges (`203.0.113.0/24`, `198.51.100.0/24`).
-- `adminapi/<path>.json` — an Exchange Online Admin API answer in the same shape (task 010).
-- `exo/<cmdlet>.json` — the objects an Exchange Online cmdlet returns through the sidecar (task 015).
+  The Exchange Online connect reads the tenant's initial domain from
+  `v1.0/organization@$select=verifiedDomains.json` (task 015).
+- `adminapi/<path>.json` — an Exchange Online Admin API answer in the same shape, once an Admin API backend exists
+  (task 010 probed the API; its test answers with a scripted handler).
+- The Exchange Online cmdlets have no recorded answers here: the sidecar tests run the real script against the fake
+  `ExchangeOnlineManagement` module, whose made-up mailboxes are listed in `tests/sidecar/README.md` (tasks 015 and
+  016).
 - `doctor/<state>.json` — a doctor report as the envelope carries it, the samples the snapshot tests of both
   renderings read through `tests/shared/DoctorSamples.cs` (tasks 004 and 008): `healthy.json` (an online run,
   every check passes), `pwsh-missing.json` (an offline run with the required pwsh check failed),

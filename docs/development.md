@@ -242,15 +242,109 @@ with its table view in the Cli (task 005, task 007):
 Exchange Online is reached in three layers behind one interface (D-004): Graph where the feature exists (message
 trace, the usage report, mailbox settings), the Exchange Online Admin API where its six preview endpoints
 reach, and otherwise a long-lived `pwsh` child process running `aegis-exo-sidecar.ps1` with the
-`ExchangeOnlineManagement` module. The Core and the script talk over stdin and stdout, one JSON object per line
-tagged `{"aegis":1,…}`; everything else the process prints is sent to stderr (the script swaps the console's
-standard output for its error stream at start-up and keeps the original for the protocol), so a module banner
-cannot corrupt the channel. Only the cmdlets on the script's allow-list run. The window keeps the sidecar warm;
-the command line starts it on demand. `M365AEGIS_EXO_MODULE_ROOT` makes the script look for the module in one
-folder only, which the tests use for the fake module. The doctor checks pwsh 7.6, the module version (from the same
-folder when the variable is set) and the script's hash: the script is also embedded in the Core
-(`Exchange/SidecarScript.cs`), and the copy next to the exe has to have the same SHA-256, since it runs with the
-administrator's Exchange Online token (see [The doctor](#the-doctor)).
+`ExchangeOnlineManagement` module (tasks 015 and 016). The doctor checks pwsh 7.6, the module version and the
+script's hash: the script is also embedded in the Core (`Exchange/SidecarScript.cs`), and the copy next to the exe
+has to have the same SHA-256, since it runs with the administrator's Exchange Online token (see
+[The doctor](#the-doctor)); the session refuses to start a copy the doctor would fail.
+
+**The process and the protocol.** `Exchange/Sidecar/SidecarClient.cs` starts `pwsh -NoProfile -NonInteractive
+-NoLogo -File sidecar\aegis-exo-sidecar.ps1` (pwsh from `PATH`) and speaks to it over stdin and stdout, UTF-8, one
+JSON object per line tagged `{"aegis":1,"id":…,"type":…}`, one request in flight at a time, the reply matched by its
+id. Everything else the process prints goes to stderr (the script swaps the console's standard output for its
+error stream at start-up and writes the protocol to the raw stream), so a module banner cannot corrupt the
+channel; the client keeps the last 20 stderr lines, scrubbed like a log line, for the message of a failure. The
+messages: `hello` (the pwsh and module versions and the script's allow-list), `connect` and `reconnect` (the token,
+`organization` and/or `userPrincipalName`; the reply carries the import and connect times), `invoke` (a cmdlet, its
+parameters, the properties to keep of each object, and `input`, the values piped into the cmdlet, which is how the
+`Get-EXO*` cmdlets read every mailbox in one call), and `exit` (the script disconnects and ends; the client kills a
+process that has not ended ten seconds later). Every value an object carries back is plain: a string, a number, a
+boolean, null or a list of strings, which `ExoObject` reads into the typed records of the lookups. A run that
+returned objects keeps the non-terminating errors of the items that failed next to them (`errors`); a run that
+returned none is an error reply. An error reply carries `code`, `message`, and PowerShell's error id and category;
+the script replaces every token it was handed, and anything shaped like a JWT, in all of them.
+
+**The allow-list.** `Exchange/Sidecar/ExoCmdlets.cs` is the one place a cmdlet is admitted: `Get-EXOMailbox`,
+`Get-EXOMailboxPermission`, `Get-EXORecipientPermission`, `Get-EXOMailboxStatistics`, `Get-EXORecipient` and
+`Get-AcceptedDomain`, exactly the cmdlets the lookups use. The session refuses any other name before anything is
+sent (exit code 12); the script carries the same list as its own guard (`$script:AllowedCmdlets`), a Core test
+holds the two equal, and the session also compares the list the script reports in `hello`. A cmdlet joins the list
+with the lookup that needs it.
+
+**The connect and the token.** `Exchange/Sidecar/ExchangeSession.cs` holds one sidecar: the command line one per
+run (started on the first cmdlet, ended with the command), the window one for its lifetime (it is safe to call
+from several tasks, and a sidecar that died is replaced on the next cmdlet). The sign-in comes first, so no pwsh
+starts without a profile and a token: the token for `https://outlook.office365.com/.default` from
+`AuthService.GetTokenAsync` (silent, task 009), passed as `Connect-ExchangeOnline -AccessToken <token>
+-Organization <tenant>.onmicrosoft.com -SkipLoadingFormatData -CommandName <the REST cmdlets of the allow-list>
+-ShowBanner:$false` (the `Get-EXO*` cmdlets are the module's own and need no import; the format data is never used,
+since the protocol never formats an object). It is the fastest of the three variants task 011 measured on
+2026-10-29 with the token hand-off, five fresh processes each: the connect's median 0.48 s against 1.05 s with
+`-SkipLoadingFormatData` alone and 1.98 s with neither, the first answer after 2.4 s against 3.2 s and 4.2 s
+(`docs/origin.md`, "Problem"). The organization is the profile's tenant when it is a
+`.onmicrosoft.com` name, else the initial domain of `GET /organization` (Graph, `User.Read`).
+`M365AEGIS_EXO_CONNECT=upn` passes `-UserPrincipalName <the profile's account>` instead of the organization, and
+`both` passes both. The token is never logged or written: the records that carry it leave it out of their
+`ToString`. The session tracks the token's `ExpiresOn` and, five minutes before it, asks for a fresh token and sends
+`reconnect` (the script disconnects and connects again).
+
+**The exit codes.** The module reports a sign-in, a permission, a missing object and throttling all as a
+PowerShell error, so `Exchange/Sidecar/SidecarFailures.cs` reads the message for what the service said: a missing
+pwsh or module, a script that does not match the build, a process that died or stopped answering, and a connect the
+service refused for a reason it did not name as a sign-in or a permission are 11 (`sidecar-unavailable`, with
+`doctor` as the hint); a token the service refused (a 401, an expired token, an `AADSTS` error) is 3; a 403, an
+access denial or a missing role is 8; a cmdlet whose object was not found is 4; throttling (a 429, Server Busy, a
+micro delay, a budget) is 5; a cmdlet off the allow-list is 12; any other cmdlet failure is 13 (`cmdlet-failed`);
+a bulk run with items that failed is 6 with the rest of the answer as the data. An error reply that means the Core
+sent a wrong message (`bad-request`, `not-connected`, `unknown-type`) is a bug, exit code 70. The message of a
+failure is the service's one sentence (the `message` of a REST error's JSON body, without the server name, at most
+300 characters; a mailbox that is not found is `mailbox '<as given>' not found`), and the whole text goes to the log
+under `--verbose` only.
+
+**The mailbox commands** (`Exchange/MailboxLookups.cs`, `Commands/MailboxCommand.cs`; the Cli's `ExchangeRunner` is
+`GraphRunner`'s twin, with `pwsh` as the backend). Each pays about 2.8 s before its first cmdlet (pwsh 0.5 s, the
+module's import 1.1 s, the connect 1.3 s; tasks 009 and 016, measured 2026-10-29), which the window's warm sidecar
+saves:
+
+- `mailbox list [--shared]`: `Get-EXOMailbox -ResultSize Unlimited` (`-RecipientTypeDetails SharedMailbox`), by
+  display name.
+- `mailbox access <mailbox>`: FullAccess (`Get-EXOMailboxPermission`), Send As (`Get-EXORecipientPermission
+  -AccessRights SendAs`) and Send on Behalf (the mailbox's `GrantSendOnBehalfTo`, resolved to addresses with one
+  piped `Get-EXORecipient`); the direct, allowed grants only, without `NT AUTHORITY\…` entries. A grant to a group
+  is listed as the group; its members are not expanded.
+- `mailbox access --user <upn>`: the reverse lookup in four bulk calls whatever the tenant's size: the user as a
+  recipient (the names Exchange may use for it in a permission entry), every mailbox with its Send on Behalf list,
+  the FullAccess entries of every mailbox (the mailboxes' object ids piped into `Get-EXOMailboxPermission`), and
+  the organization's Send As entries. A mailbox whose permissions could not be read makes the answer partial (exit
+  code 6). The throttling budget is the module's: the `Get-EXO*` cmdlets back off and retry a throttled request
+  themselves, and a request that still fails is exit code 5. The module sends one request per piped mailbox, about
+  0.2 s each: over 620 mailboxes the lookup took 138 s, unthrottled (task 016, measured 2026-10-29).
+- `mailbox forwarders`: every mailbox with `ForwardingSmtpAddress` or `ForwardingAddress` set, whether it keeps a
+  copy (`DeliverToMailboxAndForward`), and whether the target is outside the accepted domains (`Get-AcceptedDomain`;
+  a `ForwardingAddress` is a recipient, resolved to its address with one piped `Get-EXORecipient`), the external
+  ones first.
+- `mailbox size [<mailbox>] [--top N]`: `Get-EXOMailboxStatistics` for one mailbox or every mailbox (piped), the
+  largest first; the size is read from the service's text (`1.2 GB (1,288,490,188 bytes)`). Every mailbox costs a
+  request, about 0.12 s each (80 s over 620 mailboxes).
+
+The account needs an Exchange Online role that reads recipients and their permissions (View-Only Organization
+Management or Recipient Management; the Exchange Administrator and Global Administrator roles include them); the
+app registration needs `Exchange.Manage`.
+
+**Tests and measurements.** `M365AEGIS_EXO_MODULE_ROOT` makes the script look for the module in one folder only,
+which the tests point at the fake module under `tests/sidecar/modules` (its made-up mailboxes are listed in
+`tests/sidecar/README.md`); `M365AEGIS_EXO_TEST_ORGANIZATION` makes the command line connect to that organization
+with a placeholder token and no sign-in, which only the fake module accepts. The Pester tests drive the script on
+its own, the Core tests drive it through the client and the session, the Cli tests through the exe, all with a real
+pwsh child on Linux and Windows. Three hidden commands are the live probes of the Exchange bundle:
+`m365-aegis probe exchange-connect [--connect-with organization|upn|both]` (task 009: a connect, a cmdlet, a
+reconnect with a fresh token), `probe exchange-measure [--runs 5] [--variants default,skip-format-data,command-name]`
+(task 011: the broker's token asked for once, silently, then per variant fresh sidecars connected with it over the
+protocol exactly as a command's sidecar is, timing the start, the module's discovery and import, the connect and a
+first REST cmdlet, with the median and the spread per variant, the versions and the OneDrive checks of the module
+path and the Documents folder; `connect` takes `skipLoadingFormatData` and `commandName` set to false for the other
+variants) and `probe admin-api` (task 010). They print timings, permissions, statuses and the shape of an answer,
+never a token, a path or a value, and none of them signs in interactively: the module's own sign-in is never
+used.
 
 ## The front end
 
@@ -341,6 +435,9 @@ the JSON envelope `{"ok":…,"data":…,"error":{"code","message","hint"},"meta"
 | 8 | `forbidden` | the service refused the account or the app: a permission not consented, a role missing (task 003) |
 | 9 | `service-error` | the service answered with an error no other code covers (a bad request, a server error after the retries), or could not be reached (task 003) |
 | 10 | `doctor-failed` | a required doctor check failed; the report is the data |
+| 11 | `sidecar-unavailable` | the Exchange Online sidecar could not serve the command: pwsh or the module missing, the script not the build's, the process gone, or a connect the service refused without naming the sign-in or a permission (task 015) |
+| 12 | `cmdlet-not-allowed` | a cmdlet off the sidecar's allow-list was asked for; nothing ran (task 015) |
+| 13 | `cmdlet-failed` | an Exchange Online cmdlet failed with an error no other code covers (task 015) |
 | 70 | `internal` | the tool broke: an unexpected exception stopped the command (task 021); `EX_SOFTWARE` of sysexits.h |
 
 A write is a plan the command prints

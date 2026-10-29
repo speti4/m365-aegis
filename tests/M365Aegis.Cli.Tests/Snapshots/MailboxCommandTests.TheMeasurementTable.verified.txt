@@ -1,0 +1,13 @@
+﻿--- stdout ---
+variant       run  total ms  start ms  import ms  connect ms  first call ms  error
+------------  ---  --------  --------  ---------  ----------  -------------  -----------------------------------------------------------------
+default       1    4000      460       1050       2200        290            -
+default       2    4200      480       1070       2400        310            -
+command-name  1    3000      465       1055       1290        180            -
+command-name  2    900       470       0          0           0              throttled: Exchange Online throttled the request: try again later
+
+pwsh 7.6.9, ExchangeOnlineManagement 3.10.1; token permissions: Exchange.Manage Exchange.ManageV2
+under OneDrive: the module no, the first PSModulePath entry no, PSModulePath entries 0, Documents no
+default: 2 of 2 run(s); median (spread) total 4100 (4000-4200), start 470 (460-480), import 1060 (1050-1070), connect 2300 (2200-2400), first call 300 (290-310); answers the allow-list: yes
+command-name: 1 of 2 run(s); median (spread) total 3000 (3000-3000), start 465 (465-465), import 1055 (1055-1055), connect 1290 (1290-1290), first call 180 (180-180); answers the allow-list: yes
+--- stderr ---

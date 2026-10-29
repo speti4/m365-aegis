@@ -1,0 +1,27 @@
+﻿--- stdout ---
+measure                           value
+--------------------------------  ---------------------------------
+connect with                      Organization
+pwsh                              7.6.9
+module                            3.10.1
+start to hello                    812 ms
+module import                     950 ms
+Connect-ExchangeOnline            2400 ms
+first cmdlet                      310 ms
+reconnect (fresh token)           2100 ms
+cmdlet after reconnect            280 ms
+token minutes left                59.5
+token permissions                 Exchange.Manage Exchange.ManageV2
+Manage and ManageV2 on one token  yes
+--- stderr ---
+--- stdout ---
+endpoint            anchor  status  ms   items  next link   error
+------------------  ------  ------  ---  -----  ----------  -----
+OrganizationConfig  UPN:    200     640  1      -           -
+Mailbox             UPN:    200     720  1      $skiptoken  -
+
+the Admin API answered OrganizationConfig with the broker's token
+token permissions: Exchange.Manage Exchange.ManageV2
+OrganizationConfig (UPN:) shape: @odata.context: string; value: array[1]; value[0].Name: string
+Mailbox (UPN:) shape: value: array[1]; @odata.nextLink: string
+--- stderr ---

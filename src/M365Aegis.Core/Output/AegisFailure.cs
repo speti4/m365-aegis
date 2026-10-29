@@ -34,6 +34,15 @@ public enum FailureKind
 
     /// <summary>The service answered with an error no other kind covers, or could not be reached.</summary>
     ServiceError,
+
+    /// <summary>The Exchange Online sidecar could not serve the command: pwsh, the module or the connect.</summary>
+    SidecarUnavailable,
+
+    /// <summary>A cmdlet outside the sidecar's allow-list was asked for; nothing ran.</summary>
+    CmdletNotAllowed,
+
+    /// <summary>An Exchange Online cmdlet failed with an error no other kind covers.</summary>
+    CmdletFailed,
 }
 
 /// <summary>The exit code and the error code of each failure kind: the mapping the tests hold fixed.</summary>
@@ -52,6 +61,9 @@ public static class FailureKinds
         FailureKind.Internal => ExitCode.Internal,
         FailureKind.Forbidden => ExitCode.Forbidden,
         FailureKind.ServiceError => ExitCode.ServiceError,
+        FailureKind.SidecarUnavailable => ExitCode.SidecarUnavailable,
+        FailureKind.CmdletNotAllowed => ExitCode.CmdletNotAllowed,
+        FailureKind.CmdletFailed => ExitCode.CmdletFailed,
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "a failure kind without an exit code"),
     };
 
@@ -68,6 +80,9 @@ public static class FailureKinds
         FailureKind.Internal => "internal",
         FailureKind.Forbidden => "forbidden",
         FailureKind.ServiceError => "service-error",
+        FailureKind.SidecarUnavailable => "sidecar-unavailable",
+        FailureKind.CmdletNotAllowed => "cmdlet-not-allowed",
+        FailureKind.CmdletFailed => "cmdlet-failed",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "a failure kind without an error code"),
     };
 }

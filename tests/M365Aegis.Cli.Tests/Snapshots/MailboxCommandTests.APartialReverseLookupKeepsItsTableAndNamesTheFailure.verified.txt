@@ -1,0 +1,10 @@
+﻿--- stdout ---
+mailbox  address              type           right
+-------  -------------------  -------------  ----------
+Finance  finance@contoso.com  SharedMailbox  FullAccess
+
+1 grant(s) for alice@contoso.com (Alice Example) over 6 mailbox(es); direct grants only, a group's members are not expanded
+1 list(s) could not be read
+--- stderr ---
+error: 1 mailbox permission list(s) could not be read; the answer lists the rest (partial)
+hint: the data's `failed` list has the service's messages; run the command again for the rest

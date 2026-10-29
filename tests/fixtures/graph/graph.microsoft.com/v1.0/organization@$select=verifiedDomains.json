@@ -1,0 +1,11 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#organization(verifiedDomains)",
+  "value": [
+    {
+      "verifiedDomains": [
+        { "name": "contoso.com", "isDefault": true, "isInitial": false, "type": "Managed" },
+        { "name": "contoso.onmicrosoft.com", "isDefault": false, "isInitial": true, "type": "Managed" }
+      ]
+    }
+  ]
+}

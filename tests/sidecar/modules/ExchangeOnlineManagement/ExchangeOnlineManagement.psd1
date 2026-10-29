@@ -8,5 +8,6 @@
     Author = 'm365-aegis tests'
     Description = 'Fake ExchangeOnlineManagement for the sidecar tests; no network.'
     PowerShellVersion = '7.6'
-    FunctionsToExport = @('Connect-ExchangeOnline', 'Disconnect-ExchangeOnline', 'Get-Mailbox', 'Get-EXOMailbox', 'Get-EXOMailboxPermission')
+    FunctionsToExport = @('Connect-ExchangeOnline', 'Disconnect-ExchangeOnline', 'Get-EXOMailbox', 'Get-EXORecipient', 'Get-EXOMailboxPermission',
+        'Get-EXORecipientPermission', 'Get-EXOMailboxStatistics', 'Get-AcceptedDomain')
 }

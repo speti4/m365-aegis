@@ -86,9 +86,18 @@ public sealed class AuthService
     /// </summary>
     public async Task<string> GetAccessTokenAsync(Resource resource, string? profileName, CancellationToken cancellationToken)
     {
-        TenantProfile profile = Profiles.Resolve(profileName);
-        TokenResult token = await SignInFlow.RunAsync(_brokerFactory(profile), profile, resource, SignInMode.SilentOnly, NoPrompt, cancellationToken).ConfigureAwait(false);
+        TokenResult token = await GetTokenAsync(resource, profileName, cancellationToken).ConfigureAwait(false);
         return token.AccessToken;
+    }
+
+    /// <summary>
+    /// The token for a resource with its expiry, scopes and account, silently: the Exchange Online sidecar renews
+    /// its connection before <see cref="TokenResult.ExpiresOn"/> (task 015). The token stays in the core.
+    /// </summary>
+    public Task<TokenResult> GetTokenAsync(Resource resource, string? profileName, CancellationToken cancellationToken)
+    {
+        TenantProfile profile = Profiles.Resolve(profileName);
+        return SignInFlow.RunAsync(_brokerFactory(profile), profile, resource, SignInMode.SilentOnly, NoPrompt, cancellationToken);
     }
 
     private static Task NoPrompt(DeviceCodePrompt prompt) => Task.CompletedTask;

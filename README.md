@@ -109,6 +109,17 @@ name, its address, its object id or a word of its name:
 Each needs its delegated permission consented for the app registration (docs/development.md, "The sign-in and
 the home folder"); the message trace also needs a service principal created once per tenant.
 
+The mailbox lookups run the Exchange Online module in a PowerShell sidecar the command starts and ends, signed in
+with the same account (`Exchange.Manage`, and an Exchange role that reads recipients):
+
+```powershell
+& $aegis mailbox list --shared
+& $aegis mailbox access finance@contoso.com            # who holds FullAccess, Send As, Send on Behalf
+& $aegis mailbox access --user alice@contoso.com       # every mailbox alice can open or send as
+& $aegis mailbox forwarders                            # forwarding mailboxes, the external targets first
+& $aegis mailbox size --top 10                         # live sizes, the largest first
+```
+
 The audit lookups read the logs of the last `--days N` (1 by default, 30 at most) or from `--since <date>`, the
 newest first:
 
