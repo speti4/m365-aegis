@@ -27,6 +27,8 @@
     <!-- The scrubbed doctor reports and sign-in results the snapshot tests render (tests/fixtures/doctor, tests/fixtures/auth). -->
     <Content Include="..\fixtures\doctor\*.json" Link="fixtures\doctor\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\fixtures\auth\*.json" Link="fixtures\auth\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The made-up `dsregcmd /status` outputs the device check parses (tests/fixtures/doctor, task 008). -->
+    <Content Include="..\fixtures\doctor\*.txt" Link="fixtures\doctor\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

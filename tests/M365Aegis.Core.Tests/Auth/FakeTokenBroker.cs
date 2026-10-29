@@ -21,6 +21,9 @@ internal sealed class FakeTokenBroker : ITokenBroker
 
     internal List<AccountInfo> Removed { get; } = [];
 
+    /// <summary>When set, removing an account fails with it, as a broker that does not answer would.</summary>
+    internal BrokerException? RemoveFailure { get; set; }
+
     /// <summary>The operating system account path; null fails as a machine without a primary refresh token.</summary>
     internal Func<string, TokenResult>? OperatingSystemAccount { get; set; }
 
@@ -99,6 +102,11 @@ internal sealed class FakeTokenBroker : ITokenBroker
     public Task RemoveAsync(AccountInfo account, CancellationToken cancellationToken)
     {
         Calls.Add($"remove:{account.Username}");
+        if (RemoveFailure is not null)
+        {
+            throw RemoveFailure;
+        }
+
         Removed.Add(account);
         Accounts.Remove(account);
         return Task.CompletedTask;

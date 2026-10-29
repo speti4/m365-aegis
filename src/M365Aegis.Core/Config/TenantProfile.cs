@@ -15,6 +15,28 @@ namespace M365Aegis.Core.Config;
 /// <param name="Account">The user principal name of the account to sign in; the broker may list several.</param>
 public sealed record TenantProfile(string Name, string Tenant, string ClientId, string Account);
 
+/// <summary>One profile as <c>profile list</c> shows it.</summary>
+/// <param name="Name">The profile's name.</param>
+/// <param name="Tenant">The tenant id or domain.</param>
+/// <param name="ClientId">The application (client) id.</param>
+/// <param name="Account">The user principal name.</param>
+/// <param name="IsDefault">Whether a command without <c>--profile</c> uses this one.</param>
+public sealed record ProfileSummary(string Name, string Tenant, string ClientId, string Account, bool IsDefault);
+
+/// <summary>The result of <c>profile list</c> and <c>profile use</c>: the file and its profiles.</summary>
+/// <param name="File">The path of <c>config.json</c>.</param>
+/// <param name="Default">The profile a command without <c>--profile</c> uses, or null when there is none.</param>
+/// <param name="Profiles">The profiles, in the file's order.</param>
+public sealed record ProfileList(string File, string? Default, IReadOnlyList<ProfileSummary> Profiles);
+
+/// <summary>The result of <c>profile remove</c>.</summary>
+/// <param name="Profile">The removed profile's name.</param>
+/// <param name="Account">Its user principal name.</param>
+/// <param name="SignedOut">Whether its account was signed out first; false when another profile still uses the same app registration and account.</param>
+/// <param name="RemovedAccounts">How many account records the sign-out removed.</param>
+/// <param name="Default">The default profile afterwards, or null when there is none.</param>
+public sealed record ProfileRemoval(string Profile, string Account, bool SignedOut, int RemovedAccounts, string? Default);
+
 /// <summary>
 /// Reads and writes the tenant profiles in <c>config.json</c> under the home folder:
 /// <c>{"default":"work","profiles":{"work":{"tenant":…,"clientId":…,"account":…}}}</c>. A missing file is an
@@ -52,6 +74,9 @@ public sealed class ProfileStore
     /// <summary>The path of the file, whether or not it exists.</summary>
     public string Path => AegisHome.ConfigPath(_home);
 
+    /// <summary>The hint of a failure that names a profile the file does not have.</summary>
+    public const string ListHint = "`m365-aegis profile list` shows the names";
+
     /// <summary>The named profile, or the default one when <paramref name="name"/> is null.</summary>
     /// <exception cref="AegisException">No such profile, no default, or the file cannot be read.</exception>
     public TenantProfile Resolve(string? name)
@@ -82,6 +107,67 @@ public sealed class ProfileStore
     public string? DefaultName => Load().Default;
 
     /// <summary>
+    /// The profiles with the one a command without <c>--profile</c> uses marked: the file's <c>default</c> when it
+    /// names a profile, else the only profile when there is one.
+    /// </summary>
+    public ProfileList Describe()
+    {
+        ConfigFile file = Load();
+        string? effective = EffectiveDefault(file);
+        return new ProfileList(
+            Path,
+            effective,
+            file.Profiles.Select(pair => new ProfileSummary(pair.Key, pair.Value.Tenant, pair.Value.ClientId, pair.Value.Account, pair.Key == effective)).ToList());
+    }
+
+    /// <summary>Makes the named profile the default (<c>profile use</c>).</summary>
+    /// <exception cref="AegisException">A <see cref="FailureKind.NotFound"/> failure when there is no such profile.</exception>
+    public ProfileList Use(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ConfigFile file = Load();
+        if (!file.Profiles.ContainsKey(name))
+        {
+            throw NoSuchProfile(name);
+        }
+
+        file.Default = name;
+        Write(file);
+        return Describe();
+    }
+
+    /// <summary>
+    /// Deletes the named profile from the file and returns the default afterwards. When the default was removed, the
+    /// only profile left becomes the default; with several left none does, so a command never signs in to a tenant
+    /// nobody chose.
+    /// </summary>
+    /// <exception cref="AegisException">A <see cref="FailureKind.NotFound"/> failure when there is no such profile.</exception>
+    public string? Remove(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ConfigFile file = Load();
+        if (!file.Profiles.Remove(name))
+        {
+            throw NoSuchProfile(name);
+        }
+
+        if (file.Default == name)
+        {
+            file.Default = file.Profiles.Count == 1 ? file.Profiles.Keys.Single() : null;
+        }
+
+        Write(file);
+        return EffectiveDefault(file);
+    }
+
+    /// <summary>The named profile, or a <see cref="FailureKind.NotFound"/> failure (the commands that manage profiles).</summary>
+    public TenantProfile Find(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return Load().Profiles.TryGetValue(name, out ProfileEntry? entry) ? entry.ToProfile(name) : throw NoSuchProfile(name);
+    }
+
+    /// <summary>
     /// Writes or replaces a profile and makes it the default when there is none yet (or when asked). Creates the
     /// home folder and the file on first use.
     /// </summary>
@@ -95,6 +181,19 @@ public sealed class ProfileStore
             file.Default = profile.Name;
         }
 
+        Write(file);
+    }
+
+    private static string? EffectiveDefault(ConfigFile file) =>
+        file.Default is { } named && file.Profiles.ContainsKey(named) ? named
+        : file.Default is null && file.Profiles.Count == 1 ? file.Profiles.Keys.Single()
+        : null;
+
+    private AegisException NoSuchProfile(string name) =>
+        new(FailureKind.NotFound, $"no profile named '{name}' in {Path}", ListHint);
+
+    private void Write(ConfigFile file)
+    {
         Directory.CreateDirectory(_home);
         File.WriteAllText(Path, JsonSerializer.Serialize(file, FileOptions) + "\n");
     }
@@ -106,14 +205,29 @@ public sealed class ProfileStore
             return new ConfigFile();
         }
 
+        ConfigFile file;
         try
         {
-            return JsonSerializer.Deserialize<ConfigFile>(File.ReadAllText(Path), FileOptions) ?? new ConfigFile();
+            file = JsonSerializer.Deserialize<ConfigFile>(File.ReadAllText(Path), FileOptions) ?? new ConfigFile();
         }
         catch (JsonException exception)
         {
             throw new AegisException(FailureKind.Auth, $"{Path} is not valid JSON", "fix the file, or delete it and run `m365-aegis login` again", exception);
         }
+
+        // A hand-edited file may hold a profile without one of its three values: the file's fault, not the tool's.
+        foreach ((string name, ProfileEntry? entry) in file.Profiles)
+        {
+            if (entry is null || string.IsNullOrWhiteSpace(entry.Tenant) || string.IsNullOrWhiteSpace(entry.ClientId) || string.IsNullOrWhiteSpace(entry.Account))
+            {
+                throw new AegisException(
+                    FailureKind.Auth,
+                    $"the profile '{name}' in {Path} lacks its tenant, clientId or account",
+                    "fix the file, or remove the profile with `m365-aegis profile remove`");
+            }
+        }
+
+        return file;
     }
 
     /// <summary>The file as it is on disk; the profiles are keyed by name.</summary>

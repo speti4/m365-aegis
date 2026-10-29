@@ -1,0 +1,27 @@
++----------------------------------------------------------------------+
+| Device State                                                         |
++----------------------------------------------------------------------+
+
+             AzureAdJoined : YES
+          EnterpriseJoined : NO
+              DomainJoined : NO
+           Virtual Desktop : NOT SET
+               Device Name : DESKTOP-CONTOSO1
+
++----------------------------------------------------------------------+
+| User State                                                           |
++----------------------------------------------------------------------+
+
+                    NgcSet : NO
+           WorkplaceJoined : NO
+          WorkAccountCount : 1
+             WamDefaultSet : YES
+
++----------------------------------------------------------------------+
+| SSO State                                                            |
++----------------------------------------------------------------------+
+
+                AzureAdPrt : YES
+       AzureAdPrtAuthority : https://login.microsoftonline.com/00000000-0000-0000-0000-000000000002
+             EnterprisePrt : NO
+    EnterprisePrtAuthority : 

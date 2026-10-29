@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using M365Aegis.Core.Diagnostics;
 using Microsoft.Identity.Client;
 using Microsoft.Identity.Client.Broker;
 using Microsoft.Identity.Client.Extensions.Msal;
@@ -12,7 +13,9 @@ namespace M365Aegis.Core.Auth;
 /// window, and the cache in <c>msal-cache.bin</c> under the home folder (DPAPI on Windows, a cross-process lock,
 /// shared by the command line and the window). MSAL's exceptions are mapped to <see cref="BrokerException"/>
 /// here and nowhere else. Nothing is built until the first call, so a command that fails before a token (no
-/// profile) never loads the library.
+/// profile) never loads the library. Under <c>--verbose</c> (<see cref="LogSink.Verbose"/>) the library's own log,
+/// without PII, goes into the home folder's <c>logs</c> folder through the scrubbing sink (task 025); without the
+/// flag no logging callback is registered at all.
 /// </summary>
 public sealed class MsalTokenBroker : ITokenBroker
 {
@@ -28,14 +31,16 @@ public sealed class MsalTokenBroker : ITokenBroker
     private readonly TenantProfile _profile;
     private readonly string _home;
     private readonly Func<IntPtr> _parentWindow;
+    private readonly LogSink? _log;
     private readonly Lazy<Task<IPublicClientApplication>> _application;
     private readonly Lazy<Task<IPublicClientApplication>> _cacheOnlyApplication;
 
-    private MsalTokenBroker(TenantProfile profile, string home, Func<IntPtr> parentWindow)
+    private MsalTokenBroker(TenantProfile profile, string home, Func<IntPtr> parentWindow, LogSink? log)
     {
         _profile = profile;
         _home = home;
         _parentWindow = parentWindow;
+        _log = log;
         _application = new Lazy<Task<IPublicClientApplication>>(() => BuildAsync(withBroker: true));
         _cacheOnlyApplication = new Lazy<Task<IPublicClientApplication>>(() => BuildAsync(withBroker: false));
     }
@@ -44,12 +49,49 @@ public sealed class MsalTokenBroker : ITokenBroker
     public static ITokenBroker Create(TenantProfile profile, string home) => Create(profile, home, ConsoleWindow.RootOwner);
 
     /// <summary>A broker for a profile with a parent window of the caller's (the window of the GUI).</summary>
-    public static ITokenBroker Create(TenantProfile profile, string home, Func<IntPtr> parentWindow)
+    public static ITokenBroker Create(TenantProfile profile, string home, Func<IntPtr> parentWindow) =>
+        Create(profile, home, parentWindow, LogSink.Verbose);
+
+    /// <summary>A broker that logs MSAL into <paramref name="log"/>, or not at all when it is null.</summary>
+    public static ITokenBroker Create(TenantProfile profile, string home, Func<IntPtr> parentWindow, LogSink? log)
     {
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentException.ThrowIfNullOrWhiteSpace(home);
         ArgumentNullException.ThrowIfNull(parentWindow);
-        return new MsalTokenBroker(profile, home, parentWindow);
+        return new MsalTokenBroker(profile, home, parentWindow, log);
+    }
+
+    /// <summary>
+    /// Registers the library's log on a builder when there is a sink: PII logging off, no platform logging, every
+    /// level (the broker's error codes and the step that failed are at the verbose level), and the profile's tenant,
+    /// client id and account registered with the sink for redaction. Without a sink the builder is returned as it is.
+    /// </summary>
+    internal static PublicClientApplicationBuilder WithLog(PublicClientApplicationBuilder builder, LogSink? log, TenantProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(profile);
+        if (log is null)
+        {
+            return builder;
+        }
+
+        log.Redact(profile.Tenant);
+        log.Redact(profile.ClientId);
+        log.Redact(profile.Account);
+        return builder.WithLogging(ToSink(log), LogLevel.Verbose, enablePiiLogging: false, enableDefaultPlatformLogging: false);
+    }
+
+    /// <summary>The callback MSAL calls: a line marked as carrying PII is dropped even though PII logging is off.</summary>
+    internal static LogCallback ToSink(LogSink log)
+    {
+        ArgumentNullException.ThrowIfNull(log);
+        return (level, message, containsPii) =>
+        {
+            if (!containsPii)
+            {
+                log.Write("msal", $"{level}: {message}");
+            }
+        };
     }
 
     /// <inheritdoc/>
@@ -200,6 +242,7 @@ public sealed class MsalTokenBroker : ITokenBroker
             .WithTenantId(_profile.Tenant)
             .WithDefaultRedirectUri()
             .WithParentActivityOrWindow(_parentWindow);
+        builder = WithLog(builder, _log, _profile);
         if (withBroker)
         {
             builder = builder.WithBroker(new BrokerOptions(BrokerOptions.OperatingSystems.Windows)

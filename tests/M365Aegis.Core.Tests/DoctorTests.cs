@@ -1,59 +1,390 @@
+using System.Text;
+using M365Aegis.Core.Auth;
+using M365Aegis.Core.Config;
 using M365Aegis.Core.Diagnostics;
+using M365Aegis.Core.Exchange;
+using M365Aegis.Core.Output;
+using M365Aegis.Core.Tests.Config;
+using M365Aegis.Tests;
 
 namespace M365Aegis.Core.Tests;
 
+/// <summary>
+/// Every doctor check over a faked machine (task 008): a pass, a warn and a fail case each where the check has
+/// them, the module, the registry, dsregcmd, the sidecar's two copies, the sign-in and the endpoints all scripted.
+/// </summary>
 public sealed class DoctorTests
 {
+    private static readonly byte[] Script = Encoding.UTF8.GetBytes("#Requires -Version 7.6\nparam()\n'hello'\n");
+
     [Fact]
-    public void MissingPwshFailsTheReport()
+    public async Task AHealthyMachinePassesEveryCheck()
     {
-        string home = Path.Combine(Path.GetTempPath(), "m365-aegis-tests", Guid.NewGuid().ToString("N"));
+        DoctorEnvironment environment = Fake(WithProfile());
 
-        DoctorReport report = Doctor.RunOffline(home, pwshPath: null);
+        DoctorReport report = await Doctor.RunAsync(environment, offline: false, CancellationToken.None);
 
-        Assert.False(report.Healthy);
-        DoctorCheck pwsh = Assert.Single(report.Checks, check => check.Name == "pwsh");
-        Assert.Equal(CheckStatus.Fail, pwsh.Status);
-        Assert.True(pwsh.Required);
+        Assert.True(report.Healthy);
+        Assert.All(report.Checks, check => Assert.Equal(CheckStatus.Pass, check.Status));
+        Assert.Equal(
+            ["home", "dotnet-runtime", "pwsh", "exchange-online-module", "sidecar-script", "webview2-runtime", "config", "device", "sign-in", "endpoint-login", "endpoint-graph", "endpoint-exchange"],
+            report.Checks.Select(check => check.Name));
+        Assert.All(report.Checks, check => Assert.Null(check.Hint));
+        Assert.Equal(ExitCode.Ok, report.ToResult().ExitCode);
     }
 
     [Fact]
-    public void MissingHomeIsAWarningNotAFailure()
+    public async Task OfflineSkipsTheSignInAndTheEndpointsWithoutCallingThem()
     {
-        string home = Path.Combine(Path.GetTempPath(), "m365-aegis-tests", Guid.NewGuid().ToString("N"));
-
-        DoctorReport report = Doctor.RunOffline(home, pwshPath: null);
-
-        DoctorCheck homeCheck = Assert.Single(report.Checks, check => check.Name == "home");
-        Assert.Equal(CheckStatus.Warn, homeCheck.Status);
-        Assert.Equal(home, report.Home);
-    }
-
-    [Fact]
-    public void TheNetworkChecksAreSkippedOffline()
-    {
-        DoctorReport report = Doctor.RunOffline(Path.GetTempPath(), pwshPath: null);
-
-        DoctorCheck signIn = Assert.Single(report.Checks, check => check.Name == "sign-in");
-        Assert.Equal(CheckStatus.Skipped, signIn.Status);
-    }
-
-    [Fact]
-    public void ThePwshOnThisMachineIsReadIfPresent()
-    {
-        // No assumption about the machine: with pwsh on PATH the version is read, without it the check fails.
-        string? pwsh = Doctor.FindPwsh();
-        DoctorReport report = Doctor.RunOffline(Path.GetTempPath(), pwsh);
-        DoctorCheck check = Assert.Single(report.Checks, check => check.Name == "pwsh");
-
-        if (pwsh is null)
+        bool called = false;
+        DoctorEnvironment environment = Fake(WithProfile(), signIn: (_, _) => { called = true; return Task.FromResult(AuthSamples.SignedIn); }) with
         {
-            Assert.Equal(CheckStatus.Fail, check.Status);
+            Probe = (_, _) => { called = true; return Task.FromResult(new EndpointAnswer(200, TimeSpan.Zero, null)); },
+        };
+
+        DoctorReport report = await Doctor.RunAsync(environment, offline: true, CancellationToken.None);
+
+        Assert.False(called);
+        Assert.All(report.Checks.Where(check => check.Name == "sign-in" || check.Name.StartsWith("endpoint-", StringComparison.Ordinal)),
+            check => Assert.Equal(CheckStatus.Skipped, check.Status));
+        Assert.True(report.Healthy);
+    }
+
+    [Fact]
+    public void Home()
+    {
+        string home = WithProfile();
+        Assert.Equal(CheckStatus.Pass, Doctor.CheckHome(home).Status);
+
+        DoctorCheck missing = Doctor.CheckHome(ProfileStoreTests.TempHome());
+        Assert.Equal(CheckStatus.Warn, missing.Status);
+        Assert.True(missing.Required);
+
+        string file = Path.Combine(home, "not-a-folder");
+        File.WriteAllText(file, "");
+        DoctorCheck failed = Doctor.CheckHome(file);
+        Assert.Equal(CheckStatus.Fail, failed.Status);
+        Assert.Contains("M365AEGIS_HOME", failed.Hint, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("pwsh=7.6.9\nmodule=3.10.0\n", CheckStatus.Pass, null)]
+    [InlineData("pwsh=7.6.0-preview.4\nmodule=\n", CheckStatus.Pass, null)]
+    [InlineData(null, CheckStatus.Warn, "pwsh -NoProfile")]
+    [InlineData("something else\n", CheckStatus.Warn, "pwsh -NoProfile")]
+    [InlineData("pwsh=7.4.6\nmodule=3.10.0\n", CheckStatus.Fail, "winget upgrade Microsoft.PowerShell")]
+    public void Pwsh(string? output, CheckStatus status, string? hint)
+    {
+        DoctorCheck check = Doctor.CheckPwsh(@"D:\tools\pwsh\pwsh.exe", PwshAnswer.Parse(output));
+
+        Assert.Equal(status, check.Status);
+        Assert.True(check.Required);
+        AssertHint(hint, check);
+    }
+
+    [Fact]
+    public void PwshMissingFailsWithWhatToInstall()
+    {
+        DoctorCheck check = Doctor.CheckPwsh(null, null);
+
+        Assert.Equal(CheckStatus.Fail, check.Status);
+        Assert.Equal("winget install Microsoft.PowerShell", check.Hint);
+    }
+
+    [Theory]
+    [InlineData("pwsh=7.6.9\nmodule=3.10.0\n", CheckStatus.Pass, null)]
+    [InlineData("pwsh=7.6.9\r\nmodule=3.11.1\r\n", CheckStatus.Pass, null)]
+    [InlineData("pwsh=7.6.9\nmodule=3.9.0\n", CheckStatus.Warn, "Update-Module ExchangeOnlineManagement")]
+    [InlineData("pwsh=7.6.9\nmodule=\n", CheckStatus.Fail, "Install-Module ExchangeOnlineManagement -Scope CurrentUser")]
+    [InlineData(null, CheckStatus.Skipped, null)]
+    public void ExchangeOnlineModule(string? output, CheckStatus status, string? hint)
+    {
+        DoctorCheck check = Doctor.CheckExchangeModule(@"D:\tools\pwsh\pwsh.exe", PwshAnswer.Parse(output));
+
+        Assert.Equal(status, check.Status);
+        Assert.False(check.Required);
+        AssertHint(hint, check);
+    }
+
+    [Fact]
+    public void TheModuleIsSkippedWithoutPwsh() =>
+        Assert.Equal(CheckStatus.Skipped, Doctor.CheckExchangeModule(null, null).Status);
+
+    [Fact]
+    public void TheSidecarScriptAgainstTheBuild()
+    {
+        Assert.Equal(CheckStatus.Pass, Doctor.CheckSidecarScript(Script, Script).Status);
+
+        byte[] crlf = Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(Script).Replace("\n", "\r\n", StringComparison.Ordinal));
+        DoctorCheck lineEndings = Doctor.CheckSidecarScript(crlf, Script);
+        Assert.Equal(CheckStatus.Warn, lineEndings.Status);
+        Assert.Contains("line endings", lineEndings.Detail, StringComparison.Ordinal);
+
+        byte[] changed = Encoding.UTF8.GetBytes("Invoke-Expression $evil\n");
+        DoctorCheck tampered = Doctor.CheckSidecarScript(changed, Script);
+        Assert.Equal(CheckStatus.Fail, tampered.Status);
+        Assert.True(tampered.Required);
+        Assert.Contains("changed after the build", tampered.Detail, StringComparison.Ordinal);
+        Assert.Contains("reinstall", tampered.Hint, StringComparison.Ordinal);
+
+        Assert.Equal(CheckStatus.Fail, Doctor.CheckSidecarScript(null, Script).Status);
+        Assert.Equal(CheckStatus.Fail, Doctor.CheckSidecarScript(Script, null).Status);
+    }
+
+    [Fact]
+    public void TheBuildCarriesTheScriptAndTheCopyNextToTheAssemblyMatchesIt()
+    {
+        byte[]? build = SidecarScript.ReadBuildCopy();
+
+        Assert.NotNull(build);
+        Assert.StartsWith("#Requires -Version 7.6", Encoding.UTF8.GetString(build), StringComparison.Ordinal);
+        Assert.True(File.Exists(SidecarScript.InstalledPath), SidecarScript.InstalledPath);
+        Assert.Equal(CheckStatus.Pass, Doctor.CheckSidecarScript(File.ReadAllBytes(SidecarScript.InstalledPath), build).Status);
+    }
+
+    [Theory]
+    [InlineData("141.0.3537.71", null, CheckStatus.Pass, null)]
+    [InlineData(null, "141.0.3537.71", CheckStatus.Pass, null)]
+    [InlineData("109.0.1518.78", null, CheckStatus.Warn, "winget upgrade Microsoft.EdgeWebView2Runtime")]
+    [InlineData("0.0.0.0", "", CheckStatus.Fail, "winget install Microsoft.EdgeWebView2Runtime")]
+    [InlineData(null, null, CheckStatus.Fail, "winget install Microsoft.EdgeWebView2Runtime")]
+    public void WebView2(string? perMachine, string? perUser, CheckStatus status, string? hint)
+    {
+        DoctorCheck check = Doctor.CheckWebView2(Fake(ProfileStoreTests.TempHome(), webView2: [perMachine, perUser]));
+
+        Assert.Equal(status, check.Status);
+        Assert.False(check.Required);
+        AssertHint(hint, check);
+    }
+
+    [Fact]
+    public void WebView2AndTheDeviceAreSkippedOffWindows()
+    {
+        DoctorEnvironment environment = Fake(ProfileStoreTests.TempHome()) with { IsWindows = false };
+
+        Assert.Equal(CheckStatus.Skipped, Doctor.CheckWebView2(environment).Status);
+        Assert.Equal(CheckStatus.Skipped, Doctor.CheckDevice(environment).Status);
+    }
+
+    [Fact]
+    public void Config()
+    {
+        DoctorCheck pass = Doctor.CheckConfig(WithProfile());
+        Assert.Equal(CheckStatus.Pass, pass.Status);
+        Assert.Contains("default 'work'", pass.Detail, StringComparison.Ordinal);
+
+        DoctorCheck missing = Doctor.CheckConfig(ProfileStoreTests.TempHome());
+        Assert.Equal(CheckStatus.Warn, missing.Status);
+        Assert.Contains("login --tenant", missing.Hint, StringComparison.Ordinal);
+
+        string twoWithoutDefault = ProfileStoreTests.TempHome();
+        Directory.CreateDirectory(twoWithoutDefault);
+        File.WriteAllText(Path.Combine(twoWithoutDefault, "config.json"), """
+            {"profiles":{"work":{"tenant":"contoso.onmicrosoft.com","clientId":"00000000-0000-0000-0000-000000000010","account":"alice@contoso.com"},
+                         "lab":{"tenant":"fabrikam.onmicrosoft.com","clientId":"00000000-0000-0000-0000-000000000010","account":"alice@fabrikam.com"}}}
+            """);
+        DoctorCheck noDefault = Doctor.CheckConfig(twoWithoutDefault);
+        Assert.Equal(CheckStatus.Warn, noDefault.Status);
+        Assert.Contains("profile use", noDefault.Hint, StringComparison.Ordinal);
+
+        string broken = ProfileStoreTests.TempHome();
+        Directory.CreateDirectory(broken);
+        File.WriteAllText(Path.Combine(broken, "config.json"), "{ not json");
+        DoctorCheck fail = Doctor.CheckConfig(broken);
+        Assert.Equal(CheckStatus.Fail, fail.Status);
+        Assert.False(fail.Required);
+        Assert.NotNull(fail.Hint);
+    }
+
+    [Theory]
+    [InlineData("dsregcmd-entra-joined.txt", CheckStatus.Pass, "primary refresh token")]
+    [InlineData("dsregcmd-registered.txt", CheckStatus.Warn, "registered, not Entra-joined")]
+    [InlineData("dsregcmd-neither.txt", CheckStatus.Fail, "neither Entra-joined nor registered")]
+    public void Device(string fixture, CheckStatus status, string detail)
+    {
+        DoctorCheck check = Doctor.CheckDevice(Fake(ProfileStoreTests.TempHome(), deviceState: Fixture(fixture)));
+
+        Assert.Equal(status, check.Status);
+        Assert.False(check.Required);
+        Assert.Contains(detail, check.Detail, StringComparison.Ordinal);
+        if (status == CheckStatus.Fail)
+        {
+            Assert.Contains("Access work or school", check.Hint, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void AnEntraJoinedMachineWithoutAPrimaryRefreshTokenIsAWarning()
+    {
+        string output = Fixture("dsregcmd-entra-joined.txt").Replace("AzureAdPrt : YES", "AzureAdPrt : NO", StringComparison.Ordinal);
+
+        DoctorCheck check = Doctor.CheckDevice(Fake(ProfileStoreTests.TempHome(), deviceState: output));
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.NotNull(check.Hint);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("dsregcmd: the command failed\n")]
+    public void AnUnreadableDeviceStateIsAWarning(string? output) =>
+        Assert.Equal(CheckStatus.Warn, Doctor.CheckDevice(Fake(ProfileStoreTests.TempHome(), deviceState: output)).Status);
+
+    [Fact]
+    public void TheDeviceDetailNeverNamesTheTenant()
+    {
+        DoctorCheck check = Doctor.CheckDevice(Fake(ProfileStoreTests.TempHome(), deviceState: Fixture("dsregcmd-entra-joined.txt")));
+
+        Assert.DoesNotContain("00000000", check.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("CONTOSO", check.Detail, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SignIn()
+    {
+        DoctorCheck pass = await Doctor.CheckSignInAsync(Fake(WithProfile()), CancellationToken.None);
+        Assert.Equal(CheckStatus.Pass, pass.Status);
+        Assert.StartsWith("alice@contoso.com: graph token until 2026-10-29 15:00 +01:00, exchange token until", pass.Detail, StringComparison.Ordinal);
+
+        DoctorCheck partial = await Doctor.CheckSignInAsync(Fake(WithProfile(), signIn: (_, _) => Task.FromResult(AuthSamples.NoExchangeToken)), CancellationToken.None);
+        Assert.Equal(CheckStatus.Warn, partial.Status);
+        Assert.Contains("no exchange token (consent_required", partial.Detail, StringComparison.Ordinal);
+
+        DoctorCheck failed = await Doctor.CheckSignInAsync(
+            Fake(WithProfile(), signIn: (_, _) => throw new AegisException(FailureKind.Auth, "no silent sign-in for alice@contoso.com", "run `m365-aegis login`")),
+            CancellationToken.None);
+        Assert.Equal(CheckStatus.Fail, failed.Status);
+        Assert.False(failed.Required);
+        Assert.Equal("run `m365-aegis login`", failed.Hint);
+    }
+
+    [Fact]
+    public async Task WithoutAProfileTheSignInIsAWarningAndNeverReachesTheBroker()
+    {
+        bool called = false;
+        DoctorEnvironment environment = Fake(ProfileStoreTests.TempHome(), signIn: (_, _) => { called = true; return Task.FromResult(AuthSamples.SignedIn); });
+
+        DoctorCheck check = await Doctor.CheckSignInAsync(environment, CancellationToken.None);
+
+        Assert.False(called);
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.Contains("login --tenant", check.Hint, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(200, 80, null, CheckStatus.Pass, null)]
+    [InlineData(405, 120, null, CheckStatus.Pass, null)]
+    [InlineData(407, 90, null, CheckStatus.Warn, "proxy")]
+    [InlineData(200, 4200, null, CheckStatus.Warn, "network path")]
+    [InlineData(null, 10000, "No such host is known.", CheckStatus.Fail, "firewall")]
+    public void Endpoint(int? status, int milliseconds, string? error, CheckStatus expected, string? hint)
+    {
+        var answer = new EndpointAnswer(status, TimeSpan.FromMilliseconds(milliseconds), error);
+
+        DoctorCheck check = Doctor.CheckEndpoint("endpoint-graph", new Uri("https://graph.microsoft.com/v1.0/"), answer);
+
+        Assert.Equal(expected, check.Status);
+        Assert.True(check.Required);
+        Assert.StartsWith("graph.microsoft.com: ", check.Detail, StringComparison.Ordinal);
+        if (hint is null)
+        {
+            Assert.Null(check.Hint);
         }
         else
         {
-            Assert.NotEqual(CheckStatus.Skipped, check.Status);
-            Assert.Contains(pwsh, check.Detail, StringComparison.Ordinal);
+            Assert.Contains(hint, check.Hint, StringComparison.Ordinal);
         }
     }
+
+    [Fact]
+    public async Task AnUnreachableEndpointFailsTheReportWithTen()
+    {
+        DoctorEnvironment environment = Fake(WithProfile()) with
+        {
+            Probe = (uri, _) => Task.FromResult(uri.Host == "outlook.office365.com"
+                ? new EndpointAnswer(null, TimeSpan.FromSeconds(10), "timed out")
+                : new EndpointAnswer(200, TimeSpan.FromMilliseconds(50), null)),
+        };
+
+        DoctorReport report = await Doctor.RunAsync(environment, offline: false, CancellationToken.None);
+
+        Assert.False(report.Healthy);
+        Assert.Equal(ExitCode.DoctorFailed, report.ToResult().ExitCode);
+        Assert.Equal(CheckStatus.Fail, Assert.Single(report.Checks, check => check.Name == "endpoint-exchange").Status);
+    }
+
+    [Fact]
+    public async Task AFailureOfACheckThatIsNotRequiredKeepsTheReportHealthy()
+    {
+        DoctorEnvironment environment = Fake(WithProfile(), webView2: [null, null], deviceState: Fixture("dsregcmd-neither.txt"));
+
+        DoctorReport report = await Doctor.RunAsync(environment, offline: true, CancellationToken.None);
+
+        Assert.True(report.Healthy);
+        Assert.Equal(2, report.Checks.Count(check => check.Status == CheckStatus.Fail));
+    }
+
+    [Fact]
+    public async Task ThisMachineOfflineGivesAReportWithEveryCheck()
+    {
+        // No assumption about the machine: the checks run and each has an outcome; nothing touches the network.
+        DoctorReport report = await Doctor.RunAsync(ProfileStoreTests.TempHome(), null, offline: true, CancellationToken.None);
+
+        Assert.Equal(12, report.Checks.Count);
+        DoctorCheck pwsh = Assert.Single(report.Checks, check => check.Name == "pwsh");
+        string? found = Doctor.FindPwsh();
+        Assert.Equal(found is null ? CheckStatus.Fail : pwsh.Status, pwsh.Status);
+        Assert.NotEqual(CheckStatus.Skipped, pwsh.Status);
+    }
+
+    [Fact]
+    public void ThePwshScriptAsksForBothVersionsInOneCall()
+    {
+        Assert.Contains("'pwsh='", Doctor.PwshScript, StringComparison.Ordinal);
+        Assert.Contains("'module='", Doctor.PwshScript, StringComparison.Ordinal);
+        Assert.Contains("M365AEGIS_EXO_MODULE_ROOT", Doctor.PwshScript, StringComparison.Ordinal);
+    }
+
+    private static void AssertHint(string? expected, DoctorCheck check)
+    {
+        if (expected is null)
+        {
+            Assert.Null(check.Hint);
+        }
+        else
+        {
+            Assert.Contains(expected, check.Hint, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>A home folder with one profile, the default.</summary>
+    private static string WithProfile()
+    {
+        string home = ProfileStoreTests.TempHome();
+        new ProfileStore(home).Save(new TenantProfile("work", "contoso.onmicrosoft.com", "00000000-0000-0000-0000-000000000010", "alice@contoso.com"));
+        return home;
+    }
+
+    private static string Fixture(string fileName) =>
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "doctor", fileName));
+
+    /// <summary>A machine where everything is in place, with the given parts replaced.</summary>
+    private static DoctorEnvironment Fake(
+        string home,
+        IReadOnlyList<string?>? webView2 = null,
+        string? deviceState = "",
+        Func<string?, CancellationToken, Task<SignInInfo>>? signIn = null) => new()
+        {
+            Home = home,
+            IsWindows = true,
+            RuntimeVersion = "10.0.4",
+            FindPwsh = () => @"D:\tools\pwsh\pwsh.exe",
+            RunPwsh = (_, _) => "pwsh=7.6.9\nmodule=3.10.0\n",
+            ReadWebView2Versions = () => webView2 ?? ["141.0.3537.71", null],
+            ReadDeviceState = () => deviceState == "" ? Fixture("dsregcmd-entra-joined.txt") : deviceState,
+            ReadInstalledSidecar = () => Script,
+            ReadBuildSidecar = () => Script,
+            SignIn = signIn ?? ((_, _) => Task.FromResult(AuthSamples.SignedIn)),
+            Probe = (_, _) => Task.FromResult(new EndpointAnswer(200, TimeSpan.FromMilliseconds(80), null)),
+        };
 }

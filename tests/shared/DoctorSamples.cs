@@ -17,11 +17,14 @@ internal static class DoctorSamples
     /// <summary>A meta of a Graph call, with one request id of the made-up form.</summary>
     internal static EnvelopeMeta GraphMeta { get; } = new(["00000000-0000-0000-0000-000000000001"], 345, Backend.Graph);
 
-    /// <summary>Every check passes or is skipped; the report is healthy.</summary>
+    /// <summary>Every check of an online run passes; the report is healthy.</summary>
     internal static DoctorReport Healthy => Read("healthy.json");
 
-    /// <summary>The required pwsh check fails; the report is not healthy.</summary>
+    /// <summary>The required pwsh check fails in an offline run; the report is not healthy.</summary>
     internal static DoctorReport PwshMissing => Read("pwsh-missing.json");
+
+    /// <summary>Warnings, and a failure of a check that is not required, each with its fix: healthy all the same.</summary>
+    internal static DoctorReport Warnings => Read("warnings.json");
 
     private static DoctorReport Read(string fileName)
     {

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using M365Aegis.Core.Auth;
+using M365Aegis.Core.Config;
 using M365Aegis.Core.Output;
 
 namespace M365Aegis.Tests;
@@ -19,6 +20,25 @@ internal static class AuthSamples
 
     /// <summary>One account record removed.</summary>
     internal static SignOutInfo SignedOut { get; } = new("default", "alice@contoso.com", 1);
+
+    /// <summary>Two profiles of <c>profile list</c>, the first the default (task 024).</summary>
+    internal static ProfileList Profiles { get; } = new(
+        @"D:\aegis-home\config.json",
+        "work",
+        [
+            new("work", "contoso.onmicrosoft.com", "00000000-0000-0000-0000-000000000010", "alice@contoso.com", IsDefault: true),
+            new("lab", "fabrikam.onmicrosoft.com", "00000000-0000-0000-0000-000000000011", "alice@fabrikam.com", IsDefault: false),
+        ]);
+
+    /// <summary>Two profiles and no default: the footer says how to pick one.</summary>
+    internal static ProfileList ProfilesWithoutDefault { get; } = Profiles with
+    {
+        Default = null,
+        Profiles = [.. Profiles.Profiles.Select(profile => profile with { IsDefault = false })],
+    };
+
+    /// <summary>A profile removed after its account was signed out; the other one is the default.</summary>
+    internal static ProfileRemoval RemovedProfile { get; } = new("lab", "alice@fabrikam.com", SignedOut: true, RemovedAccounts: 1, Default: "work");
 
     private static SignInInfo Read(string fileName)
     {

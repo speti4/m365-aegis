@@ -1,0 +1,9 @@
+﻿--- stdout ---
+default  name  tenant                    account             client id
+-------  ----  ------------------------  ------------------  ------------------------------------
+         work  contoso.onmicrosoft.com   alice@contoso.com   00000000-0000-0000-0000-000000000010
+         lab   fabrikam.onmicrosoft.com  alice@fabrikam.com  00000000-0000-0000-0000-000000000011
+
+file: D:\aegis-home\config.json
+no default: commands need --profile, or `m365-aegis profile use <name>` picks one
+--- stderr ---

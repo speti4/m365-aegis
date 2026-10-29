@@ -1,4 +1,5 @@
 using M365Aegis.Core.Auth;
+using M365Aegis.Core.Config;
 using M365Aegis.Core.Diagnostics;
 using M365Aegis.Core.Output;
 using M365Aegis.Tests;
@@ -63,6 +64,44 @@ public sealed class EnvelopeSnapshotTests
         CommandResult<SignInInfo> result = CommandResult.Failure<SignInInfo>(failure);
 
         Assert.Equal(ExitCode.Auth, result.ExitCode);
+        return Verify(EnvelopeJson.Serialize(result.ToEnvelope(DoctorSamples.LocalMeta)), extension: "json");
+    }
+
+    [Fact]
+    public Task ADoctorReportWithWarningsAndTheirFixes()
+    {
+        CommandResult<DoctorReport> result = DoctorSamples.Warnings.ToResult();
+
+        Assert.Equal(ExitCode.Ok, result.ExitCode);
+        return Verify(EnvelopeJson.Serialize(result.ToEnvelope(DoctorSamples.LocalMeta)), extension: "json");
+    }
+
+    [Fact]
+    public Task AnInternalError()
+    {
+        var failure = new AegisFailure(
+            FailureKind.Internal,
+            "an unexpected internal error stopped the command (InvalidOperationException: boom)",
+            @"the stack trace is in D:\aegis-home\logs\m365-aegis-2026-10-29.log; report it with that log");
+        CommandResult<object> result = CommandResult.Failure<object>(failure);
+
+        Assert.Equal(ExitCode.Internal, result.ExitCode);
+        return Verify(EnvelopeJson.Serialize(result.ToEnvelope(DoctorSamples.LocalMeta)), extension: "json");
+    }
+
+    [Fact]
+    public Task AProfileList()
+    {
+        CommandResult<ProfileList> result = CommandResult.Success(AuthSamples.Profiles);
+
+        return Verify(EnvelopeJson.Serialize(result.ToEnvelope(DoctorSamples.LocalMeta)), extension: "json");
+    }
+
+    [Fact]
+    public Task AProfileRemoval()
+    {
+        CommandResult<ProfileRemoval> result = CommandResult.Success(AuthSamples.RemovedProfile);
+
         return Verify(EnvelopeJson.Serialize(result.ToEnvelope(DoctorSamples.LocalMeta)), extension: "json");
     }
 }

@@ -7,9 +7,10 @@ checks before a commit and the project rules are in [CONTRIBUTING.md](../CONTRIB
 
 - `src/M365Aegis.Core` — the library: the sign-in (`Auth`, task 002), the Graph client (`Graph`, task 003), the
   Exchange Online backends and the sidecar script (`Exchange`, D-004; `Exchange/Sidecar/aegis-exo-sidecar.ps1`
-  travels to every exe's output as `sidecar\`), operations with their plans (`Operations`, M3), the output
-  contract (`Output`: the envelope, the exit codes, D-006), the home folder (`Config`), the doctor
-  (`Diagnostics`) and the window's message protocol (`Bridge`). Plain `net10.0`, so the tests run on Linux; the
+  travels to every exe's output as `sidecar\` and is embedded in the Core for the doctor's hash check),
+  operations with their plans (`Operations`, M3), the output contract (`Output`: the envelope, the exit codes,
+  D-006), the home folder and the tenant profiles (`Config`), the doctor and the log (`Diagnostics`) and the
+  window's message protocol (`Bridge`). Plain `net10.0`, so the tests run on Linux; the
   Windows-only paths sit behind `OperatingSystem.IsWindows()`.
 - `src/M365Aegis.Cli` — the `m365-aegis` executable: the commands under `Commands/`, each with the table view of
   its result type, and the one rendering path under `Output/` (the command runner, the renderer, the table view
@@ -70,10 +71,28 @@ line here.
 
 Everything the tool keeps lives under `%LOCALAPPDATA%\m365-aegis\` (D-005): `config.json` with the tenant
 profiles, `msal-cache.bin` (DPAPI, with a `.lockfile` next to it while a process reads or writes it, so the
-command line and the window share one cache), `webview2\`, `logs\` (never a token or a response body) and
-`plans\` with the plan records. `M365AEGIS_HOME` overrides the folder; the tests point it at a temporary one.
+command line and the window share one cache), `webview2\`, `logs\` and `plans\` with the plan records.
+`M365AEGIS_HOME` overrides the folder; the tests point it at a temporary one.
+
+`logs\` holds one file a day, `m365-aegis-yyyy-MM-dd.log`, appended to by every process (tasks 021 and 025): the
+stack trace of an unexpected internal error, always (exit code 70, see [The output contract](#the-output-contract)),
+and, only under the recursive `--verbose` option, MSAL's own log of the sign-in (`WithLogging` with PII logging
+off, every level, so a broker error code or a Conditional Access verdict names its step). A run without
+`--verbose` registers no logging callback and a run without an error writes nothing, not even the folder. Every
+entry is scrubbed before it is written (`Diagnostics/LogSink.cs`): the profile's tenant, client id and account,
+and anything shaped like a JWT, a bearer header, an OAuth secret or identity parameter (`code=`,
+`access_token=`, `login_hint=`, … in a query string or a JSON body), a user principal name, a GUID or a
+`*.onmicrosoft.com` name, so no token, authorization code or user principal name reaches the file and a log can be
+attached to a bug report as it is. Never a response body either.
+
 `config.json` is written by `login --tenant … --client-id … --account …` (the first profile becomes the default;
-`--profile <name>` on any command picks another one) and may be edited by hand:
+`--profile <name>` on any command picks another one), managed by `profile list` (the profiles, the default one
+marked with `*`), `profile use <name>` (moves the default) and `profile remove <name>` (signs the profile's account
+out first, unless another profile uses the same app registration and account; a failed sign-out keeps the
+profile; when the default goes, the only profile left becomes the default, and with several left none does) (task
+024), and may be edited by hand. `use` and `remove` with a name the file does not have answer exit code 4
+(`not-found`); a profile without its tenant, client id or account is the file's fault, exit code 3 with the fix as
+the hint:
 
 ```json
 {
@@ -98,8 +117,10 @@ tagged `{"aegis":1,…}`; everything else the process prints is sent to stderr (
 standard output for its error stream at start-up and keeps the original for the protocol), so a module banner
 cannot corrupt the channel. Only the cmdlets on the script's allow-list run. The window keeps the sidecar warm;
 the command line starts it on demand. `M365AEGIS_EXO_MODULE_ROOT` makes the script look for the module in one
-folder only, which the tests use for the fake module. The doctor checks pwsh 7.6, the module version and the
-script's hash.
+folder only, which the tests use for the fake module. The doctor checks pwsh 7.6, the module version (from the same
+folder when the variable is set) and the script's hash: the script is also embedded in the Core
+(`Exchange/SidecarScript.cs`), and the copy next to the exe has to have the same SHA-256, since it runs with the
+administrator's Exchange Online token (see [The doctor](#the-doctor)).
 
 ## The front end
 
@@ -127,15 +148,31 @@ primitives, variant classes, the class-name helper, the icons, the animations, t
 Every answer of the command line is one of two renderings of the same data (D-006): a table for a terminal, or
 the JSON envelope `{"ok":…,"data":…,"error":{"code","message","hint"},"meta":{"requestIds","elapsedMs",
 "backend"}}` on one line for a pipe or an agent; `--json` and `--table` force one. The exit codes are the
-`ExitCode` enum in the Core (0 ok, 2 usage, 3 auth, 4 not found, 5 throttled, 6 partial, 7 refused without
-`--yes`, 10 a required doctor check failed) and never change meaning. A write is a plan the command prints
+`ExitCode` enum in the Core and never change meaning:
+
+| code | error code | meaning |
+| --- | --- | --- |
+| 0 | | ok |
+| 2 | `usage` | an unknown command or option, a missing argument; nothing was called |
+| 3 | `auth` | no usable sign-in |
+| 4 | `not-found` | the named object (or profile) does not exist |
+| 5 | `throttled` | the service throttled the request and the retries ran out |
+| 6 | `partial` | some items of a bulk operation failed; the data lists both |
+| 7 | `refused-without-yes` | a write without `--yes`; the plan is the data |
+| 10 | `doctor-failed` | a required doctor check failed; the report is the data |
+| 70 | `internal` | the tool broke: an unexpected exception stopped the command (task 021); `EX_SOFTWARE` of sysexits.h |
+
+A write is a plan the command prints
 under `--dry-run` and applies under `--yes`; the window shows the same plan and asks for a confirmation.
 
 In code the path is one. A command's work returns a `CommandResult<T>` (`M365Aegis.Core.Output`): the data,
 whole on success or partial on a failure, and an `AegisFailure` when something went wrong, which is a
 `FailureKind` (its stable kebab-case error code and its exit code follow from the kind), one sentence and a
 hint. An operation of the core that cannot finish throws an `AegisException` carrying such a failure.
-`CommandRunner` in the Cli times the work, turns the exception into the failed result, builds the meta
+`CommandRunner` in the Cli times the work, turns the exception into the failed result, turns any other
+exception (a bug) into the `internal` failure, whose message is the exception's type and its message, scrubbed
+like a log line, and whose hint names the log file that got the stack trace (the stack trace never reaches the
+answer; a cancellation is left to the command line library), builds the meta
 (`Backend` names the backend) and hands the result to `Renderer`, which writes the envelope on stdout, or the
 table: the data on stdout through the result type's `ITableView<T>` (the columns, a row per item, the footer
 lines), and the failure as an `error: <message> (<code>)` line and a `hint:` line on stderr. The exit code is
@@ -144,7 +181,9 @@ command therefore adds a result type to the Core (plain data without presentatio
 type over the bridge), an `ITableView<T>` next to the command, and `CommandRunner.Run(mode, backend, work,
 view)` as the command's action; it never writes to the console itself. A new failure condition gets a new
 `FailureKind` with a new code and a new `ExitCode` number, never a reused one. `doctor` is the first command on
-the path: its result type is `DoctorReport`, its table view sits in `DoctorCommand`.
+the path: its result type is `DoctorReport`, its table view sits in `DoctorCommand`. With
+`M365AEGIS_TEST_FAULT=internal-error` in the environment the runner throws before any work, which is how the
+child-process tests see an internal error the way a shell does.
 
 The snapshot tests (Verify) hold both renderings byte for byte over the scrubbed doctor reports under
 `tests/fixtures/doctor/`, which `tests/shared/DoctorSamples.cs` reads back with the contract's own JSON options:
@@ -155,6 +194,34 @@ intended one, the change of the contract is accepted by renaming the received fi
 committing it; `scripts/check-fixtures.py` scans the snapshot folders with the fixtures, so an accepted
 snapshot cannot carry tenant data either. `DiffEngine_Disabled=true` in the environment keeps Verify from
 opening a diff tool in a non-interactive run.
+
+### The doctor
+
+`m365-aegis doctor` is what a colleague runs first when the tool does not work, and the prerequisite check the
+framework-dependent publish relies on (D-007; task 008). Each check is a row with `pass`, `warn`, `fail` (`FAIL`
+when it is required) or `skip`; a warning or a failure carries a hint, which the table prints under the rows as a
+`fix <check>: …` line and the envelope as the check's `hint`. A required check that fails makes the report fail
+with exit code 10; every other outcome exits 0. `--offline` skips the sign-in and the endpoints, the two checks
+that need the network.
+
+| check | required | pass | warn | fail (with the fix) |
+| --- | --- | --- | --- | --- |
+| `home` | yes | the folder exists | not created yet | a file, not a folder |
+| `dotnet-runtime` | no | the runtime the process runs on (a fact, so it has no warn or fail) | | |
+| `pwsh` | yes | 7.6 or later on PATH | the version is unreadable | missing (`winget install Microsoft.PowerShell`) or older |
+| `exchange-online-module` | no | 3.10 or later | older (`Update-Module`) | not installed (`Install-Module … -Scope CurrentUser`); skipped without pwsh |
+| `sidecar-script` | yes | the SHA-256 of `sidecar\aegis-exo-sidecar.ps1` matches the copy compiled into the Core | differs in its line endings only | missing or changed (reinstall the release zip) |
+| `webview2-runtime` | no | the `pv` of the EdgeUpdate client key, 120 or later | older (Edge Update is blocked) | not installed (`winget install Microsoft.EdgeWebView2Runtime`); skipped off Windows |
+| `config` | no | the profiles and the default | no file (the login command), no profile, or no default (`profile use`) | the file does not parse, or a profile lacks a value |
+| `device` | no | Entra-joined with a primary refresh token | registered only, or joined without a primary refresh token (task 013: the silent sign-in as the Windows account fails, the profile's account signs in instead), or `dsregcmd` unreadable | neither joined nor registered (Settings > Accounts > Access work or school) |
+| `sign-in` | no | the silent sign-in of `whoami`: the account and each token's expiry | no profile, or a resource without a token (the consent) | the silent sign-in failed (`login`) |
+| `endpoint-login`, `endpoint-graph`, `endpoint-exchange` | yes | any HTTP answer from `login.microsoftonline.com`, `graph.microsoft.com`, `outlook.office365.com` | a proxy asks for authentication (407), or slower than 3 s | no answer within 10 s (the network, the proxy, the firewall) |
+
+The pwsh and module checks are one pwsh call; the device check reads `AzureAdJoined`, `WorkplaceJoined` and
+`AzureAdPrt` of `dsregcmd /status` and nothing that names the tenant. Everything a check reads comes through
+`DoctorEnvironment` (`Diagnostics/DoctorEnvironment.cs`), which the tests replace part by part: the pwsh call, the
+registry, `dsregcmd` (the made-up outputs under `tests/fixtures/doctor/dsregcmd-*.txt`), the two copies of the
+script, the sign-in and the endpoint probe.
 
 ## CI and releases
 

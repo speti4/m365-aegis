@@ -3,10 +3,15 @@
   "checks": [
     { "name": "home", "status": "warn", "detail": "D:\\aegis-home does not exist yet; the first sign-in creates it", "required": true },
     { "name": "dotnet-runtime", "status": "pass", "detail": "10.0.4", "required": false },
-    { "name": "pwsh", "status": "fail", "detail": "pwsh not found on PATH; PowerShell 7.6 or later is needed for Exchange Online", "required": true },
-    { "name": "exchange-online-module", "status": "skipped", "detail": "not checked yet (task 008)", "required": false },
-    { "name": "webview2-runtime", "status": "skipped", "detail": "not checked yet (task 008)", "required": false },
-    { "name": "config", "status": "warn", "detail": "D:\\aegis-home\\config.json not found; `m365-aegis login` writes it (task 002)", "required": false },
-    { "name": "sign-in", "status": "skipped", "detail": "offline run", "required": false }
+    { "name": "pwsh", "status": "fail", "detail": "pwsh not found on PATH; PowerShell 7.6 or later is needed for Exchange Online", "required": true, "hint": "winget install Microsoft.PowerShell" },
+    { "name": "exchange-online-module", "status": "skipped", "detail": "pwsh did not answer", "required": false },
+    { "name": "sidecar-script", "status": "pass", "detail": "sha256 0123456789ab matches the build", "required": true },
+    { "name": "webview2-runtime", "status": "pass", "detail": "141.0.3537.71", "required": false },
+    { "name": "config", "status": "warn", "detail": "D:\\aegis-home\\config.json not found", "required": false, "hint": "run `m365-aegis login --tenant <tenant id or domain> --client-id <application id> --account <user@domain>` once" },
+    { "name": "device", "status": "fail", "detail": "neither Entra-joined nor registered: a Conditional Access policy that wants a known device blocks the sign-in", "required": false, "hint": "Settings > Accounts > Access work or school > Connect" },
+    { "name": "sign-in", "status": "skipped", "detail": "offline run", "required": false },
+    { "name": "endpoint-login", "status": "skipped", "detail": "offline run", "required": true },
+    { "name": "endpoint-graph", "status": "skipped", "detail": "offline run", "required": true },
+    { "name": "endpoint-exchange", "status": "skipped", "detail": "offline run", "required": true }
   ]
 }

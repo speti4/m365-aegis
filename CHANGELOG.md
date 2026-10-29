@@ -15,6 +15,10 @@ The repository, the task standard and the empty solution: no product yet.
 
 - Auth: MSAL.NET with the Windows account manager, interactive and device-code fallback, `login`, `logout`, `whoami` ([002](https://github.com/speti4/m365-aegis/blob/main/tasks/done/002-auth-with-msal-and-the-windows-account-manager.md))
 - Output contract (D-006): the envelope and the table for every command, exit codes, snapshot tests ([004](https://github.com/speti4/m365-aegis/blob/main/tasks/done/004-output-contract-envelope-table-and-exit-codes.md))
+- `doctor` with the full check list: the module version, WebView2, the sidecar hash, the sign-in, the endpoints ([008](https://github.com/speti4/m365-aegis/blob/main/tasks/done/008-doctor-with-the-full-check-list.md))
+- An exit code for an unexpected internal error ([021](https://github.com/speti4/m365-aegis/blob/main/tasks/done/021-exit-code-for-an-unexpected-internal-error.md))
+- `profile list`, `profile use` and `profile remove` over the tenant profiles of `config.json` ([024](https://github.com/speti4/m365-aegis/blob/main/tasks/done/024-profile-commands-list-use-remove.md))
+- MSAL's non-PII log into `logs\` behind a `--verbose` flag ([025](https://github.com/speti4/m365-aegis/blob/main/tasks/done/025-msal-logging-behind-verbose.md))
 
 ### Project housekeeping
 

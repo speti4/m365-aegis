@@ -151,6 +151,76 @@ public sealed class AuthServiceTests
         Assert.DoesNotContain(broker.Calls, call => call.StartsWith("interactive", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task ABrokerFailureOfTheSignOutIsAnAuthFailure()
+    {
+        var broker = new FakeTokenBroker { RemoveFailure = new BrokerException(BrokerErrorKind.Other, "wam_provider_error_0", "the broker did not answer") };
+        broker.Accounts.Add(FakeTokenBroker.Alice);
+        (AuthService service, _) = Service(broker, saveProfile: true);
+
+        AegisException exception = await Assert.ThrowsAsync<AegisException>(() => service.LogoutAsync(null, CancellationToken.None));
+
+        Assert.Equal(FailureKind.Auth, exception.Failure.Kind);
+        Assert.Contains("wam_provider_error_0", exception.Failure.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RemovingAProfileSignsItsAccountOutFirst()
+    {
+        var broker = new FakeTokenBroker();
+        broker.Accounts.AddRange([FakeTokenBroker.Alice, FakeTokenBroker.Bob]);
+        (AuthService service, _) = Service(broker, saveProfile: true);
+        service.Profiles.Save(new TenantProfile("lab", "fabrikam.onmicrosoft.com", "00000000-0000-0000-0000-000000000011", "bob@contoso.com"));
+
+        ProfileRemoval removal = await service.RemoveProfileAsync("default", CancellationToken.None);
+
+        Assert.True(removal.SignedOut);
+        Assert.Equal(1, removal.RemovedAccounts);
+        Assert.Equal(["accounts", "remove:alice@contoso.com"], broker.Calls);
+        Assert.Equal("lab", removal.Default);
+        Assert.Equal(["lab"], service.Profiles.List().Select(profile => profile.Name));
+    }
+
+    [Fact]
+    public async Task ASharedAccountIsNotSignedOutWhenAnotherProfileStillUsesIt()
+    {
+        var broker = new FakeTokenBroker();
+        broker.Accounts.Add(FakeTokenBroker.Alice);
+        (AuthService service, _) = Service(broker, saveProfile: true);
+        service.Profiles.Save(new TenantProfile("second", WithFlags.Tenant!, WithFlags.ClientId!.ToUpperInvariant(), "ALICE@contoso.com"));
+
+        ProfileRemoval removal = await service.RemoveProfileAsync("second", CancellationToken.None);
+
+        Assert.False(removal.SignedOut);
+        Assert.Empty(broker.Calls);
+        Assert.Equal([FakeTokenBroker.Alice], broker.Accounts);
+        Assert.Equal("default", removal.Default);
+    }
+
+    [Fact]
+    public async Task AFailedSignOutKeepsTheProfile()
+    {
+        var broker = new FakeTokenBroker { RemoveFailure = new BrokerException(BrokerErrorKind.Other, "wam_provider_error_0", "the broker did not answer") };
+        broker.Accounts.Add(FakeTokenBroker.Alice);
+        (AuthService service, _) = Service(broker, saveProfile: true);
+
+        await Assert.ThrowsAsync<AegisException>(() => service.RemoveProfileAsync("default", CancellationToken.None));
+
+        Assert.Equal("default", Assert.Single(service.Profiles.List()).Name);
+    }
+
+    [Fact]
+    public async Task RemovingAnUnknownProfileIsNotFoundAndTouchesNothing()
+    {
+        var broker = new FakeTokenBroker();
+        (AuthService service, _) = Service(broker, saveProfile: true);
+
+        AegisException exception = await Assert.ThrowsAsync<AegisException>(() => service.RemoveProfileAsync("nope", CancellationToken.None));
+
+        Assert.Equal(FailureKind.NotFound, exception.Failure.Kind);
+        Assert.Empty(broker.Calls);
+    }
+
     private static (AuthService Service, string Home) Service(FakeTokenBroker broker, bool saveProfile = false)
     {
         string home = ProfileStoreTests.TempHome();

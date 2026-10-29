@@ -1,0 +1,10 @@
+﻿--- stdout ---
+field       value
+----------  --------------------------------
+profile     lab
+account     alice@fabrikam.com
+signed out  yes, 1 account record(s) removed
+default     work
+
+the profile is removed
+--- stderr ---

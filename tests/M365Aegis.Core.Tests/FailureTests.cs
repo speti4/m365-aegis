@@ -13,6 +13,7 @@ public sealed class FailureTests
     [InlineData(FailureKind.Partial, 6, "partial")]
     [InlineData(FailureKind.RefusedWithoutYes, 7, "refused-without-yes")]
     [InlineData(FailureKind.DoctorFailed, 10, "doctor-failed")]
+    [InlineData(FailureKind.Internal, 70, "internal")]
     public void EveryKindHasItsExitCodeAndErrorCode(FailureKind kind, int exitCode, string code)
     {
         var failure = new AegisFailure(kind, "a sentence");
@@ -27,7 +28,7 @@ public sealed class FailureTests
     {
         FailureKind[] kinds = Enum.GetValues<FailureKind>();
 
-        Assert.Equal(7, kinds.Length);
+        Assert.Equal(8, kinds.Length);
         Assert.Equal(kinds.Length, kinds.Select(kind => kind.ToExitCode()).Distinct().Count());
         Assert.Equal(kinds.Length, kinds.Select(kind => kind.ToCode()).Distinct().Count());
         Assert.All(kinds, kind => Assert.NotEqual(ExitCode.Ok, kind.ToExitCode()));

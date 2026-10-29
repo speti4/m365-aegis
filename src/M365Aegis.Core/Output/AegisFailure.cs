@@ -26,6 +26,9 @@ public enum FailureKind
 
     /// <summary>A required doctor check failed; the report is the data.</summary>
     DoctorFailed,
+
+    /// <summary>An unexpected internal error stopped the command; the stack trace is in the log, not in the answer.</summary>
+    Internal,
 }
 
 /// <summary>The exit code and the error code of each failure kind: the mapping the tests hold fixed.</summary>
@@ -41,6 +44,7 @@ public static class FailureKinds
         FailureKind.Partial => ExitCode.Partial,
         FailureKind.RefusedWithoutYes => ExitCode.RefusedWithoutYes,
         FailureKind.DoctorFailed => ExitCode.DoctorFailed,
+        FailureKind.Internal => ExitCode.Internal,
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "a failure kind without an exit code"),
     };
 
@@ -54,6 +58,7 @@ public static class FailureKinds
         FailureKind.Partial => "partial",
         FailureKind.RefusedWithoutYes => "refused-without-yes",
         FailureKind.DoctorFailed => "doctor-failed",
+        FailureKind.Internal => "internal",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "a failure kind without an error code"),
     };
 }

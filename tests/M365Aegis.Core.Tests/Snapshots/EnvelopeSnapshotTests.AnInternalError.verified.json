@@ -1,0 +1,1 @@
+﻿{"ok":false,"error":{"code":"internal","message":"an unexpected internal error stopped the command (InvalidOperationException: boom)","hint":"the stack trace is in D:\\aegis-home\\logs\\m365-aegis-2026-10-29.log; report it with that log"},"meta":{"requestIds":[],"elapsedMs":12,"backend":"local"}}

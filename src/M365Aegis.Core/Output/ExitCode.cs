@@ -29,4 +29,12 @@ public enum ExitCode
 
     /// <summary>A required doctor check failed; the report names it.</summary>
     DoctorFailed = 10,
+
+    /// <summary>
+    /// The tool broke: an unexpected internal error stopped the command (task 021). The envelope says so in one
+    /// sentence, the stack trace goes to the log under the home folder's <c>logs</c> folder. The number is
+    /// <c>EX_SOFTWARE</c> of BSD's sysexits.h ("internal software error"), well apart from the codes that say the
+    /// request failed.
+    /// </summary>
+    Internal = 70,
 }

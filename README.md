@@ -61,7 +61,14 @@ $aegis = "src\M365Aegis.Cli\bin\Release\net10.0\m365-aegis.exe"
 ```
 
 Without a window (an SSH session, a scheduled task) `login` falls back to a device code on its own;
-`login --device-code` asks for it. `logout` forgets the account and keeps the profile.
+`login --device-code` asks for it. `logout` forgets the account and keeps the profile. A second tenant or account
+is another `login --profile <name> …`; `profile list` shows the profiles, `profile use <name>` picks the default
+and `profile remove <name>` signs one out and deletes it.
+
+When something does not work, `doctor` checks the prerequisites (pwsh and the Exchange Online module, the sidecar
+script, WebView2, the device's join state, the sign-in, the endpoints) and says what to install or do for each
+warning and failure. A sign-in that fails is diagnosed with `--verbose login`: the sign-in library's log, without
+tokens or personal data, goes to `%LOCALAPPDATA%\m365-aegis\logs\`.
 
 ## Documentation
 

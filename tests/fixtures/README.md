@@ -23,8 +23,13 @@ The tasks that add the fixtures name the files; the layout mirrors the request:
   `<file>.headers` sidecar adds response headers or a `Status:` line (task 003).
 - `adminapi/<path>.json` — an Exchange Online Admin API answer in the same shape (task 010).
 - `exo/<cmdlet>.json` — the objects an Exchange Online cmdlet returns through the sidecar (task 015).
-- `doctor/<state>.json` — a doctor report as the envelope carries it (`healthy.json`, `pwsh-missing.json`), the
-  samples the snapshot tests of both renderings read through `tests/shared/DoctorSamples.cs` (task 004).
+- `doctor/<state>.json` — a doctor report as the envelope carries it, the samples the snapshot tests of both
+  renderings read through `tests/shared/DoctorSamples.cs` (tasks 004 and 008): `healthy.json` (an online run,
+  every check passes), `pwsh-missing.json` (an offline run with the required pwsh check failed),
+  `warnings.json` (warnings and a failure of a check that is not required, each with its fix).
+- `doctor/dsregcmd-<state>.txt` — a made-up `dsregcmd /status` output for the device check (task 008):
+  `dsregcmd-entra-joined.txt` (with a primary refresh token), `dsregcmd-registered.txt` (registered only, the
+  case task 013 measured), `dsregcmd-neither.txt`; the device name and the tenant in them are made up too.
 - `auth/<state>.json` — a sign-in result as the envelope carries it (`signed-in.json`, `no-exchange-token.json`:
   the account, the tenant and object ids, a token's expiry and scopes per resource, never a token), read through
   `tests/shared/AuthSamples.cs` (task 002).

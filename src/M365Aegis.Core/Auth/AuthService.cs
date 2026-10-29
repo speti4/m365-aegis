@@ -59,16 +59,25 @@ public sealed class AuthService
     public async Task<SignOutInfo> LogoutAsync(string? profileName, CancellationToken cancellationToken)
     {
         TenantProfile profile = Profiles.Resolve(profileName);
-        ITokenBroker broker = _brokerFactory(profile);
-        IReadOnlyList<AccountInfo> accounts = await broker.GetAccountsAsync(cancellationToken).ConfigureAwait(false);
-        int removed = 0;
-        foreach (AccountInfo account in accounts.Where(account => string.Equals(account.Username, profile.Account, StringComparison.OrdinalIgnoreCase)))
-        {
-            await broker.RemoveAsync(account, cancellationToken).ConfigureAwait(false);
-            removed++;
-        }
-
+        int removed = await SignOutAsync(profile, cancellationToken).ConfigureAwait(false);
         return new SignOutInfo(profile.Name, profile.Account, removed);
+    }
+
+    /// <summary>
+    /// <c>profile remove</c>: signs the profile's account out, then deletes the profile from the file. The sign-out
+    /// is skipped when another profile uses the same app registration and account, which would be signed out with it;
+    /// when the sign-out fails, the profile stays.
+    /// </summary>
+    public async Task<ProfileRemoval> RemoveProfileAsync(string profileName, CancellationToken cancellationToken)
+    {
+        TenantProfile profile = Profiles.Find(profileName);
+        bool shared = Profiles.List().Any(other =>
+            other.Name != profile.Name
+            && string.Equals(other.ClientId, profile.ClientId, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(other.Account, profile.Account, StringComparison.OrdinalIgnoreCase));
+        int removed = shared ? 0 : await SignOutAsync(profile, cancellationToken).ConfigureAwait(false);
+        string? defaultAfter = Profiles.Remove(profile.Name);
+        return new ProfileRemoval(profile.Name, profile.Account, !shared, removed, defaultAfter);
     }
 
     /// <summary>
@@ -83,6 +92,32 @@ public sealed class AuthService
     }
 
     private static Task NoPrompt(DeviceCodePrompt prompt) => Task.CompletedTask;
+
+    /// <summary>Removes every account record of the profile's user; a broker failure is an auth failure of the contract.</summary>
+    private async Task<int> SignOutAsync(TenantProfile profile, CancellationToken cancellationToken)
+    {
+        ITokenBroker broker = _brokerFactory(profile);
+        try
+        {
+            IReadOnlyList<AccountInfo> accounts = await broker.GetAccountsAsync(cancellationToken).ConfigureAwait(false);
+            int removed = 0;
+            foreach (AccountInfo account in accounts.Where(account => string.Equals(account.Username, profile.Account, StringComparison.OrdinalIgnoreCase)))
+            {
+                await broker.RemoveAsync(account, cancellationToken).ConfigureAwait(false);
+                removed++;
+            }
+
+            return removed;
+        }
+        catch (BrokerException exception)
+        {
+            throw new AegisException(
+                FailureKind.Auth,
+                $"the sign-out of {profile.Account} failed ({exception.Code}: {exception.Message})",
+                "try again; the profile is unchanged",
+                exception);
+        }
+    }
 
     private static async Task<SignInInfo> SignInAsync(
         ITokenBroker broker, TenantProfile profile, SignInMode mode, Func<DeviceCodePrompt, Task> prompt, CancellationToken cancellationToken)

@@ -32,6 +32,8 @@
     <!-- The Exchange Online sidecar script travels next to every exe that references the Core, as sidecar\ (D-004);
          the doctor checks its hash and the release zip carries it at the same path. -->
     <None Include="Exchange\Sidecar\aegis-exo-sidecar.ps1" Link="sidecar\aegis-exo-sidecar.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- The same script compiled into the Core: the doctor compares the copy next to the exe with it (SHA-256, task 008). -->
+    <EmbeddedResource Include="Exchange\Sidecar\aegis-exo-sidecar.ps1" LogicalName="M365Aegis.Core.Sidecar.aegis-exo-sidecar.ps1" />
   </ItemGroup>
 
 </Project>
