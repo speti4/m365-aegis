@@ -32,6 +32,27 @@ Microsoft Graph PowerShell SDK's first-party client id.
 - Cost: medium. The registration and the scopes can change; the broker and MSAL shape the auth code. Decided
   2026-10-28.
 
+## Note 2026-10-29 — the broker from a console process (task 013)
+
+The spike of task 013 confirmed the broker from a console process on the maintainer's machine, which is
+workplace-registered to the tenant rather than Entra-joined, over a Remote Desktop session:
+
+- The silent `OperatingSystemAccount` path fails at once on a registered-only machine (no primary refresh
+  token); it stays first in the order for Entra-joined machines, and its failure costs half a second.
+- An account the broker lists signs in silently with no UI, from any console and with every standard stream
+  redirected: the broker, not a persisted cache, is what makes the second run silent. The broker can list
+  several accounts of one tenant, so the account is chosen by user principal name from the profile, never as the
+  first in the list.
+- Interactive sign-in through the broker works in Windows Terminal and conhost with the parent window taken from
+  `GetAncestor(GetConsoleWindow(), GA_ROOTOWNER)`. Without a console window it fails immediately with
+  `window_handle_required`, which is the signal to fall back to device code.
+- The tenant's Conditional Access lets device code through, so the last fallback holds.
+- `Exchange.ManageV2` sits in the "Office 365 Exchange Online" API and was granted to the public client with
+  admin consent next to `Exchange.Manage`.
+
+The fallback order of task 002 follows: silent with the operating system account, silent with the profile's
+account, interactive through the broker when a window exists, device code otherwise.
+
 ## Not chosen
 
 - The Graph PowerShell SDK's first-party client id (the earlier draft): not ours to depend on, and useless for the
