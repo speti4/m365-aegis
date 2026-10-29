@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.Text;
 using M365Aegis.Cli.Commands;
 using M365Aegis.Cli.Output;
 using M365Aegis.Core;
@@ -7,13 +8,18 @@ using M365Aegis.Core.Output;
 namespace M365Aegis.Cli;
 
 /// <summary>
-/// The m365-aegis command line. The root carries the output options every command honors (D-006): <c>--json</c>
-/// for the envelope, <c>--table</c> for a human table, and neither picks by whether stdout is a terminal.
+/// The m365-aegis command line. The root carries the options every command honors: <c>--json</c> for the
+/// envelope, <c>--table</c> for a human table, and neither picks by whether stdout is a terminal (D-006);
+/// <c>--profile</c> names the tenant profile of <c>config.json</c> (task 002).
 /// </summary>
 internal static class Program
 {
-    internal static int Main(string[] args)
+    internal static async Task<int> Main(string[] args)
     {
+        // The envelope and the table are UTF-8 on every console and in every pipe (D-006: accented names stay
+        // readable), not the console's legacy code page, which a shell started from an older locale still has.
+        Console.OutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
         Option<bool> json = new("--json")
         {
             Description = "Print the JSON envelope (the default when stdout is not a terminal).",
@@ -24,10 +30,19 @@ internal static class Program
             Description = "Print a table (the default when stdout is a terminal).",
             Recursive = true,
         };
+        Option<string?> profile = new("--profile")
+        {
+            Description = "The tenant profile of config.json to use (the default one when omitted).",
+            Recursive = true,
+        };
 
         RootCommand root = new($"{ProductInfo.Name}: Microsoft 365 administration from the command line.");
         root.Options.Add(json);
         root.Options.Add(table);
+        root.Options.Add(profile);
+        root.Subcommands.Add(LoginCommand.Build(json, table, profile));
+        root.Subcommands.Add(WhoAmICommand.Build(json, table, profile));
+        root.Subcommands.Add(LogoutCommand.Build(json, table, profile));
         root.Subcommands.Add(DoctorCommand.Build(json, table));
 
         ParseResult parsed = root.Parse(args);
@@ -39,7 +54,7 @@ internal static class Program
             return CommandRunner.Fail(ResolveMode(parsed, json, table), failure);
         }
 
-        return parsed.Invoke();
+        return await parsed.InvokeAsync().ConfigureAwait(false);
     }
 
     /// <summary>The output mode of a parse result: the explicit option wins, else the terminal decides.</summary>

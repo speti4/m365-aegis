@@ -1,0 +1,7 @@
+[
+  {
+    "Id": "Microsoft.Identity.Client.NativeInterop",
+    "Version": "0.20.6",
+    "License": "LicenseRef-Microsoft-Software-License-Terms"
+  }
+]

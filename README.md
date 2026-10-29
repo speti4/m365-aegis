@@ -46,6 +46,23 @@ dotnet build -c Release
 src\M365Aegis.Cli\bin\Release\net10.0\m365-aegis.exe doctor --offline
 ```
 
+## First run
+
+The tool signs in as a public client of your own app registration in your tenant; how to register it, and
+which delegated permissions to consent to, is in
+[docs/development.md](docs/development.md#the-sign-in-and-the-home-folder). Once, with the registration's
+values, which `login` saves as the tenant profile under `%LOCALAPPDATA%\m365-aegis\config.json`; afterwards
+`whoami` and every lookup sign in silently through the Windows account manager:
+
+```powershell
+$aegis = "src\M365Aegis.Cli\bin\Release\net10.0\m365-aegis.exe"
+& $aegis login --tenant contoso.onmicrosoft.com --client-id <application id> --account alice@contoso.com
+& $aegis whoami
+```
+
+Without a window (an SSH session, a scheduled task) `login` falls back to a device code on its own;
+`login --device-code` asks for it. `logout` forgets the account and keeps the profile.
+
 ## Documentation
 
 - [Development](docs/development.md): layout, CI, releases and helper scripts

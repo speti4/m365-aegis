@@ -55,6 +55,45 @@ public sealed class RendererSnapshotTests
         return Verify(Combine(output, error));
     }
 
+    [Fact]
+    public Task ASignedInUserTable()
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        ExitCode exitCode = Renderer.Render(
+            CommandResult.Success(AuthSamples.SignedIn), DoctorSamples.LocalMeta, SignInTableView.Instance, OutputMode.Table, output, error);
+
+        Assert.Equal(ExitCode.Ok, exitCode);
+        return Verify(Combine(output, error));
+    }
+
+    [Fact]
+    public Task AMissingExchangeTokenIsARowOfTheTable()
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        ExitCode exitCode = Renderer.Render(
+            CommandResult.Success(AuthSamples.NoExchangeToken), DoctorSamples.LocalMeta, SignInTableView.Instance, OutputMode.Table, output, error);
+
+        Assert.Equal(ExitCode.Ok, exitCode);
+        return Verify(Combine(output, error));
+    }
+
+    [Fact]
+    public Task ASignOutTable()
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        ExitCode exitCode = Renderer.Render(
+            CommandResult.Success(AuthSamples.SignedOut), DoctorSamples.LocalMeta, SignOutTableView.Instance, OutputMode.Table, output, error);
+
+        Assert.Equal(ExitCode.Ok, exitCode);
+        return Verify(Combine(output, error));
+    }
+
     private static (ExitCode ExitCode, string Rendering) Render(CommandResult<DoctorReport> result, OutputMode mode)
     {
         var output = new StringWriter();

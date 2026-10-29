@@ -41,13 +41,52 @@ checks before a commit and the project rules are in [CONTRIBUTING.md](../CONTRIB
 ## The sign-in and the home folder
 
 The Core signs in as a public client of the maintainer's own app registration through MSAL.NET and the Windows
-account manager (WAM): silent with the signed-in Entra account on an Entra-joined machine, interactive in the
-account picker otherwise, device code where there is no window (D-003; task 002 documents the scopes and the
-redirect URI without real values). One sign-in serves Graph and, through `Connect-ExchangeOnline -AccessToken`,
-the Exchange Online sidecar. Everything the tool keeps lives under `%LOCALAPPDATA%\m365-aegis\` (D-005):
-`config.json` with the tenant profiles, `msal-cache.bin` (DPAPI), `webview2\`, `logs\` (never a token or a
-response body) and `plans\` with the plan records. `M365AEGIS_HOME` overrides the folder; the tests point it at
-a temporary one.
+account manager (WAM), in the order task 013 measured (D-003): silent as the account Windows is signed in with
+(an Entra-joined machine with a primary refresh token; a registered-only machine fails this step in well under a
+second, which is the normal case there), silent as the profile's account chosen by user principal name among
+the accounts the broker lists (never the first in the list; when the broker cannot answer for it, the same
+account is tried through the file cache alone, which is where a device-code sign-in's refresh token lives: with
+the broker enabled MSAL never falls back to it on its own, measured 2026-10-29), the account picker through the
+broker with the console window's root owner as its parent, and device code when the broker answers
+`window_handle_required` (a redirected shell, a scheduled task) or under `login --device-code`. `whoami` and every lookup take the silent
+paths only and fail with exit code 3 and the login command as the hint; `login` goes all the way; `logout`
+removes the account from the cache and from the broker's record for this app and keeps the profile. The
+device-code sentence is printed on stderr, so stdout stays the envelope. `Auth/MsalTokenBroker.cs` in the Core
+is the one place MSAL is called; the flow (`Auth/SignInFlow.cs`) and `AuthService` are tested offline against a
+scripted broker. One sign-in serves Graph and, through `Connect-ExchangeOnline -AccessToken`, the Exchange
+Online sidecar: each resource gets a token of its own with the `.default` scope
+(`https://graph.microsoft.com/.default`, `https://outlook.office365.com/.default`), so a token carries every
+delegated permission the tenant administrator consented to in the portal, the code names none, and `whoami`
+shows what a token actually carries.
+
+The app registration, whose ids stay out of the repo (D-003): a single-tenant public client, the "Mobile and
+desktop applications" platform with the broker redirect `ms-appx-web://microsoft.aad.brokerplugin/<application
+id>` and `http://localhost`, "Allow public client flows" on, no credential, and admin consent for the delegated
+permissions the domains need. The sign-in itself needs `User.Read` (Microsoft Graph) and the Exchange Online
+backends `Exchange.Manage` and `Exchange.ManageV2` (Office 365 Exchange Online; tasks 009 and 010); the lookups
+of the other domains add theirs as their tasks settle them (the groups, Teams and SharePoint lookups of task 005,
+the audit lookups of task 006, `ExchangeMessageTrace.Read.All` for the message trace of task 007), each with a
+line here.
+
+Everything the tool keeps lives under `%LOCALAPPDATA%\m365-aegis\` (D-005): `config.json` with the tenant
+profiles, `msal-cache.bin` (DPAPI, with a `.lockfile` next to it while a process reads or writes it, so the
+command line and the window share one cache), `webview2\`, `logs\` (never a token or a response body) and
+`plans\` with the plan records. `M365AEGIS_HOME` overrides the folder; the tests point it at a temporary one.
+`config.json` is written by `login --tenant … --client-id … --account …` (the first profile becomes the default;
+`--profile <name>` on any command picks another one) and may be edited by hand:
+
+```json
+{
+  "default": "work",
+  "profiles": {
+    "work": {
+      "tenant": "contoso.onmicrosoft.com",
+      "clientId": "00000000-0000-0000-0000-000000000010",
+      "account": "alice@contoso.com"
+    }
+  }
+}
+```
 
 ## The Exchange Online sidecar
 
@@ -128,7 +167,10 @@ base is always the full run (task 023). The skip is a job-level `if:`, never a p
 required check whose workflow never starts stays pending and blocks the merge, while a job skipped by its
 condition passes its check. The jobs: `dotnet` (locked restore, `dotnet format --verify-no-changes`, the build with the analyzers, the
 Core and Cli tests), `deps` (the vulnerability script, `nuget-license` against `licenses/allowed.json` over the
-shipped projects, `npm audit` and the front end's license script), `frontend` (Biome, the type check, Vitest,
+shipped projects, with `licenses/overrides.json`, which the release script's notices read too, naming the
+license of a package that ships it as a file instead of an SPDX expression: the broker's native runtime, `Microsoft.Identity.Client.NativeInterop`, comes
+under the Microsoft Software License Terms and is allowed as `LicenseRef-Microsoft-Software-License-Terms`;
+`npm audit` and the front end's license script), `frontend` (Biome, the type check, Vitest,
 the Vite build), `sidecar` (PSScriptAnalyzer and the Pester tests against the fake module, with the runner's own
 pwsh), all four skipped on a docs-only change, `lint` (the changelog check, skipped on a tag, see [The changelog](#the-changelog); the fixture check; the
 commit-rules self-test) and `workflow-lint` (zizmor over the workflows and `dependabot.yml`; a finding accepted on

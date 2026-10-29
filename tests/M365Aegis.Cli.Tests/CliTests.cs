@@ -86,6 +86,41 @@ public sealed class CliTests
     }
 
     [Fact]
+    public void WhoAmIWithoutAProfileIsAnAuthEnvelopeWithTheLoginCommand()
+    {
+        // The tests' home has no config.json; the failure comes before MSAL is touched.
+        (int exitCode, string stdout, string stderr) = Run("--json", "whoami");
+
+        Assert.Equal(3, exitCode);
+        Assert.Equal("", stderr);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement error = document.RootElement.GetProperty("error");
+        Assert.Equal("auth", error.GetProperty("code").GetString());
+        Assert.Contains("login --tenant", error.GetProperty("hint").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LoginWithOnlyATenantIsAUsageError()
+    {
+        (int exitCode, string stdout, _) = Run("--json", "login", "--tenant", "contoso.onmicrosoft.com");
+
+        Assert.Equal(2, exitCode);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        Assert.Equal("usage", document.RootElement.GetProperty("error").GetProperty("code").GetString());
+    }
+
+    [Fact]
+    public void LogoutWithoutAProfileIsAnErrorLineAtATerminal()
+    {
+        (int exitCode, string stdout, string stderr) = Run("--table", "logout");
+
+        Assert.Equal(3, exitCode);
+        Assert.Equal("", stdout);
+        Assert.StartsWith("error: no tenant profile", stderr, StringComparison.Ordinal);
+        Assert.Contains("(auth)", stderr, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DoctorTableIsATable()
     {
         (_, string stdout, _) = Run("--table", "doctor", "--offline");

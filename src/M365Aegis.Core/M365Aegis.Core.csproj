@@ -9,12 +9,23 @@
          referenced project, so the Core's lock file needs the win-x64 targets too, or the locked restore of the
          release fails. -->
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <!-- The source-generated P/Invokes (LibraryImport: the console window handle the account picker attaches to)
+         need it; no other code of the Core is unsafe. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- The Core and Cli tests see the internals. -->
     <InternalsVisibleTo Include="M365Aegis.Core.Tests" />
     <InternalsVisibleTo Include="M365Aegis.Cli.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The sign-in (task 002 / D-003): MSAL.NET, the Windows account manager through the broker package, and the
+         file cache under the home folder; the versions and the reasons are in Directory.Packages.props. -->
+    <PackageReference Include="Microsoft.Identity.Client" />
+    <PackageReference Include="Microsoft.Identity.Client.Broker" />
+    <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" />
   </ItemGroup>
 
   <ItemGroup>

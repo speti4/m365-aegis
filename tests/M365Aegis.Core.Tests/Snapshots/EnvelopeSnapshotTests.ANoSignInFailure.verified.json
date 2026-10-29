@@ -1,0 +1,1 @@
+﻿{"ok":false,"error":{"code":"auth","message":"no silent sign-in for alice@contoso.com (operating system account: failed_to_acquire_token_silently_from_broker; alice@contoso.com is not among the 0 known account(s))","hint":"run `m365-aegis login`"},"meta":{"requestIds":[],"elapsedMs":12,"backend":"local"}}

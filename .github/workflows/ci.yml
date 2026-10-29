@@ -128,7 +128,7 @@ jobs:
       - run: python3 -I scripts/check-vulnerable.py
       - run: dotnet tool restore
       - name: The licenses of the shipped packages
-        run: dotnet nuget-license --input M365Aegis.slnx --include-transitive --allowed-license-types licenses/allowed.json --ignored-packages licenses/ignored.json --exclude-projects-matching "*.Tests" --error-only
+        run: dotnet nuget-license --input M365Aegis.slnx --include-transitive --allowed-license-types licenses/allowed.json --ignored-packages licenses/ignored.json --override-package-information licenses/overrides.json --exclude-projects-matching "*.Tests" --error-only
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
@@ -268,6 +268,13 @@ jobs:
           & src/M365Aegis.Cli/bin/Release/net10.0/m365-aegis.exe --version
           & src/M365Aegis.Cli/bin/Release/net10.0/m365-aegis.exe --json doctor --offline
           if ($LASTEXITCODE -ne 0) { throw "doctor exited $LASTEXITCODE" }
+          # No tenant profile in the empty home: the sign-in fails as an auth envelope, exit code 3, before MSAL is
+          # called. The runner's pwsh turns a non-zero native exit code into an error and fails the step on the last
+          # command's exit code, so the first is switched off and the step ends with an explicit zero.
+          $PSNativeCommandUseErrorActionPreference = $false
+          & src/M365Aegis.Cli/bin/Release/net10.0/m365-aegis.exe --json whoami
+          if ($LASTEXITCODE -ne 3) { throw "whoami exited $LASTEXITCODE, expected 3" }
+          exit 0
       - name: The window loads the page and the bridge answers
         shell: pwsh
         run: |

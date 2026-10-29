@@ -68,7 +68,9 @@ foreach ($project in @("src\M365Aegis.Cli\M365Aegis.Cli.csproj", "src\M365Aegis.
     & dotnet publish (Join-Path $root $project) -c Release -r win-x64 --self-contained false -p:PublishReadyToRun=true -o $publish --nologo
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed for $project ($LASTEXITCODE)" }
 }
-foreach ($file in @("m365-aegis.exe", "m365-aegis-gui.exe", "wwwroot\index.html", "sidecar\aegis-exo-sidecar.ps1")) {
+# msalruntime.dll is the broker's native half (Microsoft.Identity.Client.NativeInterop); a win-x64 publish puts it
+# next to the exes, and the sign-in fails without it.
+foreach ($file in @("m365-aegis.exe", "m365-aegis-gui.exe", "msalruntime.dll", "wwwroot\index.html", "sidecar\aegis-exo-sidecar.ps1")) {
     if (-not (Test-Path (Join-Path $publish $file))) { throw "missing in the publish folder: $file" }
 }
 
@@ -78,10 +80,11 @@ if ($stamped -ne $version) {
     throw "m365-aegis.exe carries version '$stamped', Directory.Build.props says '$version'"
 }
 
-# The notices: the NuGet packages shipped with the exes (nuget-license, the allowlist of licenses/allowed.json),
-# then the front end's packages from the lock file (scripts\npm-licenses.py, the same allowlist).
+# The notices: the NuGet packages shipped with the exes (nuget-license, the allowlist of licenses/allowed.json, the
+# license overrides of licenses/overrides.json for a package that ships its license as a file), then the front
+# end's packages from the lock file (scripts\npm-licenses.py, the same allowlist).
 $notices = Join-Path $publish "THIRD-PARTY-NOTICES.md"
-& dotnet nuget-license -i (Join-Path $root "M365Aegis.slnx") -t -a (Join-Path $root "licenses\allowed.json") -ignore (Join-Path $root "licenses\ignored.json") -exclude-projects "*.Tests" -o Markdown -fo $notices
+& dotnet nuget-license -i (Join-Path $root "M365Aegis.slnx") -t -a (Join-Path $root "licenses\allowed.json") -ignore (Join-Path $root "licenses\ignored.json") -override (Join-Path $root "licenses\overrides.json") -exclude-projects "*.Tests" -o Markdown -fo $notices
 if ($LASTEXITCODE -ne 0) { throw "nuget-license failed ($LASTEXITCODE)" }
 & $python @pythonArgs -I (Join-Path $root "scripts\npm-licenses.py") --notices $notices
 if ($LASTEXITCODE -ne 0) { throw "npm-licenses failed ($LASTEXITCODE)" }

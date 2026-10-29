@@ -1,0 +1,9 @@
+﻿--- stdout ---
+field             value
+----------------  -----------------
+profile           default
+account           alice@contoso.com
+removed accounts  1
+
+signed out; the profile stays
+--- stderr ---

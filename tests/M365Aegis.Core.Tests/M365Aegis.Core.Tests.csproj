@@ -18,13 +18,15 @@
   <ItemGroup>
     <!-- The sample reader both test projects share (tests/shared). -->
     <Compile Include="..\shared\DoctorSamples.cs" Link="shared\DoctorSamples.cs" />
+    <Compile Include="..\shared\AuthSamples.cs" Link="shared\AuthSamples.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- The bridge contract samples, shared with the front end's Vitest tests (tests/contracts/bridge). -->
     <Content Include="..\contracts\bridge\*.json" Link="contracts\bridge\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-    <!-- The scrubbed doctor reports the snapshot tests render (tests/fixtures/doctor). -->
+    <!-- The scrubbed doctor reports and sign-in results the snapshot tests render (tests/fixtures/doctor, tests/fixtures/auth). -->
     <Content Include="..\fixtures\doctor\*.json" Link="fixtures\doctor\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\fixtures\auth\*.json" Link="fixtures\auth\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

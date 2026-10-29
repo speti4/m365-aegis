@@ -112,7 +112,7 @@ public static class Doctor
         string path = AegisHome.ConfigPath(home);
         return File.Exists(path)
             ? new("config", CheckStatus.Pass, path, Required: false)
-            : new("config", CheckStatus.Warn, $"{path} not found; `m365-aegis login` writes it (task 002)", Required: false);
+            : new("config", CheckStatus.Warn, $"{path} not found; `m365-aegis login --tenant <tenant> --client-id <application id> --account <user@domain>` writes it", Required: false);
     }
 
     private static DoctorCheck CheckPwsh(string? pwshPath)

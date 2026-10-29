@@ -1,0 +1,12 @@
+﻿--- stdout ---
+field           value
+--------------  --------------------------------------------------------------------------------------------
+profile         default
+account         alice@contoso.com
+name            Alice Example
+tenant          00000000-0000-0000-0000-000000000002
+object id       00000000-0000-0000-0000-000000000001
+graph token     expires 2026-10-29 15:00 +01:00, from the cache
+graph scopes    User.Read
+exchange token  none (consent_required: AADSTS65001: the administrator has not consented to Exchange.Manage)
+--- stderr ---

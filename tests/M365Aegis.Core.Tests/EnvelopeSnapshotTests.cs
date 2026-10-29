@@ -1,3 +1,4 @@
+using M365Aegis.Core.Auth;
 using M365Aegis.Core.Diagnostics;
 using M365Aegis.Core.Output;
 using M365Aegis.Tests;
@@ -36,5 +37,32 @@ public sealed class EnvelopeSnapshotTests
 
         Assert.Equal(ExitCode.NotFound, result.ExitCode);
         return Verify(EnvelopeJson.Serialize(result.ToEnvelope(DoctorSamples.GraphMeta)), extension: "json");
+    }
+
+    [Fact]
+    public Task ASignedInUser()
+    {
+        CommandResult<SignInInfo> result = CommandResult.Success(AuthSamples.SignedIn);
+
+        Assert.Equal(ExitCode.Ok, result.ExitCode);
+        return Verify(EnvelopeJson.Serialize(result.ToEnvelope(DoctorSamples.LocalMeta)), extension: "json");
+    }
+
+    [Fact]
+    public Task ASignedInUserWithoutAnExchangeToken()
+    {
+        CommandResult<SignInInfo> result = CommandResult.Success(AuthSamples.NoExchangeToken);
+
+        return Verify(EnvelopeJson.Serialize(result.ToEnvelope(DoctorSamples.LocalMeta)), extension: "json");
+    }
+
+    [Fact]
+    public Task ANoSignInFailure()
+    {
+        var failure = new AegisFailure(FailureKind.Auth, "no silent sign-in for alice@contoso.com (operating system account: failed_to_acquire_token_silently_from_broker; alice@contoso.com is not among the 0 known account(s))", "run `m365-aegis login`");
+        CommandResult<SignInInfo> result = CommandResult.Failure<SignInInfo>(failure);
+
+        Assert.Equal(ExitCode.Auth, result.ExitCode);
+        return Verify(EnvelopeJson.Serialize(result.ToEnvelope(DoctorSamples.LocalMeta)), extension: "json");
     }
 }

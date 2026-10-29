@@ -18,12 +18,19 @@ internal static class CommandRunner
     internal static int Run<T>(OutputMode mode, string backend, Func<CommandResult<T>> work, ITableView<T> view)
     {
         ArgumentNullException.ThrowIfNull(work);
+        return RunAsync(mode, backend, () => Task.FromResult(work()), view).GetAwaiter().GetResult();
+    }
+
+    /// <summary>The asynchronous form of <see cref="Run{T}"/>, for the work that waits on a service.</summary>
+    internal static async Task<int> RunAsync<T>(OutputMode mode, string backend, Func<Task<CommandResult<T>>> work, ITableView<T> view)
+    {
+        ArgumentNullException.ThrowIfNull(work);
 
         var stopwatch = Stopwatch.StartNew();
         CommandResult<T> result;
         try
         {
-            result = work();
+            result = await work().ConfigureAwait(false);
         }
         catch (AegisException exception)
         {

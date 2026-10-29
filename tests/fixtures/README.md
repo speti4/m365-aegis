@@ -25,6 +25,9 @@ The tasks that add the fixtures name the files; the layout mirrors the request:
 - `exo/<cmdlet>.json` — the objects an Exchange Online cmdlet returns through the sidecar (task 015).
 - `doctor/<state>.json` — a doctor report as the envelope carries it (`healthy.json`, `pwsh-missing.json`), the
   samples the snapshot tests of both renderings read through `tests/shared/DoctorSamples.cs` (task 004).
+- `auth/<state>.json` — a sign-in result as the envelope carries it (`signed-in.json`, `no-exchange-token.json`:
+  the account, the tenant and object ids, a token's expiry and scopes per resource, never a token), read through
+  `tests/shared/AuthSamples.cs` (task 002).
 
 The bridge contract samples the C# and the TypeScript tests share are under `tests/contracts/bridge/`, and the
 fake Exchange Online module the sidecar tests run against is under `tests/sidecar/modules/`.
