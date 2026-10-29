@@ -75,8 +75,9 @@ the sources are newer than `dist/index.html` and copies `dist/` next to the exe 
 loads the dev server with hot reload.
 
 The front end's packages, with their reasons (`package.json` carries no comments): `react` and `react-dom`
-(the UI); `vite` and `@vitejs/plugin-react` (the build and the dev server); `typescript` (strict types; the 5.x
-line while the 7.x native compiler settles); `tailwindcss` and `@tailwindcss/vite` (the utility CSS the shadcn
+(the UI); `vite` and `@vitejs/plugin-react` (the build and the dev server); `typescript` (strict types; the 7.x
+native compiler, which dropped `baseUrl`, so the `@/*` mapping in `tsconfig.json` is relative to the config and
+Vite's `resolve.alias` resolves it at build time); `tailwindcss` and `@tailwindcss/vite` (the utility CSS the shadcn
 components are written in); `shadcn`, `@base-ui/react`, `class-variance-authority`, `cn`, `lucide-react`,
 `tw-animate-css` and `@fontsource-variable/geist` (what `shadcn init` and its components import: the component
 primitives, variant classes, the class-name helper, the icons, the animations, the font); `vitest` (the tests);
