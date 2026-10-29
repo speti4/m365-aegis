@@ -64,6 +64,89 @@ public sealed class MessageTraceLookupTests
         Assert.Equal(["00000000-0000-0000-0000-0000000000d1"], graph.RequestLog.Ids);
     }
 
+    [Theory]
+    [InlineData("failed", "failed")]
+    [InlineData("FAILED", "failed")]
+    [InlineData("filtered-as-spam", "filteredAsSpam")]
+    [InlineData("gettingstatus", "gettingStatus")]
+    [InlineData(null, null)]
+    public void AStatusIsWrittenAsTheServiceWritesIt(string? value, string? status)
+    {
+        Assert.Equal(status, MessageTraceLookup.Status(value));
+    }
+
+    [Fact]
+    public void AStatusTheTraceDoesNotReportIsAUsageError()
+    {
+        AegisException exception = Assert.Throws<AegisException>(() => MessageTraceLookup.Status("bounced"));
+
+        Assert.Equal(FailureKind.Usage, exception.Failure.Kind);
+        Assert.Contains("filteredAsSpam", exception.Failure.Hint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheFiltersAreTheDocumentedTerms()
+    {
+        Assert.Equal("status eq 'failed' and contains(subject,'O''Brien')", MessageTraceLookup.Narrowing("failed", "O'Brien"));
+        Assert.Null(MessageTraceLookup.Narrowing(null, null));
+    }
+
+    [Fact]
+    public async Task TheStatusFilterIsTheServices()
+    {
+        (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
+
+        CommandResult<MessageTrace> result = await MessageTraceLookup.RunAsync(graph, new MessageTraceQuery("alice@contoso.com", null, null, null, "Failed"), Now, None);
+
+        MessageTrace trace = result.Data!;
+        Assert.Equal("service", trace.FilteredBy);
+        Assert.Equal("failed", trace.Status);
+        Assert.Equal(["dave@fabrikam.com"], trace.Messages.Select(message => message.Recipient));
+        Assert.EndsWith(
+            "senderAddress eq 'alice@contoso.com' and status eq 'failed'&$top=5000",
+            Uri.UnescapeDataString(Assert.Single(transport.Requests).Uri.AbsoluteUri),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheSubjectFilterIsTheServicesContains()
+    {
+        (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
+
+        CommandResult<MessageTrace> result = await MessageTraceLookup.RunAsync(graph, new MessageTraceQuery("alice@contoso.com", null, null, null, Subject: " Quarterly "), Now, None);
+
+        Assert.Equal("service", result.Data!.FilteredBy);
+        Assert.Equal("Quarterly", result.Data.Subject);
+        Assert.Equal(2, result.Data.Messages.Count);
+        Assert.Contains("contains(subject,'Quarterly')", Uri.UnescapeDataString(Assert.Single(transport.Requests).Uri.AbsoluteUri), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AFilterTheServiceRefusesIsAppliedHere()
+    {
+        (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
+
+        CommandResult<MessageTrace> result = await MessageTraceLookup.RunAsync(graph, new MessageTraceQuery("alice@contoso.com", null, null, null, Subject: "invoice"), Now, None);
+
+        MessageTrace trace = result.Data!;
+        Assert.True(result.Ok);
+        Assert.Equal("client", trace.FilteredBy);
+        Assert.Equal(["Invoice 2026-0412"], trace.Messages.Select(message => message.Subject));
+        // The refused request, then the window without the filter.
+        Assert.Equal(2, transport.Requests.Count);
+        Assert.DoesNotContain("subject", Uri.UnescapeDataString(transport.Requests[1].Uri.AbsoluteUri), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task WithoutAFilterNothingSaysWhereItWasApplied()
+    {
+        (GraphClient graph, _) = GraphFixtures.Client();
+
+        CommandResult<MessageTrace> result = await MessageTraceLookup.RunAsync(graph, new MessageTraceQuery("alice@contoso.com", null, null, null), Now, None);
+
+        Assert.Null(result.Data!.FilteredBy);
+    }
+
     [Fact]
     public async Task AMissingServicePrincipalIsForbiddenWithTheProvisioningHint()
     {

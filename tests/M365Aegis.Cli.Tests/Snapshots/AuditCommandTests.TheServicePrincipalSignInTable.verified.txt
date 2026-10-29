@@ -1,0 +1,9 @@
+﻿--- stdout ---
+time (UTC)           service principal  resource         IP address     location  result
+-------------------  -----------------  ---------------  -------------  --------  ------------------------------------------------------------
+2026-10-29 06:00:01  Payroll Connector  Microsoft Graph  198.51.100.40  -         success
+2026-10-29 05:59:58  Payroll Connector  Microsoft Graph  198.51.100.41  -         7000222 The provided client secret keys for app are expired.
+
+2 service-principal sign-in(s) since 2026-10-28 12:00:00 UTC
+from the beta endpoint: v1.0 lists the interactive user sign-ins only, and beta answers may change shape
+--- stderr ---

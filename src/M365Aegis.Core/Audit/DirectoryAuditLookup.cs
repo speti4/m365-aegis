@@ -8,14 +8,29 @@ namespace M365Aegis.Core.Audit;
 /// <param name="Since">The explicit start of the window, or null.</param>
 /// <param name="Activity">The start of the activity's name (<c>Add member to group</c>, <c>Update user</c>), or null for every activity.</param>
 /// <param name="Limit">The most entries to return; the newest come first.</param>
-public sealed record DirectoryAuditQuery(int? Days, DateTimeOffset? Since, string? Activity, int Limit);
+/// <param name="User">The user principal name of the user who started the activities, or null for anyone (task 037).</param>
+/// <param name="Until">The end of the window, or null for now (task 038).</param>
+public sealed record DirectoryAuditQuery(int? Days, DateTimeOffset? Since, string? Activity, int Limit, string? User = null, DateTimeOffset? Until = null);
 
-/// <summary>The answer of <c>audit list</c>: the window, the filter, and the entries, newest first.</summary>
+/// <summary>The answer of <c>audit list</c>: the window, the filters, and the entries, newest first.</summary>
 /// <param name="Since">The start of the window, in UTC.</param>
 /// <param name="Activity">The activity filter, or null.</param>
 /// <param name="Entries">The audit entries, newest first.</param>
 /// <param name="Truncated">More entries matched than the limit let through.</param>
-public sealed record DirectoryAuditReport(DateTimeOffset Since, string? Activity, IReadOnlyList<DirectoryAuditEntry> Entries, bool Truncated);
+/// <param name="User">The initiating user filter, or null.</param>
+/// <param name="Until">The end of the window, in UTC, or null for the moment of the request.</param>
+/// <param name="Oldest">
+/// When <paramref name="Truncated"/> is set, the time of the oldest entry listed: the answer covers the window from
+/// there on, and <c>--until</c> with this time lists the entries before it; null otherwise.
+/// </param>
+public sealed record DirectoryAuditReport(
+    DateTimeOffset Since,
+    string? Activity,
+    IReadOnlyList<DirectoryAuditEntry> Entries,
+    bool Truncated,
+    string? User = null,
+    DateTimeOffset? Until = null,
+    DateTimeOffset? Oldest = null);
 
 /// <summary>One entry of the Microsoft Entra directory audit log.</summary>
 /// <param name="Id">The entry's id.</param>
@@ -39,9 +54,10 @@ public sealed record DirectoryAuditEntry(
     IReadOnlyList<string> Targets);
 
 /// <summary>
-/// <c>audit list [--days N | --since &lt;date&gt;] [--activity &lt;name&gt;] [--limit N]</c> over
-/// <c>GET /auditLogs/directoryAudits</c> (task 006): <c>activityDateTime ge …</c> and, with <c>--activity</c>,
-/// <c>startswith(activityDisplayName, …)</c> in the <c>$filter</c>, newest first (<c>$orderby=activityDateTime
+/// <c>audit list [--days N | --since &lt;date&gt;] [--until &lt;date&gt;] [--activity &lt;name&gt;] [--user &lt;upn&gt;]
+/// [--limit N]</c> over <c>GET /auditLogs/directoryAudits</c> (task 006): <c>activityDateTime ge …</c> (and
+/// <c>le …</c> with <c>--until</c>), with <c>--activity</c> <c>startswith(activityDisplayName, …)</c> and with
+/// <c>--user</c> <c>initiatedBy/user/userPrincipalName eq …</c> (task 037) in the <c>$filter</c>, newest first (<c>$orderby=activityDateTime
 /// desc</c>, which the reference documents, while it states no default order), the pages the client's. Needs
 /// <c>AuditLog.Read.All</c> and a role that reads the audit log (Reports Reader, Security Reader); no license beyond
 /// Microsoft Entra ID Free.
@@ -58,16 +74,22 @@ public static class DirectoryAuditLookup
         ArgumentNullException.ThrowIfNull(graph);
         ArgumentNullException.ThrowIfNull(query);
         AuditWindow.CheckLimit(query.Limit);
-        DateTimeOffset since = AuditWindow.Start(query.Days, query.Since, now);
+        (DateTimeOffset since, DateTimeOffset? until) = AuditWindow.Window(query.Days, query.Since, query.Until, now);
         string? activity = query.Activity?.Trim();
         if (activity is { Length: 0 })
         {
             throw new AegisException(FailureKind.Usage, "--activity is empty", "give the start of an activity's name, such as 'Add member to group'");
         }
 
+        string? user = query.User?.Trim();
+        if (user is { Length: 0 })
+        {
+            throw new AegisException(FailureKind.Usage, "--user is empty", "give the user principal name of the user who made the changes, such as alice@contoso.com");
+        }
+
         var entries = new List<DirectoryAuditEntry>();
         bool truncated = false;
-        await foreach (GraphDirectoryAudit item in graph.GetAllAsync<GraphDirectoryAudit>(Request(activity, since), cancellationToken).ConfigureAwait(false))
+        await foreach (GraphDirectoryAudit item in graph.GetAllAsync<GraphDirectoryAudit>(Request(activity, since, user, until), cancellationToken).ConfigureAwait(false))
         {
             if (entries.Count == query.Limit)
             {
@@ -78,16 +100,29 @@ public static class DirectoryAuditLookup
             entries.Add(Map(item));
         }
 
-        return CommandResult.Success(new DirectoryAuditReport(since, activity, entries, truncated));
+        DateTimeOffset? oldest = truncated && entries.Count > 0 ? entries.Min(entry => entry.ActivityDateTime) : null;
+        return CommandResult.Success(new DirectoryAuditReport(since, activity, entries, truncated, user, until, oldest));
     }
 
-    /// <summary>The request of a window and an activity: <c>/auditLogs/directoryAudits?$filter=…&amp;$orderby=…</c>.</summary>
-    internal static GraphRequest Request(string? activity, DateTimeOffset since)
+    /// <summary>
+    /// The request of a window and the filters: <c>/auditLogs/directoryAudits?$filter=…&amp;$orderby=…</c>.
+    /// </summary>
+    internal static GraphRequest Request(string? activity, DateTimeOffset since, string? user = null, DateTimeOffset? until = null)
     {
         string filter = $"activityDateTime ge {AuditWindow.Literal(since)}";
+        if (until is { } end)
+        {
+            filter += $" and activityDateTime le {AuditWindow.Literal(end)}";
+        }
+
         if (activity is not null)
         {
             filter += $" and startswith(activityDisplayName,{GraphQuery.Literal(activity)})";
+        }
+
+        if (user is not null)
+        {
+            filter += $" and initiatedBy/user/userPrincipalName eq {GraphQuery.Literal(user)}";
         }
 
         string path = GraphQuery.Path("/auditLogs/directoryAudits", ("$filter", filter), ("$orderby", "activityDateTime desc"));

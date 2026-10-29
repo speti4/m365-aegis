@@ -9,7 +9,67 @@ namespace M365Aegis.Core.Audit;
 /// <param name="Days">The last N days, or null (<see cref="AuditWindow"/>).</param>
 /// <param name="Since">The explicit start of the window, or null.</param>
 /// <param name="Limit">The most sign-ins to return; the newest come first.</param>
-public sealed record SignInQuery(string? User, bool FailuresOnly, int? Days, DateTimeOffset? Since, int Limit);
+/// <param name="Until">The end of the window, or null for now (task 038).</param>
+/// <param name="Kind">
+/// The kind of sign-in to list from the beta endpoint (task 039), or null for what v1.0 lists: the interactive user
+/// sign-ins.
+/// </param>
+public sealed record SignInQuery(
+    string? User,
+    bool FailuresOnly,
+    int? Days,
+    DateTimeOffset? Since,
+    int Limit,
+    DateTimeOffset? Until = null,
+    SignInKind? Kind = null);
+
+/// <summary>The kinds of sign-in the beta endpoint's <c>signInEventTypes</c> tells apart (task 039).</summary>
+public enum SignInKind
+{
+    /// <summary>A user gave a factor (<c>interactiveUser</c>): what v1.0 lists.</summary>
+    Interactive,
+
+    /// <summary>A client signed in on a user's behalf with a token or a code (<c>nonInteractiveUser</c>).</summary>
+    NonInteractive,
+
+    /// <summary>An application signed in as itself, with a secret or a certificate (<c>servicePrincipal</c>).</summary>
+    ServicePrincipal,
+
+    /// <summary>An Azure resource signed in with its managed identity (<c>managedIdentity</c>).</summary>
+    ManagedIdentity,
+}
+
+/// <summary>The names of the sign-in kinds: the command line's and the log's.</summary>
+public static class SignInKinds
+{
+    /// <summary>The values <c>--kind</c> takes.</summary>
+    public static IReadOnlyList<string> Names { get; } = ["interactive", "non-interactive", "service-principal", "managed-identity"];
+
+    /// <summary>The kind a <c>--kind</c> value names; null for null.</summary>
+    /// <exception cref="AegisException">A usage failure for a value that names no kind.</exception>
+    public static SignInKind? Parse(string? value) => value?.Trim().ToLowerInvariant() switch
+    {
+        null => null,
+        "interactive" => SignInKind.Interactive,
+        "non-interactive" => SignInKind.NonInteractive,
+        "service-principal" => SignInKind.ServicePrincipal,
+        "managed-identity" => SignInKind.ManagedIdentity,
+        _ => throw new AegisException(FailureKind.Usage, $"--kind '{value}' is not a kind of sign-in", $"give one of {string.Join(", ", Names)}"),
+    };
+
+    /// <summary>The kind as the log's <c>signInEventTypes</c> names it (<c>nonInteractiveUser</c>).</summary>
+    public static string EventType(this SignInKind kind) => kind switch
+    {
+        SignInKind.Interactive => "interactiveUser",
+        SignInKind.NonInteractive => "nonInteractiveUser",
+        SignInKind.ServicePrincipal => "servicePrincipal",
+        SignInKind.ManagedIdentity => "managedIdentity",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "a sign-in kind without an event type"),
+    };
+
+    /// <summary>True for the kinds an application signs in as itself, without a user.</summary>
+    public static bool IsApplication(this SignInKind kind) => kind is SignInKind.ServicePrincipal or SignInKind.ManagedIdentity;
+}
 
 /// <summary>The answer of <c>signin list</c>: the window, the filters, and the sign-ins, newest first.</summary>
 /// <param name="User">The user principal name the list is for (lower case, as the log keeps it), or null.</param>
@@ -17,7 +77,23 @@ public sealed record SignInQuery(string? User, bool FailuresOnly, int? Days, Dat
 /// <param name="Since">The start of the window, in UTC.</param>
 /// <param name="SignIns">The sign-ins, newest first.</param>
 /// <param name="Truncated">More sign-ins matched than the limit let through.</param>
-public sealed record SignInReport(string? User, bool FailuresOnly, DateTimeOffset Since, IReadOnlyList<SignInEntry> SignIns, bool Truncated);
+/// <param name="Until">The end of the window, in UTC, or null for the moment of the request.</param>
+/// <param name="Oldest">
+/// When <paramref name="Truncated"/> is set, the time of the oldest sign-in listed: the answer covers the window from
+/// there on, and <c>--until</c> with this time lists the sign-ins before it; null otherwise.
+/// </param>
+/// <param name="Kind">The kind asked for with <c>--kind</c>, or null for the v1.0 list.</param>
+/// <param name="Endpoint">The Graph endpoint version that answered: <c>v1.0</c>, or <c>beta</c> for a <c>--kind</c>.</param>
+public sealed record SignInReport(
+    string? User,
+    bool FailuresOnly,
+    DateTimeOffset Since,
+    IReadOnlyList<SignInEntry> SignIns,
+    bool Truncated,
+    DateTimeOffset? Until = null,
+    DateTimeOffset? Oldest = null,
+    SignInKind? Kind = null,
+    string Endpoint = "v1.0");
 
 /// <summary>One sign-in of the Microsoft Entra sign-in log, in the fields an administrator reads first.</summary>
 /// <param name="Id">The sign-in's id.</param>
@@ -32,6 +108,8 @@ public sealed record SignInReport(string? User, bool FailuresOnly, DateTimeOffse
 /// <param name="ConditionalAccessStatus"><c>success</c>, <c>failure</c> or <c>notApplied</c>.</param>
 /// <param name="ErrorCode">0 for a successful sign-in, else the Microsoft Entra error code.</param>
 /// <param name="FailureReason">The reason of a failure.</param>
+/// <param name="ServicePrincipalName">The application that signed in as itself (beta only), or null.</param>
+/// <param name="ResourceDisplayName">The resource signed in to, or null.</param>
 public sealed record SignInEntry(
     string Id,
     DateTimeOffset CreatedDateTime,
@@ -44,15 +122,20 @@ public sealed record SignInEntry(
     bool? IsInteractive,
     string? ConditionalAccessStatus,
     int ErrorCode,
-    string? FailureReason)
+    string? FailureReason,
+    string? ServicePrincipalName = null,
+    string? ResourceDisplayName = null)
 {
     /// <summary>True when the sign-in succeeded (error code 0).</summary>
     public bool Succeeded => ErrorCode == 0;
 }
 
 /// <summary>
-/// <c>signin list [--user &lt;upn&gt;] [--failures] [--days N | --since &lt;date&gt;] [--limit N]</c> over
-/// <c>GET /auditLogs/signIns</c> (task 006): the window and the user go into the <c>$filter</c>
+/// <c>signin list [--user &lt;upn&gt;] [--failures] [--kind &lt;kind&gt;] [--days N | --since &lt;date&gt;] [--until &lt;date&gt;]
+/// [--limit N]</c> over <c>GET /auditLogs/signIns</c> (task 006), which lists the interactive user sign-ins in v1.0;
+/// a <c>--kind</c> goes to the beta endpoint with <c>signInEventTypes/any(t: t eq '…')</c> in the <c>$filter</c>, the
+/// only place the non-interactive, service principal and managed identity sign-ins are (task 039), and the report
+/// names the endpoint that answered. The window and the user go into the <c>$filter</c>
 /// (<c>createdDateTime ge …</c>, <c>userPrincipalName eq …</c>, both documented filters), the pages are the
 /// client's, and the failures are picked here, because the log documents only <c>eq</c> on
 /// <c>status/errorCode</c>. Reading the log needs <c>AuditLog.Read.All</c>, a role that reads it (Reports Reader,
@@ -71,14 +154,22 @@ public static class SignInLookup
         ArgumentNullException.ThrowIfNull(graph);
         ArgumentNullException.ThrowIfNull(query);
         AuditWindow.CheckLimit(query.Limit);
-        DateTimeOffset since = AuditWindow.Start(query.Days, query.Since, now);
+        (DateTimeOffset since, DateTimeOffset? until) = AuditWindow.Window(query.Days, query.Since, query.Until, now);
         string? user = query.User?.Trim().ToLowerInvariant();
         if (user is { Length: 0 })
         {
             throw new AegisException(FailureKind.Usage, "--user is empty", "give a user principal name, such as alice@contoso.com");
         }
 
-        GraphRequest request = Request(user, since);
+        if (user is not null && query.Kind is { } application && application.IsApplication())
+        {
+            throw new AegisException(
+                FailureKind.Usage,
+                $"--user names a user, and a {SignInKinds.Names[(int)application]} sign-in has none",
+                "leave --user out, or ask for the interactive or non-interactive sign-ins");
+        }
+
+        GraphRequest request = Request(user, since, until, query.Kind);
         var entries = new List<SignInEntry>();
         bool truncated = false;
         try
@@ -105,19 +196,38 @@ public static class SignInLookup
             throw Forbidden(exception);
         }
 
-        return CommandResult.Success(new SignInReport(user, query.FailuresOnly, since, entries, truncated));
+        DateTimeOffset? oldest = truncated && entries.Count > 0 ? entries.Min(entry => entry.CreatedDateTime) : null;
+        return CommandResult.Success(new SignInReport(
+            user, query.FailuresOnly, since, entries, truncated, until, oldest, query.Kind, request.Version.Segment()));
     }
 
-    /// <summary>The request of a window and a user: <c>/auditLogs/signIns?$filter=…</c>.</summary>
-    internal static GraphRequest Request(string? user, DateTimeOffset since)
+    /// <summary>
+    /// The request of a window, a user and a kind: <c>/auditLogs/signIns?$filter=…</c>, on the beta endpoint for a
+    /// kind.
+    /// </summary>
+    internal static GraphRequest Request(string? user, DateTimeOffset since, DateTimeOffset? until = null, SignInKind? kind = null)
     {
         string filter = $"createdDateTime ge {AuditWindow.Literal(since)}";
+        if (until is { } end)
+        {
+            filter += $" and createdDateTime le {AuditWindow.Literal(end)}";
+        }
+
         if (user is not null)
         {
             filter += $" and userPrincipalName eq {GraphQuery.Literal(user)}";
         }
 
-        return GraphRequest.Get(GraphQuery.Path("/auditLogs/signIns", ("$filter", filter))) with { Permission = Permission };
+        if (kind is { } eventType)
+        {
+            filter += $" and signInEventTypes/any(t: t eq {GraphQuery.Literal(eventType.EventType())})";
+        }
+
+        return GraphRequest.Get(GraphQuery.Path("/auditLogs/signIns", ("$filter", filter))) with
+        {
+            Permission = Permission,
+            Version = kind is null ? GraphVersion.V1 : GraphVersion.Beta,
+        };
     }
 
     /// <summary>
@@ -162,7 +272,9 @@ public static class SignInLookup
             item.IsInteractive,
             item.ConditionalAccessStatus,
             item.Status?.ErrorCode ?? 0,
-            string.IsNullOrWhiteSpace(item.Status?.FailureReason) ? null : item.Status.FailureReason);
+            string.IsNullOrWhiteSpace(item.Status?.FailureReason) ? null : item.Status.FailureReason,
+            string.IsNullOrWhiteSpace(item.ServicePrincipalName) ? null : item.ServicePrincipalName,
+            string.IsNullOrWhiteSpace(item.ResourceDisplayName) ? null : item.ResourceDisplayName);
     }
 }
 
@@ -188,6 +300,10 @@ internal sealed record GraphSignIn : GraphObject
     public string? ConditionalAccessStatus { get; init; }
 
     public GraphSignInStatus? Status { get; init; }
+
+    public string? ServicePrincipalName { get; init; }
+
+    public string? ResourceDisplayName { get; init; }
 
     public GraphSignInLocation? Location { get; init; }
 }

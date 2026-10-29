@@ -41,12 +41,17 @@ public sealed record GroupInfo(string Id, string DisplayName, GroupKind Kind, st
 /// <param name="UserPrincipalName">A user's sign-in name, or null.</param>
 /// <param name="Mail">The address, or null.</param>
 /// <param name="Id">The object id.</param>
-public sealed record GroupMember(string Type, string? DisplayName, string? UserPrincipalName, string? Mail, string Id);
+/// <param name="Nested">
+/// In a transitive list (<c>group members --transitive</c>), true for a member through a nested group and false for a
+/// direct one; null in a direct list.
+/// </param>
+public sealed record GroupMember(string Type, string? DisplayName, string? UserPrincipalName, string? Mail, string Id, bool? Nested = null);
 
 /// <summary>The result of <c>group members</c>.</summary>
 /// <param name="Group">The group the name resolved to.</param>
-/// <param name="Members">The direct members, by name.</param>
-public sealed record GroupMembers(GroupInfo Group, IReadOnlyList<GroupMember> Members);
+/// <param name="Members">The members, by name: the direct ones, or with <paramref name="Transitive"/> every member of the nested groups too.</param>
+/// <param name="Transitive">Whether the list is transitive (<c>--transitive</c>), each member marked direct or nested.</param>
+public sealed record GroupMembers(GroupInfo Group, IReadOnlyList<GroupMember> Members, bool Transitive = false);
 
 /// <summary>The result of <c>group owners</c>.</summary>
 /// <param name="Group">The group the name resolved to.</param>

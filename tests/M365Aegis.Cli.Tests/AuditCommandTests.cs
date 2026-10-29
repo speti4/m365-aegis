@@ -106,6 +106,100 @@ public sealed class AuditCommandTests
     }
 
     [Fact]
+    public void TheDirectoryAuditFiltersByTheInitiatingUser()
+    {
+        (int exitCode, string stdout, _) = CliTests.RunWith(CallCommandTests.Fixtures, "--json", "audit", "list", "--since", Since, "--user", "alice@contoso.com");
+
+        Assert.Equal(0, exitCode);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement data = document.RootElement.GetProperty("data");
+        Assert.Equal("alice@contoso.com", data.GetProperty("user").GetString());
+        Assert.All(data.GetProperty("entries").EnumerateArray(), entry => Assert.Equal("alice@contoso.com", entry.GetProperty("initiatedBy").GetString()));
+        Assert.Equal(2, data.GetProperty("entries").GetArrayLength());
+    }
+
+    [Fact]
+    public void ATruncatedAuditNamesTheOldestEntryInTheEnvelope()
+    {
+        (int exitCode, string stdout, _) = CliTests.RunWith(
+            CallCommandTests.Fixtures, "--json", "audit", "list", "--since", Since, "--until", "2026-10-29T00:00:00Z", "--limit", "3");
+
+        Assert.Equal(0, exitCode);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement data = document.RootElement.GetProperty("data");
+        Assert.True(data.GetProperty("truncated").GetBoolean());
+        Assert.Equal("2026-10-28T18:44:09+00:00", data.GetProperty("oldest").GetString());
+        Assert.Equal("2026-10-29T00:00:00+00:00", data.GetProperty("until").GetString());
+    }
+
+    [Fact]
+    public async Task TheUserFilteredDirectoryAuditTable()
+    {
+        (GraphClient graph, _) = GraphFixtures.Client();
+        CommandResult<DirectoryAuditReport> result = await DirectoryAuditLookup.RunAsync(
+            graph, new DirectoryAuditQuery(1, null, null, 1000, "alice@contoso.com"), Now, TestContext.Current.CancellationToken);
+
+        await Verify(Render(result, graph, AuditListTableView.Instance));
+    }
+
+    [Fact]
+    public async Task ATruncatedDirectoryAuditTableOverTwoPages()
+    {
+        (GraphClient graph, _) = GraphFixtures.Client();
+        var since = new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero);
+        CommandResult<DirectoryAuditReport> result = await DirectoryAuditLookup.RunAsync(
+            graph, new DirectoryAuditQuery(null, since, null, 3, Until: since.AddHours(12)), Now, TestContext.Current.CancellationToken);
+
+        await Verify(Render(result, graph, AuditListTableView.Instance));
+    }
+
+    [Fact]
+    public async Task ATruncatedSignInTableOverTwoPages()
+    {
+        (GraphClient graph, _) = GraphFixtures.Client();
+        CommandResult<SignInReport> result = await SignInLookup.RunAsync(graph, new SignInQuery("alice@contoso.com", false, 1, null, 3), Now, TestContext.Current.CancellationToken);
+
+        await Verify(Render(result, graph, SignInListTableView.Instance));
+    }
+
+    [Theory]
+    [InlineData("interactive", 1)]
+    [InlineData("non-interactive", 2)]
+    [InlineData("service-principal", 2)]
+    [InlineData("managed-identity", 1)]
+    public void EachKindOfSignInAnswersFromBeta(string kind, int count)
+    {
+        (int exitCode, string stdout, _) = CliTests.RunWith(CallCommandTests.Fixtures, "--json", "signin", "list", "--kind", kind, "--since", Since);
+
+        Assert.Equal(0, exitCode);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement data = document.RootElement.GetProperty("data");
+        Assert.Equal("beta", data.GetProperty("endpoint").GetString());
+        Assert.Equal(kind, data.GetProperty("kind").GetString());
+        Assert.Equal(count, data.GetProperty("signIns").GetArrayLength());
+    }
+
+    [Fact]
+    public void AnUnknownKindIsAUsageError()
+    {
+        (int exitCode, string stdout, _) = CliTests.RunWith(CallCommandTests.Fixtures, "--json", "signin", "list", "--kind", "robot", "--since", Since);
+
+        Assert.Equal(2, exitCode);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        Assert.Contains("non-interactive", document.RootElement.GetProperty("error").GetProperty("hint").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheServicePrincipalSignInTable()
+    {
+        (GraphClient graph, _) = GraphFixtures.Client();
+        CommandResult<SignInReport> result = await SignInLookup.RunAsync(
+            graph, new SignInQuery(null, false, 1, null, 1000, Kind: SignInKind.ServicePrincipal), Now, TestContext.Current.CancellationToken);
+
+        await Verify(Render(result, graph, SignInListTableView.Instance));
+    }
+
+    [Fact]
     public async Task TheSignInTable()
     {
         (GraphClient graph, _) = GraphFixtures.Client();

@@ -1,0 +1,10 @@
+﻿--- stdout ---
+time (UTC)           recipient          event    action  detail
+-------------------  -----------------  -------  ------  --------------------------------------------------------------------------------
+2026-10-20 08:15:42  dave@fabrikam.com  Receive  -       Message received by: mail01.contoso.com
+2026-10-20 08:15:43  dave@fabrikam.com  Submit   -       The message was submitted.
+2026-10-20 08:15:46  dave@fabrikam.com  Fail     -       Reason: [{LED=550 5.1.1 RESOLVER.ADR.RecipientNotFound; Recipient not found by …
+
+3 step(s) of <00000000-0000-0000-0000-000000000052@contoso.com> ('Invoice 2026-0412') to 1 recipient(s)
+dave@fabrikam.com: failed, trace id 00000000-0000-0000-0000-000000000053
+--- stderr ---

@@ -9,6 +9,7 @@
       { "type": "user", "displayName": "Bob Example", "userPrincipalName": "bob@contoso.com", "mail": "bob@contoso.com", "id": "00000000-0000-0000-0000-000000000003" },
       { "type": "user", "displayName": "Carol Example", "userPrincipalName": "carol@contoso.com", "id": "00000000-0000-0000-0000-000000000004" },
       { "type": "group", "displayName": "Finance EU", "mail": "finance-eu@contoso.com", "id": "00000000-0000-0000-0000-000000000032" }
-    ]
+    ],
+    "transitive": false
   }
 }

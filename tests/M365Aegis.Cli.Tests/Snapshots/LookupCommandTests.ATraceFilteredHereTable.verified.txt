@@ -1,0 +1,8 @@
+﻿--- stdout ---
+received (UTC)       status  sender             recipient          subject
+-------------------  ------  -----------------  -----------------  -----------------
+2026-10-20 08:15:42  failed  alice@contoso.com  dave@fabrikam.com  Invoice 2026-0412
+
+1 message(s) received between 2026-10-18 12:00 and 2026-10-20 12:00 UTC
+filtered here: subject containing 'invoice' (the service refused the filter, so the whole window was traced)
+--- stderr ---

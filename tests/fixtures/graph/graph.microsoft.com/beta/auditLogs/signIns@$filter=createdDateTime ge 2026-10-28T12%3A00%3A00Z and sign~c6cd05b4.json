@@ -1,0 +1,83 @@
+{
+  "@odata.context": "https://graph.microsoft.com/beta/$metadata#auditLogs/signIns",
+  "value": [
+    {
+      "id": "00000000-0000-0000-0000-0000000000c4",
+      "createdDateTime": "2026-10-29T06:00:01Z",
+      "userDisplayName": null,
+      "userPrincipalName": null,
+      "userId": "",
+      "appId": "00000000-0000-0000-0000-000000000071",
+      "appDisplayName": "Payroll Connector",
+      "ipAddress": "198.51.100.40",
+      "clientAppUsed": null,
+      "correlationId": "00000000-0000-0000-0000-000000000081",
+      "conditionalAccessStatus": "notApplied",
+      "isInteractive": false,
+      "riskDetail": "none",
+      "riskLevelAggregated": "none",
+      "riskLevelDuringSignIn": "none",
+      "riskState": "none",
+      "riskEventTypes": [],
+      "resourceDisplayName": "Microsoft Graph",
+      "resourceId": "00000000-0000-0000-0000-000000000072",
+      "status": {
+        "errorCode": 0,
+        "failureReason": null,
+        "additionalDetails": null
+      },
+      "deviceDetail": null,
+      "location": {
+        "city": null,
+        "state": null,
+        "countryOrRegion": null,
+        "geoCoordinates": null
+      },
+      "appliedConditionalAccessPolicies": [],
+      "signInEventTypes": [
+        "servicePrincipal"
+      ],
+      "servicePrincipalName": "Payroll Connector",
+      "servicePrincipalId": "00000000-0000-0000-0000-000000000047"
+    },
+    {
+      "id": "00000000-0000-0000-0000-0000000000c7",
+      "createdDateTime": "2026-10-29T05:59:58Z",
+      "userDisplayName": null,
+      "userPrincipalName": null,
+      "userId": "",
+      "appId": "00000000-0000-0000-0000-000000000071",
+      "appDisplayName": "Payroll Connector",
+      "ipAddress": "198.51.100.41",
+      "clientAppUsed": null,
+      "correlationId": "00000000-0000-0000-0000-000000000081",
+      "conditionalAccessStatus": "notApplied",
+      "isInteractive": false,
+      "riskDetail": "none",
+      "riskLevelAggregated": "none",
+      "riskLevelDuringSignIn": "none",
+      "riskState": "none",
+      "riskEventTypes": [],
+      "resourceDisplayName": "Microsoft Graph",
+      "resourceId": "00000000-0000-0000-0000-000000000072",
+      "status": {
+        "errorCode": 7000222,
+        "failureReason": "The provided client secret keys for app are expired.",
+        "additionalDetails": null
+      },
+      "deviceDetail": null,
+      "location": {
+        "city": null,
+        "state": null,
+        "countryOrRegion": null,
+        "geoCoordinates": null
+      },
+      "appliedConditionalAccessPolicies": [],
+      "signInEventTypes": [
+        "servicePrincipal"
+      ],
+      "servicePrincipalName": "Payroll Connector",
+      "servicePrincipalId": "00000000-0000-0000-0000-000000000047"
+    }
+  ]
+}

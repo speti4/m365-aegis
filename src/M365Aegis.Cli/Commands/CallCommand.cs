@@ -3,11 +3,12 @@ using System.Globalization;
 using System.Text.Json;
 using M365Aegis.Cli.Output;
 using M365Aegis.Core.Graph;
+using M365Aegis.Core.Output;
 
 namespace M365Aegis.Cli.Commands;
 
 /// <summary>
-/// <c>m365-aegis call &lt;METHOD&gt; &lt;path&gt; [--beta] [--body &lt;json|@file&gt;] [--all] [--yes]</c>: any Graph
+/// <c>m365-aegis call &lt;METHOD&gt; &lt;path&gt; [--beta] [--body &lt;json|@file&gt;] [--all] [--advanced] [--yes]</c>: any Graph
 /// request, the answer unchanged as the envelope's data (task 003). A GET is sent as it is; any other method
 /// changes the tenant and is sent only with <c>--yes</c>, else the request is printed as the plan and the exit code
 /// is 7 (D-006). The result is the answer's JSON, the table <see cref="CallTableView"/>.
@@ -40,6 +41,16 @@ internal static class CallCommand
         {
             Description = "Send a method other than GET; without it the request is printed as the plan and nothing is sent.",
         };
+        Option<bool> advanced = new("--advanced")
+        {
+            Description = "Send ConsistencyLevel: eventual, for an advanced query on directory objects ($search, $count, owners/$count); put $count=true in the path.",
+        };
+        // For the tests' authors (tests/fixtures/README.md): the fixture file the request maps to; nothing is sent.
+        Option<bool> fixtureName = new("--fixture-name")
+        {
+            Description = "Print the fixture file the request is answered from under tests/fixtures/graph; nothing is sent.",
+            Hidden = true,
+        };
         Command command = new("call", "Send any Microsoft Graph request and print the answer unchanged.");
         command.Arguments.Add(method);
         command.Arguments.Add(path);
@@ -47,24 +58,67 @@ internal static class CallCommand
         command.Options.Add(body);
         command.Options.Add(all);
         command.Options.Add(yes);
-        command.SetAction((parsed, cancellationToken) => GraphRunner.RunAsync(
-            parsed,
-            json,
-            table,
-            profile,
-            (graph, ct) => GraphCall.RunAsync(
-                graph,
-                new GraphCallOptions(
-                    parsed.GetValue(method) ?? "",
-                    parsed.GetValue(path) ?? "",
-                    parsed.GetValue(beta),
-                    parsed.GetValue(body),
-                    parsed.GetValue(yes),
-                    parsed.GetValue(all)),
-                ct),
-            CallTableView.Instance,
-            cancellationToken));
+        command.Options.Add(advanced);
+        command.Options.Add(fixtureName);
+        command.SetAction((parsed, cancellationToken) =>
+        {
+            GraphCallOptions Options() => new(
+                parsed.GetValue(method) ?? "",
+                parsed.GetValue(path) ?? "",
+                parsed.GetValue(beta),
+                parsed.GetValue(body),
+                parsed.GetValue(yes),
+                parsed.GetValue(all),
+                parsed.GetValue(advanced));
+
+            if (parsed.GetValue(fixtureName))
+            {
+                return CommandRunner.RunAsync(
+                    Program.ResolveMode(parsed, json, table),
+                    Backend.Local,
+                    () => Task.FromResult(GraphCall.FixtureName(Options())),
+                    FixtureNameTableView.Instance);
+            }
+
+            return GraphRunner.RunAsync(
+                parsed,
+                json,
+                table,
+                profile,
+                (graph, ct) => GraphCall.RunAsync(graph, Options(), ct),
+                CallTableView.Instance,
+                cancellationToken);
+        });
         return command;
+    }
+}
+
+/// <summary>The table of <c>call … --fixture-name</c>: the names of the URL's fixture, a field per row.</summary>
+internal sealed class FixtureNameTableView : ITableView<FixtureName>
+{
+    /// <summary>The one instance.</summary>
+    internal static FixtureNameTableView Instance { get; } = new();
+
+    private FixtureNameTableView()
+    {
+    }
+
+    public IReadOnlyList<string> Headers => ["field", "value"];
+
+    public IEnumerable<IReadOnlyList<string>> Rows(FixtureName data) =>
+    [
+        ["url", data.Url],
+        ["full name", data.FullName],
+        ["stored name", data.StoredName],
+        ["file", data.File],
+        ["length", data.Length.ToString(CultureInfo.InvariantCulture)],
+    ];
+
+    public IEnumerable<string> Footer(FixtureName data)
+    {
+        yield return data.Fits
+            ? "write the answer to the file; a .headers file and the .try-n forms go next to it"
+            : string.Format(CultureInfo.InvariantCulture, "the file is longer than the {0} characters check-fixtures.py allows: shorten the request (a shorter id, fewer $select fields)", FixtureGraphTransport.MaxRepoPathLength);
     }
 }
 

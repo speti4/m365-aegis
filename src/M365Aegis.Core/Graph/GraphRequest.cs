@@ -61,6 +61,24 @@ public sealed record GraphRequest
     public string? Body { get; init; }
 
     /// <summary>
+    /// The media type the answer is accepted in: <c>application/json</c> when null; <c>text/plain</c> for a raw
+    /// <c>$count</c> segment, which Graph answers as a plain number and refuses (415) when only JSON is accepted.
+    /// </summary>
+    public string? Accept { get; init; }
+
+    /// <summary>The <see cref="Accept"/> of a raw <c>$count</c> request.</summary>
+    public const string PlainText = "text/plain";
+
+    /// <summary>True when the path, before its query, ends in a <c>$count</c> segment (<c>/groups/$count</c>).</summary>
+    public static bool IsRawCount(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        int query = path.IndexOf('?', StringComparison.Ordinal);
+        string bare = query >= 0 ? path[..query] : path;
+        return bare.EndsWith("/$count", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// The delegated permission the call needs (<c>Group.Read.All</c>), named in the hint of a 403 answer; null
     /// gives the generic hint.
     /// </summary>

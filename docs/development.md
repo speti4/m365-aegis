@@ -163,7 +163,7 @@ tool read local files. A command in the Cli is one call: `GraphRunner.RunAsync(p
 (graph, ct) => Lookup(graph, …, ct), View.Instance, cancellationToken)`, with the lookup in the Core returning a
 `CommandResult<T>`.
 
-`call <METHOD> <path> [--beta] [--body <json|@file>] [--all] [--yes]` is the raw request: the path under the
+`call <METHOD> <path> [--beta] [--body <json|@file>] [--all] [--advanced] [--yes]` is the raw request: the path under the
 version (`/me`), with the version in front (`/v1.0/me`, `/beta/me`; a version in the path and `--beta` that
 disagree are a usage error) or a full Graph URL; the answer is the envelope's data unchanged, `--all` merges every
 page's `value`, and the table shows a collection as a row per item and an object as a field per row. A GET is
@@ -179,10 +179,27 @@ with its table view in the Cli (task 005, task 007):
   exact display name, or with an `@` an exact address (`$filter` … `eq`, an advanced query), else the one group whose
   name `$search` matches (`"displayName:<words>"`); no match is exit code 4, and more than one is exit code 4 with
   the candidates and their ids in the hint. The members and owners come over every page with `$select`, which on
-  these lists is an advanced query (`ConsistencyLevel: eventual`, `$count=true`).
-- `group owners-missing [--all-types]`: one paged advanced query, `$filter=owners/$count eq 0`, never a request per
-  group. Graph keeps no owners for distribution, mail-enabled security and synced groups, so they are left out and
-  counted under the table unless `--all-types` asks for them.
+  these lists is an advanced query (`ConsistencyLevel: eventual`, `$count=true`). `group members --transitive`
+  (task 033) reads `/groups/{id}/transitiveMembers`, the flat list of every member of the nested groups too; it
+  does not say through which group a member came, so the direct list is asked for beside it and the row's
+  membership column says `direct` or `nested` (the envelope's `nested` field), next to the member's type (`user`,
+  `group`, `device`, `servicePrincipal`, `orgContact`).
+- `group owners-missing [--all-types]`: advanced queries on `owners/$count eq 0`, never a request per group.
+  Graph keeps no owners for distribution, mail-enabled security and synced groups, so by default only the two
+  kinds it keeps them for are asked for, side by side (task 032): the Microsoft 365 groups
+  (`groupTypes/any(c:c eq 'Unified')`) and the security groups without mail (`mailEnabled eq false and
+  securityEnabled eq true and NOT(groupTypes/any(…))`), each `$top=999` with the six group fields, and next to them
+  `GET /groups/$count?$filter=owners/$count eq 0`, whose number less the listed groups is the left-out count under
+  the table; the synced groups are picked out client-side. A raw `$count` answers `text/plain` only and refuses a
+  request that accepts only JSON (415), so the client sends `Accept: text/plain` for it (`GraphRequest.Accept`;
+  `call` does the same for a path ending in `/$count`). The one wide query, which the left-out kinds filled
+  with pages, answers `--all-types`, and answers instead should Graph refuse a narrowed filter or the count (400,
+  406 or 415). Measured on a tenant of 2445 groups, 2117 of them without an owner in Graph (2026-10-29): the wide
+  query is three pages in about 1.35 s, the narrowed Microsoft 365 query one page in about 0.65 s, which is the
+  floor of the default; the command answered in 1.25 s warm and 2.1 s cold (four requests: the security query
+  took two pages), against 7.9 s for the one wide query of task 005, the rest being the process start and the
+  token. `call GET "<path>" --advanced` sends the same `ConsistencyLevel: eventual` for a raw
+  advanced query.
 - `team list` (`Groups/WorkspaceLookups.cs`): `GET /teams`, which fills the id, the name, the description and the
   visibility only. `site list [--search <words>]`: `GET /sites?search=` (`*` for every site the account can see).
 - `trace --sender <address> | --recipient <address> [--days N] [--until <time>]` (`Exchange/MessageTraceLookup.cs`):
@@ -190,7 +207,35 @@ with its table view in the Cli (task 005, task 007):
   of 5000. The service answers at most 10 days per request, back to 90 days, ending no later than now: a window
   outside that is a usage error with a hint (`--until` moves the window back) and is never sent, so an empty answer
   always means no message. The service allows 100 requests per 5 minutes per tenant; a 429 goes through the
-  client's throttling budget.
+  client's throttling budget. `--status <status>` (delivered, failed, pending, expanded, quarantined,
+  filteredAsSpam, gettingStatus, none; any case, `filtered-as-spam` too) and `--subject <text>` (task 035) are
+  server-side: `status eq '…'` and `contains(subject,'…')` join the `$filter`, both documented filters of the trace
+  (https://learn.microsoft.com/exchange/monitoring/trace-an-email-message/graph-api-message-trace). Should the
+  service refuse them (400), the window is traced again without them and they are applied client-side (the status
+  exact, the subject a case-insensitive contains), so a refused filter is never the answer; the envelope's
+  `filteredBy` (`service` or `client`) and the line under the table say which way it went.
+- `trace details <trace id | Message-ID> [--recipient <address>]` (`Exchange/MessageTraceDetailsLookup.cs`, task
+  034): the delivery steps of one message per recipient (time, event, action, description, and the event's XML data
+  in the envelope) from the function `messageTraces/{id}/getDetailsByRecipient(recipientAddress='…')`, which takes
+  a trace id and one recipient. A trace id with `--recipient` is one request; otherwise the message's trace rows come
+  first (`$filter=id eq …` or `messageId eq …`, over the service's default window of 48 hours) and name the
+  recipients, at most 10, whose steps are asked for side by side. An older message is reached with the trace id
+  from `trace --until …` and `--recipient`.
+- `signin list` and `audit list` (`Audit/`, task 006) read a window of the log, newest first: `--days N` or
+  `--since <date>` for the start, `--until <date>` for the end (`createdDateTime le` / `activityDateTime le`; `--days`
+  counts back from it), up to `--limit` entries (1000 by default). A list that stops at the limit sets `truncated`
+  and names the time of the oldest entry it listed (`oldest` in the envelope); the line under the table gives the
+  window that continues it, `--since <start> --until <oldest>` (task 038). `audit list --user <upn>` keeps the
+  activities that user started, `initiatedBy/user/userPrincipalName eq …` in the `$filter` beside the window,
+  `--activity` and `$orderby` (task 037), and the line under the table names the user.
+- `signin list --kind interactive|non-interactive|service-principal|managed-identity` (task 039) is the one lookup
+  on the beta endpoint: v1.0 lists the interactive user sign-ins only, and the other kinds are reached through
+  beta's `signInEventTypes/any(t: t eq 'nonInteractiveUser')` (`interactiveUser`, `servicePrincipal`,
+  `managedIdentity`) in the `$filter` (https://learn.microsoft.com/graph/api/signin-list?view=graph-rest-beta). The
+  report's `endpoint` says which version answered (`v1.0` without `--kind`), and the line under the table names the
+  beta dependency, whose answers may change shape; the service principal and managed identity rows show the
+  service principal and the resource in place of the user and the app, and `--user` with them is a usage error.
+  Same permission, roles and Microsoft Entra ID P1 or P2 license as the v1.0 log.
 
 ## The Exchange Online sidecar
 
@@ -486,7 +531,8 @@ regenerated `CHANGELOG.md`.
 ### The other scripts
 
 - `scripts/check-fixtures.py` — every file under `tests/fixtures`, `tests/sidecar` and `tests/contracts` carries
-  made-up data only: the allowed domains, the `00000000-…` ids, nothing that looks like a token.
+  made-up data only: the allowed domains, the `00000000-…` ids, nothing that looks like a token; and no file path
+  there is over 190 characters from the repo root, which a worktree would push past git for Windows' 260.
 - `scripts/check-vulnerable.py` — `dotnet package list --vulnerable --include-transitive` as JSON, with a failing
   exit code when it finds anything (the command itself exits 0 either way).
 - `scripts/npm-licenses.py` — the front end's shipped packages against `licenses/allowed.json`, from the lock
@@ -500,4 +546,6 @@ Every test runs offline and against synthetic data: recorded Graph, Admin API an
 scrubbed to made-up names under `tests/fixtures/` (`fixtures/README.md` has the layout and the rules), the
 bridge contract samples under `tests/contracts/bridge/`, and the fake `ExchangeOnlineManagement` module under
 `tests/sidecar/modules/`. A signed-in round on the real tenant is a task of its own, and its result is a dated
-line in that task's Verification; nothing it printed is committed before it is scrubbed.
+line in that task's Verification; nothing it printed is committed before it is scrubbed. A Graph fixture's file
+name comes from the hidden `m365-aegis call GET "<path>" --fixture-name`, which computes it as the fixture
+transport does, sends nothing and needs no sign-in (task 036).

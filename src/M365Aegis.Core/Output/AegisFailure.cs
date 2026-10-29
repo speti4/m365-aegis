@@ -122,4 +122,10 @@ public sealed class AegisException : Exception
 
     /// <summary>The failure, as the contract reports it.</summary>
     public AegisFailure Failure { get; }
+
+    /// <summary>
+    /// The HTTP status of the service's answer behind the failure, or null when there was none; a lookup reads it
+    /// to tell a query the service refused (400) from the other service errors and fall back to a plainer one.
+    /// </summary>
+    public int? HttpStatus { get; init; }
 }

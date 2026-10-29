@@ -115,7 +115,7 @@ public sealed class GraphClient
     public async Task<GraphResponse> SendAsync(GraphRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var http = new GraphHttpRequest(request.Method, BuildUri(request), request.EventualConsistency ? Eventual : NoHeaders, request.Body);
+        var http = new GraphHttpRequest(request.Method, BuildUri(request), Headers(request), request.Body);
         GraphResponse response = await SendWithRetriesAsync(http, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccess)
         {
@@ -157,6 +157,7 @@ public sealed class GraphClient
                 Version = request.Version,
                 EventualConsistency = request.EventualConsistency,
                 Permission = request.Permission,
+                Accept = request.Accept,
             };
         }
     }
@@ -332,6 +333,23 @@ public sealed class GraphClient
 
     private static bool IsThrottled(int status) => status is 429 or 503;
 
+    /// <summary>The headers a request adds: <c>ConsistencyLevel</c> for an advanced query, <c>Accept</c> when it names one.</summary>
+    private static IReadOnlyDictionary<string, string> Headers(GraphRequest request)
+    {
+        if (request.Accept is null)
+        {
+            return request.EventualConsistency ? Eventual : NoHeaders;
+        }
+
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["Accept"] = request.Accept };
+        if (request.EventualConsistency)
+        {
+            headers["ConsistencyLevel"] = "eventual";
+        }
+
+        return headers;
+    }
+
     /// <summary>The wait before the next try, or null when the retries of this request are spent.</summary>
     private TimeSpan? NextDelay(IReadOnlyDictionary<string, string> headers, int attempt)
     {
@@ -443,7 +461,7 @@ public sealed class GraphClient
             _ => $": {code}: {message}",
         };
         string sentence = $"Microsoft Graph answered {status.ToString(CultureInfo.InvariantCulture)} to {what}{detail}";
-        return status switch
+        AegisException failure = status switch
         {
             401 => new AegisException(FailureKind.Auth, sentence, "the token was refused; run `m365-aegis login` and try again"),
             403 => new AegisException(FailureKind.Forbidden, sentence, ForbiddenHint(request.Permission)),
@@ -452,6 +470,7 @@ public sealed class GraphClient
             >= 500 => new AegisException(FailureKind.ServiceError, sentence, "a service error on Microsoft's side; run the command again later"),
             _ => new AegisException(FailureKind.ServiceError, sentence, "Graph refused the request as it was written; check the path, the query and the body"),
         };
+        return new AegisException(failure.Failure) { HttpStatus = status };
     }
 
     private static string ForbiddenHint(string? permission) => permission is null

@@ -36,6 +36,21 @@ public sealed class HttpGraphTransportTests
     }
 
     [Fact]
+    public async Task JsonIsAcceptedUnlessTheRequestNamesAnotherType()
+    {
+        var handler = new Handler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("2117") });
+        var transport = new HttpGraphTransport(_ => Task.FromResult("token"), handler);
+        var plain = new Dictionary<string, string> { ["Accept"] = "text/plain", ["ConsistencyLevel"] = "eventual" };
+
+        await transport.SendAsync(new GraphHttpRequest(HttpMethod.Get, new Uri("https://graph.microsoft.com/v1.0/me"), Eventual, null), CancellationToken.None);
+        GraphResponse count = await transport.SendAsync(new GraphHttpRequest(HttpMethod.Get, new Uri("https://graph.microsoft.com/v1.0/groups/$count"), plain, null), CancellationToken.None);
+
+        Assert.Equal("application/json", Assert.Single(handler.Requests[0].Headers.Accept).MediaType);
+        Assert.Equal("text/plain", Assert.Single(handler.Requests[1].Headers.Accept).MediaType);
+        Assert.Equal("2117", count.Body);
+    }
+
+    [Fact]
     public async Task ABodyIsSentAsJson()
     {
         var handler = new Handler(_ => new HttpResponseMessage(HttpStatusCode.Created) { Content = new StringContent("{}") });

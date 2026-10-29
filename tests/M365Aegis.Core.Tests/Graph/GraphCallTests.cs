@@ -96,6 +96,65 @@ public sealed class GraphCallTests
     }
 
     [Fact]
+    public async Task AdvancedSendsTheConsistencyHeaderOnEveryPage()
+    {
+        (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
+
+        CommandResult<JsonElement?> result = await GraphCall.RunAsync(
+            graph, new GraphCallOptions("GET", "/users?$select=id,displayName,userPrincipalName&$top=2", false, null, false, true, Advanced: true), None);
+
+        Assert.True(result.Ok);
+        Assert.Equal(2, transport.Requests.Count);
+        Assert.All(transport.Requests, request => Assert.Equal("eventual", request.Headers["ConsistencyLevel"]));
+    }
+
+    [Theory]
+    [InlineData("/groups/$count?$filter=owners/$count eq 0", "text/plain")]
+    [InlineData("/groups/$count", "text/plain")]
+    [InlineData("/groups?$count=true", null)]
+    [InlineData("/groups/00000000-0000-0000-0000-000000000031/members/$count", "text/plain")]
+    public void ARawCountAcceptsPlainText(string path, string? accept)
+    {
+        Assert.Equal(accept, GraphCall.Describe(new GraphCallOptions("GET", path, false, null, false, false, Advanced: true)).Accept);
+    }
+
+    [Fact]
+    public void WithoutAdvancedNoConsistencyHeaderIsAskedFor()
+    {
+        Assert.False(GraphCall.Describe(new GraphCallOptions("GET", "/groups", false, null, false, false)).EventualConsistency);
+        Assert.True(GraphCall.Describe(new GraphCallOptions("GET", "/groups?$count=true", false, null, false, false, Advanced: true)).EventualConsistency);
+    }
+
+    [Theory]
+    [InlineData("/groups/00000000-0000-0000-0000-000000000031/owners?$count=true&$select=id,displayName,userPrincipalName,mail&$top=999", false)]
+    [InlineData("/admin/exchange/tracing/messageTraces?$filter=receivedDateTime ge 2026-10-18T12:00:00Z and receivedDateTime le 2026-10-20T12:00:00Z and senderAddress eq 'alice@contoso.com'&$top=5000", true)]
+    public void TheFixtureNameIsTheTransportsAndTheFileIsThere(string path, bool shortForm)
+    {
+        FixtureName name = GraphCall.FixtureName(new GraphCallOptions("GET", path, false, null, false, false)).Data!;
+
+        Uri uri = GraphClient.BuildUri(GraphRequest.Get(path));
+        Assert.Equal(FixtureGraphTransport.RelativePath(uri), name.FullName);
+        Assert.Equal(FixtureGraphTransport.ShortRelativePath(uri), name.StoredName);
+        Assert.Equal(shortForm, name.StoredName != name.FullName);
+        Assert.Equal($"tests/fixtures/graph/{name.StoredName}.json", name.File);
+        Assert.True(name.Fits);
+        // The fixture the lookups' tests read is the very file the helper names.
+        Assert.True(File.Exists(Path.Combine(GraphFixtures.Root, name.StoredName.Replace('/', Path.DirectorySeparatorChar) + ".json")), name.File);
+    }
+
+    [Fact]
+    public void ANameWithinTheLimitButAPathOverItIsShortened()
+    {
+        string path = "/groups/00000000-0000-0000-0000-000000000031/transitiveMembers?$count=true&$select=id,displayName,userPrincipalName,mail,deviceId,appId&$skiptoken=page-2&$top=999";
+        Uri uri = GraphClient.BuildUri(GraphRequest.Get(path));
+        string full = FixtureGraphTransport.RelativePath(uri);
+
+        Assert.True(full[(full.LastIndexOf('/') + 1)..].Length <= FixtureGraphTransport.MaxNameLength);
+        Assert.True(full.Length > FixtureGraphTransport.MaxPathLength);
+        Assert.Contains("~", FixtureGraphTransport.ShortRelativePath(uri), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task WithoutAllTheNextLinkStays()
     {
         (GraphClient graph, _) = GraphFixtures.Client();

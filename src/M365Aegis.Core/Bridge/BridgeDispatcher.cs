@@ -124,7 +124,7 @@ public sealed class BridgeDispatcher
         }
 
         GraphClient graph = _services.Graph(new RequestLog());
-        CommandResult<GroupMembers> result = await GroupLookups.MembersAsync(graph, group, cancellationToken).ConfigureAwait(false);
+        CommandResult<GroupMembers> result = await GroupLookups.MembersAsync(graph, group, transitive: false, cancellationToken).ConfigureAwait(false);
         return result.Failure is { } failure
             ? BridgeProtocol.Error(request, failure)
             : BridgeProtocol.Reply(request, BridgeMessageType.Members, result.Data);

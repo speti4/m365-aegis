@@ -1,0 +1,12 @@
+﻿--- stdout ---
+type    name           sign-in name or address  membership  id
+------  -------------  -----------------------  ----------  ------------------------------------
+user    Alice Example  alice@contoso.com        direct      00000000-0000-0000-0000-000000000001
+user    Bob Example    bob@contoso.com          direct      00000000-0000-0000-0000-000000000003
+user    Carol Example  carol@contoso.com        direct      00000000-0000-0000-0000-000000000004
+user    Dave Example   dave@contoso.com         nested      00000000-0000-0000-0000-000000000005
+device  FIN-KIOSK-01   -                        nested      00000000-0000-0000-0000-000000000006
+group   Finance EU     finance-eu@contoso.com   direct      00000000-0000-0000-0000-000000000032
+
+6 member(s) of Finance (Microsoft 365, 00000000-0000-0000-0000-000000000031): 4 direct, 2 through the 1 nested group(s) among them
+--- stderr ---

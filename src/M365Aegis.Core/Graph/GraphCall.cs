@@ -14,7 +14,11 @@ namespace M365Aegis.Core.Graph;
 /// <param name="Body">The JSON body, or <c>@file.json</c> to read it from a file; null for none.</param>
 /// <param name="Yes">Send a method other than GET; without it the request is the plan and nothing is sent.</param>
 /// <param name="All">Follow <c>@odata.nextLink</c> and return every page's <c>value</c> in one answer.</param>
-public sealed record GraphCallOptions(string Method, string Path, bool Beta, string? Body, bool Yes, bool All);
+/// <param name="Advanced">
+/// Send <c>ConsistencyLevel: eventual</c> on the request and its pages: an advanced query on directory objects
+/// (<c>$search</c>, <c>$count</c>, a filter on <c>owners/$count</c>), which also needs <c>$count=true</c> in the path.
+/// </param>
+public sealed record GraphCallOptions(string Method, string Path, bool Beta, string? Body, bool Yes, bool All, bool Advanced = false);
 
 /// <summary>
 /// The raw <c>call</c>: any Graph request, the answer unchanged as the envelope's data (D-006); the data is null
@@ -61,6 +65,17 @@ public static class GraphCall
         return CommandResult.Success<JsonElement?>(answer);
     }
 
+    /// <summary>
+    /// The fixture a request of the options would be answered from (task 036): nothing is sent and no sign-in is
+    /// needed, so a fixture is authored without running a test to read its name from the failure.
+    /// </summary>
+    /// <exception cref="AegisException">A usage error in the options.</exception>
+    public static CommandResult<FixtureName> FixtureName(GraphCallOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return CommandResult.Success(FixtureGraphTransport.Describe(GraphClient.BuildUri(Describe(options))));
+    }
+
     /// <summary>The request of the options, or a usage error.</summary>
     internal static GraphRequest Describe(GraphCallOptions options)
     {
@@ -105,7 +120,13 @@ public static class GraphCall
             throw new AegisException(FailureKind.Usage, "a GET has no body", "drop --body, or name the method that takes it");
         }
 
-        var request = new GraphRequest(new HttpMethod(method), path) { Version = version, Body = body };
+        var request = new GraphRequest(new HttpMethod(method), path)
+        {
+            Version = version,
+            Body = body,
+            EventualConsistency = options.Advanced,
+            Accept = GraphRequest.IsRawCount(path) ? GraphRequest.PlainText : null,
+        };
         _ = GraphClient.BuildUri(request);
         return request;
     }
@@ -171,7 +192,7 @@ public static class GraphCall
         var seen = new HashSet<string>(StringComparer.Ordinal);
         while (merged["@odata.nextLink"]?.GetValue<string>() is { } next && seen.Add(next))
         {
-            var page = new GraphRequest(HttpMethod.Get, next) { Version = request.Version };
+            var page = new GraphRequest(HttpMethod.Get, next) { Version = request.Version, EventualConsistency = request.EventualConsistency };
             GraphResponse response = await graph.SendAsync(page, cancellationToken).ConfigureAwait(false);
             merged.Remove("@odata.nextLink");
             if (JsonNode.Parse(response.Body) is JsonObject answer)

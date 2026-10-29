@@ -30,15 +30,29 @@ The tasks that add the fixtures name the files; the layout mirrors the request:
   is how a throttled request and its retry are recorded (`v1.0/organization.try-1.headers` with `Status: 429` and
   `Retry-After: 2`, then `v1.0/organization.json`); a `$batch` call is `v1.0/$batch.try-n.json`. A request id is a
   made-up GUID (`request-id: 00000000-0000-0000-0000-0000000000f1`). `FixtureGraphTransport.RelativePath` computes
-  the name, and a missing fixture fails with the name it looked for. A file name longer than 120 characters is
-  stored in its short form (`FixtureGraphTransport.ShortRelativePath`: the first 60 characters of the query, a `~`
-  and 8 hex digits of its SHA-256), which the transport tries second and a missing fixture's message names; git
-  for Windows cannot add a path over 260 characters, and a worktree under `.claude/worktrees` is deep (the group
-  queries' names and the message trace's windows are stored this way). The answers so far: the client's own cases (`me`, `users` over two pages,
+  the name, and a missing fixture fails with the name it looked for. A file name longer than 120 characters, or a
+  path under `graph/` longer than 150, is stored in its short form (`FixtureGraphTransport.ShortRelativePath`: the
+  first 60 characters of the query, a `~` and 8 hex digits of its SHA-256), which the transport tries second and a
+  missing fixture's message names; git for Windows cannot add a path over 260 characters, and a worktree under
+  `.claude/worktrees` puts about 70 in front of the repo's own (the group queries' names and the message trace's
+  windows are stored this way). `scripts/check-fixtures.py` refuses any file here whose path from the repo root is
+  over 190 characters. To find a new fixture's name without running a test, ask the command line, which sends
+  nothing and needs no sign-in: `m365-aegis call GET "<path or URL>" --fixture-name` (a hidden option; `--beta`
+  for the beta endpoint) prints the full name, the stored name, the file to write from the repo root and its
+  length. The answers so far: the client's own cases (`me`, `users` over two pages,
   a throttled `organization`, a 503 `domains`, a `$batch` with a throttled item, 403, 404 and 400 answers; task
   003), the group lookups (`groups@…` for the exact name, the address and the search, the members over two pages,
-  the owners, the groups without an owner over two pages), `teams` and `sites` (task 005), and the message traces
-  under `v1.0/admin/exchange/tracing/` with a window ending 2026-10-20T12:00:00Z (task 007). The tests read these files from the source
+  the owners, the groups without an owner over two pages), `teams` and `sites` (task 005), the narrowed ownerless
+  queries (the Microsoft 365 groups, the security groups without mail, and `groups/$count@…` answering 5; task
+  032), Finance's `transitiveMembers` (the direct members plus Dave Example and the device FIN-KIOSK-01 through
+  Finance EU, in the short form; task 033), and the message traces
+  under `v1.0/admin/exchange/tracing/` with a window ending 2026-10-20T12:00:00Z (task 007), with the details of
+  their messages (task 034): the rows by trace id (`messageTraces@$filter=id eq …`; an unknown id answers an
+  empty list) and by Message-ID, and `messageTraces/<trace id>/getDetailsByRecipient(recipientAddress='…')` for
+  bob and carol (received, submitted, delivered) and dave (a failed lookup of the recipient); alice's window
+  filtered by the service on `status eq 'failed'` and `contains(subject,'Quarterly')`, and a made-up 400 for
+  `contains(subject,'invoice')` that the lookup answers client-side (task 035). An `@` inside a path
+  is written `%40`, so a name's first `@` is the query's. The tests read these files from the source
   tree (`tests/shared/GraphFixtures.cs`), and the command line reads them when `M365AEGIS_GRAPH_FIXTURES` names
   the folder.
   The audit lookups (task 006) answer from `v1.0/auditLogs/signIns@…` (the window from 2026-10-28T12:00:00Z:
@@ -46,8 +60,12 @@ The tasks that add the fixtures name the files; the layout mirrors the request:
   carol's 403 of a missing permission), `v1.0/applications@…` (two pages: two secrets that expire in the 30 days
   after 2026-10-29T12:00:00Z, one expired, a certificate beyond the window) and `v1.0/servicePrincipals@…` (a
   SAML signing certificate in the window), and `v1.0/auditLogs/directoryAudits@…` (three entries, and the one an
-  `--activity "Add member"` filter keeps; it and alice's second page in the short form). The IP addresses are from
-  the documentation ranges (`203.0.113.0/24`, `198.51.100.0/24`).
+  `--activity "Add member"` filter keeps; it and alice's second page in the short form), the two entries alice
+  started (`--user`, task 037), and a window ending 2026-10-29T00:00:00Z over two pages of two entries (`--until`,
+  the truncated footer of task 038). The beta sign-in log answers one kind each under `beta/auditLogs/signIns@…`
+  from the same window (task 039): one interactive and two non-interactive sign-ins of alice (one failed by a
+  sign-in frequency check), two of the service principal Payroll Connector (one with an expired secret), and one of
+  a managed identity. The IP addresses are from the documentation ranges (`203.0.113.0/24`, `198.51.100.0/24`).
 - `adminapi/<path>.json` — an Exchange Online Admin API answer in the same shape (task 010).
 - `exo/<cmdlet>.json` — the objects an Exchange Online cmdlet returns through the sidecar (task 015).
 - `doctor/<state>.json` — a doctor report as the envelope carries it, the samples the snapshot tests of both

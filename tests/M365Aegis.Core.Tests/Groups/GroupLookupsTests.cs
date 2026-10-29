@@ -1,6 +1,7 @@
 using M365Aegis.Core.Graph;
 using M365Aegis.Core.Groups;
 using M365Aegis.Core.Output;
+using M365Aegis.Core.Tests.Graph;
 using M365Aegis.Tests;
 
 namespace M365Aegis.Core.Tests.Groups;
@@ -77,7 +78,7 @@ public sealed class GroupLookupsTests
     {
         (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
 
-        CommandResult<GroupMembers> result = await GroupLookups.MembersAsync(graph, "Finance", None);
+        CommandResult<GroupMembers> result = await GroupLookups.MembersAsync(graph, "Finance", transitive: false, None);
 
         GroupMembers members = Assert.IsType<GroupMembers>(result.Data);
         Assert.Equal(["Alice Example", "Bob Example", "Carol Example", "Finance EU"], members.Members.Select(member => member.DisplayName));
@@ -85,6 +86,35 @@ public sealed class GroupLookupsTests
         // The next page keeps the advanced query's header.
         Assert.All(transport.Requests, request => Assert.Equal("eventual", request.Headers["ConsistencyLevel"]));
         Assert.Equal(3, graph.RequestLog.Ids.Count);
+    }
+
+    [Fact]
+    public async Task TransitiveMembersMarkTheNestedOnes()
+    {
+        (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
+
+        CommandResult<GroupMembers> result = await GroupLookups.MembersAsync(graph, "Finance", transitive: true, None);
+
+        GroupMembers members = result.Data!;
+        Assert.True(members.Transitive);
+        Assert.Equal(["Alice Example", "Bob Example", "Carol Example", "Dave Example", "FIN-KIOSK-01", "Finance EU"], members.Members.Select(member => member.DisplayName));
+        Assert.Equal([false, false, false, true, true, false], members.Members.Select(member => member.Nested));
+        Assert.Equal("device", members.Members.Single(member => member.DisplayName == "FIN-KIOSK-01").Type);
+        // The resolution, the direct list over its two pages, and the transitive list beside it.
+        Assert.Equal(4, transport.Requests.Count);
+        Assert.Single(transport.Requests, request => request.Uri.AbsolutePath.EndsWith("/transitiveMembers", StringComparison.Ordinal));
+        Assert.All(transport.Requests, request => Assert.Equal("eventual", request.Headers["ConsistencyLevel"]));
+    }
+
+    [Fact]
+    public async Task DirectMembersCarryNoMembershipMark()
+    {
+        (GraphClient graph, _) = GraphFixtures.Client();
+
+        CommandResult<GroupMembers> result = await GroupLookups.MembersAsync(graph, "Finance", transitive: false, None);
+
+        Assert.False(result.Data!.Transitive);
+        Assert.All(result.Data.Members, member => Assert.Null(member.Nested));
     }
 
     [Fact]
@@ -106,15 +136,26 @@ public sealed class GroupLookupsTests
         CommandResult<OwnerlessGroups> result = await GroupLookups.OwnerlessAsync(graph, allTypes: false, None);
 
         Assert.Equal(["Helpdesk Admins", "Project Phoenix"], result.Data!.Groups.Select(group => group.DisplayName));
+        // The count of every ownerless group (5) less the two listed.
         Assert.Equal(3, result.Data.LeftOut);
-        Assert.Equal(2, transport.Requests.Count);
-        Assert.Contains("owners/$count eq 0", Uri.UnescapeDataString(transport.Requests[0].Uri.Query), StringComparison.Ordinal);
+        // Three requests side by side and no next page: the two kinds Graph keeps owners for, and the count.
+        Assert.Equal(3, transport.Requests.Count);
+        string[] queries = transport.Requests.Select(request => Uri.UnescapeDataString(request.Uri.PathAndQuery)).Order(StringComparer.Ordinal).ToArray();
+        Assert.StartsWith("/v1.0/groups/$count?$filter=owners/$count eq 0", queries[0], StringComparison.Ordinal);
+        Assert.Contains($"$filter={GroupLookups.OwnerlessMicrosoft365Filter}&", queries[1], StringComparison.Ordinal);
+        Assert.Contains($"$filter={GroupLookups.OwnerlessSecurityFilter}&", queries[2], StringComparison.Ordinal);
+        Assert.All(transport.Requests, request => Assert.Equal("eventual", request.Headers["ConsistencyLevel"]));
+        Assert.Equal(3, graph.RequestLog.Ids.Count);
+        // The raw $count answers text/plain only (a 415 when only JSON is accepted, found live on 2026-10-29).
+        GraphHttpRequest count = Assert.Single(transport.Requests, request => request.Uri.AbsolutePath.EndsWith("/$count", StringComparison.Ordinal));
+        Assert.Equal("text/plain", count.Headers["Accept"]);
+        Assert.All(transport.Requests.Where(request => request != count), request => Assert.False(request.Headers.ContainsKey("Accept")));
     }
 
     [Fact]
     public async Task AllTypesListsEveryGroupWithoutAnOwner()
     {
-        (GraphClient graph, _) = GraphFixtures.Client();
+        (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
 
         CommandResult<OwnerlessGroups> result = await GroupLookups.OwnerlessAsync(graph, allTypes: true, None);
 
@@ -123,6 +164,63 @@ public sealed class GroupLookupsTests
             result.Data!.Groups.Select(group => group.Kind));
         Assert.True(result.Data.Groups.Single(group => group.DisplayName == "HR Synced").Synced);
         Assert.Equal(0, result.Data.LeftOut);
+        // The one wide query over its two pages.
+        Assert.Equal(2, transport.Requests.Count);
+        Assert.All(transport.Requests, request => Assert.Contains("owners/$count", Uri.UnescapeDataString(request.Uri.Query), StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ACountGraphRefusesFallsBackToTheWideQuery()
+    {
+        var transport = new ScriptedTransport(request =>
+        {
+            if (request.Uri.AbsolutePath.EndsWith("/$count", StringComparison.Ordinal))
+            {
+                return new GraphResponse(415, [], "{\"error\":{\"code\":\"Request_BadRequest\",\"message\":\"A supported MIME type could not be found.\"}}");
+            }
+
+            return new GraphResponse(200, [], """
+                {"value":[{"id":"00000000-0000-0000-0000-000000000034","displayName":"Helpdesk Admins","groupTypes":[],"securityEnabled":true}]}
+                """);
+        });
+
+        CommandResult<OwnerlessGroups> result = await GroupLookups.OwnerlessAsync(new GraphClient(transport), allTypes: false, None);
+
+        Assert.True(result.Ok);
+        Assert.Equal(["Helpdesk Admins"], result.Data!.Groups.Select(group => group.DisplayName));
+        Assert.StartsWith("?$filter=owners/$count eq 0&", Uri.UnescapeDataString(transport.Requests[^1].Uri.Query), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ANarrowedFilterGraphRefusesFallsBackToTheWideQuery()
+    {
+        var transport = new ScriptedTransport(request =>
+        {
+            string query = Uri.UnescapeDataString(request.Uri.Query);
+            if (query.Contains("Unified", StringComparison.Ordinal))
+            {
+                return new GraphResponse(400, [], "{\"error\":{\"code\":\"Request_UnsupportedQuery\",\"message\":\"Unsupported query.\"}}");
+            }
+
+            if (request.Uri.AbsolutePath.EndsWith("/$count", StringComparison.Ordinal))
+            {
+                return new GraphResponse(200, [], "2");
+            }
+
+            return new GraphResponse(200, [], """
+                {"value":[
+                  {"id":"00000000-0000-0000-0000-000000000034","displayName":"Helpdesk Admins","groupTypes":[],"securityEnabled":true},
+                  {"id":"00000000-0000-0000-0000-000000000035","displayName":"All Staff","mail":"allstaff@contoso.com","groupTypes":[],"securityEnabled":false}
+                ]}
+                """);
+        });
+        var graph = new GraphClient(transport);
+
+        CommandResult<OwnerlessGroups> result = await GroupLookups.OwnerlessAsync(graph, allTypes: false, None);
+
+        Assert.Equal(["Helpdesk Admins"], result.Data!.Groups.Select(group => group.DisplayName));
+        Assert.Equal(1, result.Data.LeftOut);
+        Assert.StartsWith("?$filter=owners/$count eq 0&", Uri.UnescapeDataString(transport.Requests[^1].Uri.Query), StringComparison.Ordinal);
     }
 
     [Fact]

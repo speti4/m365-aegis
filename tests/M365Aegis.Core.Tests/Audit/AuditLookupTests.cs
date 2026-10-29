@@ -57,6 +57,30 @@ public sealed class AuditLookupTests
     }
 
     [Fact]
+    public void UntilEndsTheWindowAndDaysCountBackFromIt()
+    {
+        var until = new DateTimeOffset(2026, 10, 20, 8, 30, 15, 500, TimeSpan.Zero);
+
+        (DateTimeOffset start, DateTimeOffset? end) = AuditWindow.Window(2, null, until, Now);
+
+        Assert.Equal("2026-10-20T08:30:15Z", AuditWindow.Literal(end!.Value));
+        Assert.Equal(end.Value.AddDays(-2), start);
+        Assert.Equal((AuditWindow.Start(null, null, Now), (DateTimeOffset?)null), AuditWindow.Window(null, null, null, Now));
+    }
+
+    [Theory]
+    [InlineData(null, "2026-10-30")]
+    [InlineData("2026-10-21", "2026-10-20")]
+    [InlineData(null, "not a date")]
+    public void AWrongEndIsAUsageError(string? since, string until)
+    {
+        AegisException exception = Assert.Throws<AegisException>(() =>
+            AuditWindow.Window(null, AuditWindow.ParseSince(since), AuditWindow.ParseUntil(until), Now));
+
+        Assert.Equal(FailureKind.Usage, exception.Failure.Kind);
+    }
+
+    [Fact]
     public void SinceThatIsNotADateIsAUsageError()
     {
         AegisException exception = Assert.Throws<AegisException>(() => AuditWindow.ParseSince("last monday"));
@@ -110,6 +134,41 @@ public sealed class AuditLookupTests
     }
 
     [Fact]
+    public async Task ATruncatedSignInListNamesTheOldestSignInOverTwoPages()
+    {
+        (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
+
+        CommandResult<SignInReport> result = await SignInLookup.RunAsync(graph, new SignInQuery("alice@contoso.com", false, 1, null, 3), Now, None);
+
+        SignInReport report = result.Data!;
+        Assert.True(report.Truncated);
+        Assert.Equal(3, report.SignIns.Count);
+        Assert.Equal(report.SignIns[2].CreatedDateTime, report.Oldest);
+        Assert.Equal(2, transport.Requests.Count);
+    }
+
+    [Fact]
+    public async Task AnAnswerUnderTheLimitNamesNoOldest()
+    {
+        (GraphClient graph, _) = GraphFixtures.Client();
+
+        CommandResult<SignInReport> result = await SignInLookup.RunAsync(graph, new SignInQuery("alice@contoso.com", false, 1, null, 1000), Now, None);
+
+        Assert.False(result.Data!.Truncated);
+        Assert.Null(result.Data.Oldest);
+    }
+
+    [Fact]
+    public void TheSignInFilterNamesTheEndOfTheWindow()
+    {
+        var since = new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero);
+
+        Assert.Equal(
+            "https://graph.microsoft.com/v1.0/auditLogs/signIns?$filter=createdDateTime ge 2026-10-28T12:00:00Z and createdDateTime le 2026-10-29T00:00:00Z",
+            Uri.UnescapeDataString(GraphClient.BuildUri(SignInLookup.Request(null, since, since.AddHours(12))).AbsoluteUri));
+    }
+
+    [Fact]
     public void TheSignInFilterNamesTheWindowAndTheUser()
     {
         var since = new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero);
@@ -122,6 +181,78 @@ public sealed class AuditLookupTests
             "https://graph.microsoft.com/v1.0/auditLogs/signIns?$filter=createdDateTime ge 2026-10-28T12:00:00Z and userPrincipalName eq 'o''brien@contoso.com'",
             Uri.UnescapeDataString(GraphClient.BuildUri(request).AbsoluteUri));
         Assert.Equal("AuditLog.Read.All", request.Permission);
+    }
+
+    [Theory]
+    [InlineData("interactive", "interactiveUser")]
+    [InlineData("Non-Interactive", "nonInteractiveUser")]
+    [InlineData("service-principal", "servicePrincipal")]
+    [InlineData("managed-identity", "managedIdentity")]
+    public void AKindAsksTheBetaEndpointForItsEventType(string name, string eventType)
+    {
+        var since = new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero);
+
+        GraphRequest request = SignInLookup.Request(null, since, null, SignInKinds.Parse(name));
+
+        Assert.Equal(GraphVersion.Beta, request.Version);
+        Assert.Equal(
+            $"https://graph.microsoft.com/beta/auditLogs/signIns?$filter=createdDateTime ge 2026-10-28T12:00:00Z and signInEventTypes/any(t: t eq '{eventType}')",
+            Uri.UnescapeDataString(GraphClient.BuildUri(request).AbsoluteUri));
+    }
+
+    [Fact]
+    public async Task NonInteractiveSignInsComeFromBetaAndSayWhichEndpointAnswered()
+    {
+        (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
+
+        CommandResult<SignInReport> result = await SignInLookup.RunAsync(graph, new SignInQuery(null, false, 1, null, 1000, Kind: SignInKind.NonInteractive), Now, None);
+
+        SignInReport report = result.Data!;
+        Assert.Equal("beta", report.Endpoint);
+        Assert.Equal(SignInKind.NonInteractive, report.Kind);
+        Assert.Equal([false, false], report.SignIns.Select(entry => entry.IsInteractive));
+        Assert.Equal(70044, report.SignIns[1].ErrorCode);
+        Assert.StartsWith("https://graph.microsoft.com/beta/", Assert.Single(transport.Requests).Uri.AbsoluteUri, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ServicePrincipalSignInsNameTheApplicationAndTheResource()
+    {
+        (GraphClient graph, _) = GraphFixtures.Client();
+
+        CommandResult<SignInReport> result = await SignInLookup.RunAsync(graph, new SignInQuery(null, true, 1, null, 1000, Kind: SignInKind.ServicePrincipal), Now, None);
+
+        SignInEntry failed = Assert.Single(result.Data!.SignIns);
+        Assert.Equal("Payroll Connector", failed.ServicePrincipalName);
+        Assert.Equal("Microsoft Graph", failed.ResourceDisplayName);
+        Assert.Null(failed.UserPrincipalName);
+        Assert.Equal(7000222, failed.ErrorCode);
+    }
+
+    [Fact]
+    public async Task WithoutAKindTheV1EndpointAnswers()
+    {
+        (GraphClient graph, _) = GraphFixtures.Client();
+
+        CommandResult<SignInReport> result = await SignInLookup.RunAsync(graph, new SignInQuery("alice@contoso.com", false, 1, null, 1000), Now, None);
+
+        Assert.Equal("v1.0", result.Data!.Endpoint);
+        Assert.Null(result.Data.Kind);
+    }
+
+    [Theory]
+    [InlineData("alice@contoso.com", "service-principal")]
+    [InlineData("alice@contoso.com", "managed-identity")]
+    [InlineData(null, "robot")]
+    public async Task AUserWithAnApplicationKindOrAnUnknownKindIsAUsageError(string? user, string kind)
+    {
+        (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
+
+        AegisException exception = await Assert.ThrowsAsync<AegisException>(() =>
+            SignInLookup.RunAsync(graph, new SignInQuery(user, false, 1, null, 1000, Kind: SignInKinds.Parse(kind)), Now, None));
+
+        Assert.Equal(FailureKind.Usage, exception.Failure.Kind);
+        Assert.Empty(transport.Requests);
     }
 
     [Fact]
@@ -255,6 +386,62 @@ public sealed class AuditLookupTests
             "startswith(activityDisplayName,'Add member')",
             Uri.UnescapeDataString(Assert.Single(transport.Requests).Uri.AbsoluteUri),
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheUserFilterIsTheInitiatingUser()
+    {
+        (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
+
+        CommandResult<DirectoryAuditReport> result = await DirectoryAuditLookup.RunAsync(graph, new DirectoryAuditQuery(1, null, null, 1000, " alice@contoso.com "), Now, None);
+
+        DirectoryAuditReport report = result.Data!;
+        Assert.Equal("alice@contoso.com", report.User);
+        Assert.Equal(["Add member to group", "Reset user password"], report.Entries.Select(entry => entry.ActivityDisplayName));
+        Assert.Equal(
+            "https://graph.microsoft.com/v1.0/auditLogs/directoryAudits?$filter=activityDateTime ge 2026-10-28T12:00:00Z and initiatedBy/user/userPrincipalName eq 'alice@contoso.com'&$orderby=activityDateTime desc",
+            Uri.UnescapeDataString(Assert.Single(transport.Requests).Uri.AbsoluteUri));
+    }
+
+    [Fact]
+    public void TheUserCombinesWithTheWindowAndTheActivity()
+    {
+        var since = new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero);
+
+        GraphRequest request = DirectoryAuditLookup.Request("Add member", since, "o'brien@contoso.com", since.AddHours(12));
+
+        Assert.Equal(
+            "https://graph.microsoft.com/v1.0/auditLogs/directoryAudits?$filter=activityDateTime ge 2026-10-28T12:00:00Z and activityDateTime le 2026-10-29T00:00:00Z and startswith(activityDisplayName,'Add member') and initiatedBy/user/userPrincipalName eq 'o''brien@contoso.com'&$orderby=activityDateTime desc",
+            Uri.UnescapeDataString(GraphClient.BuildUri(request).AbsoluteUri));
+    }
+
+    [Fact]
+    public async Task AnEmptyAuditUserIsAUsageError()
+    {
+        (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
+
+        AegisException exception = await Assert.ThrowsAsync<AegisException>(() =>
+            DirectoryAuditLookup.RunAsync(graph, new DirectoryAuditQuery(1, null, null, 1000, " "), Now, None));
+
+        Assert.Equal(FailureKind.Usage, exception.Failure.Kind);
+        Assert.Empty(transport.Requests);
+    }
+
+    [Fact]
+    public async Task ATruncatedAuditNamesTheOldestEntryOverTwoPages()
+    {
+        (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
+        var since = new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero);
+
+        CommandResult<DirectoryAuditReport> result = await DirectoryAuditLookup.RunAsync(
+            graph, new DirectoryAuditQuery(null, since, null, 3, Until: since.AddHours(12)), Now, None);
+
+        DirectoryAuditReport report = result.Data!;
+        Assert.True(report.Truncated);
+        Assert.Equal(since.AddHours(12), report.Until);
+        Assert.Equal(new DateTimeOffset(2026, 10, 28, 18, 44, 9, TimeSpan.Zero), report.Oldest);
+        Assert.Equal(2, transport.Requests.Count);
+        Assert.Equal(["00000000-0000-0000-0000-0000000000db", "00000000-0000-0000-0000-0000000000dc"], graph.RequestLog.Ids);
     }
 
     [Fact]

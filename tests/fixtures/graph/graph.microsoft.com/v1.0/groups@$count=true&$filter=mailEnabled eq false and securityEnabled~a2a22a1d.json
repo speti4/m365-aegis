@@ -1,0 +1,8 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#groups(id,displayName,mail,groupTypes,securityEnabled,onPremisesSyncEnabled)",
+  "@odata.count": 2,
+  "value": [
+    { "id": "00000000-0000-0000-0000-000000000034", "displayName": "Helpdesk Admins", "mail": null, "groupTypes": [], "securityEnabled": true, "onPremisesSyncEnabled": null },
+    { "id": "00000000-0000-0000-0000-000000000036", "displayName": "HR Synced", "mail": null, "groupTypes": [], "securityEnabled": true, "onPremisesSyncEnabled": true }
+  ]
+}

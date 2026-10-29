@@ -113,14 +113,16 @@ public sealed class FixtureGraphTransport : IGraphTransport
     /// <summary>
     /// The fixture's path for a URL, relative to the root, with <c>/</c> separators and without the extension:
     /// the host, the decoded path, and the sorted, decoded query after an <c>@</c>
-    /// (<c>graph.microsoft.com/v1.0/groups@$filter=displayName eq 'Finance'&amp;$select=id</c>).
+    /// (<c>graph.microsoft.com/v1.0/groups@$filter=displayName eq 'Finance'&amp;$select=id</c>). An <c>@</c> inside
+    /// the path (a function's address parameter) is written as <c>%40</c>, so the first <c>@</c> of a name is always
+    /// the query's.
     /// </summary>
     public static string RelativePath(Uri uri)
     {
         ArgumentNullException.ThrowIfNull(uri);
         string[] segments = uri.AbsolutePath
             .Split('/', StringSplitOptions.RemoveEmptyEntries)
-            .Select(segment => Safe(Uri.UnescapeDataString(segment)))
+            .Select(segment => Safe(Uri.UnescapeDataString(segment)).Replace("@", "%40", StringComparison.Ordinal))
             .ToArray();
         string path = string.Join("/", [Safe(uri.Host.ToLowerInvariant()), .. segments]);
         string query = uri.Query.TrimStart('?');
@@ -148,9 +150,9 @@ public sealed class FixtureGraphTransport : IGraphTransport
     /// <summary>
     /// The fixture's path in the form a file system holds under a deep checkout: the same as
     /// <see cref="RelativePath"/> when the file name (the last segment with its query) has at most
-    /// <see cref="MaxNameLength"/> characters, else the segment, the first 60 characters of the query and a
-    /// <c>~</c> with the first 8 hex digits of the full query's SHA-256
-    /// (<c>messageTraces@$filter=receivedDateTime ge 2026-10-18T10%3A00%3A00Z and rec~1a2b3c4d</c>). The
+    /// <see cref="MaxNameLength"/> characters and the whole path at most <see cref="MaxPathLength"/>, else the
+    /// segment, the first 60 characters of the query and a <c>~</c> with the first 8 hex digits of the full query's
+    /// SHA-256 (<c>messageTraces@$filter=receivedDateTime ge 2026-10-18T10%3A00%3A00Z and rec~1a2b3c4d</c>). The
     /// transport looks for the full name first and this one second; a missing fixture's message names this one.
     /// </summary>
     public static string ShortRelativePath(Uri uri)
@@ -159,7 +161,7 @@ public sealed class FixtureGraphTransport : IGraphTransport
         int slash = relative.LastIndexOf('/');
         string name = relative[(slash + 1)..];
         int at = name.IndexOf('@', StringComparison.Ordinal);
-        if (name.Length <= MaxNameLength || at < 0)
+        if ((name.Length <= MaxNameLength && relative.Length <= MaxPathLength) || at < 0)
         {
             return relative;
         }
@@ -171,6 +173,36 @@ public sealed class FixtureGraphTransport : IGraphTransport
 
     /// <summary>The longest file name (without the extension) kept whole by <see cref="ShortRelativePath"/>.</summary>
     public const int MaxNameLength = 120;
+
+    /// <summary>
+    /// The longest path under the fixture root (without the extension) kept whole by <see cref="ShortRelativePath"/>:
+    /// with <c>tests/fixtures/graph/</c> in front and <c>.try-1.headers</c> behind it, a file stays within the
+    /// <see cref="MaxRepoPathLength"/> characters from the repo root that <c>scripts/check-fixtures.py</c> holds.
+    /// </summary>
+    public const int MaxPathLength = 150;
+
+    /// <summary>
+    /// The longest path from the repo root a fixture may have (<c>scripts/check-fixtures.py</c> holds it): git for
+    /// Windows refuses a path over 260 characters without <c>core.longpaths</c>, and a worktree under
+    /// <c>.claude/worktrees</c> puts about 70 characters in front of the repo's own path.
+    /// </summary>
+    public const int MaxRepoPathLength = 190;
+
+    /// <summary>The fixture root's path from the repo root, with the separator behind it.</summary>
+    public const string RepoFolder = "tests/fixtures/graph/";
+
+    /// <summary>
+    /// Where the answer to a URL is stored, for authoring a fixture (<c>m365-aegis call GET &lt;path&gt;
+    /// --fixture-name</c>): the full and the short name, and the file a new fixture is written to, which is the
+    /// short form whenever it differs from the full name.
+    /// </summary>
+    public static FixtureName Describe(Uri uri)
+    {
+        string full = RelativePath(uri);
+        string stored = ShortRelativePath(uri);
+        string file = $"{RepoFolder}{stored}.json";
+        return new FixtureName(uri.AbsoluteUri, full, stored, file, file.Length, file.Length <= MaxRepoPathLength);
+    }
 
     private static bool Exists(string basePath) => File.Exists(basePath + ".json") || File.Exists(basePath + ".headers");
 
@@ -193,3 +225,12 @@ public sealed class FixtureGraphTransport : IGraphTransport
         return builder.ToString();
     }
 }
+
+/// <summary>The name of a URL's fixture, as <see cref="FixtureGraphTransport.Describe"/> computes it.</summary>
+/// <param name="Url">The absolute URL.</param>
+/// <param name="FullName">The full name under the fixture root, without the extension (<see cref="FixtureGraphTransport.RelativePath"/>).</param>
+/// <param name="StoredName">The name a new fixture is stored under: the short form when the full one is too long (<see cref="FixtureGraphTransport.ShortRelativePath"/>).</param>
+/// <param name="File">The answer's file from the repo root (<c>tests/fixtures/graph/…json</c>); a <c>.headers</c> or <c>.try-n.json</c> goes next to it.</param>
+/// <param name="Length">The length of <paramref name="File"/>.</param>
+/// <param name="Fits">Whether <paramref name="File"/> stays within <see cref="FixtureGraphTransport.MaxRepoPathLength"/> characters.</param>
+public sealed record FixtureName(string Url, string FullName, string StoredName, string File, int Length, bool Fits);

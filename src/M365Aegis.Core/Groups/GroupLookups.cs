@@ -72,12 +72,29 @@ public static class GroupLookups
         };
     }
 
-    /// <summary><c>group members</c>: the group's direct members, by name.</summary>
-    public static async Task<CommandResult<GroupMembers>> MembersAsync(GraphClient graph, string nameOrId, CancellationToken cancellationToken)
+    /// <summary>
+    /// <c>group members [--transitive]</c>: the group's direct members, by name; with <paramref name="transitive"/>
+    /// every member of the nested groups too, from <c>/groups/{id}/transitiveMembers</c> (task 033), each marked
+    /// direct or nested. The transitive list does not say through which group a member came, so the direct list is
+    /// asked for beside it and a member missing from it is a nested one.
+    /// </summary>
+    public static async Task<CommandResult<GroupMembers>> MembersAsync(GraphClient graph, string nameOrId, bool transitive, CancellationToken cancellationToken)
     {
         GroupInfo group = await ResolveAsync(graph, nameOrId, cancellationToken).ConfigureAwait(false);
-        IReadOnlyList<GroupMember> members = await ListAsync(graph, group, "members", cancellationToken).ConfigureAwait(false);
-        return CommandResult.Success(new GroupMembers(group, members));
+        if (!transitive)
+        {
+            IReadOnlyList<GroupMember> members = await ListAsync(graph, group, "members", cancellationToken).ConfigureAwait(false);
+            return CommandResult.Success(new GroupMembers(group, members));
+        }
+
+        Task<IReadOnlyList<GroupMember>> direct = ListAsync(graph, group, "members", cancellationToken);
+        Task<IReadOnlyList<GroupMember>> all = ListAsync(graph, group, "transitiveMembers", cancellationToken);
+        await Task.WhenAll(direct, all).ConfigureAwait(false);
+        var directIds = new HashSet<string>((await direct.ConfigureAwait(false)).Select(member => member.Id), StringComparer.OrdinalIgnoreCase);
+        IReadOnlyList<GroupMember> marked = (await all.ConfigureAwait(false))
+            .Select(member => member with { Nested = !directIds.Contains(member.Id) })
+            .ToList();
+        return CommandResult.Success(new GroupMembers(group, marked, Transitive: true));
     }
 
     /// <summary><c>group owners</c>: the group's owners, by name.</summary>
@@ -88,27 +105,71 @@ public static class GroupLookups
         return CommandResult.Success(new GroupOwners(group, owners));
     }
 
+    /// <summary>The advanced filter of every group without an owner.</summary>
+    internal const string OwnerlessFilter = "owners/$count eq 0";
+
+    /// <summary>The Microsoft 365 groups without an owner (the documented filter on <c>groupTypes</c>).</summary>
+    internal const string OwnerlessMicrosoft365Filter = "groupTypes/any(c:c eq 'Unified') and owners/$count eq 0";
+
+    /// <summary>The security groups without mail and without an owner (the documented security group filter).</summary>
+    internal const string OwnerlessSecurityFilter = "mailEnabled eq false and securityEnabled eq true and NOT(groupTypes/any(c:c eq 'Unified')) and owners/$count eq 0";
+
     /// <summary>
-    /// <c>group owners-missing</c>: every group without an owner, in one paged advanced query
-    /// (<c>$filter=owners/$count eq 0</c>), not a request per group. Graph keeps no owners for distribution,
-    /// mail-enabled security and synced groups, so they are left out and counted unless
-    /// <paramref name="allTypes"/> is set.
+    /// <c>group owners-missing</c>: every group without an owner, by advanced queries on <c>owners/$count eq 0</c>,
+    /// never a request per group. Graph keeps no owners for distribution, mail-enabled security and synced groups,
+    /// so by default only the two kinds it keeps them for are asked for, side by side: the Microsoft 365 groups and
+    /// the security groups without mail, each one paged query (task 032: the left-out kinds are most of a tenant's
+    /// ownerless groups and filled the pages of the one wide query), with a <c>$count</c> of every ownerless group
+    /// sent next to them for the left-out number (a raw <c>$count</c>, accepted as <c>text/plain</c>); the synced ones
+    /// are picked out here. Should Graph refuse a narrowed filter or the count (400, 406, 415), the wide query answers
+    /// instead. <paramref name="allTypes"/> lists every kind from the wide query.
     /// </summary>
     public static async Task<CommandResult<OwnerlessGroups>> OwnerlessAsync(GraphClient graph, bool allTypes, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(graph);
-        string path = GraphQuery.Path(
-            "/groups",
-            ("$filter", "owners/$count eq 0"),
-            ("$count", "true"),
-            ("$select", GroupFields),
-            ("$top", "999"));
-        GraphRequest request = GraphRequest.Get(path) with { EventualConsistency = true, Permission = Permission };
-        IReadOnlyList<GraphGroup> groups = await graph.ListAsync<GraphGroup>(request, cancellationToken).ConfigureAwait(false);
-        List<GroupInfo> all = groups.Select(group => group.ToInfo()).OrderBy(group => group.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
-        List<GroupInfo> shown = allTypes ? all : all.Where(group => group.OwnersInGraph).ToList();
-        return CommandResult.Success(new OwnerlessGroups(shown, all.Count - shown.Count));
+        if (!allTypes)
+        {
+            Task<IReadOnlyList<GraphGroup>> microsoft365 = graph.ListAsync<GraphGroup>(OwnerlessRequest(OwnerlessMicrosoft365Filter), cancellationToken);
+            Task<IReadOnlyList<GraphGroup>> security = graph.ListAsync<GraphGroup>(OwnerlessRequest(OwnerlessSecurityFilter), cancellationToken);
+            Task<long> total = graph.GetAsync<long>(OwnerlessCountRequest(), cancellationToken);
+            try
+            {
+                await Task.WhenAll(microsoft365, security, total).ConfigureAwait(false);
+                IReadOnlyList<GraphGroup> found = [.. await microsoft365.ConfigureAwait(false), .. await security.ConfigureAwait(false)];
+                List<GroupInfo> shown = Sorted(found).Where(group => group.OwnersInGraph).ToList();
+                long ownerless = await total.ConfigureAwait(false);
+                return CommandResult.Success(new OwnerlessGroups(shown, (int)Math.Max(0, ownerless - shown.Count)));
+            }
+            catch (AegisException exception) when (exception.HttpStatus is 400 or 406 or 415)
+            {
+                // A narrowed filter or the count Graph does not take: the wide query below answers the same question.
+            }
+        }
+
+        IReadOnlyList<GraphGroup> groups = await graph.ListAsync<GraphGroup>(OwnerlessRequest(OwnerlessFilter), cancellationToken).ConfigureAwait(false);
+        List<GroupInfo> all = Sorted(groups);
+        List<GroupInfo> listed = allTypes ? all : all.Where(group => group.OwnersInGraph).ToList();
+        return CommandResult.Success(new OwnerlessGroups(listed, all.Count - listed.Count));
     }
+
+    /// <summary>The paged advanced query of the groups a filter names, at the largest page.</summary>
+    internal static GraphRequest OwnerlessRequest(string filter)
+    {
+        string path = GraphQuery.Path("/groups", ("$filter", filter), ("$count", "true"), ("$select", GroupFields), ("$top", "999"));
+        return GraphRequest.Get(path) with { EventualConsistency = true, Permission = Permission };
+    }
+
+    /// <summary>The count of every group without an owner: <c>/groups/$count</c>, a number and no page.</summary>
+    internal static GraphRequest OwnerlessCountRequest() =>
+        GraphRequest.Get(GraphQuery.Path("/groups/$count", ("$filter", OwnerlessFilter))) with
+        {
+            EventualConsistency = true,
+            Permission = Permission,
+            Accept = GraphRequest.PlainText,
+        };
+
+    private static List<GroupInfo> Sorted(IEnumerable<GraphGroup> groups) =>
+        groups.Select(group => group.ToInfo()).OrderBy(group => group.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(group => group.Id, StringComparer.Ordinal).ToList();
 
     private static async Task<IReadOnlyList<GroupInfo>> FindAsync(GraphClient graph, (string Name, string? Value) query, CancellationToken cancellationToken)
     {

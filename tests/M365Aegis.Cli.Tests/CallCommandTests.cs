@@ -57,6 +57,23 @@ public sealed class CallCommandTests
     }
 
     [Fact]
+    public void TheHiddenFixtureNameOptionPrintsTheFileAndSendsNothing()
+    {
+        // No fixture folder and no sign-in: the option answers locally.
+        string path = "/admin/exchange/tracing/messageTraces?$filter=receivedDateTime ge 2026-10-18T12:00:00Z and receivedDateTime le 2026-10-20T12:00:00Z and senderAddress eq 'alice@contoso.com'&$top=5000";
+        (int exitCode, string stdout, _) = CliTests.RunWith([], "--json", "call", "GET", path, "--fixture-name");
+
+        Assert.Equal(0, exitCode);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement data = document.RootElement.GetProperty("data");
+        Uri uri = GraphClient.BuildUri(GraphRequest.Get(path));
+        Assert.Equal(FixtureGraphTransport.RelativePath(uri), data.GetProperty("fullName").GetString());
+        Assert.Equal(FixtureGraphTransport.ShortRelativePath(uri), data.GetProperty("storedName").GetString());
+        Assert.Equal("local", document.RootElement.GetProperty("meta").GetProperty("backend").GetString());
+        Assert.Equal(0, document.RootElement.GetProperty("meta").GetProperty("requestIds").GetArrayLength());
+    }
+
+    [Fact]
     public void AVersionInThePathAndBetaIsAUsageError()
     {
         (int exitCode, string stdout, _) = CliTests.RunWith(Fixtures, "--json", "call", "GET", "/v1.0/me", "--beta");

@@ -9,7 +9,9 @@ namespace M365Aegis.Core.Exchange;
 /// <param name="Recipient">The recipient's address, or null; at least one of the two is given.</param>
 /// <param name="Days">The length of the window in days, 1 to 10; null for 2 (the service's own default).</param>
 /// <param name="Until">The end of the window; null for now.</param>
-public sealed record MessageTraceQuery(string? Sender, string? Recipient, int? Days, DateTimeOffset? Until);
+/// <param name="Status">Only the messages with this delivery status (task 035), or null.</param>
+/// <param name="Subject">Only the messages whose subject contains this text (task 035), or null.</param>
+public sealed record MessageTraceQuery(string? Sender, string? Recipient, int? Days, DateTimeOffset? Until, string? Status = null, string? Subject = null);
 
 /// <summary>One message of a trace, per recipient.</summary>
 /// <param name="Received">When Exchange Online received it (UTC).</param>
@@ -38,7 +40,20 @@ public sealed record MessageTraceEntry(
 /// <param name="From">The start of the window (UTC).</param>
 /// <param name="Until">The end of the window (UTC).</param>
 /// <param name="Messages">The messages, oldest first.</param>
-public sealed record MessageTrace(DateTimeOffset From, DateTimeOffset Until, IReadOnlyList<MessageTraceEntry> Messages);
+/// <param name="Status">The status filter, as the service names it (<c>failed</c>, <c>filteredAsSpam</c>), or null.</param>
+/// <param name="Subject">The subject filter, or null.</param>
+/// <param name="FilteredBy">
+/// Where the status and subject filters were applied: <c>service</c> (the <c>$filter</c>, the documented way) or
+/// <c>client</c> (the service refused the terms with a 400 and the window was traced without them); null without
+/// either filter.
+/// </param>
+public sealed record MessageTrace(
+    DateTimeOffset From,
+    DateTimeOffset Until,
+    IReadOnlyList<MessageTraceEntry> Messages,
+    string? Status = null,
+    string? Subject = null,
+    string? FilteredBy = null);
 
 /// <summary>
 /// The message trace through Graph v1.0 (task 007; D-004: the first mailbox question Graph answers, no sidecar):
@@ -126,24 +141,88 @@ public static class MessageTraceLookup
         return (from, until, string.Join(" and ", clauses));
     }
 
-    /// <summary>Runs the trace; <paramref name="now"/> is the clock (the tests fix it).</summary>
+    /// <summary>The delivery statuses the trace reports, as the service writes them (<c>--status</c> takes any case).</summary>
+    public static IReadOnlyList<string> Statuses { get; } =
+        ["delivered", "failed", "pending", "expanded", "quarantined", "filteredAsSpam", "gettingStatus", "none"];
+
+    /// <summary>
+    /// The <c>--status</c> value as the service writes it (<c>FAILED</c> and <c>filtered-as-spam</c> are
+    /// <c>failed</c> and <c>filteredAsSpam</c>); null for null.
+    /// </summary>
+    /// <exception cref="AegisException">A usage failure for a status the trace does not report.</exception>
+    public static string? Status(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        string compact = value.Trim().Replace("-", "", StringComparison.Ordinal);
+        return Statuses.FirstOrDefault(status => string.Equals(status, compact, StringComparison.OrdinalIgnoreCase))
+            ?? throw new AegisException(FailureKind.Usage, $"--status '{value}' is not a delivery status of the trace", $"give one of {string.Join(", ", Statuses)}");
+    }
+
+    /// <summary>
+    /// The status and subject terms of the <c>$filter</c> (<c>status eq '…'</c>, <c>contains(subject,'…')</c>, both
+    /// documented filters of the trace), or null without either.
+    /// </summary>
+    internal static string? Narrowing(string? status, string? subject)
+    {
+        var clauses = new List<string>();
+        if (status is not null)
+        {
+            clauses.Add($"status eq {GraphQuery.Literal(status)}");
+        }
+
+        if (subject is not null)
+        {
+            clauses.Add($"contains(subject,{GraphQuery.Literal(subject)})");
+        }
+
+        return clauses.Count == 0 ? null : string.Join(" and ", clauses);
+    }
+
+    /// <summary>
+    /// Runs the trace; <paramref name="now"/> is the clock (the tests fix it). A status or subject filter goes into
+    /// the <c>$filter</c>; should the service refuse it (400), the window is traced again without it and the filter is
+    /// applied here, so a refused filter is never the answer, and the result says which way it went.
+    /// </summary>
     public static async Task<CommandResult<MessageTrace>> RunAsync(GraphClient graph, MessageTraceQuery query, DateTimeOffset now, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(graph);
+        ArgumentNullException.ThrowIfNull(query);
         (DateTimeOffset from, DateTimeOffset until, string filter) = Describe(query, now);
-        string path = GraphQuery.Path("/admin/exchange/tracing/messageTraces", ("$filter", filter), ("$top", "5000"));
-        GraphRequest request = GraphRequest.Get(path) with { Permission = Permission };
+        string? status = Status(query.Status);
+        string? subject = string.IsNullOrWhiteSpace(query.Subject) ? null : query.Subject.Trim();
+        string? narrowing = Narrowing(status, subject);
+        string? filteredBy = null;
         IReadOnlyList<GraphMessageTrace> traces;
         try
         {
-            traces = await graph.ListAsync<GraphMessageTrace>(request, cancellationToken).ConfigureAwait(false);
+            if (narrowing is null)
+            {
+                traces = await ListAsync(graph, filter, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                try
+                {
+                    traces = await ListAsync(graph, $"{filter} and {narrowing}", cancellationToken).ConfigureAwait(false);
+                    filteredBy = "service";
+                }
+                catch (AegisException exception) when (exception.HttpStatus == 400)
+                {
+                    traces = (await ListAsync(graph, filter, cancellationToken).ConfigureAwait(false))
+                        .Where(trace => status is null || string.Equals(trace.Status, status, StringComparison.OrdinalIgnoreCase))
+                        .Where(trace => subject is null || (trace.Subject ?? "").Contains(subject, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                    filteredBy = "client";
+                }
+            }
         }
-        catch (AegisException exception) when (exception.Failure.Kind is FailureKind.Forbidden
-            || (exception.Failure.Kind == FailureKind.Auth && exception.Message.Contains("service principal", StringComparison.OrdinalIgnoreCase)))
+        catch (AegisException exception) when (IsSetupFailure(exception))
         {
-            // While the service principal is missing or still provisioning, the service answers 401 with a sentence
-            // that names it; that is a setup step, not a sign-in to repeat.
-            throw new AegisException(FailureKind.Forbidden, exception.Message, ProvisioningHint, exception);
+            throw SetupFailure(exception);
         }
 
         IReadOnlyList<MessageTraceEntry> messages = traces
@@ -161,8 +240,26 @@ public static class MessageTraceLookup
             .OrderBy(message => message.Received)
             .ThenBy(message => message.Recipient, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        return CommandResult.Success(new MessageTrace(from, until, messages));
+        return CommandResult.Success(new MessageTrace(from, until, messages, status, subject, filteredBy));
     }
+
+    private static Task<IReadOnlyList<GraphMessageTrace>> ListAsync(GraphClient graph, string filter, CancellationToken cancellationToken)
+    {
+        string path = GraphQuery.Path("/admin/exchange/tracing/messageTraces", ("$filter", filter), ("$top", "5000"));
+        return graph.ListAsync<GraphMessageTrace>(GraphRequest.Get(path) with { Permission = Permission }, cancellationToken);
+    }
+
+    /// <summary>
+    /// True for a failure that is the tenant's setup: a 403, or the 401 that names the missing service principal
+    /// (while it is missing or still provisioning); that is a setup step, not a sign-in to repeat.
+    /// </summary>
+    internal static bool IsSetupFailure(AegisException exception) =>
+        exception.Failure.Kind is FailureKind.Forbidden
+        || (exception.Failure.Kind == FailureKind.Auth && exception.Message.Contains("service principal", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The setup failure as exit code 8 with the consent and the provisioning step as the hint.</summary>
+    internal static AegisException SetupFailure(AegisException exception) =>
+        new(FailureKind.Forbidden, exception.Message, ProvisioningHint, exception);
 
     private static DateTimeOffset Truncate(DateTimeOffset time)
     {
@@ -174,7 +271,7 @@ public static class MessageTraceLookup
     private static string Format(DateTimeOffset time) => time.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
 
     /// <summary>A trace as the service returns it.</summary>
-    private sealed record GraphMessageTrace : GraphObject
+    internal sealed record GraphMessageTrace : GraphObject
     {
         public string Id { get; init; } = "";
 

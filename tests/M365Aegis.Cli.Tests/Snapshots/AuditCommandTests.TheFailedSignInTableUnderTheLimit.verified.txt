@@ -4,5 +4,5 @@ time (UTC)           user               app              IP address     location
 2026-10-29 08:47:31  alice@contoso.com  Microsoft Teams  198.51.100.23  Vienna, AT  50126 Error validating credentials due to invalid username …
 
 1 failed sign-in(s) of alice@contoso.com since 2026-10-28 12:00:00 UTC
-more sign-ins match: --limit raises the cap, --days or --since narrows the window
+stopped at the --limit of 1: the oldest sign-in listed is from 2026-10-29 08:47:31 UTC; --since 2026-10-28T12:00:00Z --until 2026-10-29T08:47:31Z lists from there back
 --- stderr ---

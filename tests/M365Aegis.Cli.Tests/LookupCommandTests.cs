@@ -32,6 +32,20 @@ public sealed class LookupCommandTests
     }
 
     [Fact]
+    public void TransitiveGroupMembersMarkTheNestedOnes()
+    {
+        (int exitCode, string stdout, _) = CliTests.RunWith(Fixtures, "--json", "group", "members", "Finance", "--transitive");
+
+        Assert.Equal(0, exitCode);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement data = document.RootElement.GetProperty("data");
+        Assert.True(data.GetProperty("transitive").GetBoolean());
+        Assert.Equal(6, data.GetProperty("members").GetArrayLength());
+        Assert.Equal(2, data.GetProperty("members").EnumerateArray().Count(member => member.GetProperty("nested").GetBoolean()));
+        Assert.Equal(4, document.RootElement.GetProperty("meta").GetProperty("requestIds").GetArrayLength());
+    }
+
+    [Fact]
     public void AnAmbiguousGroupNameExitsFourWithTheCandidates()
     {
         (int exitCode, string stdout, string stderr) = CliTests.RunWith(Fixtures, "--table", "group", "owners", "Fin");
@@ -95,11 +109,79 @@ public sealed class LookupCommandTests
     }
 
     [Fact]
+    public void ATraceByStatusIsFilteredByTheService()
+    {
+        (int exitCode, string stdout, _) = CliTests.RunWith(
+            Fixtures, "--json", "trace", "--sender", "alice@contoso.com", "--until", "2026-10-20T12:00:00Z", "--status", "failed");
+
+        Assert.Equal(0, exitCode);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement data = document.RootElement.GetProperty("data");
+        Assert.Equal("service", data.GetProperty("filteredBy").GetString());
+        Assert.Equal("failed", Assert.Single(data.GetProperty("messages").EnumerateArray()).GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task ATraceFilteredHereTable()
+    {
+        (GraphClient graph, _) = GraphFixtures.Client();
+        var now = new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero);
+
+        CommandResult<MessageTrace> result = await MessageTraceLookup.RunAsync(
+            graph, new MessageTraceQuery("alice@contoso.com", null, null, null, Subject: "invoice"), now, TestContext.Current.CancellationToken);
+
+        await Verify(Render(result, TraceTableView.Instance));
+    }
+
+    [Fact]
+    public void TraceDetailsListTheStepsPerRecipient()
+    {
+        (int exitCode, string stdout, _) = CliTests.RunWith(Fixtures, "--json", "trace", "details", "00000000-0000-0000-0000-000000000051");
+
+        Assert.Equal(0, exitCode);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement recipients = document.RootElement.GetProperty("data").GetProperty("recipients");
+        Assert.Equal(2, recipients.GetArrayLength());
+        Assert.Equal("Deliver", recipients[0].GetProperty("events")[2].GetProperty("event").GetString());
+        Assert.Equal(3, document.RootElement.GetProperty("meta").GetProperty("requestIds").GetArrayLength());
+    }
+
+    [Fact]
+    public void TraceDetailsOfAnUnknownMessageExitFour()
+    {
+        (int exitCode, _, string stderr) = CliTests.RunWith(Fixtures, "--table", "trace", "details", "00000000-0000-0000-0000-000000000059");
+
+        Assert.Equal(4, exitCode);
+        Assert.Contains("(not-found)", stderr, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ATraceDetailsTable()
+    {
+        (GraphClient graph, _) = GraphFixtures.Client();
+
+        CommandResult<MessageTraceDetails> result = await MessageTraceDetailsLookup.RunAsync(
+            graph, new MessageTraceDetailsQuery("<00000000-0000-0000-0000-000000000052@contoso.com>", null), TestContext.Current.CancellationToken);
+
+        await Verify(Render(result, TraceDetailsTableView.Instance));
+    }
+
+    [Fact]
     public async Task AGroupMembersTable()
     {
         (GraphClient graph, _) = GraphFixtures.Client();
 
-        CommandResult<GroupMembers> result = await GroupLookups.MembersAsync(graph, "Finance", TestContext.Current.CancellationToken);
+        CommandResult<GroupMembers> result = await GroupLookups.MembersAsync(graph, "Finance", transitive: false, TestContext.Current.CancellationToken);
+
+        await Verify(Render(result, GroupMembersTableView.Instance));
+    }
+
+    [Fact]
+    public async Task ATransitiveGroupMembersTable()
+    {
+        (GraphClient graph, _) = GraphFixtures.Client();
+
+        CommandResult<GroupMembers> result = await GroupLookups.MembersAsync(graph, "Finance", transitive: true, TestContext.Current.CancellationToken);
 
         await Verify(Render(result, GroupMembersTableView.Instance));
     }

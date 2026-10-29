@@ -4,7 +4,10 @@ A recorded Graph or Exchange answer is scrubbed before it is committed (CONTRIBU
 enters the repo"): every domain is contoso.com, fabrikam.com, example.com or their .onmicrosoft.com and
 .sharepoint.com forms, every GUID is of the form 00000000-0000-0000-0000-0000000000NN, and nothing looks like a JWT. This script walks
 tests/fixtures, tests/sidecar, tests/contracts and the snapshot folders of the test projects and fails on anything
-else, so a real value cannot slip in with a recording or with an accepted snapshot.
+else, so a real value cannot slip in with a recording or with an accepted snapshot. It also refuses a file whose
+path from the repo root is longer than MAX_PATH_LENGTH characters: git for Windows cannot add a path over 260
+characters without core.longpaths, and a worktree under .claude/worktrees puts about 70 characters in front of the
+repo's own path (`m365-aegis call GET <path> --fixture-name` prints the name a Graph fixture is stored under).
 
     python -I scripts/check-fixtures.py            # exit 1 on a finding, with the file and the line
 """
@@ -41,6 +44,8 @@ MADE_UP_GUID = re.compile(r"^00000000-0000-0000-0000-0000000000[0-9a-f]{2}$", re
 # The fake module's own manifest GUID, which PowerShell requires and which is nothing's identity.
 MANIFEST_GUIDS = {"0f2a7c3e-6b1d-4b2e-9d4a-000000000001"}
 JWT = re.compile(r"\beyJ[A-Za-z0-9_-]{10,}")
+# The longest path from the repo root a file here may have; FixtureGraphTransport.MaxRepoPathLength is the same.
+MAX_PATH_LENGTH = 190
 
 
 def findings(path: Path) -> list[str]:
@@ -61,6 +66,17 @@ def findings(path: Path) -> list[str]:
     return out
 
 
+def too_long(path: Path) -> str | None:
+    relative = path.relative_to(ROOT).as_posix()
+    if len(relative) <= MAX_PATH_LENGTH:
+        return None
+    return (
+        f"{relative}: the path is {len(relative)} characters from the repo root, over the limit of {MAX_PATH_LENGTH}"
+        " (git for Windows refuses it in a worktree); store a Graph fixture in its short form, which"
+        " `m365-aegis call GET <path> --fixture-name` prints"
+    )
+
+
 def main() -> int:
     problems: list[str] = []
     files = 0
@@ -68,7 +84,11 @@ def main() -> int:
         if not folder.is_dir():
             continue
         for path in sorted(folder.rglob("*")):
-            if path.is_file() and path.suffix.lower() in TEXT_SUFFIXES:
+            if not path.is_file():
+                continue
+            if (problem := too_long(path)) is not None:
+                problems.append(problem)
+            if path.suffix.lower() in TEXT_SUFFIXES:
                 files += 1
                 problems += findings(path)
     for problem in problems:

@@ -25,7 +25,8 @@ public sealed class HttpGraphTransport : IGraphTransport
 
     private readonly HttpClient _client;
     private readonly Func<CancellationToken, Task<string>> _accessToken;
-    private string? _token;
+    private readonly Lock _lock = new();
+    private Task<string>? _token;
 
     /// <summary>A transport that asks <paramref name="accessToken"/> for the token (<c>AuthService.GetAccessTokenAsync</c>).</summary>
     /// <param name="accessToken">Returns the bearer token; an <see cref="AegisException"/> from it passes through.</param>
@@ -46,11 +47,23 @@ public sealed class HttpGraphTransport : IGraphTransport
             throw new InvalidOperationException($"the Graph transport sends the token to https://{Host} only, not to {request.Uri.GetLeftPart(UriPartial.Authority)}");
         }
 
-        _token ??= await _accessToken(cancellationToken).ConfigureAwait(false);
+        // One token per command: requests sent side by side (a lookup's parallel queries) wait on the same one.
+        Task<string> pending;
+        lock (_lock)
+        {
+            pending = _token ??= _accessToken(cancellationToken);
+        }
+
+        string token = await pending.ConfigureAwait(false);
 
         using var message = new HttpRequestMessage(request.Method, request.Uri);
-        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _token);
-        message.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        // JSON unless the request names another type (a raw $count answers text/plain only).
+        if (!request.Headers.ContainsKey("Accept"))
+        {
+            message.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        }
+
         message.Headers.UserAgent.Add(new ProductInfoHeaderValue(ProductInfo.Name, ProductInfo.Version));
         message.Headers.TryAddWithoutValidation("client-request-id", Guid.NewGuid().ToString());
         foreach ((string name, string value) in request.Headers)

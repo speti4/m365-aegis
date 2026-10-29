@@ -1,0 +1,81 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#auditLogs/directoryAudits",
+  "value": [
+    {
+      "id": "Directory_00000000-0000-0000-0000-0000000000d1",
+      "category": "GroupManagement",
+      "correlationId": "00000000-0000-0000-0000-000000000082",
+      "result": "success",
+      "resultReason": "",
+      "activityDisplayName": "Add member to group",
+      "activityDateTime": "2026-10-29T10:05:12.1234567Z",
+      "loggedByService": "Core Directory",
+      "operationType": "Assign",
+      "initiatedBy": {
+        "app": null,
+        "user": {
+          "id": "00000000-0000-0000-0000-000000000011",
+          "displayName": null,
+          "userPrincipalName": "alice@contoso.com",
+          "ipAddress": "203.0.113.10",
+          "userType": null,
+          "homeTenantId": null,
+          "homeTenantName": null
+        }
+      },
+      "targetResources": [
+        {
+          "id": "00000000-0000-0000-0000-000000000031",
+          "displayName": "Finance",
+          "type": "Group",
+          "userPrincipalName": null,
+          "groupType": null,
+          "modifiedProperties": []
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000012",
+          "displayName": null,
+          "type": "User",
+          "userPrincipalName": "bob@contoso.com",
+          "groupType": null,
+          "modifiedProperties": []
+        }
+      ],
+      "additionalDetails": []
+    },
+    {
+      "id": "Directory_00000000-0000-0000-0000-0000000000d3",
+      "category": "UserManagement",
+      "correlationId": "00000000-0000-0000-0000-000000000082",
+      "result": "failure",
+      "resultReason": "The password does not meet the complexity requirements.",
+      "activityDisplayName": "Reset user password",
+      "activityDateTime": "2026-10-28T18:44:09Z",
+      "loggedByService": "Self-service Password Management",
+      "operationType": "Update",
+      "initiatedBy": {
+        "app": null,
+        "user": {
+          "id": "00000000-0000-0000-0000-000000000011",
+          "displayName": null,
+          "userPrincipalName": "alice@contoso.com",
+          "ipAddress": "203.0.113.10",
+          "userType": null,
+          "homeTenantId": null,
+          "homeTenantName": null
+        }
+      },
+      "targetResources": [
+        {
+          "id": "00000000-0000-0000-0000-000000000012",
+          "displayName": null,
+          "type": "User",
+          "userPrincipalName": "bob@contoso.com",
+          "groupType": null,
+          "modifiedProperties": []
+        }
+      ],
+      "additionalDetails": []
+    }
+  ]
+}

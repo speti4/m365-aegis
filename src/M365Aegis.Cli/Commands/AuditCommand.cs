@@ -6,8 +6,9 @@ using M365Aegis.Core.Audit;
 namespace M365Aegis.Cli.Commands;
 
 /// <summary>
-/// <c>m365-aegis audit list [--days N | --since &lt;date&gt;] [--activity &lt;name&gt;] [--limit N]</c>: the Microsoft
-/// Entra directory audit log (task 006). The result type is <see cref="DirectoryAuditReport"/>, the table
+/// <c>m365-aegis audit list [--days N | --since &lt;date&gt;] [--until &lt;date&gt;] [--activity &lt;name&gt;]
+/// [--user &lt;upn&gt;] [--limit N]</c>: the Microsoft Entra directory audit log (task 006; <c>--user</c> task 037,
+/// <c>--until</c> and the truncated footer task 038). The result type is <see cref="DirectoryAuditReport"/>, the table
 /// <see cref="AuditListTableView"/>.
 /// </summary>
 internal static class AuditCommand
@@ -20,11 +21,18 @@ internal static class AuditCommand
         {
             Description = "Only the activities whose name starts with this text ('Add member to group', 'Update user').",
         };
+        Option<string?> user = new("--user")
+        {
+            Description = "Only the activities this user started, by user principal name (alice@contoso.com).",
+        };
+        Option<string?> until = AuditOptions.Until();
         Option<int> limit = AuditOptions.Limit("entries");
         Command list = new("list", "List the entries of the Microsoft Entra directory audit log, newest first.");
         list.Options.Add(days);
         list.Options.Add(since);
+        list.Options.Add(until);
         list.Options.Add(activity);
+        list.Options.Add(user);
         list.Options.Add(limit);
         list.SetAction((parsed, cancellationToken) => GraphRunner.RunAsync(
             parsed,
@@ -37,7 +45,9 @@ internal static class AuditCommand
                     parsed.GetValue(days),
                     AuditWindow.ParseSince(parsed.GetValue(since)),
                     parsed.GetValue(activity),
-                    parsed.GetValue(limit)),
+                    parsed.GetValue(limit),
+                    parsed.GetValue(user),
+                    AuditWindow.ParseUntil(parsed.GetValue(until))),
                 DateTimeOffset.UtcNow,
                 ct),
             AuditListTableView.Instance,
@@ -75,10 +85,11 @@ internal sealed class AuditListTableView : ITableView<DirectoryAuditReport>
     public IEnumerable<string> Footer(DirectoryAuditReport data)
     {
         string filter = data.Activity is null ? "" : $" starting with '{data.Activity}'";
-        yield return string.Format(CultureInfo.InvariantCulture, "{0} entry(ies){1} since {2} UTC", data.Entries.Count, filter, AuditOptions.Time(data.Since));
+        string who = data.User is null ? "" : $" initiated by {data.User}";
+        yield return string.Format(CultureInfo.InvariantCulture, "{0} entry(ies){1}{2} {3}", data.Entries.Count, filter, who, AuditOptions.Window(data.Since, data.Until));
         if (data.Truncated)
         {
-            yield return "more entries match: --limit raises the cap, --days, --since or --activity narrows the list";
+            yield return AuditOptions.Truncated("entry", data.Entries.Count, data.Since, data.Oldest);
         }
     }
 }

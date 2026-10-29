@@ -94,12 +94,16 @@ name, its address, its object id or a word of its name:
 
 ```powershell
 & $aegis group members Finance
+& $aegis group members Finance --transitive   # the nested groups' members too, each marked direct or nested
 & $aegis group owners finance@contoso.com
 & $aegis group owners-missing            # --all-types adds the groups Graph keeps no owners for
 & $aegis team list
 & $aegis site list --search finance
 & $aegis trace --sender alice@contoso.com --days 3              # at most 10 days per trace
 & $aegis trace --recipient bob@contoso.com --until 2026-10-01   # up to 90 days back
+& $aegis trace --sender alice@contoso.com --status failed       # or --subject "Quarterly report" (contains)
+& $aegis trace details "<message-id@contoso.com>"               # where a message stopped: the steps per recipient
+& $aegis trace details <trace id> --recipient bob@contoso.com   # the trace id of a trace row, one recipient
 ```
 
 Each needs its delegated permission consented for the app registration (docs/development.md, "The sign-in and
@@ -111,9 +115,15 @@ newest first:
 ```powershell
 & $aegis signin list --user alice@contoso.com --days 7  # the sign-ins of a user (needs Microsoft Entra ID P1)
 & $aegis signin list --failures                         # the failed sign-ins of every user in the last day
+& $aegis signin list --kind service-principal --failures # also non-interactive, managed-identity (beta endpoint)
 & $aegis secrets expiring 30                            # app secrets and certificates that expire within a month
 & $aegis audit list --days 7 --activity "Add member"    # the directory audit, by the start of the activity's name
+& $aegis audit list --user alice@contoso.com --days 3   # what one admin changed
+& $aegis audit list --since 2026-10-28 --until 2026-10-28T15:27:00Z  # continue a list cut at --limit
 ```
+
+A list cut at `--limit` (1000 by default) names the oldest entry it reached and the `--since … --until …` that
+lists the ones before it.
 
 The window, `src\M365Aegis.Gui\bin\Release\net10.0-windows\m365-aegis-gui.exe`, works with the same tenant profile
 and sign-in as the command line. Its first page shows the signed-in account, read silently as `whoami` does, and

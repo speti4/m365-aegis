@@ -1,0 +1,50 @@
+{
+  "@odata.context": "https://graph.microsoft.com/beta/$metadata#auditLogs/signIns",
+  "value": [
+    {
+      "id": "00000000-0000-0000-0000-0000000000c9",
+      "createdDateTime": "2026-10-29T04:30:00Z",
+      "userDisplayName": null,
+      "userPrincipalName": null,
+      "userId": "",
+      "appId": "00000000-0000-0000-0000-000000000071",
+      "appDisplayName": "contoso-reports",
+      "ipAddress": "203.0.113.50",
+      "clientAppUsed": null,
+      "correlationId": "00000000-0000-0000-0000-000000000081",
+      "conditionalAccessStatus": "notApplied",
+      "isInteractive": false,
+      "riskDetail": "none",
+      "riskLevelAggregated": "none",
+      "riskLevelDuringSignIn": "none",
+      "riskState": "none",
+      "riskEventTypes": [],
+      "resourceDisplayName": "Azure Key Vault",
+      "resourceId": "00000000-0000-0000-0000-000000000072",
+      "status": {
+        "errorCode": 0,
+        "failureReason": null,
+        "additionalDetails": null
+      },
+      "deviceDetail": null,
+      "location": {
+        "city": null,
+        "state": null,
+        "countryOrRegion": null,
+        "geoCoordinates": null
+      },
+      "appliedConditionalAccessPolicies": [],
+      "signInEventTypes": [
+        "managedIdentity"
+      ],
+      "servicePrincipalName": "contoso-reports",
+      "servicePrincipalId": "00000000-0000-0000-0000-000000000047",
+      "managedServiceIdentity": {
+        "msiType": "systemAssigned",
+        "associatedResourceId": "/subscriptions/00000000-0000-0000-0000-000000000090/resourceGroups/contoso-ops/providers/Microsoft.Web/sites/contoso-reports",
+        "federatedTokenId": null,
+        "federatedTokenIssuer": null
+      }
+    }
+  ]
+}

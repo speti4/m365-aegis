@@ -1,0 +1,32 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(microsoft.graph.exchangeMessageTraceDetail)",
+  "value": [
+    {
+      "id": "00000000-0000-0000-0000-000000000053",
+      "messageId": "<00000000-0000-0000-0000-000000000052@contoso.com>",
+      "dateTime": "2026-10-20T08:15:42Z",
+      "event": "Receive",
+      "action": "",
+      "description": "Message received by: mail01.contoso.com",
+      "data": "<root><MEP Name=\"Version\" String=\"15.20.0000.000\" /></root>"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000053",
+      "messageId": "<00000000-0000-0000-0000-000000000052@contoso.com>",
+      "dateTime": "2026-10-20T08:15:43Z",
+      "event": "Submit",
+      "action": "",
+      "description": "The message was submitted.",
+      "data": "<root><MEP Name=\"Version\" String=\"15.20.0000.000\" /></root>"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000053",
+      "messageId": "<00000000-0000-0000-0000-000000000052@contoso.com>",
+      "dateTime": "2026-10-20T08:15:46Z",
+      "event": "Fail",
+      "action": "",
+      "description": "Reason: [{LED=550 5.1.1 RESOLVER.ADR.RecipientNotFound; Recipient not found by SMTP address lookup};{MSG=};{FQDN=};{IP=};{LRT=}]",
+      "data": "<root><MEP Name=\"Version\" String=\"15.20.0000.000\" /></root>"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#directoryObjects(id,displayName,userPrincipalName,mail)",
+  "@odata.count": 6,
+  "value": [
+    { "@odata.type": "#microsoft.graph.user", "id": "00000000-0000-0000-0000-000000000003", "displayName": "Bob Example", "userPrincipalName": "bob@contoso.com", "mail": "bob@contoso.com" },
+    { "@odata.type": "#microsoft.graph.user", "id": "00000000-0000-0000-0000-000000000001", "displayName": "Alice Example", "userPrincipalName": "alice@contoso.com", "mail": "alice@contoso.com" },
+    { "@odata.type": "#microsoft.graph.group", "id": "00000000-0000-0000-0000-000000000032", "displayName": "Finance EU", "mail": "finance-eu@contoso.com" },
+    { "@odata.type": "#microsoft.graph.user", "id": "00000000-0000-0000-0000-000000000004", "displayName": "Carol Example", "userPrincipalName": "carol@contoso.com", "mail": null },
+    { "@odata.type": "#microsoft.graph.user", "id": "00000000-0000-0000-0000-000000000005", "displayName": "Dave Example", "userPrincipalName": "dave@contoso.com", "mail": "dave@contoso.com" },
+    { "@odata.type": "#microsoft.graph.device", "id": "00000000-0000-0000-0000-000000000006", "displayName": "FIN-KIOSK-01" }
+  ]
+}

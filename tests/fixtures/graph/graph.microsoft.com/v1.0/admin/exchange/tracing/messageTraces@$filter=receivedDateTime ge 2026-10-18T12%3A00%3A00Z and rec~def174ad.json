@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "BadRequest",
+    "message": "Invalid filter clause: the filter is not supported."
+  }
+}
