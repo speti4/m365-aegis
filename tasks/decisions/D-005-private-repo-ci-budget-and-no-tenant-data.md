@@ -1,7 +1,8 @@
 ---
-status: decided
+status: superseded
 date: 2026-10-28
 cost: cheap
+superseded-by: D-010-public-repository-with-a-rewritten-history.md
 sources: [wip/001-project-scaffolding.md, D-002-dotnet-10-core-cli-and-window-with-react.md]
 ---
 
