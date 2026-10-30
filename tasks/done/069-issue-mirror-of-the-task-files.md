@@ -3,6 +3,7 @@ size: S
 origin: wip/067-publish-the-repository-with-a-rewritten-history.md
 created: 2026-10-30
 started: 2026-10-30
+closed: 2026-10-30
 plan: none
 milestone: M6 Release and team
 changelog: housekeeping
@@ -41,7 +42,7 @@ run reports `created 0, updated 0`, and the tasks README names the mirror.
        the README line, the docs line; on `task/069-issue-mirror` in the main checkout (no worktree: a settings task)
 2. [x] `python -I scripts/sync-issues.py --dry-run`: every file reported, no `skip`, no error
 3. [x] The backfill on the maintainer's go; a second run reports `created 0, updated 0`
-4. [ ] Pull request, CI green (`workflow-lint` over the new workflow), squash merge; the workflow's own run on the
+4. [x] Pull request, CI green (`workflow-lint` over the new workflow), squash merge; the workflow's own run on the
        push reports nothing to change
 
 ## Log
@@ -74,13 +75,14 @@ run reports `created 0, updated 0`, and the tasks README names the mirror.
   (75 tasks, 10 decisions) with the labels and the six milestones of the roadmap; the second run created 0,
   updated 0, unchanged 85; `python -I scripts/changelog.py --check` and `python -I scripts/check-fixtures.py`
   green with the new script; `uvx zizmor .github` no findings over the new workflow.
-- (pending) the pull request's CI, the `sync-issues` workflow's run on the merge commit reporting nothing to
-  change — written by the main session at the close.
+- 2026-10-30 — pull request #1 green on its first run (all ten jobs, the `windows` one included) and on the
+  docs-only rerun; squash-merged as 2f0c252; the `sync-issues` workflow's run on that commit (41087800556) ended
+  `applied: created 0, updated 0, unchanged 85, duplicates closed 0`.
 
 ## Closing checklist
 
-- [ ] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
+- [x] `tasks_check` green, README index regenerated
+- [x] moved to `done/` with `closed: 2026-10-30`

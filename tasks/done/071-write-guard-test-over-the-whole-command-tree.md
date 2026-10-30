@@ -3,6 +3,7 @@ size: S
 origin: session 2026-10-30
 created: 2026-10-30
 started: 2026-10-30
+closed: 2026-10-30
 plan: none
 milestone: M6 Release and team
 changelog: housekeeping
@@ -84,8 +85,8 @@ this bundle merges, so a new test here uses the harness of today (`CliTests.RunW
   together: 10 s. The hidden-write proof repeated on the new shape: 13 of 23 red again, now with the raw calls'
   `POST`, `PATCH`, `PUT` and `DELETE` named by the request log; reverted.
 - 2026-10-30 — `origin/main` merged into the branch after the writes follow-ups bundle (064–066, #87): the tree now has
-  a tenth write, `plan prune --older-than <days>`, a write of local files (backend `local`). The enumeration found it, and
-  `EveryWriteCommandHasItsInputs` failed until its line was added: `--older-than 1` over a home that starts with the
+  a tenth write, `plan prune --older-than <days>`, a write of local files (backend `local`). The enumeration found it,
+  and `EveryWriteCommandHasItsInputs` failed until its line was added: `--older-than 1` over a home that starts with the
   three sample records (`PlanRecordSamples.Write`, `Seeded` on its inputs), so the plan has changes and the record
   count, which must equal the seeded three plus the test's own, proves a prune without `--yes` removes no file. No CSV
   and no resume for it. The conflicts were the two READMEs' bundle sections, both kept, the merged side's first.
@@ -135,5 +136,5 @@ this bundle merges, so a new test here uses the harness of today (`CliTests.RunW
 - [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)

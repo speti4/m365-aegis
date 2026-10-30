@@ -14,20 +14,11 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-10-30 — edit the files, not this section._
 
-**State:** 11 backlog (6 ready · 0 blocked · 0 waiting · 5 ideas) · 1 in progress · 63 done · 0 dropped · 10 decisions
+**State:** 6 backlog (0 ready · 0 blocked · 0 waiting · 6 ideas) · 0 in progress · 75 done · 0 dropped · 10 decisions
 
 ### Ready
 
-#### M6 Release and team
-
-| # | Task | Size | Created |
-|---|---|---|---|
-| 070 | [100% line and branch coverage of the Core, the command line, the front end and …](backlog/070-full-line-and-branch-coverage-enforced-in-ci.md) | L | 2026-10-30 |
-| 071 | [A write-guard test over the whole command tree: without --yes, nothing is sent](backlog/071-write-guard-test-over-the-whole-command-tree.md) | S | 2026-10-30 |
-| 072 | [A token-hygiene test: a marked fake token never reaches a log, a plan record, a…](backlog/072-token-hygiene-test-across-logs-plans-and-output.md) | S | 2026-10-30 |
-| 073 | [An exit code contract snapshot: the ExitCode enum's names and values, frozen](backlog/073-exit-code-contract-snapshot.md) | S | 2026-10-30 |
-| 074 | [CSV edge cases for the bulk writes: BOM, CRLF, quoted fields, duplicates, a mal…](backlog/074-csv-edge-case-tests-for-the-bulk-writes.md) | S | 2026-10-30 |
-| 075 | [A home folder ACL test: the MSAL cache, the profiles and the plan records reada…](backlog/075-home-folder-acl-test-for-the-cache-and-the-plan-records.md) | S | 2026-10-30 |
+_none_
 
 ### Needs decision
 
@@ -39,33 +30,35 @@ _none_
 
 ### Ideas
 
+#### M2 Exchange
+
+| # | Task | Size | Created |
+|---|---|---|---|
+| 081 | [A sidecar reply line whose id is not a string is skipped, not an internal error](backlog/081-sidecar-reply-with-a-non-string-id-is-skipped.md) | S | 2026-10-30 |
+
 #### M3 Writes with safety
 
 | # | Task | Size | Created |
 |---|---|---|---|
-| 064 | [Owners of a distribution or mail-enabled security group through Exchange](backlog/064-distribution-group-owners-through-exchange.md) | S | 2026-10-30 |
-| 065 | [A resume plans only the pending lines and matches them by object id](backlog/065-resume-plans-the-pending-lines-matched-by-object-id.md) | S | 2026-10-30 |
-| 066 | [plan prune, or a size limit on the plans folder](backlog/066-plan-prune-or-a-size-limit-on-the-plans-folder.md) | S | 2026-10-30 |
+| 076 | [group owners <group> reads a distribution group's owners from ManagedBy](backlog/076-group-owners-read-through-managedby-for-distribution-groups.md) | S | 2026-10-30 |
 
 #### M4 Window
 
 | # | Task | Size | Created |
 |---|---|---|---|
-| 063 | [The window's mailbox-access over the layers](backlog/063-window-mailbox-access-over-the-layers.md) | S | 2026-10-30 |
+| 077 | [The window's user lookup over the split read of task 043](backlog/077-window-user-lookup-over-the-split-read.md) | S | 2026-10-30 |
+| 079 | [A write-guard test over the window's bridge writes](backlog/079-write-guard-test-over-the-window-bridge-writes.md) | S | 2026-10-30 |
 
 #### M6 Release and team
 
 | # | Task | Size | Created |
 |---|---|---|---|
-| 068 | [The windows job on every push to main, not only on pull requests and tags](backlog/068-windows-job-on-every-push-to-main.md) | S | 2026-10-30 |
+| 078 | [The doctor warns when an existing home folder is readable by other users](backlog/078-doctor-warns-on-a-home-folder-readable-by-others.md) | S | 2026-10-30 |
+| 080 | [Token hygiene through the window: the bridge's sign-in and the window: log lines](backlog/080-token-hygiene-through-the-window.md) | S | 2026-10-30 |
 
 ### In progress
 
-#### M6 Release and team
-
-| # | Task | Started | Plan |
-|---|---|---|---|
-| 069 | [A one-way mirror of the task files into GitHub issues](wip/069-issue-mirror-of-the-task-files.md) | 2026-10-30 | `none` |
+_none_
 
 ### Closed – do not reopen
 
@@ -75,18 +68,18 @@ _none_
 
 | # | Task | Closed |
 |---|---|---|
+| 075 | [A home folder ACL test: the MSAL cache, the profiles and the plan records reada…](done/075-home-folder-acl-test-for-the-cache-and-the-plan-records.md) | 2026-10-30 |
+| 074 | [CSV edge cases for the bulk writes: BOM, CRLF, quoted fields, duplicates, a mal…](done/074-csv-edge-case-tests-for-the-bulk-writes.md) | 2026-10-30 |
+| 073 | [An exit code contract snapshot: the ExitCode enum's names and values, frozen](done/073-exit-code-contract-snapshot.md) | 2026-10-30 |
+| 072 | [A token-hygiene test: a marked fake token never reaches a log, a plan record, a…](done/072-token-hygiene-test-across-logs-plans-and-output.md) | 2026-10-30 |
+| 071 | [A write-guard test over the whole command tree: without --yes, nothing is sent](done/071-write-guard-test-over-the-whole-command-tree.md) | 2026-10-30 |
+| 070 | [100% line and branch coverage of the Core, the command line, the front end and …](done/070-full-line-and-branch-coverage-enforced-in-ci.md) | 2026-10-30 |
+| 069 | [A one-way mirror of the task files into GitHub issues](done/069-issue-mirror-of-the-task-files.md) | 2026-10-30 |
+| 068 | [The windows job on every push to main, not only on pull requests and tags](done/068-windows-job-on-every-push-to-main.md) | 2026-10-30 |
 | 067 | [Publish the repository: a rewritten history in a new public repo](done/067-publish-the-repository-with-a-rewritten-history.md) | 2026-10-30 |
-| 062 | [Resume a half-applied batch from its plan record](done/062-resume-a-half-applied-batch-from-its-record.md) | 2026-10-30 |
-| 061 | [Members of a distribution or mail-enabled security group through Exchange](done/061-distribution-group-members-through-exchange.md) | 2026-10-30 |
-| 060 | [plan list and plan show over the plan records](done/060-plan-list-and-plan-show-over-the-records.md) | 2026-10-30 |
-| 059 | [--no-automapping on a FullAccess grant](done/059-no-automapping-on-a-fullaccess-grant.md) | 2026-10-30 |
-| 058 | [The Graph $ref writes twenty to a $batch call](done/058-graph-ref-writes-in-batches-of-twenty.md) | 2026-10-30 |
-| 057 | [The window's own hints for the failures after the sign-in](done/057-window-hints-for-the-failures-after-the-sign-in.md) | 2026-10-30 |
-| 056 | [The window's mailbox-list through the Admin API over the shared token source](done/056-window-mailbox-list-through-the-admin-api.md) | 2026-10-30 |
-| 055 | [mailbox forwarders through the Admin API](done/055-mailbox-forwarders-through-the-admin-api.md) | 2026-10-30 |
-| 054 | [Bulk changes from a CSV: one plan over every row](done/054-bulk-changes-from-a-csv.md) | 2026-10-30 |
+| 066 | [plan prune, or a size limit on the plans folder](done/066-plan-prune-or-a-size-limit-on-the-plans-folder.md) | 2026-10-30 |
 
-_53 more in `done/`._
+_65 more in `done/`._
 
 ### Decisions
 

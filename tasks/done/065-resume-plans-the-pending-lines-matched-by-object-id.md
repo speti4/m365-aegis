@@ -3,6 +3,7 @@ size: S
 origin: done/062-resume-a-half-applied-batch-from-its-record.md
 created: 2026-10-30
 started: 2026-10-30
+closed: 2026-10-30
 plan: none
 milestone: M3 Writes with safety
 ---
@@ -70,6 +71,10 @@ pending-lines plan needs a row filter there (named under Deviations).
 - 2026-10-30 — docs: `docs/development.md` (the records' version in "Writes and plans"; the bundle's own heading),
   `README.md` (the bundle's heading).
 
+- 2026-10-30 — closed by the main session on `main` after #87. The follow-up "number and key the window's write rows
+  once the window applies plans" is deleted: the window has no write card yet, and that card's task numbers its rows
+  as part of its own work.
+
 ## Deviations from the plan
 
 - `CsvRows.cs` is untouched: the row filter works on the place each row factory numbers (`IPlanRow.Index`), not on the
@@ -98,5 +103,5 @@ pending-lines plan needs a row filter there (named under Deviations).
 - [x] every doc under *Docs that move* changed in this change (the D-004 note's text is in the pull request; the main
       session writes it on `main`)
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)

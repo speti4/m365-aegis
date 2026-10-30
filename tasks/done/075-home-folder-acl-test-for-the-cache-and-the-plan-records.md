@@ -3,6 +3,7 @@ size: S
 origin: session 2026-10-30
 created: 2026-10-30
 started: 2026-10-30
+closed: 2026-10-30
 plan: none
 milestone: M6 Release and team
 changelog: housekeeping
@@ -115,5 +116,5 @@ docs name the rule.
 - [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)

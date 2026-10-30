@@ -3,6 +3,7 @@ size: S
 origin: done/061-distribution-group-members-through-exchange.md
 created: 2026-10-30
 started: 2026-10-30
+closed: 2026-10-30
 plan: none
 milestone: M3 Writes with safety
 ---
@@ -122,5 +123,5 @@ session; nothing is applied.
 - [x] every doc under *Docs that move* changed in this change (the D-004 note's text is in the pull request; the main
       session writes it on `main`)
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)

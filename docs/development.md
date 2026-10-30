@@ -620,7 +620,9 @@ operation to the core that returns a `WritePlan`, and a command whose action is 
 instead of the arguments (both at once is a usage error): a header line naming the columns, in any case and order,
 then one change per line; commas between the cells, or semicolons when the header has semicolons and no comma (a
 spreadsheet saved under a locale whose decimal mark is the comma); a cell in double quotes may hold the separator, a
-line break and a doubled quote; UTF-8 with or without a byte order mark; blank lines are skipped.
+line break and a doubled quote; UTF-8 with or without a byte order mark (a UTF-16 file with a byte order mark, as
+Excel's "Unicode Text" writes it, is read too; without one it fails the header check and the whole file is refused);
+blank lines are skipped.
 
 | write | columns |
 | --- | --- |

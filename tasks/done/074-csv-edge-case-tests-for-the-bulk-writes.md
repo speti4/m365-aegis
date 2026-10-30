@@ -3,6 +3,7 @@ size: S
 origin: session 2026-10-30
 created: 2026-10-30
 started: 2026-10-30
+closed: 2026-10-30
 plan: none
 milestone: M6 Release and team
 changelog: housekeeping
@@ -68,6 +69,11 @@ under Deviations.
   LF, quotes, trimming, header case and order, blank lines, duplicates, the refusal with the line);
   `tests/fixtures/README.md`, the bundle's section (the `edge-cases` folder and its rules).
 
+- 2026-10-30 — closed by the main session on `main` after #89. The follow-up "the CSV reader and UTF-16: refuse or
+  document" is settled as a docs sentence in this close (`docs/development.md`, "Writes and plans": a UTF-16 file with
+  a byte order mark is read too, without one the header check refuses the file), no task: the reader's behavior is
+  correct, only the documented contract was narrower than it.
+
 ## Deviations from the plan
 
 - No reader fix: every case read as documented on the first run, so `CsvRows.cs` is unchanged.
@@ -107,5 +113,5 @@ under Deviations.
 - [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)

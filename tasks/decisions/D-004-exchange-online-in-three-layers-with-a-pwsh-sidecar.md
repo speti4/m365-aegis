@@ -88,6 +88,21 @@ add|remove` reads the group's type from Graph and, for these two types, the curr
 list; the apply goes through the sidecar. A Microsoft 365 or security group's members and every group's owners stay on
 Graph. The Admin API stays read-only.
 
+## Note 2026-10-30 — the owners of a distribution group (task 064)
+
+The sidecar's allow-list admits `Get-DistributionGroup` (a read) and `Set-DistributionGroup`, the latter with
+`Identity`, `ManagedBy`, `BypassSecurityGroupManagerCheck` and `Confirm` only (`ExoCmdlets.WriteParameters` and the
+script's `$script:WriteParameters`, a Core test holding them equal), so the write layer is eight cmdlets. `group owners
+add|remove` on a distribution or mail-enabled security group (not synced) reads the owners from
+`Get-DistributionGroup` (`ManagedBy`, resolved with the `Get-EXORecipient` already on the list) and changes them with
+`Set-DistributionGroup -ManagedBy @{Add=…}` or `@{Remove=…}` `-BypassSecurityGroupManagerCheck -Confirm:$false`, one
+change per call, from a plan's apply only. Why on the list: Graph cannot change these groups' owners, and the Admin
+API documents no endpoint that reads or writes a group's settings (its six endpoints: AcceptedDomain,
+DistributionGroupMember, DynamicDistributionGroupMember, Mailbox, MailboxFolderPermission, OrganizationConfig). What
+it never does: `Set-DistributionGroup` never sends another setting of a group (name, address, moderation, delivery
+restrictions, hidden from the address lists); a parameter off the list is refused before anything runs (exit code
+12), by the session and by the script. The Admin API stays read-only and on its documented endpoints.
+
 ## Not chosen
 
 - Graph only: it cannot cover the mailbox domain the tool exists for.

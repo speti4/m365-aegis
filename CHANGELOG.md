@@ -61,6 +61,9 @@ The repository, the task standard and the empty solution: no product yet.
 - `plan list` and `plan show` over the plan records ([060](https://github.com/speti4/m365-aegis/blob/main/tasks/done/060-plan-list-and-plan-show-over-the-records.md))
 - Members of a distribution or mail-enabled security group through Exchange ([061](https://github.com/speti4/m365-aegis/blob/main/tasks/done/061-distribution-group-members-through-exchange.md))
 - Resume a half-applied batch from its plan record ([062](https://github.com/speti4/m365-aegis/blob/main/tasks/done/062-resume-a-half-applied-batch-from-its-record.md))
+- Owners of a distribution or mail-enabled security group through Exchange ([064](https://github.com/speti4/m365-aegis/blob/main/tasks/done/064-distribution-group-owners-through-exchange.md))
+- A resume plans only the pending lines and matches them by object id ([065](https://github.com/speti4/m365-aegis/blob/main/tasks/done/065-resume-plans-the-pending-lines-matched-by-object-id.md))
+- `plan prune`, or a size limit on the plans folder ([066](https://github.com/speti4/m365-aegis/blob/main/tasks/done/066-plan-prune-or-a-size-limit-on-the-plans-folder.md))
 
 ### M4 Window
 
@@ -74,6 +77,7 @@ The repository, the task standard and the empty solution: no product yet.
 - An "Open in browser" button for the device-code sign-in address ([047](https://github.com/speti4/m365-aegis/blob/main/tasks/done/047-open-the-device-code-address-in-the-browser.md))
 - The window's `mailbox-list` through the Admin API over the shared token source ([056](https://github.com/speti4/m365-aegis/blob/main/tasks/done/056-window-mailbox-list-through-the-admin-api.md))
 - The window's own hints for the failures after the sign-in ([057](https://github.com/speti4/m365-aegis/blob/main/tasks/done/057-window-hints-for-the-failures-after-the-sign-in.md))
+- The window's `mailbox-access` over the layers ([063](https://github.com/speti4/m365-aegis/blob/main/tasks/done/063-window-mailbox-access-over-the-layers.md))
 
 ### M6 Release and team
 
@@ -91,3 +95,11 @@ The repository, the task standard and the empty solution: no product yet.
 - CI skips the build jobs when only docs, tasks, memory or the changelog changed ([023](https://github.com/speti4/m365-aegis/blob/main/tasks/done/023-ci-skips-the-build-steps-for-docs-only-changes.md))
 - A dated note in D-003: the broker's silent path never reaches the file cache's refresh token ([026](https://github.com/speti4/m365-aegis/blob/main/tasks/done/026-d003-note-on-the-broker-and-the-file-cache.md))
 - Publish the repository: a rewritten history in a new public repo ([067](https://github.com/speti4/m365-aegis/blob/main/tasks/done/067-publish-the-repository-with-a-rewritten-history.md))
+- The `windows` job on every push to `main`, not only on pull requests and tags ([068](https://github.com/speti4/m365-aegis/blob/main/tasks/done/068-windows-job-on-every-push-to-main.md))
+- A one-way mirror of the task files into GitHub issues ([069](https://github.com/speti4/m365-aegis/blob/main/tasks/done/069-issue-mirror-of-the-task-files.md))
+- 100% line and branch coverage of the Core, the command line, the front end and the sidecar, enforced in CI ([070](https://github.com/speti4/m365-aegis/blob/main/tasks/done/070-full-line-and-branch-coverage-enforced-in-ci.md))
+- A write-guard test over the whole command tree: without `--yes`, nothing is sent ([071](https://github.com/speti4/m365-aegis/blob/main/tasks/done/071-write-guard-test-over-the-whole-command-tree.md))
+- A token-hygiene test: a marked fake token never reaches a log, a plan record, an envelope or stderr ([072](https://github.com/speti4/m365-aegis/blob/main/tasks/done/072-token-hygiene-test-across-logs-plans-and-output.md))
+- An exit code contract snapshot: the `ExitCode` enum's names and values, frozen ([073](https://github.com/speti4/m365-aegis/blob/main/tasks/done/073-exit-code-contract-snapshot.md))
+- CSV edge cases for the bulk writes: BOM, CRLF, quoted fields, duplicates, a malformed last line ([074](https://github.com/speti4/m365-aegis/blob/main/tasks/done/074-csv-edge-case-tests-for-the-bulk-writes.md))
+- A home folder ACL test: the MSAL cache, the profiles and the plan records readable by the user only ([075](https://github.com/speti4/m365-aegis/blob/main/tasks/done/075-home-folder-acl-test-for-the-cache-and-the-plan-records.md))

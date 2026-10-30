@@ -3,6 +3,7 @@ size: S
 origin: wip/067-publish-the-repository-with-a-rewritten-history.md
 created: 2026-10-30
 started: 2026-10-30
+closed: 2026-10-30
 plan: none
 milestone: M6 Release and team
 changelog: housekeeping
@@ -57,11 +58,14 @@ separate decision; the maintainer took it with this round's plan).
 - 2026-10-30 — `uvx zizmor .github` clean; the branch's manual run 41092363648 skipped `windows` as the `if:` says for
   a manual run of a branch. The pull request's run and the first push to `main` after the merge (the job running)
   are the main session's to record.
+- 2026-10-30 — the pull request's run (41096732730) ran `windows` green in 4 minutes; the push of the squash commit
+  f8cdb3a to `main` (run 41097560345) ran it too, green in 3 min 26 s next to `dotnet`, `deps`, `frontend`,
+  `sidecar`, `lint`, `workflow-lint` and `changes`, with `release` skipped: the first `main` push with the job.
 
 ## Closing checklist
 
 - [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)
