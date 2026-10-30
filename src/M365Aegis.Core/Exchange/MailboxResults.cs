@@ -35,6 +35,13 @@ public enum MailboxRight
 public sealed record MailboxHolder(MailboxRight Right, string Holder, string? Address)
 {
     /// <summary>
+    /// The layer that read the grant (task 063): <c>admin-api</c> for a Send on Behalf delegate the Admin API's mailbox
+    /// read listed, <c>pwsh</c> for one the sidecar read (FullAccess, Send As, and every grant when the Admin API could
+    /// not answer or the run has none); null from the sidecar-only lookup, which names no layer.
+    /// </summary>
+    public string? Layer { get; init; }
+
+    /// <summary>
     /// Under <c>--expand-groups</c> (task 044): true when the holder is a group, false when it is not, null when the
     /// grants were not expanded.
     /// </summary>
@@ -51,7 +58,14 @@ public sealed record MailboxHolder(MailboxRight Right, string Holder, string? Ad
 /// <summary>The result of <c>mailbox access &lt;mailbox&gt;</c>: the mailbox and who holds which right on it.</summary>
 /// <param name="Mailbox">The mailbox.</param>
 /// <param name="Holders">The holders: directly granted, allowed, the mailbox's own account left out.</param>
-public sealed record MailboxAccess(MailboxInfo Mailbox, IReadOnlyList<MailboxHolder> Holders);
+public sealed record MailboxAccess(MailboxInfo Mailbox, IReadOnlyList<MailboxHolder> Holders)
+{
+    /// <summary>
+    /// The layer that read the mailbox and its Send on Behalf list (task 063): <c>admin-api</c>, or <c>pwsh</c> when the
+    /// Admin API could not answer or the run has none; null from the sidecar-only lookup, which names no layer.
+    /// </summary>
+    public string? MailboxLayer { get; init; }
+}
 
 /// <summary>One mailbox a user holds a right on.</summary>
 /// <param name="Right">The right.</param>

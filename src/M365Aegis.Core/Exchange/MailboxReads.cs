@@ -70,7 +70,7 @@ public static partial class MailboxLookups
         ArgumentNullException.ThrowIfNull(options);
         string identity = RequireName(mailbox, "the mailbox");
         MailboxAccess? access = backends.HasAdminApi ? await AccessThroughAdminApiAsync(backends, identity, cancellationToken).ConfigureAwait(false) : null;
-        access ??= (await AccessAsync(backends.Sidecar, identity, cancellationToken).ConfigureAwait(false)).Data!;
+        access ??= ThroughSidecar((await AccessAsync(backends.Sidecar, identity, cancellationToken).ConfigureAwait(false)).Data!);
         if (options.ExpandGroups)
         {
             access = await ExpandHoldersAsync(backends, access, cancellationToken).ConfigureAwait(false);
@@ -78,6 +78,13 @@ public static partial class MailboxLookups
 
         return CommandResult.Success(access);
     }
+
+    /// <summary>The sidecar's answer with its layer named on the mailbox and on every grant (task 063).</summary>
+    private static MailboxAccess ThroughSidecar(MailboxAccess access) => access with
+    {
+        MailboxLayer = Backend.Pwsh,
+        Holders = access.Holders.Select(holder => holder with { Layer = Backend.Pwsh }).ToList(),
+    };
 
     /// <summary>
     /// <c>mailbox access --user &lt;upn&gt; [--expand-groups] [--method …]</c> over the layers: the reverse lookup of
@@ -384,11 +391,14 @@ public static partial class MailboxLookups
         }
 
         ExoObject found = await mailboxRead.ConfigureAwait(false);
-        List<MailboxHolder> holders = await rightsRead.ConfigureAwait(false);
-        holders.AddRange(await SendOnBehalfAsync(sidecar, found, cancellationToken).ConfigureAwait(false));
+        List<MailboxHolder> holders = (await rightsRead.ConfigureAwait(false)).Select(holder => holder with { Layer = Backend.Pwsh }).ToList();
+        holders.AddRange((await SendOnBehalfAsync(sidecar, found, cancellationToken).ConfigureAwait(false)).Select(holder => holder with { Layer = Backend.AdminApi }));
         return new MailboxAccess(
             ToMailbox(found),
-            holders.OrderBy(holder => holder.Right).ThenBy(holder => holder.Holder, StringComparer.OrdinalIgnoreCase).ToList());
+            holders.OrderBy(holder => holder.Right).ThenBy(holder => holder.Holder, StringComparer.OrdinalIgnoreCase).ToList())
+        {
+            MailboxLayer = Backend.AdminApi,
+        };
     }
 
     /// <summary>

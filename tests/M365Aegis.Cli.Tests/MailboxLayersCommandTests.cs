@@ -41,6 +41,12 @@ public sealed class MailboxLayersCommandTests
         JsonElement onBehalf = document.RootElement.GetProperty("data").GetProperty("holders").EnumerateArray().Single(holder => holder.GetProperty("right").GetString() == "send-on-behalf");
         Assert.Equal("Bob Example", onBehalf.GetProperty("holder").GetString());
         Assert.Equal("bob@contoso.com", onBehalf.GetProperty("address").GetString());
+
+        // Each grant names the layer that read it (task 063), the rows the window's access card shows.
+        Assert.Equal("admin-api", document.RootElement.GetProperty("data").GetProperty("mailboxLayer").GetString());
+        Assert.Equal(
+            ["pwsh", "pwsh", "admin-api"],
+            document.RootElement.GetProperty("data").GetProperty("holders").EnumerateArray().Select(holder => holder.GetProperty("layer").GetString()));
         Assert.Contains("00000000-0000-0000-0000-0000000000a1", document.RootElement.GetProperty("meta").GetProperty("requestIds").EnumerateArray().Select(id => id.GetString()));
     }
 

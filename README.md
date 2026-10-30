@@ -220,7 +220,7 @@ own; in a CSV file it is the optional `automapping` column (`false` on a FullAcc
 settings.
 
 The window's mailbox list comes from the Admin API too, with no sidecar start; the access lookups keep the window's
-sidecar, and both share one Exchange Online token. A failure after the sign-in shows a hint written for the window
+sidecar (beside the Admin API for a mailbox, below), and both share one Exchange Online token. A failure after the sign-in shows a hint written for the window
 ("ask the administrator", "Sign in again") instead of a command to type.
 
 ## Batched group writes, distribution lists, plan records and resume
@@ -250,6 +250,15 @@ meantime comes out unchanged), under the usual `--dry-run` or `--yes`, and the n
 The distribution group writes need an Exchange Online role that changes group members (Organization Management, or
 Recipient Management with Security Group Creation and Membership). The details are in
 [docs/development.md](docs/development.md#writes-and-plans).
+
+## The window's mailbox access over the Admin API
+
+The window's access card reads a mailbox the way `mailbox access` does: the mailbox and its Send on Behalf
+delegates by display name from the Admin API, FullAccess and Send As from the window's sidecar, side by side over
+the one Exchange Online token. Each row names the layer that read it ("Admin API" or "PowerShell"), and
+`mailbox access <mailbox> --json` carries the same `layer` on each holder and `mailboxLayer` on the answer. When
+the Admin API cannot answer for a mailbox, the sidecar reads all of it, as on the command line, and the card says
+so under the mailbox. A user's access (the reverse lookup) still reads through the sidecar.
 
 ## Documentation
 

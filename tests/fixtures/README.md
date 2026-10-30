@@ -126,6 +126,12 @@ name, in the short form) and the mail-enabled security group Finance Staff by it
 `dave@example.com`, as the fake module knows him, and Alice Example hidden) and `…Identity=finance-staff@contoso.com…`
 (Carol Example), request ids `…038` and `…039`.
 
+## The window bundle: Finance by its address
+
+Task 063. `Mailbox@Identity=finance@contoso.com&IncludeGrantSendOnBehalfToWithDisplayNames=true` is the Admin API's
+answer for Finance asked by its address, as the window's access card sends it after a pick (the bridge sample
+`mailbox-access.json`): the same body as `Identity=finance`, request id `…0a1`.
+
 ## The M3 writes bundle: the write answers and the CSV files
 
 Tasks 051 to 054. A write's answer is named like a read's, with one rule more: a `$ref` POST, whose URL is the same
