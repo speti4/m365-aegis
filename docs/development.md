@@ -908,6 +908,19 @@ The pwsh and module checks are one pwsh call; the device check reads `AzureAdJoi
 registry, `dsregcmd` (the made-up outputs under `tests/fixtures/doctor/dsregcmd-*.txt`), the installed Desktop
 Runtime versions, the two copies of the script, the sign-in and the endpoint probe.
 
+## The safety tests
+
+Five tests hold the scope of [SECURITY.md](../SECURITY.md) and the output contract together, each over the whole
+product rather than one command (tasks 071 to 075, the sixth round of 2026-10-30).
+
+**The exit codes** (task 073, `tests/M365Aegis.Core.Tests/Output/ExitCodeContractTests.cs`). The `ExitCode` enum is
+a Verify snapshot of `name = value` lines in value order (`Snapshots/ExitCodeContractTests.TheExitCodes.verified.txt`),
+and the exit code table of [The output contract](#the-output-contract) is read back by the test and compared with
+the enum and with each `FailureKind`'s error code, both ways: a renumbered or renamed member, a code the table lacks
+or a row the enum does not have fails. The table's shape is therefore part of the contract too: one row per code, the
+number, the error code in backticks (an empty cell for 0) and the meaning. A new exit code changes the snapshot, the
+table and the `FailureKind` in the same change.
+
 ## CI and releases
 
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request, under a minutes budget (D-005).

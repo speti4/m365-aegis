@@ -33,18 +33,37 @@ snapshot then changes with it, which is the point.
 
 ## Steps
 
-1. [ ] The snapshot test in the Core tests (`Snapshots/`), one `name = value` line per member, in value order
-2. [ ] The docs check: the exit code table in `docs/development.md` parsed and compared to the enum, both ways
-3. [ ] The proof that a changed value turns the test red (a Log line, the change not committed)
-4. [ ] The docs sentence
+1. [x] The snapshot test in the Core tests (`Snapshots/`), one `name = value` line per member, in value order
+2. [x] The docs check: the exit code table in `docs/development.md` parsed and compared to the enum, both ways
+3. [x] The proof that a changed value turns the test red (a Log line, the change not committed)
+4. [x] The docs sentence
 
 ## Log
 
 - 2026-10-30 — promoted by the main session into the safety tests bundle (071–075)
+- 2026-10-30 — `tests/M365Aegis.Core.Tests/Output/ExitCodeContractTests.cs`: `TheExitCodes` verifies the enum as
+  `name = value` lines in value order (`Snapshots/ExitCodeContractTests.TheExitCodes.verified.txt`, 14 lines from
+  `Ok = 0` to `Internal = 70`, accepted from the first received file); `TheDocsTableListsEveryExitCodeAndNothingElse`
+  reads the table under `## The output contract` of `docs/development.md` (the rows after the
+  `| code | error code | meaning |` header, each held to the row shape, a code with two rows refused) and compares its
+  codes with the enum's; `TheDocsTableNamesTheErrorCodeOfEachExitCode` compares each row's error code with the
+  `FailureKind` that maps to the code (`ToExitCode`, `ToCode`), an empty cell for 0; `EveryExitCodeButOkHasOneFailureKind`
+  holds the enum and the failure kinds to each other. The repo root is found by walking up from the test's folder to
+  `docs/development.md`, as `GraphFixtures` finds `tests/fixtures/graph`.
+- 2026-10-30 — red proof (not committed): `Forbidden = 18` in `ExitCode.cs`, the Core tests rebuilt and the class run:
+  3 of 4 failed — the snapshot, the docs table (`Expected: […, 7, 9, 10, …] Actual: […, 7, 8, 9, …]`) and the error
+  codes (`[8] = "forbidden"` missing from the enum's side); `git checkout` restored the file and the 4 passed again.
+- 2026-10-30 — docs: `docs/development.md`, a new section "The safety tests" with the exit code paragraph (the table's
+  shape is now part of the contract).
 
 ## Deviations from the plan
 
-- none yet
+- The docs paragraph sits in a new section of this bundle, "The safety tests", not in "The output contract": the
+  round's rule for parallel bundles keeps each bundle's text under its own heading. The section links back to the
+  table.
+- The docs check also compares the error code column with `FailureKind.ToCode()`, and a fourth test holds every exit
+  code but 0 to exactly one failure kind: the table has the two columns, and a code without a kind could never be
+  returned.
 
 ## Verification
 
