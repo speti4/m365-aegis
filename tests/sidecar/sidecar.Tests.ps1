@@ -311,6 +311,61 @@ Describe 'the member writes of a distribution group against the fake module (tas
     }
 }
 
+Describe 'the owners of a distribution group against the fake module (task 064)' {
+    BeforeEach {
+        $script:OwnerWrites = Join-Path ([System.IO.Path]::GetTempPath()) "aegis-sidecar-owner-writes-$([guid]::NewGuid().ToString('N')).jsonl"
+    }
+
+    AfterEach {
+        Remove-Item -LiteralPath $script:OwnerWrites -ErrorAction SilentlyContinue
+    }
+
+    It 'reads ManagedBy by the owners'' names, which a piped recipient read resolves' {
+        $read = Get-InvokeLine -Id '3' -Cmdlet 'Get-DistributionGroup' -Parameters @{ Identity = 'finance-staff@contoso.com' } -Properties @('ManagedBy')
+        $resolve = Get-InvokeLine -Id '4' -Cmdlet 'Get-EXORecipient' -InputObject @('carol', 'Organization Management') -Properties @('Name', 'PrimarySmtpAddress')
+        $run = Invoke-Sidecar -Lines @($script:Connect, $read, $resolve)
+        $run.Lines[1].type | Should -Be 'result'
+        @($run.Lines[1].data.items[0].ManagedBy) | Should -Be @('carol', 'Organization Management')
+        # The role group is no recipient: the read keeps carol and names the other in its errors.
+        $run.Lines[2].data.items.PrimarySmtpAddress | Should -Be 'carol@contoso.com'
+        @($run.Lines[2].data.errors).Count | Should -Be 1
+    }
+
+    It 'adds an owner and removes another through ManagedBy, which a later read lists, and the fake records both calls' {
+        $add = Get-InvokeLine -Id '3' -Cmdlet 'Set-DistributionGroup' -Parameters @{ Identity = 'sales@contoso.com'; ManagedBy = @{ Add = @('dave@contoso.com') }; BypassSecurityGroupManagerCheck = $true; Confirm = $false }
+        $remove = Get-InvokeLine -Id '4' -Cmdlet 'Set-DistributionGroup' -Parameters @{ Identity = 'sales@contoso.com'; ManagedBy = @{ Remove = @('alice@contoso.com') }; BypassSecurityGroupManagerCheck = $true; Confirm = $false }
+        $read = Get-InvokeLine -Id '5' -Cmdlet 'Get-DistributionGroup' -Parameters @{ Identity = 'Sales' } -Properties @('ManagedBy')
+        $run = Invoke-Sidecar -Lines @($script:Connect, $add, $remove, $read) -Environment @{ M365AEGIS_FAKE_EXO_WRITES = $script:OwnerWrites }
+        $run.Lines[1].type | Should -Be 'result'
+        $run.Lines[2].type | Should -Be 'result'
+        @($run.Lines[3].data.items[0].ManagedBy) | Should -Be @('dave')
+        $logged = @(Get-Content -LiteralPath $script:OwnerWrites | ForEach-Object { $_ | ConvertFrom-Json })
+        @($logged.cmdlet) | Should -Be @('Set-DistributionGroup', 'Set-DistributionGroup')
+        @($logged[0].parameters.ManagedBy.Add) | Should -Be @('dave@contoso.com')
+        $logged[0].parameters.PSObject.Properties.Name | Should -Contain 'BypassSecurityGroupManagerCheck'
+    }
+
+    It 'fails the removal of an owner who is not one, and an unknown recipient' -ForEach @(
+        @{ ManagedBy = @{ Remove = @('bob@contoso.com') }; Pattern = "isn't an owner" }
+        @{ ManagedBy = @{ Add = @('eve@contoso.com') }; Pattern = "couldn't be found" }
+    ) {
+        $invoke = Get-InvokeLine -Cmdlet 'Set-DistributionGroup' -Parameters @{ Identity = 'sales@contoso.com'; ManagedBy = $ManagedBy; Confirm = $false }
+        $run = Invoke-Sidecar -Lines @($script:Connect, $invoke) -Environment @{ M365AEGIS_FAKE_EXO_WRITES = $script:OwnerWrites }
+        $run.Lines[1].type | Should -Be 'error'
+        $run.Lines[1].data.message | Should -Match $Pattern
+        Test-Path -LiteralPath $script:OwnerWrites | Should -BeFalse
+    }
+
+    It 'refuses a setting of the group other than its owners before it runs' {
+        $invoke = Get-InvokeLine -Cmdlet 'Set-DistributionGroup' -Parameters @{ Identity = 'sales@contoso.com'; HiddenFromAddressListsEnabled = $true; Confirm = $false }
+        $run = Invoke-Sidecar -Lines @($script:Connect, $invoke) -Environment @{ M365AEGIS_FAKE_EXO_WRITES = $script:OwnerWrites }
+        $run.Lines[1].type | Should -Be 'error'
+        $run.Lines[1].data.code | Should -Be 'cmdlet-not-allowed'
+        $run.Lines[1].data.message | Should -Match 'HiddenFromAddressListsEnabled'
+        Test-Path -LiteralPath $script:OwnerWrites | Should -BeFalse
+    }
+}
+
 Describe 'the write cmdlets against the fake module (task 053)' {
     BeforeEach {
         $script:Writes = Join-Path ([System.IO.Path]::GetTempPath()) "aegis-sidecar-writes-$([guid]::NewGuid().ToString('N')).jsonl"

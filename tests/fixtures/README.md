@@ -144,3 +144,11 @@ member already, one refused), `mailbox-grants.csv` (three grants against the fak
 refused, one line in quotes), `mailbox-grants-malformed.csv` (an unclosed quote on line 3) and
 `mailbox-forwarding-set.csv` (semicolons, the optional `keepCopy` column). They carry the same made-up names as
 every fixture.
+
+## The writes follow-ups bundle: a synced distribution group
+
+Tasks 064 to 066. The distribution group Sales Synced (`groups/…03a@$select=id,displayName,mail,groupTypes,securityEnabled,onPremisesSyncEnabled`,
+`sales-synced@contoso.com`, synced from on-premises Active Directory) and its owners on Graph (`groups/…03a/owners@…`,
+none), so an owner write on a synced distribution group stays on Graph with its warning. The owners of Sales and
+Finance Staff come from the fake module's `ManagedBy` (`tests/sidecar/README.md`); the resume tests of task 065
+answer the reads of a hundred made-up users (`…060` to `…0c3`) in code, not from files.

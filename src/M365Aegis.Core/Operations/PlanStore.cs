@@ -21,7 +21,10 @@ public sealed record PlanRecordContext(string Source, string? Profile, IReadOnly
 public sealed record PlanRecordInput(string File, string Content);
 
 /// <summary>A plan record as the file holds it.</summary>
-/// <param name="Version">The record's format, 1.</param>
+/// <param name="Version">
+/// The record's format: 2 since task 065, whose changes carry their row's place (<see cref="PlanChange.Index"/>) and
+/// their object ids (<see cref="PlanChange.Key"/>); 1 before, which still reads.
+/// </param>
 /// <param name="Source">The program that applied the plan.</param>
 /// <param name="Profile">The tenant profile, or null for the default one.</param>
 /// <param name="Arguments">The arguments of the command line.</param>
@@ -63,6 +66,12 @@ public sealed record PlanRecordList(string Folder, IReadOnlyList<PlanRecordSumma
 {
     /// <summary>Files in the folder that are not plan records (a broken or foreign file), left out of the list.</summary>
     public int Unreadable { get; init; }
+
+    /// <summary>How many records the folder holds (task 066).</summary>
+    public int Count => Records.Count;
+
+    /// <summary>The size of every file in the folder, the records and any other, in bytes (task 066): what <c>plan prune</c> frees.</summary>
+    public long Bytes { get; init; }
 }
 
 /// <summary>
@@ -74,6 +83,9 @@ public sealed record PlanRecordList(string Folder, IReadOnlyList<PlanRecordSumma
 /// </summary>
 public sealed class PlanStore
 {
+    /// <summary>The format of the records this build writes (task 065): 2, the changes with their rows' places and object ids.</summary>
+    public const int RecordVersion = 2;
+
     private static readonly JsonSerializerOptions RecordOptions = new(EnvelopeJson.Options) { WriteIndented = true };
 
     private readonly PlanRecordContext _context;
@@ -145,8 +157,10 @@ public sealed class PlanStore
         string folder = Path.Combine(home, "plans");
         var records = new List<PlanRecordSummary>();
         int unreadable = 0;
+        long bytes = 0;
         if (Directory.Exists(folder))
         {
+            bytes = new DirectoryInfo(folder).EnumerateFiles().Sum(file => file.Length);
             foreach (string file in Directory.EnumerateFiles(folder).Where(file => file.EndsWith(".json", StringComparison.OrdinalIgnoreCase)))
             {
                 if (TryRead(file) is { } record)
@@ -164,7 +178,7 @@ public sealed class PlanStore
             .OrderByDescending(record => record.Started ?? DateTimeOffset.MinValue)
             .ThenByDescending(record => record.Name, StringComparer.Ordinal)
             .ToList();
-        return new PlanRecordList(folder, sorted) { Unreadable = unreadable };
+        return new PlanRecordList(folder, sorted) { Unreadable = unreadable, Bytes = bytes };
     }
 
     /// <summary>
@@ -217,7 +231,7 @@ public sealed class PlanStore
     }
 
     /// <summary>A record read back, or null for a file that cannot be read as one.</summary>
-    private static PlanRecord? TryRead(string path)
+    internal static PlanRecord? TryRead(string path)
     {
         try
         {
@@ -250,5 +264,5 @@ public sealed class PlanStore
         };
     }
 
-    private PlanRecord Record(Plan plan) => new(1, _context.Source, _context.Profile, _context.Arguments, plan) { Input = _context.Input };
+    private PlanRecord Record(Plan plan) => new(RecordVersion, _context.Source, _context.Profile, _context.Arguments, plan) { Input = _context.Input };
 }

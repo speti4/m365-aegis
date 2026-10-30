@@ -161,6 +161,104 @@ public sealed class DistributionGroupWritesTests
     }
 
     [Fact]
+    public async Task ADistributionGroupsOwnersArePlannedFromManagedByAndAppliedThroughTheSidecar()
+    {
+        string writes = WritesFile();
+        await using ExchangeSession session = Session(writes);
+        await using var backends = new ExchangeBackends(session, AdminApiConnection.Fixtures(GraphFixtures.Root), () => GraphFixtures.Client().Client);
+
+        // Sales is managed by alice (ManagedBy names her mailbox), so only Dave is planned.
+        WritePlan write = await GroupWrites.PlanAsync(backends, GroupRelation.Owners, add: true, GroupWrites.FromArguments("Sales", ["dave@contoso.com", "alice@contoso.com"]), Ct);
+        string planned = backends.Backend;
+        CommandResult<Plan> result = await ApplyAsync(write);
+
+        Assert.Equal("group-owners-add", write.Plan.Operation);
+        PlanChange change = Assert.Single(write.Plan.Changes);
+        Assert.Equal(("Sales", "Dave Example (dave@contoso.com) as an owner", "not an owner", "an owner"), (change.Target, change.Detail, change.Current, change.Desired));
+        Assert.Equal("Alice Example (alice@contoso.com) as an owner", Assert.Single(write.Plan.Unchanged).Detail);
+        Assert.Empty(write.Plan.Warnings);
+        // The owners are no Admin API read: the group from Graph, ManagedBy from the sidecar.
+        Assert.Equal("graph+pwsh", planned);
+        Assert.True(result.Ok);
+        string sent = Assert.Single(Writes(writes));
+        Assert.Contains("\"cmdlet\":\"Set-DistributionGroup\"", sent, StringComparison.Ordinal);
+        Assert.Contains("\"Identity\":\"sales@contoso.com\"", sent, StringComparison.Ordinal);
+        Assert.Contains("\"ManagedBy\":{\"Add\":[\"dave@contoso.com\"]}", sent, StringComparison.Ordinal);
+        Assert.Contains("\"BypassSecurityGroupManagerCheck\"", sent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AMailEnabledSecurityGroupsOwnerIsRemovedThroughExchangeAndARoleGroupOwnerIsListedByName()
+    {
+        string writes = WritesFile();
+        await using ExchangeSession session = Session(writes);
+        await using var backends = new ExchangeBackends(session, AdminApiConnection.Fixtures(GraphFixtures.Root), () => GraphFixtures.Client().Client);
+
+        WritePlan write = await GroupWrites.PlanAsync(
+            backends, GroupRelation.Owners, add: false, GroupWrites.FromArguments("00000000-0000-0000-0000-000000000035", ["carol@contoso.com", "dave@contoso.com", "Organization Management"]), Ct);
+        CommandResult<Plan> result = await ApplyAsync(write);
+
+        Assert.Equal(
+            ["Carol Example (carol@contoso.com) as an owner", "Organization Management (recipient, Organization Management) as an owner"],
+            write.Plan.Changes.Select(change => change.Detail));
+        Assert.Equal("not an owner", Assert.Single(write.Plan.Unchanged).State);
+        // Two of the two owners go: the plan says so.
+        Assert.Contains(write.Plan.Warnings, warning => warning.Contains("loses its last owner", StringComparison.Ordinal));
+        Assert.Equal(ExitCode.Partial, result.ExitCode);
+        Assert.Equal([ChangeStatus.Applied, ChangeStatus.Failed], result.Data!.Changes.Select(change => change.Result!.Status));
+        string sent = Assert.Single(Writes(writes));
+        Assert.Contains("\"Identity\":\"finance-staff@contoso.com\"", sent, StringComparison.Ordinal);
+        Assert.Contains("\"ManagedBy\":{\"Remove\":[\"carol@contoso.com\"]}", sent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AMicrosoft365GroupsOwnersStillGoThroughGraph()
+    {
+        string writes = WritesFile();
+        (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
+        await using ExchangeSession session = Session(writes);
+        await using var backends = new ExchangeBackends(session, AdminApiConnection.Fixtures(GraphFixtures.Root), () => graph);
+
+        WritePlan write = await GroupWrites.PlanAsync(backends, GroupRelation.Owners, add: true, GroupWrites.FromArguments("Finance", ["bob@contoso.com"]), Ct);
+        CommandResult<Plan> result = await ApplyAsync(write);
+
+        Assert.True(result.Ok);
+        Assert.Equal("graph", backends.Backend);
+        Assert.Single(transport.BatchItems, request => request.Method == HttpMethod.Post && request.Uri.AbsolutePath.EndsWith("/owners/$ref", StringComparison.Ordinal));
+        Assert.Empty(Writes(writes));
+    }
+
+    [Fact]
+    public async Task ASyncedDistributionGroupsOwnersStayOnGraphWithTheWarning()
+    {
+        string writes = WritesFile();
+        await using ExchangeSession session = Session(writes);
+        await using var backends = new ExchangeBackends(session, AdminApiConnection.Fixtures(GraphFixtures.Root), () => GraphFixtures.Client().Client);
+
+        WritePlan write = await GroupWrites.PlanAsync(backends, GroupRelation.Owners, add: true, GroupWrites.FromArguments("00000000-0000-0000-0000-00000000003a", ["bob@contoso.com"]), Ct);
+
+        Assert.Single(write.Plan.Changes);
+        Assert.Equal(
+            "Sales Synced is synced from on-premises Active Directory: Graph cannot change its owners there, so the service will refuse the change",
+            Assert.Single(write.Plan.Warnings));
+        Assert.Equal("graph", backends.Backend);
+        Assert.Empty(Writes(writes));
+    }
+
+    [Fact]
+    public void TheOwnerCmdletsAreOnTheAllowListAndSetDistributionGroupChangesTheOwnersOnly()
+    {
+        Assert.True(ExoCmdlets.IsAllowed("Get-DistributionGroup"));
+        Assert.True(ExoCmdlets.IsAllowed("Set-DistributionGroup"));
+        Assert.Equal(["Identity", "ManagedBy", "BypassSecurityGroupManagerCheck", "Confirm"], ExoCmdlets.WriteParameters[ExoCmdlets.SetDistributionGroup]);
+        AegisException off = Assert.Throws<AegisException>(() => ExoCmdlets.EnsureAllowed(
+            new ExoCommand(ExoCmdlets.SetDistributionGroup) { Parameters = new Dictionary<string, object?> { ["Identity"] = "sales", ["HiddenFromAddressListsEnabled"] = true } }));
+        Assert.Equal(FailureKind.CmdletNotAllowed, off.Failure.Kind);
+        // The Admin API stays on its documented reads.
+        Assert.Equal(FailureKind.CmdletNotAllowed, Assert.Throws<AegisException>(() => AdminApiCmdlets.Endpoint("Get-DistributionGroup")).Failure.Kind);
+    }
+
+    [Fact]
     public void TheMemberWritesAreOnTheAllowListWithTheirParameters()
     {
         Assert.True(ExoCmdlets.IsAllowed("Add-DistributionGroupMember"));

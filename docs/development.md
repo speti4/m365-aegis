@@ -547,7 +547,7 @@ was done with the record's file.
 so the names sort by time; a second apply in the same millisecond gets `-2`): once when it starts (`mode:
 applying`, no results) and again when it ends (each change's result, the times), through a temporary file. A record
 left at `applying` is an apply that was cut short; a change whose step was running then is `failed` with the code
-`internal` or `cancelled`. The record holds `version` (1), `source` (`command line`), `profile`, `arguments` (as
+`internal` or `cancelled`. The record holds `version` (2 since task 065; 1 before), `source` (`command line`), `profile`, `arguments` (as
 given), the `plan`, and for a batch from a CSV file the file's full path and text (`input`: `file`, `content`), so a
 resume replays the lines the apply had (task 062). A dry run, a refusal and a plan with nothing to change write
 nothing. `M365AEGIS_HOME` moves the folder with the rest of the home; the tests point it at a temporary one.
@@ -592,10 +592,11 @@ operation to the core that returns a `WritePlan`, and a command whose action is 
   and each change is `Add-DistributionGroupMember` or `Remove-DistributionGroupMember -Identity <the group's address>
   -Member <the member's address> -BypassSecurityGroupManagerCheck -Confirm:$false` through the sidecar, so the envelope's
   backend is `graph+admin-api` for the plan and `graph+admin-api+pwsh` after an apply. A Microsoft 365 or security
-  group's members and every group's owners stay on Graph (backend `graph`), and so does a group synced from
+  group's members and owners stay on Graph (backend `graph`), and so does a group synced from
   on-premises Active Directory, with the warning that the service will refuse the change: Exchange Online refuses a
-  member write on a synced group too, so the change belongs in the on-premises directory. The owners of a distribution group
-  (`ManagedBy`) and the members of a dynamic distribution group are not written.
+  member write on a synced group too, so the change belongs in the on-premises directory. The owners of a distribution
+  or mail-enabled security group (`ManagedBy`) go through Exchange too (task 064, [below](#the-writes-follow-ups-owners-resume-and-prune));
+  the members and owners of a dynamic distribution group are not written.
 - `mailbox access grant|revoke <mailbox> --user <holder>… --right FullAccess|SendAs|SendOnBehalf…` (task 053):
   `--user` and `--right` repeat, a right also comma-separated, any case, with or without hyphens. The current holders
   are read as `mailbox access <mailbox>` reads them, each holder to change as a recipient (`Get-EXORecipient`, a
@@ -653,6 +654,58 @@ resumed. A record of two failed and three skipped changes resumes as a plan of a
 for `plan show`; it must be of the same write (the hint names the command that wrote it), of the same profile, and not
 of a raw `call`; a record with every change applied has nothing to resume. Arguments or `--from-csv` next to
 `--resume` are a usage error: the record names the changes.
+
+### The writes follow-ups: owners, resume and prune
+
+Tasks 064 to 066, the writes follow-ups bundle of 2026-10-30.
+
+**The owners of a distribution or mail-enabled security group** (task 064, a D-004 note of 2026-10-30). `group owners
+add|remove` on such a group (not synced; its type is Graph's, read with its name) plans against the group's `ManagedBy`
+and applies through the sidecar, the way task 061 routes its members:
+
+| step | layer |
+| --- | --- |
+| the group and its type, the users to add | Graph (as every group write) |
+| the current owners | sidecar: `Get-DistributionGroup -Identity <the group's address>` (`ManagedBy`, the owners by each recipient's name), the names resolved with one piped `Get-EXORecipient`; a name no recipient answers to (a role group) is listed as it is |
+| each change | sidecar: `Set-DistributionGroup -Identity <the group's address> -ManagedBy @{Add=<address>}` or `@{Remove=<address>}` `-BypassSecurityGroupManagerCheck -Confirm:$false` |
+
+The Admin API documents no endpoint that reads a group's settings (its six endpoints are `AcceptedDomain`,
+`DistributionGroupMember`, `DynamicDistributionGroupMember`, `Mailbox`, `MailboxFolderPermission` and
+`OrganizationConfig`; https://learn.microsoft.com/exchange/reference/admin-api-endpoints-reference), so `ManagedBy` is the
+sidecar's read and the envelope's backend is `graph+pwsh`. The allow-list admits `Get-DistributionGroup` (a read) and
+`Set-DistributionGroup` with `Identity`, `ManagedBy`, `BypassSecurityGroupManagerCheck` and `Confirm` only
+(`ExoCmdlets.WriteParameters` and the script's `$script:WriteParameters`): the cmdlet can change any setting of a
+group, and the list keeps it to the owners. A user is matched against the owners by any address, object id, alias or
+name Exchange gives the recipient; the plan warns when the group would lose its last owner. A Microsoft 365 or
+security group's owners stay on Graph, a synced group's too with the warning that the service will refuse the change,
+and over Graph alone (no Exchange layers) a distribution group's owners keep the warning that Graph keeps none. The
+owner of a distribution group must be a mailbox, a mail user or a mail-enabled security group; another one is the
+service's refusal of that change (exit code 13 for it, 6 for a partial apply).
+
+**A resume over the pending lines, by object ids** (task 065). A record of version 2 numbers each change, and each
+object already as asked, by its row's place among the write's rows (`index`, from 1: the n-th change asked for, from
+the arguments or the CSV file's lines) and keys it by object ids (`key`: `<group id>/<user id>` for a group write,
+`<mailbox id>/<right>/<holder id>` for a mailbox right, `<mailbox id>` for the forwarding); both are in the plan's
+envelope too. Under `--resume` the write reads its rows from the record as before, then keeps only the rows of the
+changes the record left to do (`PlanResume.Select`, called by `WriteRunner.TryRows`, so a write needs no code of its
+own) before it plans: 60 pending lines of 100 read 60 objects, and a line applied before whose object was deleted
+since is not read again. The new plan's changes are matched to the pending ones by the action and the object ids
+first, then by the CSV line, then by the text, so a group or a user renamed since the apply still matches. A record
+of version 1, or one whose pending changes carry no row's place, plans every row again and matches by the line and
+the text, as before.
+
+**The plan records' size, and `plan prune`** (task 066). `plan list` also gives `count` (the records) and `bytes` (every
+file in the folder, the records and any other); the table's footer says both. `plan prune --older-than <days>`
+removes the records of the applies started more than that many days ago (their `started`, else the file's time): it is a
+write like every other, local only, a plan of one change per record (`action: remove`, the file name as the target,
+the operation, the start, the changes and the size as the change), printed by `--dry-run`, refused without `--yes`
+(exit code 7), up to date with nothing older; the apply records itself like any write (`plan-prune`), and that record
+is new, so it stays. `--older-than` is required and at least 1, so a record of an apply running now is never removed
+(2 otherwise); a file that is not a plan record is never removed; a record that left changes to do warns that its
+resume goes with it; a file the file system refuses to remove fails its change with exit code 8 and the others go on.
+`--resume` does not apply to it. The folder has no automatic size limit: a limit enforced at apply time would remove
+records without a plan anyone confirmed, which D-006 rules out for every write, and the records are the audit trail
+and the resume's source; `plan list` shows the size, and the prune is the administrator's.
 
 ## The front end
 

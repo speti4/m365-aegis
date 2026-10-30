@@ -12,5 +12,7 @@
         'Get-EXORecipientPermission', 'Get-EXOMailboxStatistics', 'Get-AcceptedDomain', 'Get-EXOMailboxFolderStatistics',
         'Add-MailboxPermission', 'Remove-MailboxPermission', 'Add-RecipientPermission', 'Remove-RecipientPermission', 'Set-Mailbox',
         # The member writes of a distribution or mail-enabled security group (task 061).
-        'Add-DistributionGroupMember', 'Remove-DistributionGroupMember')
+        'Add-DistributionGroupMember', 'Remove-DistributionGroupMember',
+        # The owners of a distribution or mail-enabled security group (task 064).
+        'Get-DistributionGroup', 'Set-DistributionGroup')
 }
