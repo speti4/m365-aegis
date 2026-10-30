@@ -83,6 +83,12 @@ this bundle merges, so a new test here uses the harness of today (`CliTests.RunW
   the sinks are read once a phase is done; the bare runs and the raw calls likewise. The guard and the CSV classes
   together: 10 s. The hidden-write proof repeated on the new shape: 13 of 23 red again, now with the raw calls'
   `POST`, `PATCH`, `PUT` and `DELETE` named by the request log; reverted.
+- 2026-10-30 — `origin/main` merged into the branch after the writes follow-ups bundle (064–066, #87): the tree now has a
+  tenth write, `plan prune --older-than <days>`, a write of local files (backend `local`). The enumeration found it, and
+  `EveryWriteCommandHasItsInputs` failed until its line was added: `--older-than 1` over a home that starts with the
+  three sample records (`PlanRecordSamples.Write`, `Seeded` on its inputs), so the plan has changes and the record
+  count, which must equal the seeded three plus the test's own, proves a prune without `--yes` removes no file. No CSV
+  and no resume for it. The conflicts were the two READMEs' bundle sections, both kept, the merged side's first.
 - 2026-10-30 — docs: `docs/development.md` "The safety tests", the write guard paragraph (the enumeration, the runs, the
   request log variable, how a new write joins); `tests/fixtures/README.md`, the bundle's section (the new sample).
   `SECURITY.md` names no tests, so it does not change.

@@ -35,6 +35,8 @@ public sealed class WriteGuardTests
         ["mailbox access revoke"] = new(["finance", "--user", "alice@contoso.com", "--right", "FullAccess"], "mailbox-grants.csv"),
         ["mailbox forwarding set"] = new(["alice", "--to", "alice@fabrikam.com"], "mailbox-forwarding-set.csv"),
         ["mailbox forwarding clear"] = new(["bob"], "mailbox-forwarding-clear.csv"),
+        // A write of local files only (task 066): the home holds the three sample records, which must all survive.
+        ["plan prune"] = new(["--older-than", "1"], null) { Seeded = true },
     };
 
     /// <summary>The write commands of the tree, by their path (<c>group members add</c>).</summary>
@@ -59,7 +61,7 @@ public sealed class WriteGuardTests
         Command command = WriteCommands()[path];
         Assert.True(Inputs.TryGetValue(path, out WriteInputs? inputs), $"the write command '{path}' has no inputs in WriteGuardTests.Inputs");
         string[] words = path.Split(' ');
-        var run = new GuardRun();
+        var run = new GuardRun(inputs.Seeded);
 
         // The runs of one phase are independent, so they run at once; the sinks are read when all of them are done.
         List<Task<JsonElement>> runs =
@@ -142,7 +144,11 @@ public sealed class WriteGuardTests
     /// <summary>The inputs of one write command.</summary>
     /// <param name="Arguments">The arguments after the command's path.</param>
     /// <param name="Csv">The sample file under <c>tests/fixtures/csv</c> for <c>--from-csv</c>, or null when the command has none.</param>
-    private sealed record WriteInputs(string[] Arguments, string? Csv);
+    private sealed record WriteInputs(string[] Arguments, string? Csv)
+    {
+        /// <summary>Whether the home starts with the three sample records (<see cref="PlanRecordSamples"/>), for a write over them.</summary>
+        public bool Seeded { get; init; }
+    }
 
     /// <summary>
     /// The runs of one test: a temporary home, and a folder of sinks where each run gets its own request log and fake
@@ -153,7 +159,19 @@ public sealed class WriteGuardTests
         private readonly string _home = PlanSamples.TempHome();
         private readonly string _sinks = Path.Combine(Path.GetTempPath(), "m365-aegis-tests", $"sinks-{Guid.NewGuid():N}");
 
-        internal GuardRun() => Directory.CreateDirectory(_sinks);
+        /// <summary>The records the home starts with.</summary>
+        private readonly int _seeded;
+
+        /// <summary>A run over a new home; <paramref name="seeded"/> writes the three sample records into it first.</summary>
+        internal GuardRun(bool seeded = false)
+        {
+            Directory.CreateDirectory(_sinks);
+            if (seeded)
+            {
+                PlanRecordSamples.Write(_home);
+                _seeded = Directory.GetFiles(Path.Combine(_home, "plans")).Length;
+            }
+        }
 
         /// <summary>Runs the command line over every layer at once, as JSON.</summary>
         internal (int ExitCode, string Stdout, string Stderr) Run(string[] arguments)
@@ -208,7 +226,8 @@ public sealed class WriteGuardTests
             string exchangeWrites = string.Concat(Directory.GetFiles(_sinks, "*-exchange-writes.jsonl").Select(File.ReadAllText)).Trim();
             Assert.True(exchangeWrites.Length == 0, $"the fake module recorded a write: {exchangeWrites}");
             string plans = Path.Combine(_home, "plans");
-            Assert.Equal(records, Directory.Exists(plans) ? Directory.GetFiles(plans).Length : 0);
+            // The records the home started with are all there still (a prune without --yes removes none), and no new one.
+            Assert.Equal(_seeded + records, Directory.Exists(plans) ? Directory.GetFiles(plans).Length : 0);
         }
 
         /// <summary>A record of <paramref name="plan"/> left at <c>applying</c> in the home folder, as an apply cut short leaves it; its name.</summary>
