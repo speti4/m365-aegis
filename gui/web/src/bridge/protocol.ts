@@ -38,9 +38,26 @@ export const MessageType = {
   mailboxAccess: "mailbox-access",
   mailboxHolders: "mailbox-holders",
   userGrants: "user-grants",
+  /** The write requests (task 082): each is answered with `plan`, the plan as `--dry-run` prints it; nothing is sent. */
+  mailboxAccessGrant: "mailbox-access-grant",
+  mailboxAccessRevoke: "mailbox-access-revoke",
+  mailboxForwardingSet: "mailbox-forwarding-set",
+  mailboxForwardingClear: "mailbox-forwarding-clear",
+  plan: "plan",
+  /** `{ planId, confirm: true }`: applies a plan the host holds, as `--yes` does; answered with `plan-applied`. */
+  applyPlan: "apply-plan",
+  planApplied: "plan-applied",
   /** A request that failed: the code, the message and the hint. */
   error: "error",
 } as const;
+
+/** The write requests, as `BridgeMessageType.Writes` marks them in C#: each one plans, only `apply-plan` sends. */
+export const writeRequests: readonly string[] = [
+  MessageType.mailboxAccessGrant,
+  MessageType.mailboxAccessRevoke,
+  MessageType.mailboxForwardingSet,
+  MessageType.mailboxForwardingClear,
+];
 
 export interface BridgeMessage {
   aegis: number;
@@ -183,6 +200,84 @@ export interface BridgeError {
   hint?: string;
 }
 
+/** The payload of `mailbox-access-grant` and `mailbox-access-revoke`: the arguments of `mailbox access grant|revoke`. */
+export interface MailboxAccessWrite {
+  mailbox: string;
+  users: string[];
+  rights: MailboxRight[];
+  /** A grant's FullAccess without automapping (`--no-automapping`). */
+  noAutoMapping?: boolean;
+}
+
+/** The payload of `mailbox-forwarding-set` (`to`, `keepCopy`) and `mailbox-forwarding-clear` (the mailbox alone). */
+export interface MailboxForwardingWrite {
+  mailbox: string;
+  to?: string;
+  keepCopy?: boolean;
+}
+
+export type PlanAction = "add" | "remove" | "set" | "clear" | "send";
+
+/** Where a plan stands (`PlanMode` of the core): printed, refused, being applied, applied, or nothing to change. */
+export type PlanMode = "dry-run" | "refused" | "applying" | "applied" | "up-to-date";
+
+export type ChangeStatus = "applied" | "failed" | "skipped";
+
+/** What became of one change of an applied plan; `error` for a failed one. */
+export interface ChangeResult {
+  status: ChangeStatus;
+  error?: BridgeError;
+}
+
+/** One change of a plan: what changes on which object, from what to what. */
+export interface PlanChange {
+  action: PlanAction;
+  target: string;
+  detail: string;
+  current: string;
+  desired: string;
+  row?: number;
+  index?: number;
+  key?: string;
+  result?: ChangeResult;
+}
+
+/** Something already as asked, left alone. */
+export interface PlanUnchanged {
+  target: string;
+  detail: string;
+  state: string;
+  row?: number;
+  index?: number;
+  key?: string;
+}
+
+/** A write as a plan (the core's `Plan`, as the command line's `--json` shows it). */
+export interface Plan {
+  operation: string;
+  title: string;
+  changes: PlanChange[];
+  unchanged: PlanUnchanged[];
+  warnings: string[];
+  mode: PlanMode;
+  /** The plan record's file, once applied. */
+  record?: string;
+  started?: string;
+  finished?: string;
+}
+
+/** The answer to a write request: the plan, and the id `apply-plan` names (none when there is nothing to change). */
+export interface PlanReady {
+  planId?: string;
+  plan: Plan;
+}
+
+/** The answer to `apply-plan`: the applied plan, and the failure when not every change was applied. */
+export interface PlanApplied {
+  plan: Plan;
+  error?: BridgeError;
+}
+
 /** A reply the page can read: its type and its payload, checked. */
 export type Reply =
   | { type: typeof MessageType.pong; data: Pong }
@@ -194,6 +289,8 @@ export type Reply =
   | { type: typeof MessageType.mailboxes; data: MailboxList }
   | { type: typeof MessageType.mailboxHolders; data: MailboxAccess }
   | { type: typeof MessageType.userGrants; data: UserAccess }
+  | { type: typeof MessageType.plan; data: PlanReady }
+  | { type: typeof MessageType.planApplied; data: PlanApplied }
   | { type: typeof MessageType.error; data: BridgeError };
 
 /** A notification of the host the page can read. */
@@ -249,6 +346,10 @@ export function readReply(message: BridgeMessage): Reply | null {
       return isMailboxAccess(data) ? { type, data } : null;
     case MessageType.userGrants:
       return isUserAccess(data) ? { type, data } : null;
+    case MessageType.plan:
+      return isPlanReady(data) ? { type, data } : null;
+    case MessageType.planApplied:
+      return isPlanApplied(data) ? { type, data } : null;
     case MessageType.error:
       return isBridgeError(data) ? { type, data } : null;
     default:
@@ -422,4 +523,70 @@ function isUserAccess(value: unknown): value is UserAccess {
         isRecord(grant) && isString(grant.right) && rights.includes(grant.right) && isMailboxInfo(grant.mailbox),
     )
   );
+}
+
+const actions: readonly string[] = ["add", "remove", "set", "clear", "send"];
+const modes: readonly string[] = ["dry-run", "refused", "applying", "applied", "up-to-date"];
+const statuses: readonly string[] = ["applied", "failed", "skipped"];
+
+function isOptionalNumber(value: unknown): boolean {
+  return value === undefined || typeof value === "number";
+}
+
+function isChangeResult(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isString(value.status) &&
+    statuses.includes(value.status) &&
+    (value.error === undefined || isBridgeError(value.error))
+  );
+}
+
+function isPlanChange(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isString(value.action) &&
+    actions.includes(value.action) &&
+    isString(value.target) &&
+    isString(value.detail) &&
+    isString(value.current) &&
+    isString(value.desired) &&
+    isOptionalNumber(value.row) &&
+    (value.result === undefined || isChangeResult(value.result))
+  );
+}
+
+function isPlanUnchanged(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isString(value.target) &&
+    isString(value.detail) &&
+    isString(value.state) &&
+    isOptionalNumber(value.row)
+  );
+}
+
+function isPlan(value: unknown): value is Plan {
+  return (
+    isRecord(value) &&
+    isString(value.operation) &&
+    isString(value.title) &&
+    isString(value.mode) &&
+    modes.includes(value.mode) &&
+    isOptionalString(value.record) &&
+    Array.isArray(value.changes) &&
+    value.changes.every(isPlanChange) &&
+    Array.isArray(value.unchanged) &&
+    value.unchanged.every(isPlanUnchanged) &&
+    Array.isArray(value.warnings) &&
+    value.warnings.every(isString)
+  );
+}
+
+function isPlanReady(value: unknown): value is PlanReady {
+  return isRecord(value) && isOptionalString(value.planId) && isPlan(value.plan);
+}
+
+function isPlanApplied(value: unknown): value is PlanApplied {
+  return isRecord(value) && isPlan(value.plan) && (value.error === undefined || isBridgeError(value.error));
 }

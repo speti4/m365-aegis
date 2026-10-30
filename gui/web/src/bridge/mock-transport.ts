@@ -1,3 +1,4 @@
+import { MockWrites } from "./mock-writes";
 import {
   type BridgeError,
   type BridgeMessage,
@@ -155,7 +156,8 @@ export interface MockOptions {
  * The browser mock: no host, so the requests are answered here with made-up data after `delayMs`, so the page's
  * waiting state shows: a signed-in account (or a signed-out one, which `login` signs in: through a device code when
  * asked, with the `device-code` notification first), one group, `Finance`, by name, address or id, and the
- * mailboxes of the fake Exchange Online module; anything else is not found, an unknown type an error.
+ * mailboxes of the fake Exchange Online module, and the mailbox writes planned over them and applied only with the
+ * confirmation (`MockWrites`, task 082); anything else is not found, an unknown type an error.
  */
 export class MockTransport implements Transport {
   private handlers: Array<(message: BridgeMessage) => void> = [];
@@ -163,6 +165,8 @@ export class MockTransport implements Transport {
   private signedIn: boolean;
   /** The page of the device-code sign-in in flight, which `open-sign-in-page` "opens"; null when none waits. */
   private signInPage: string | null = null;
+  /** The plans waiting for their confirmation; a sign-in or a sign-out drops them, as the host does. */
+  private writes = new MockWrites(find, mockHolders);
 
   constructor({ delayMs = 0, signedIn = true }: MockOptions = {}) {
     this.delayMs = delayMs;
@@ -235,6 +239,7 @@ export class MockTransport implements Transport {
             };
       case MessageType.login:
         this.signedIn = true;
+        this.writes = new MockWrites(find, mockHolders);
         return { type: MessageType.signedIn, data: mockSignIn };
       case MessageType.openSignInPage:
         // A plain browser has no host to hand the page to: the mock only answers as the host would.
@@ -250,6 +255,7 @@ export class MockTransport implements Transport {
             };
       case MessageType.logout:
         this.signedIn = false;
+        this.writes = new MockWrites(find, mockHolders);
         return {
           type: MessageType.loggedOut,
           data: { profile: "work", account: "alice@contoso.com", removedAccounts: 1 },
@@ -302,6 +308,13 @@ export class MockTransport implements Transport {
           ? { type: MessageType.mailboxHolders, data: access }
           : notFound("mailbox", mailboxName, "check the name or the address and try again");
       }
+      case MessageType.mailboxAccessGrant:
+      case MessageType.mailboxAccessRevoke:
+      case MessageType.mailboxForwardingSet:
+      case MessageType.mailboxForwardingClear:
+        return this.writes.plan(message.type, payload);
+      case MessageType.applyPlan:
+        return this.writes.apply(payload);
       default:
         return { type: MessageType.error, data: { code: "no-host", message: "no host in the browser" } };
     }

@@ -11,6 +11,7 @@ import {
   readReply,
   request,
   writeMessage,
+  writeRequests,
 } from "./protocol";
 
 // The same samples the C# tests read (tests/contracts/bridge), so the two sides agree on the shape: the C# tests
@@ -32,19 +33,26 @@ describe("the bridge protocol", () => {
         .filter((name) => name.endsWith(".json"))
         .sort(),
     ).toEqual([
+      "apply-plan.json",
       "device-code.json",
       "error.json",
       "group-members.json",
       "logged-out.json",
       "login.json",
       "logout.json",
+      "mailbox-access-grant.json",
+      "mailbox-access-revoke.json",
       "mailbox-access.json",
+      "mailbox-forwarding-clear.json",
+      "mailbox-forwarding-set.json",
       "mailbox-holders.json",
       "mailbox-list.json",
       "mailboxes.json",
       "members.json",
       "open-sign-in-page.json",
       "ping.json",
+      "plan-applied.json",
+      "plan.json",
       "pong.json",
       "ready.json",
       "sign-in-page-opened.json",
@@ -254,5 +262,120 @@ describe("the bridge protocol", () => {
     expect(reply("mailbox-holders", { mailbox: finance, holders: [], mailboxLayer: 42 })).toBeNull();
     expect(reply("user-grants", { user: "x", grants: [], mailboxesScanned: 1 })).toBeNull();
     expect(reply("logged-out", { profile: "work", account: "x" })).toBeNull();
+  });
+
+  it("writes the write requests and the apply as the samples have them (task 082)", () => {
+    const same = (message: BridgeMessage, name: string) =>
+      expect(JSON.parse(writeMessage(message))).toEqual(JSON.parse(sample(name)));
+    same(
+      request(
+        MessageType.mailboxAccessGrant,
+        { mailbox: "finance@contoso.com", users: ["bob@contoso.com"], rights: ["full-access"], noAutoMapping: true },
+        "10",
+      ),
+      "mailbox-access-grant.json",
+    );
+    same(
+      request(
+        MessageType.mailboxAccessRevoke,
+        { mailbox: "finance@contoso.com", users: ["alice@contoso.com"], rights: ["send-as"] },
+        "12",
+      ),
+      "mailbox-access-revoke.json",
+    );
+    same(
+      request(
+        MessageType.mailboxForwardingSet,
+        { mailbox: "alice@contoso.com", to: "alice@fabrikam.com", keepCopy: true },
+        "13",
+      ),
+      "mailbox-forwarding-set.json",
+    );
+    same(
+      request(MessageType.mailboxForwardingClear, { mailbox: "bob@contoso.com" }, "14"),
+      "mailbox-forwarding-clear.json",
+    );
+    same(
+      request(MessageType.applyPlan, { planId: "0123456789abcdef0123456789abcdef", confirm: true }, "11"),
+      "apply-plan.json",
+    );
+  });
+
+  it("names the write requests the samples hold, as the host marks them", () => {
+    expect(writeRequests.map((type) => parsed(`${type}.json`).type)).toEqual([...writeRequests]);
+    expect([...writeRequests].sort()).toEqual([
+      "mailbox-access-grant",
+      "mailbox-access-revoke",
+      "mailbox-forwarding-clear",
+      "mailbox-forwarding-set",
+    ]);
+  });
+
+  it("reads the plan sample: the id to confirm and the plan as --dry-run prints it", () => {
+    const reply = readReply(parsed("plan.json"));
+    expect(reply?.type).toBe(MessageType.plan);
+    if (reply?.type !== MessageType.plan) return;
+    expect(reply.data.planId).toBe("0123456789abcdef0123456789abcdef");
+    expect(reply.data.plan.mode).toBe("dry-run");
+    expect(
+      reply.data.plan.changes.map((change) => [change.action, change.detail, change.current, change.desired]),
+    ).toEqual([
+      ["add", "FullAccess for Bob Example (bob@contoso.com), without automapping", "no FullAccess", "holds FullAccess"],
+    ]);
+  });
+
+  it("reads the plan-applied sample: each change's result and the record", () => {
+    const reply = readReply(parsed("plan-applied.json"));
+    expect(reply?.type).toBe(MessageType.planApplied);
+    if (reply?.type !== MessageType.planApplied) return;
+    expect(reply.data.error).toBeUndefined();
+    expect(reply.data.plan.mode).toBe("applied");
+    expect(reply.data.plan.changes[0].result).toEqual({ status: "applied" });
+    expect(reply.data.plan.record).toMatch(/plans.20261030T120000\.000Z-mailbox-access-grant\.json$/);
+  });
+
+  it("reads a plan with nothing to change, and an applied plan with a failure", () => {
+    const reply = (type: string, data: unknown) => readReply({ aegis: PROTOCOL_VERSION, id: "9", type, data });
+    const empty = {
+      operation: "mailbox-forwarding-clear",
+      title: "Clear",
+      changes: [],
+      warnings: [],
+      mode: "up-to-date",
+    };
+    const unchanged = [{ target: "Alice", detail: "the forwarding", state: "no forwarding", row: 2 }];
+    expect(reply("plan", { plan: { ...empty, unchanged } })?.type).toBe(MessageType.plan);
+    const failed = {
+      action: "set",
+      target: "Alice",
+      detail: "forwarding to x@fabrikam.com",
+      current: "no forwarding",
+      desired: "forwards to x@fabrikam.com, keeps a copy",
+      row: 3,
+      result: { status: "failed", error: { code: "cmdlet-failed", message: "refused" } },
+    };
+    const applied = { ...empty, unchanged: [], changes: [failed], mode: "applied", record: "r.json" };
+    expect(reply("plan-applied", { plan: applied, error: { code: "cmdlet-failed", message: "refused" } })?.type).toBe(
+      MessageType.planApplied,
+    );
+  });
+
+  it("refuses a plan reply whose payload does not have its type's shape", () => {
+    const reply = (type: string, data: unknown) => readReply({ aegis: PROTOCOL_VERSION, id: "9", type, data });
+    const plan = { operation: "x", title: "y", changes: [], unchanged: [], warnings: [], mode: "dry-run" };
+    const change = { action: "add", target: "t", detail: "d", current: "c", desired: "e" };
+    expect(reply("plan", null)).toBeNull();
+    expect(reply("plan", { planId: 1, plan })).toBeNull();
+    expect(reply("plan", { plan: { ...plan, mode: "maybe" } })).toBeNull();
+    expect(reply("plan", { plan: { ...plan, warnings: [1] } })).toBeNull();
+    expect(reply("plan", { plan: { ...plan, changes: [{ ...change, action: "move" }] } })).toBeNull();
+    expect(reply("plan", { plan: { ...plan, changes: [{ ...change, result: { status: "done" } }] } })).toBeNull();
+    expect(
+      reply("plan", { plan: { ...plan, changes: [{ ...change, result: { status: "failed", error: {} } }] } }),
+    ).toBeNull();
+    expect(reply("plan", { plan: { ...plan, unchanged: [{ target: "t", detail: "d" }] } })).toBeNull();
+    expect(reply("plan-applied", { plan: { ...plan, record: 7 } })).toBeNull();
+    expect(reply("plan-applied", { plan, error: { code: "partial" } })).toBeNull();
+    expect(reply("plan-applied", "no")).toBeNull();
   });
 });
