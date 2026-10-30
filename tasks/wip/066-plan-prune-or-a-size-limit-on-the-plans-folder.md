@@ -80,14 +80,18 @@ the size only).
 - 2026-10-30 — the local matrix in the worktree, as in task 064's Verification (833 .NET tests, 0 failed).
 - 2026-10-30 — the exe on an empty home: `plan list --table` exit 0, `0 plan record(s) …, 0 B on disk`; `plan prune
   --older-than 30 --table` exit 0, up to date, nothing sent.
-- (pending) live: the main session's `plan list` (the count and the size) and `plan prune --older-than N --dry-run` on
-  the real home.
+- 2026-10-30 — live, the main session's signed-in round on the real home: `plan list --json` exit 0 in 117 ms, backend
+  `local`, `count` 0 and `bytes` 0 (the home held no record), data keys `bytes,count,folder,records,unreadable`; the
+  table's footer `0 plan record(s) under <home>\plans, 0 B on disk, newest first`; `plan prune --older-than 1
+  --dry-run --json` exit 0 in 122 ms, `plan-prune`, mode `up-to-date`, 0 changes, 0 warnings, and `--older-than 3650`
+  the same; the table's title `… (older than 1 day(s)): 0 of 0`; 0 records on disk before and after. The non-empty
+  cases (older and newer records, the warnings, the apply) are verified by the temporary-home tests above.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change (the D-004 note's text is in the pull request; the main
       session writes it on `main`)
-- [ ] Verification written, dated (the local lines are; the live line waits for the main session's signed-in round)
+- [x] Verification written, dated
 - [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)

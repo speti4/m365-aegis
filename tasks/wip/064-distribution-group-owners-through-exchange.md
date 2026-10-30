@@ -105,13 +105,22 @@ session; nothing is applied.
 - 2026-10-30 — against the fixtures and the fake module through the exe: `group owners add Sales dave@contoso.com
   alice@contoso.com --dry-run` exit 0, 1 change, 1 unchanged, 0 warnings, backend `graph+pwsh`; the `--table` form
   lists the change; `--yes` exit 0 with the fake's record of `Set-DistributionGroup -ManagedBy @{Add=dave@contoso.com}`.
-- (pending) live, the main session's signed-in round: dry runs only.
+- 2026-10-30 — live, the main session's signed-in round (this branch's build, dry runs only, nothing applied; the
+  tenant has 135 distribution groups, 15 cloud-only and 120 synced, 13 mail-enabled security groups and 434 Microsoft
+  365 groups): `group owners add <cloud-only distribution group> <a non-owner> --dry-run --json` exit 0, 4988 ms wall
+  (4868 ms in the envelope, a sidecar started), backend `graph+pwsh`, mode `dry-run`, 1 change, 0 unchanged, 0
+  warnings, 3 request ids, each change with `index` and `key`; the `--table` form exit 0 in 3939 ms, one row `not an
+  owner` → `an owner`, `planned`; `group owners add <synced distribution group> <user> --dry-run` exit 0 in 1102 ms,
+  backend `graph`, 1 change, the synced-group warning, no sidecar; `group owners add <Microsoft 365 group> <a
+  non-owner> --dry-run` exit 0 in 989 ms, backend `graph`, 1 change, 0 warnings. A current owner was not passed live
+  (its name is not readable through Graph), so the "an owner already" row and the resolution of `ManagedBy` names are
+  verified by the Core, Cli and Pester tests over the fake module only.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change (the D-004 note's text is in the pull request; the main
       session writes it on `main`)
-- [ ] Verification written, dated (the local lines are; the live line waits for the main session's signed-in round)
+- [x] Verification written, dated
 - [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)

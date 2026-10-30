@@ -88,13 +88,15 @@ pending-lines plan needs a row filter there (named under Deviations).
 - 2026-10-30 — the local matrix in the worktree, as in task 064's Verification (833 .NET tests, 0 failed).
 - 2026-10-30 — the 100/60 case: 60 user reads in 3 `$batch` calls for a resume of 60 pending changes of 100, rows 41
   to 100 kept, 60 changes and no warning (`PlanResumeRowsTests`).
-- (pending) live: the main session's `plan list` on the real home only; no resume is run against the tenant.
+- 2026-10-30 — live, the main session's signed-in round (dry runs only): the plans of task 064's dry runs carry `index`
+  and `key` on each change; the real home held no plan record, so no resume was run against the tenant; the narrowed
+  resume and the version 1 record are verified by the tests above.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change (the D-004 note's text is in the pull request; the main
       session writes it on `main`)
-- [ ] Verification written, dated (the local lines are; the live line waits for the main session's signed-in round)
+- [x] Verification written, dated
 - [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
