@@ -47,8 +47,8 @@ snapshot then changes with it, which is the point.
   reads the table under `## The output contract` of `docs/development.md` (the rows after the
   `| code | error code | meaning |` header, each held to the row shape, a code with two rows refused) and compares its
   codes with the enum's; `TheDocsTableNamesTheErrorCodeOfEachExitCode` compares each row's error code with the
-  `FailureKind` that maps to the code (`ToExitCode`, `ToCode`), an empty cell for 0; `EveryExitCodeButOkHasOneFailureKind`
-  holds the enum and the failure kinds to each other. The repo root is found by walking up from the test's folder to
+  `FailureKind` that maps to the code (`ToExitCode`, `ToCode`), an empty cell for 0;
+  `EveryExitCodeButOkHasOneFailureKind` holds the enum and the failure kinds to each other. The repo root is found by walking up from the test's folder to
   `docs/development.md`, as `GraphFixtures` finds `tests/fixtures/graph`.
 - 2026-10-30 — red proof (not committed): `Forbidden = 18` in `ExitCode.cs`, the Core tests rebuilt and the class run:
   3 of 4 failed — the snapshot, the docs table (`Expected: […, 7, 9, 10, …] Actual: […, 7, 8, 9, …]`) and the error
@@ -67,12 +67,19 @@ snapshot then changes with it, which is the point.
 
 ## Verification
 
-- (pending)
+- 2026-10-30 — the local matrix in the worktree, all exit 0: `dotnet restore --locked-mode`, `dotnet format
+  --verify-no-changes --no-restore`, `dotnet build --no-restore -c Release -p:SkipFrontendBuild=true` (0 warnings),
+  `dotnet test --no-build -c Release` (905 tests, 0 failed, 0 skipped on Windows; 808 before the bundle), `python -I
+  scripts/changelog.py --check`, `python -I scripts/check-fixtures.py` (318 files, 0 findings); `Invoke-Pester -Path
+  tests/sidecar` 46 passed; PSScriptAnalyzer over the sidecar, its tests and `scripts` 0 findings; the `windows` job's
+  command line steps over an empty `M365AEGIS_HOME`: `m365-aegis.exe --version` 0, `doctor --offline` 0, `whoami` 3, the
+  home not created by them.
+- 2026-10-30 — `ExitCodeContractTests` 4 green; red with `Forbidden = 18` (3 of 4), green again after the revert.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
 - [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)

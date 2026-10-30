@@ -93,12 +93,22 @@ fake module, never MSAL against a tenant).
 
 ## Verification
 
-- (pending)
+- 2026-10-30 — the local matrix in the worktree, all exit 0: `dotnet restore --locked-mode`, `dotnet format
+  --verify-no-changes --no-restore`, `dotnet build --no-restore -c Release -p:SkipFrontendBuild=true` (0 warnings),
+  `dotnet test --no-build -c Release` (905 tests, 0 failed, 0 skipped on Windows; 808 before the bundle), `python -I
+  scripts/changelog.py --check`, `python -I scripts/check-fixtures.py` (318 files, 0 findings); `Invoke-Pester -Path
+  tests/sidecar` 46 passed; PSScriptAnalyzer over the sidecar, its tests and `scripts` 0 findings; the `windows` job's
+  command line steps over an empty `M365AEGIS_HOME`: `m365-aegis.exe --version` 0, `doctor --offline` 0, `whoami` 3, the
+  home not created by them.
+- 2026-10-30 — `TokenHygieneTests` green, the marker in no file of the home and in neither stream while the token went
+  out as the bearer of all 6 Graph requests; the Pester case green; red on the token in the sign-in result (`stdout`),
+  on `Hide-Secret` without its secrets (`stdout`, `stderr`, and the Pester case) and on the log's scrubbing without its
+  bearer and JWT patterns (`stdout`, `stderr`, the day's log file), green again after each revert.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
 - [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)

@@ -90,12 +90,22 @@ docs name the rule.
 
 ## Verification
 
-- (pending)
+- 2026-10-30 — the local matrix in the worktree, all exit 0: `dotnet restore --locked-mode`, `dotnet format
+  --verify-no-changes --no-restore`, `dotnet build --no-restore -c Release -p:SkipFrontendBuild=true` (0 warnings),
+  `dotnet test --no-build -c Release` (905 tests, 0 failed, 0 skipped on Windows; 808 before the bundle), `python -I
+  scripts/changelog.py --check`, `python -I scripts/check-fixtures.py` (318 files, 0 findings); `Invoke-Pester -Path
+  tests/sidecar` 46 passed; PSScriptAnalyzer over the sidecar, its tests and `scripts` 0 findings; the `windows` job's
+  command line steps over an empty `M365AEGIS_HOME`: `m365-aegis.exe --version` 0, `doctor --offline` 0, `whoami` 3, the
+  home not created by them.
+- 2026-10-30 — `HomeFolderAclTests` 3 green on Windows (skipped elsewhere with the reason); red without the protected
+  list (the inherited `Users` and `Authenticated Users` entries), green again after the revert. The window built with
+  its front end, `m365-aegis-gui --smoke` over a fresh `M365AEGIS_HOME`: `ready after 675 ms`, exit 0, the home created
+  with a protected list of three entries (SYSTEM, Administrators, the user; none inherited).
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
 - [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)

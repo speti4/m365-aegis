@@ -93,8 +93,8 @@ this bundle merges, so a new test here uses the harness of today (`CliTests.RunW
   arguments that name objects of the fixtures, which only its author knows, so a new write found in the tree fails
   `EveryWriteCommandHasItsInputs` until its line is added. The test therefore cannot be skipped by a new write, which
   is the point of Why.
-- The fixture transport writes a request log under an environment variable (a seam in the Core, `M365AEGIS_FIXTURE_REQUESTS`),
-  and `Program.Build()` was split out of `Main`; both were needed to see a child process's requests and to walk the
+- The fixture transport writes a request log under an environment variable (a seam in the Core,
+  `M365AEGIS_FIXTURE_REQUESTS`), and `Program.Build()` was split out of `Main`; both were needed to see a child process's requests and to walk the
   tree in process.
 - "No request other than GET" reads a `$batch` call by its items and an Admin API call by its cmdlet: both are POSTs
   that read (the user lookups go twenty to a `$batch`, every Admin API read is a POST).
@@ -103,12 +103,21 @@ this bundle merges, so a new test here uses the harness of today (`CliTests.RunW
 
 ## Verification
 
-- (pending)
+- 2026-10-30 — the local matrix in the worktree, all exit 0: `dotnet restore --locked-mode`, `dotnet format
+  --verify-no-changes --no-restore`, `dotnet build --no-restore -c Release -p:SkipFrontendBuild=true` (0 warnings),
+  `dotnet test --no-build -c Release` (905 tests, 0 failed, 0 skipped on Windows; 808 before the bundle), `python -I
+  scripts/changelog.py --check`, `python -I scripts/check-fixtures.py` (318 files, 0 findings); `Invoke-Pester -Path
+  tests/sidecar` 46 passed; PSScriptAnalyzer over the sidecar, its tests and `scripts` 0 findings; the `windows` job's
+  command line steps over an empty `M365AEGIS_HOME`: `m365-aegis.exe --version` 0, `doctor --offline` 0, `whoami` 3, the
+  home not created by them.
+- 2026-10-30 — `WriteGuardTests` 23 green (9 write commands from the tree, the bare runs, `call` with four methods); red
+  on a guard that applies without a flag (13 of 23) and on a hidden apply behind a correct dry run (13 of 23, named by
+  the request log and the fake module's file), green again after each revert.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
 - [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
