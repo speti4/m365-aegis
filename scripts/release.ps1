@@ -80,6 +80,11 @@ $notes = Join-Path $outDir "release-notes-$version.md"
 if ($LASTEXITCODE -ne 0) { throw "release notes failed ($LASTEXITCODE)" }
 & dotnet tool restore
 if ($LASTEXITCODE -ne 0) { throw "dotnet tool restore failed ($LASTEXITCODE)" }
+# nuget-license reads every project of the solution, the test projects included, before -exclude-projects drops them,
+# so each needs its project.assets.json: the whole solution is restored here, not only the two published projects.
+# (The first tag release, v0.1.0 on 2026-10-30, failed on the missing test assets in the release job.)
+& dotnet restore --locked-mode (Join-Path $root "M365Aegis.slnx") --nologo
+if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed ($LASTEXITCODE)" }
 
 # One publish folder for both exes (D-007): framework-dependent, ReadyToRun, win-x64, the shared assemblies once.
 # No XML documentation files, neither ours nor the packages' (task 031): an editor reads them, nobody does in the zip.
