@@ -12,6 +12,7 @@
     <ProjectReference Include="..\..\src\M365Aegis.Core\M365Aegis.Core.csproj" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Verify.XunitV3" />
+    <PackageReference Include="coverlet.MTP" />
     <Using Include="Xunit" />
   </ItemGroup>
 
