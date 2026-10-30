@@ -258,8 +258,8 @@ Recipient Management with Security Group Creation and Membership). The details a
   [releases page](https://github.com/speti4/m365-aegis/releases) once there is a release
 - [Contributing](CONTRIBUTING.md) and the [security policy](SECURITY.md)
 - [Why m365-aegis exists](docs/origin.md) and [the tooling landscape it was measured against](docs/research/)
-- [Decisions](tasks/decisions/): build or not, the stack, the sign-in, Exchange Online, the private repo, the
-  output contract, the publish
+- [Decisions](tasks/decisions/): build or not, the stack, the sign-in, Exchange Online, the output contract, the
+  publish, the public repo
 
 ## Project status
 

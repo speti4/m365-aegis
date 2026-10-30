@@ -1,5 +1,5 @@
-# The checks of every push to main and every pull request, under a minutes budget (D-005): the repo is private, so
-# the Linux jobs carry everything that does not need Windows (restore in locked mode, build with the analyzers,
+# The checks of every push to main and every pull request, in the matrix of D-005 kept by D-010: the Linux jobs
+# carry everything that does not need Windows (restore in locked mode, build with the analyzers,
 # the format check, the Core and Cli tests with the sidecar against a fake module under the runner's pwsh, the
 # package audit and license check, the front end's lint, type check, tests and build, the sidecar's Pester tests,
 # the changelog and fixture checks, the workflow lint), and the one Windows job (the published exes, the window's
@@ -236,7 +236,7 @@ jobs:
         with:
           advanced-security: false
 
-  # The shipped platform, on pull requests and tags only (D-005): the release script's dry run publishes both exes
+  # The shipped platform, on pull requests and tags only (D-005, D-010): the release script's dry run publishes both exes
   # with the front end, the command line answers, the window loads the page and the bridge works (--smoke), and
   # the Windows-only tests run.
   windows:

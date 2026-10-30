@@ -17,8 +17,8 @@ set -eu
 # The types of docs/git-workflow.md, "Titles": `type: text` or `type(scope): text`, lower case.
 types='feat|fix|docs|ci|chore|tasks|deps'
 
-# The maintainer's names: the git config one, and the GitHub login a merge on the web writes.
-is_maintainer() { [ "$1" = 'speti4' ] || [ "$1" = 'speti4' ]; }
+# The maintainer's name: the GitHub login, in the git config and in a merge on the web alike.
+is_maintainer() { [ "$1" = 'speti4' ]; }
 maintainer_email='20753030+speti4@users.noreply.github.com'
 
 # Good and bad messages through this script; exits 1 when one gets the wrong verdict.

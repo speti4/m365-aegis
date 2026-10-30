@@ -951,12 +951,16 @@ protects `main` (changes arrive through a pull request with squash merge only, t
 linear, and force pushes and deletion are blocked; the repository admin may bypass the ruleset for a small
 housekeeping commit, see `docs/git-workflow.md`; a job skipped by its `if:` still
 satisfies its required check; the checks are not "strict", so a branch need not be rebased on the head of
-`main` before the merge, which spares the minutes budget); another ruleset keeps `v*` tags from being moved or
+`main` before the merge); another ruleset keeps `v*` tags from being moved or
 deleted; squash merge is the only merge method, with the pull request title and description as the commit
-message, and the branch is deleted on merge; Dependabot alerts and security updates are on. Private
-vulnerability reporting (the link in SECURITY.md) and secret scanning are not offered on a private repository
-of this plan and are turned on when the repo goes public (M6); until then the fixture check in CI and the
-pre-commit checks stand in for secret scanning.
+message, and the branch is deleted on merge; Dependabot alerts and security updates are on; private
+vulnerability reporting (the link in SECURITY.md), secret scanning and its push protection are on (task 019),
+behind the fixture check in CI and the pre-commit checks. The repository is public since task 067 (D-010): its
+history was rewritten once, in a fresh clone, before the publication, and pushed to a new repository, so a pull
+request number below 27 in a commit subject refers to the private repository the history was carried from, kept
+as the maintainer's archive. The CI matrix of D-005 (the Linux jobs on every push, the `windows` job on pull
+requests and tags) stays although a public repository's standard runners are free; widening it is a separate
+decision.
 
 Every action is pinned by commit SHA with the version in a comment. Dependabot proposes the updates for the
 NuGet packages, the SDK pin, the front end's packages and the actions once a week, a release only after it is a
