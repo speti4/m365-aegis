@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using M365Aegis.Core.Operations;
 using M365Aegis.Core.Output;
 
@@ -77,11 +79,57 @@ internal static class PlanRecordSamples
 
     private static PlanChange Applied(PlanChange change) => change with { Result = new ChangeResult(ChangeStatus.Applied) };
 
-    private static void Record(string home, DateTimeOffset started, IReadOnlyList<string> arguments, PlanRecordInput? input, Plan plan)
+    /// <summary>Writes a record as an apply does, started at <paramref name="started"/>, and returns its file name.</summary>
+    internal static string Record(string home, DateTimeOffset started, IReadOnlyList<string> arguments, PlanRecordInput? input, Plan plan)
     {
         var store = new PlanStore(home, new PlanRecordContext("command line", null, arguments) { Input = input });
         Plan applying = plan with { Mode = PlanMode.Applying, Started = started, Changes = plan.Changes.Select(change => change with { Result = null }).ToList() };
         string path = store.Begin(applying);
         store.Finish(path, plan with { Mode = PlanMode.Applied, Started = started, Finished = started.AddSeconds(2), Record = path });
+        return Path.GetFileName(path);
     }
+
+    /// <summary>
+    /// Rewrites a record as a build before task 065 wrote it: version 1, no row's place and no object ids on its changes
+    /// and on what was already as asked.
+    /// </summary>
+    internal static void AsVersionOne(string path)
+    {
+        JsonObject record = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        record["version"] = 1;
+        JsonObject plan = record["plan"]!.AsObject();
+        foreach (JsonNode? entry in plan["changes"]!.AsArray().Concat(plan["unchanged"]!.AsArray()))
+        {
+            entry!.AsObject().Remove("index");
+            entry.AsObject().Remove("key");
+        }
+
+        File.WriteAllText(path, record.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    /// <summary>
+    /// The record of a CSV batch of version 2 (task 065): Finance's members from a file of two lines, the first (nobody,
+    /// a user deleted since) applied, the second (Dave) failed, each change with its row's place and its object ids. A
+    /// resume plans only Dave's line, so the deleted user is never read again.
+    /// </summary>
+    internal static string WriteBatch(string home) => Record(
+        home,
+        new DateTimeOffset(2026, 10, 30, 10, 0, 0, TimeSpan.Zero),
+        ["group", "members", "add", "--from-csv", "members.csv", "--yes"],
+        new PlanRecordInput("members.csv", "group,user\nFinance,nobody@contoso.com\nFinance,dave@contoso.com\n"),
+        new Plan(
+            "group-members-add",
+            "Add members to Finance (00000000-0000-0000-0000-000000000031)",
+            [
+                Applied(Add("Nobody Example (nobody@contoso.com) as a member") with { Row = 2, Index = 1, Key = "00000000-0000-0000-0000-000000000031/00000000-0000-0000-0000-000000000009" }),
+                Add("Dave Example (dave@contoso.com) as a member") with
+                {
+                    Row = 3,
+                    Index = 2,
+                    Key = "00000000-0000-0000-0000-000000000031/00000000-0000-0000-0000-000000000005",
+                    Result = new ChangeResult(ChangeStatus.Failed, Throttled),
+                },
+            ],
+            [],
+            []));
 }

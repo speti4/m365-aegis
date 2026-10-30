@@ -11,7 +11,10 @@ namespace M365Aegis.Core.Operations;
 /// changes: a change still to make is planned again, one made in the meantime comes out unchanged, and one the record
 /// applied is left out whatever its state now. The new plan names the record it resumes (<see cref="Plan.Resumes"/>),
 /// and its own record links it. A raw <c>call</c> is never resumed, and a record whose changes were all applied has
-/// nothing to resume.
+/// nothing to resume. A record of version 2 (task 065) numbers each change's row and keys it by object ids:
+/// <see cref="Select{T}"/> hands the write only the rows of the pending changes, so a resume of 60 pending changes of
+/// 100 reads 60 objects, and <see cref="Narrow"/> matches a pending change by its object ids first, so a target
+/// renamed since the apply still matches; an older record plans every row again and matches by the text.
 /// </summary>
 public sealed class PlanResume
 {
@@ -63,6 +66,26 @@ public sealed class PlanResume
         return new PlanResume(path, original, pending);
     }
 
+    /// <summary>
+    /// The rows of the write to plan again (task 065): of a record of version 2 whose pending changes all name their row,
+    /// only those rows, each keeping its line and its place, so the new plan reads only the objects they name; every row
+    /// for an older record, which does not number them.
+    /// </summary>
+    /// <typeparam name="T">The write's row.</typeparam>
+    /// <param name="rows">Every row of the record's arguments or file, in order.</param>
+    public IReadOnlyList<T> Select<T>(IReadOnlyList<T> rows)
+        where T : IPlanRow
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        if (Original.Version < PlanStore.RecordVersion || Pending.Any(change => change.Index is null))
+        {
+            return rows;
+        }
+
+        HashSet<int> indexes = Pending.Select(change => change.Index!.Value).ToHashSet();
+        return rows.Where(row => indexes.Contains(row.Index)).ToList();
+    }
+
     /// <summary>Refuses a record of another write than <paramref name="operation"/>.</summary>
     /// <exception cref="AegisException">A usage error naming the record's operation.</exception>
     public void EnsureOperation(string operation)
@@ -78,9 +101,9 @@ public sealed class PlanResume
 
     /// <summary>
     /// The plan of the resume: of <paramref name="fresh"/>, the original changes planned again against the current
-    /// state, the changes and the objects already as asked that continue a pending change of the record (by the CSV
-    /// line when the record has one, else by the action, the target and the change), with their steps; a pending change
-    /// the new plan does not name becomes a warning.
+    /// state, the changes and the objects already as asked that continue a pending change of the record (by the object
+    /// ids when both carry them, task 065; else by the CSV line when the record has one, else by the action, the target
+    /// and the change), with their steps; a pending change the new plan does not name becomes a warning.
     /// </summary>
     /// <exception cref="AegisException">A usage error when <paramref name="fresh"/> is the plan of another write.</exception>
     public WritePlan Narrow(WritePlan fresh)
@@ -90,19 +113,23 @@ public sealed class PlanResume
         HashSet<int> rows = Pending.Where(change => change.Row is not null).Select(change => change.Row!.Value).ToHashSet();
         HashSet<string> keys = Pending.Where(change => change.Row is null).Select(change => Key(change.Action, change.Target, change.Detail)).ToHashSet(StringComparer.Ordinal);
         HashSet<string> objects = Pending.Where(change => change.Row is null).Select(change => Key(null, change.Target, change.Detail)).ToHashSet(StringComparer.Ordinal);
+        HashSet<string> ids = Pending.Where(change => change.Key is not null).Select(change => Ids(change.Action, change.Key!)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> objectIds = Pending.Where(change => change.Key is not null).Select(change => Ids(null, change.Key!)).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var kept = new List<int>();
         for (int index = 0; index < fresh.Plan.Changes.Count; index++)
         {
             PlanChange change = fresh.Plan.Changes[index];
-            if (change.Row is { } row ? rows.Contains(row) : keys.Contains(Key(change.Action, change.Target, change.Detail)))
+            if ((change.Key is { } key && ids.Contains(Ids(change.Action, key)))
+                || (change.Row is { } row ? rows.Contains(row) : keys.Contains(Key(change.Action, change.Target, change.Detail))))
             {
                 kept.Add(index);
             }
         }
 
         List<PlanUnchanged> unchanged = fresh.Plan.Unchanged
-            .Where(entry => entry.Row is { } row ? rows.Contains(row) : objects.Contains(Key(null, entry.Target, entry.Detail)))
+            .Where(entry => (entry.Key is { } key && objectIds.Contains(Ids(null, key)))
+                || (entry.Row is { } row ? rows.Contains(row) : objects.Contains(Key(null, entry.Target, entry.Detail))))
             .ToList();
 
         var warnings = fresh.Plan.Warnings.ToList();
@@ -125,6 +152,13 @@ public sealed class PlanResume
     /// <summary>Whether the new plan names a pending change of the record, as a change or as an object already as asked.</summary>
     private static bool Continued(PlanChange pending, Plan fresh, List<int> kept, List<PlanUnchanged> unchanged)
     {
+        if (pending.Key is { } ids
+            && (kept.Any(index => fresh.Changes[index].Action == pending.Action && string.Equals(fresh.Changes[index].Key, ids, StringComparison.OrdinalIgnoreCase))
+                || unchanged.Any(entry => string.Equals(entry.Key, ids, StringComparison.OrdinalIgnoreCase))))
+        {
+            return true;
+        }
+
         if (pending.Row is { } row)
         {
             return kept.Any(index => fresh.Changes[index].Row == row) || unchanged.Any(entry => entry.Row == row);
@@ -143,6 +177,8 @@ public sealed class PlanResume
 
     private static string Key(PlanAction? action, string target, string detail) =>
         $"{action?.ToString() ?? "*"}\u001f{target}\u001f{detail}";
+
+    private static string Ids(PlanAction? action, string key) => $"{action?.ToString() ?? "*"}\u001f{key}";
 
     /// <summary>The command of an operation's stable name: <c>group-members-add</c> is <c>m365-aegis group members add</c>.</summary>
     private static string Words(string operation) => $"m365-aegis {operation.Replace('-', ' ')}";

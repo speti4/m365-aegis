@@ -186,14 +186,21 @@ internal static class WriteRunner
     /// <summary>
     /// Reads the rows of <c>--from-csv</c> before anything starts, so a malformed file is refused as a whole with no
     /// sign-in and no request (task 054); the usage failure of a bad file, or of the file next to arguments, renders
-    /// at once.
+    /// at once. Under a resume the rows are narrowed to the ones its record left to do (task 065,
+    /// <see cref="PlanResume.Select{T}"/>), so the plan reads only the objects they name.
     /// </summary>
     internal static bool TryRows<T>(ParseResult parsed, Option<bool> json, Option<bool> table, Func<IReadOnlyList<T>> read, out IReadOnlyList<T> rows, out int exitCode)
+        where T : IPlanRow
     {
         ArgumentNullException.ThrowIfNull(read);
         try
         {
             rows = read();
+            if (Resuming.Value is { } resuming)
+            {
+                rows = resuming.Resume.Select(rows);
+            }
+
             exitCode = 0;
             return true;
         }

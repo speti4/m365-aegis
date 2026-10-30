@@ -57,6 +57,18 @@ public static class ExoCmdlets
     /// <summary>Removes a member from a distribution or mail-enabled security group (task 061).</summary>
     public const string RemoveDistributionGroupMember = "Remove-DistributionGroupMember";
 
+    /// <summary>
+    /// A distribution or mail-enabled security group with its owners (<c>ManagedBy</c>, task 064): the Admin API has no
+    /// documented endpoint that reads a group's settings, so the sidecar reads them.
+    /// </summary>
+    public const string GetDistributionGroup = "Get-DistributionGroup";
+
+    /// <summary>
+    /// Changes the owners of a distribution or mail-enabled security group (task 064), with the parameters of
+    /// <see cref="WriteParameters"/> only: <c>-ManagedBy @{Add=…}</c> or <c>@{Remove=…}</c>, never another setting.
+    /// </summary>
+    public const string SetDistributionGroup = "Set-DistributionGroup";
+
     /// <summary>Every allowed cmdlet, in the order the script lists them.</summary>
     public static IReadOnlyList<string> Allowed { get; } =
     [
@@ -65,6 +77,9 @@ public static class ExoCmdlets
 
         // The member writes of a distribution or mail-enabled security group (task 061).
         AddDistributionGroupMember, RemoveDistributionGroupMember,
+
+        // The owners of a distribution or mail-enabled security group (task 064).
+        GetDistributionGroup, SetDistributionGroup,
     ];
 
     /// <summary>
@@ -82,6 +97,10 @@ public static class ExoCmdlets
         // The member writes of a distribution or mail-enabled security group (task 061).
         [AddDistributionGroupMember] = ["Identity", "Member", "BypassSecurityGroupManagerCheck", "Confirm"],
         [RemoveDistributionGroupMember] = ["Identity", "Member", "BypassSecurityGroupManagerCheck", "Confirm"],
+
+        // The owners of a distribution or mail-enabled security group (task 064): Set-DistributionGroup can change any
+        // setting of a group, and the list keeps it to the owners.
+        [SetDistributionGroup] = ["Identity", "ManagedBy", "BypassSecurityGroupManagerCheck", "Confirm"],
     };
 
     /// <summary>Whether the cmdlet is on the list (PowerShell names compare without case).</summary>

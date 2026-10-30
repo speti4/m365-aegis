@@ -69,6 +69,20 @@ public sealed record PlanChange(PlanAction Action, string Target, string Detail,
     /// <summary>The line of the CSV file the change comes from (task 054); null for a change from the arguments.</summary>
     public int? Row { get; init; }
 
+    /// <summary>
+    /// The place of the row the change comes from among the write's rows, from 1 (task 065): the n-th change asked
+    /// for, from the arguments or from the CSV file's lines; a resume plans only the rows of the changes its record
+    /// left to do. Null in a record written before task 065.
+    /// </summary>
+    public int? Index { get; init; }
+
+    /// <summary>
+    /// The change by object ids, not by names (task 065): the target's object id and, where the change names one, the
+    /// member's or holder's and the right (<c>&lt;group id&gt;/&lt;user id&gt;</c>, <c>&lt;mailbox id&gt;/SendAs/&lt;holder id&gt;</c>), so
+    /// a resume matches a pending change after a rename. Null in a record written before task 065.
+    /// </summary>
+    public string? Key { get; init; }
+
     /// <summary>What the apply did with the change; null until it was applied.</summary>
     public ChangeResult? Result { get; init; }
 }
@@ -81,6 +95,40 @@ public sealed record PlanUnchanged(string Target, string Detail, string State)
 {
     /// <summary>The line of the CSV file it comes from; null for the arguments.</summary>
     public int? Row { get; init; }
+
+    /// <summary>The place of the row it comes from among the write's rows, from 1 (task 065), as <see cref="PlanChange.Index"/>.</summary>
+    public int? Index { get; init; }
+
+    /// <summary>The object ids it is about (task 065), as <see cref="PlanChange.Key"/>.</summary>
+    public string? Key { get; init; }
+}
+
+/// <summary>
+/// One change a write was asked for, from the arguments or a CSV line (task 065): the rows a resume narrows to the
+/// ones its record left to do before the write plans them.
+/// </summary>
+public interface IPlanRow
+{
+    /// <summary>The line of the CSV file, or null for the arguments.</summary>
+    int? Row { get; }
+
+    /// <summary>The row's place among the write's rows, from 1; 0 for a row that was not numbered.</summary>
+    int Index { get; }
+}
+
+/// <summary>The numbering of a write's rows (task 065).</summary>
+public static class PlanRows
+{
+    /// <summary>The row's place as a change records it: null for a row that was not numbered.</summary>
+    public static int? IndexOf(IPlanRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return row.Index > 0 ? row.Index : null;
+    }
+
+    /// <summary>A key of object ids (<see cref="PlanChange.Key"/>): the parts joined with <c>/</c>; keys compare without case.</summary>
+    public static string Key(params string?[] parts) =>
+        string.Join("/", parts.Select(part => string.IsNullOrWhiteSpace(part) ? "?" : part.Trim()));
 }
 
 /// <summary>

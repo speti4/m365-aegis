@@ -9,8 +9,10 @@ namespace M365Aegis.Cli.Commands;
 
 /// <summary>
 /// <c>m365-aegis plan list</c> and <c>plan show &lt;record&gt;</c> (task 060): the plan records an apply writes under the
-/// home folder's <c>plans</c> folder (task 051), read back. Both read the local files only: no sign-in, no request,
-/// <c>local</c> as the backend. A record that does not exist is exit code 4.
+/// home folder's <c>plans</c> folder (task 051), read back; <c>plan list</c> also says how many there are and how much
+/// they take (task 066). <c>plan prune --older-than &lt;days&gt;</c> (task 066) removes the older ones behind the guard of
+/// every write. All three touch the local files only: no sign-in, no request, <c>local</c> as the backend. A record that
+/// does not exist is exit code 4.
 /// </summary>
 internal static class PlanCommand
 {
@@ -34,8 +36,34 @@ internal static class PlanCommand
             () => CommandResult.Success(PlanStore.Open(AegisHome.Resolve(), parsed.GetValue(record) ?? "").Record),
             PlanRecordTableView.Instance));
 
+        Option<int> olderThan = new("--older-than")
+        {
+            Description = "Remove the records of the applies started more than this many days ago (at least 1).",
+            Required = true,
+        };
+        Command prune = new("prune", "Remove the plan records older than a number of days: a plan of the files (--dry-run prints it, --yes removes them).");
+        prune.Options.Add(olderThan);
+        WriteFlags flags = WriteFlags.On(prune, resume: false);
+        prune.SetAction((parsed, cancellationToken) =>
+        {
+            OutputMode mode = Program.ResolveMode(parsed, json, table);
+            if (flags.Resolve(parsed, out AegisFailure? failure) is not { } write)
+            {
+                return Task.FromResult(CommandRunner.Fail(mode, failure!));
+            }
+
+            // The prune's own apply is recorded like any write; the record is new, so it stays.
+            PlanStore store = PlanStore.ForCommandLine(null, parsed.Tokens.Select(token => token.Value).ToList());
+            return CommandRunner.RunAsync(
+                mode,
+                Backend.Local,
+                () => PlanGuard.RunAsync(PlanPrune.Plan(AegisHome.Resolve(), parsed.GetValue(olderThan), store.Clock.GetUtcNow()), write, store, cancellationToken),
+                PlanTableView.Instance);
+        });
+
         plan.Subcommands.Add(list);
         plan.Subcommands.Add(show);
+        plan.Subcommands.Add(prune);
         return plan;
     }
 
@@ -69,7 +97,7 @@ internal sealed class PlanListTableView : ITableView<PlanRecordList>
 
     public IEnumerable<string> Footer(PlanRecordList data)
     {
-        yield return string.Format(CultureInfo.InvariantCulture, "{0} plan record(s) under {1}, newest first", data.Records.Count, data.Folder);
+        yield return string.Format(CultureInfo.InvariantCulture, "{0} plan record(s) under {1}, {2} on disk, newest first", data.Count, data.Folder, MailboxCommand.Size(data.Bytes));
         if (data.Unreadable > 0)
         {
             yield return string.Format(CultureInfo.InvariantCulture, "{0} file(s) there are not plan records and are left out", data.Unreadable);
@@ -78,6 +106,7 @@ internal sealed class PlanListTableView : ITableView<PlanRecordList>
         if (data.Records.Count > 0)
         {
             yield return "`m365-aegis plan show <record>` shows one; `--resume <record>` on its write continues the failed and skipped changes";
+            yield return "`m365-aegis plan prune --older-than <days> --dry-run` lists the older records a prune would remove";
         }
     }
 
