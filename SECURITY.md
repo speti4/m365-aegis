@@ -29,13 +29,15 @@ The places where m365-aegis handles credentials, untrusted input or writes:
 
 - **Sign-in and tokens.** Tokens come from the Windows account manager (WAM) or the MSAL cache under
   `%LOCALAPPDATA%\m365-aegis\`, and are sent to `login.microsoftonline.com`, `graph.microsoft.com` and
-  `outlook.office365.com` only. A token written to a log, a plan record, an envelope or stderr, a token sent to any
-  other host, a downgrade to plain HTTP, or a cache readable by another user is a vulnerability. The tool creates
+  `outlook.office365.com` only. A token written to a log, a plan record, an envelope, stderr or a message of the
+  window's bridge to its page (a reply or a notification), a token sent to any other host, a downgrade to plain HTTP, or a cache readable by another user is a vulnerability. The tool creates
   its home folder readable by the signed-in user alone, and `m365-aegis doctor` warns when an existing one is
   readable by `Everyone`, `Users` or `Authenticated Users`.
 - **Writes.** Every change to the tenant goes through a plan and needs `--yes` on the command line or a
-  confirmation in the window (decision D-006 in `tasks/decisions/`). A write that happens without one, or a plan
-  that shows one change and applies another, is a vulnerability.
+  confirmation in the window (decision D-006 in `tasks/decisions/`): a write card's "Confirm and apply", which sends
+  the bridge's `apply-plan` with `"confirm": true` for a plan the window computed and holds, applied once. A write
+  that happens without one, an apply of a plan the window did not show, or a plan that shows one change and applies
+  another, is a vulnerability.
 - **The Exchange Online sidecar.** The command line and the window start `pwsh` with the sidecar script and drive
   it over JSON lines; only the cmdlets on its allow-list run. A way to run another cmdlet, to run a script of the
   caller's choosing, or to make the sidecar connect to a tenant other than the one signed in to is in scope. The

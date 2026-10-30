@@ -557,7 +557,8 @@ was done with the record's file.
 so the names sort by time; a second apply in the same millisecond gets `-2`): once when it starts (`mode:
 applying`, no results) and again when it ends (each change's result, the times), through a temporary file. A record
 left at `applying` is an apply that was cut short; a change whose step was running then is `failed` with the code
-`internal` or `cancelled`. The record holds `version` (2 since task 065; 1 before), `source` (`command line`), `profile`, `arguments` (as
+`internal` or `cancelled`. The record holds `version` (2 since task 065; 1 before), `source` (`command line`, or
+`window` for a write card's apply, [below](#the-windows-writes)), `profile`, `arguments` (as
 given), the `plan`, and for a batch from a CSV file the file's full path and text (`input`: `file`, `content`), so a
 resume replays the lines the apply had (task 062). A dry run, a refusal and a plan with nothing to change write
 nothing. `M365AEGIS_HOME` moves the folder with the rest of the home; the tests point it at a temporary one.
@@ -649,6 +650,33 @@ over every line (a group, a mailbox or a user is read once however many lines na
 earlier change is unchanged, and two lines setting one mailbox's forwarding are a usage error), each change and each unchanged object with its line (`row`, the table's `line`
 column); a line naming a missing object fails the plan with the line in the message. The apply goes past a failed
 line (exit code 6 with each line's result), and the record holds the whole batch.
+
+### The window's writes
+
+The window's write cards (task 082) run the mailbox writes above over the bridge, through the same plan and the same
+guard. A write request (`mailbox-access-grant`, `mailbox-access-revoke`, `mailbox-forwarding-set`,
+`mailbox-forwarding-clear`; their payloads are the command's arguments, [The front end](#the-front-end)) makes the
+rows as the command does and plans them over the window's layers (`MailboxLookups.PlanAccessAsync` or
+`PlanForwardingAsync` on the window's `ExchangeBackends`); `PlanGuard.RunAsync` under `WriteMode.DryRun` prints the
+plan, so the `plan` reply is the `Plan` `--dry-run` prints (`mode: dry-run`, or `up-to-date`), nothing sent and
+nothing recorded. The dispatcher holds a plan with a change under a new id (32 hex digits) with its `PlanStore`;
+`apply-plan` with that id and `"confirm": true`, the card's "Confirm and apply", which stands for `--yes`, takes it
+out and runs `PlanGuard.RunAsync` under `WriteMode.Apply`: the steps go through the window's warm session (the
+sidecar of the plan's `ExchangeBackends` is the window's `WindowExchange`), and the `plan-applied` reply is the
+applied plan with each change's result and the record, and the failure the envelope would carry beside it when not
+every change was applied (`partial`, or the one failure's own code), each hint in the window's words. Refused, with
+nothing sent and the `error` reply: an `apply-plan` without `"confirm": true` (`refused-without-yes`, and the plan
+waits for the confirmation), for an id the window does not hold (never planned, applied already, dropped by a
+`login` or a `logout`: `usage`), or for a plan older than `BridgeDispatcher.PlanLifetime`, 15 minutes (`usage`;
+what it read may have changed). A missing user, right or address is a `usage` error in the card's words before
+anything starts. The record is the command line's file under the home folder's `plans` with `source: window`, the
+window's profile and as `arguments` the command line that makes the same plan with `--yes` (`mailbox access grant
+finance@contoso.com --user bob@contoso.com --right FullAccess --no-automapping --yes`), so `plan show` prints it and
+the command line's `--resume` continues an apply the window left partial. Under `--verbose` the plan writes its
+`window:` line as a lookup does, with the counts (`1 change(s) planned, 0 unchanged, 1 warning(s)`), and the apply
+one of its own (`apply-plan answered in … ms (mailbox-forwarding-set: 1 applied, 0 failed, 0 skipped); exchange
+session 1, …`, or `(the apply stopped)` when it was cancelled), never a name. Group writes, CSV batches and a resume
+stay on the command line.
 
 ### A resume from a plan record
 
@@ -762,7 +790,14 @@ The messages (tasks 017, 040, 045 and 047; `BridgeMessageType` in C#, `MessageTy
   window's sidecar session, and a user's since task 077 split across several sidecars as `mailbox access --user`
   reads it (below). A partial answer of the
   reverse lookup (exit code 6 on the command line) is the `user-grants` reply, whose `failed` list the page shows as
-  a warning, as the envelope carries the data with the error.
+  a warning, as the envelope carries the data with the error;
+- the write requests (task 082, [The window's writes](#the-windows-writes)), marked `[BridgeWrite]` in
+  `BridgeMessageType` (its `Writes` lists them; `writeRequests` in TypeScript): `mailbox-access-grant` and
+  `mailbox-access-revoke` with `{"mailbox": …, "users": […], "rights": ["full-access", "send-as",
+  "send-on-behalf"], "noAutoMapping": true}` (a grant's only), `mailbox-forwarding-set` with `{"mailbox": …, "to":
+  …, "keepCopy": true}` and `mailbox-forwarding-clear` with `{"mailbox": …}`, each answered with `plan` (`planId`,
+  none when there is nothing to change, and the `Plan`), and `apply-plan` with `{"planId": …, "confirm": true}`,
+  answered with `plan-applied` (the applied `plan` and, when not every change was applied, its `error`).
 
 Any request can be answered with `error`: the envelope's `code`, `message` and `hint` (a failure of the core,
 `unknown-type`, or `internal` with the stack trace in the log). A payload is written the way the envelope writes
@@ -858,14 +893,29 @@ reads it again; "Sign in" and "Sign in with a code" when signed out with a profi
 state, the device code with "Copy the code" and "Open in browser" while it waits, "Sign out" when signed in), the
 group members card with the table, the mailbox access card (a mailbox or a user, the shared mailboxes to pick
 from, the holders or the grants in a table, each holder with the layer that read it, the partial warning, and the
-time of the answer under the table), and a
-toast (sonner) for every `error` reply.
+time of the answer under the table), the write cards (task 082, `components/mailbox-write-cards.tsx`: "Mailbox
+rights" and "Mailbox forwarding"), and a toast (sonner) for every `error` reply of the other cards.
+
+**The write cards** follow the sketch below over the core's real `Plan`: Pick › Plan › Confirm › Result, the flow a
+reducer in `components/write-flow.ts` and its parts in `components/plan-view.tsx`. "See the plan" sends the write
+request once every pick has a value; the plan shows each change (its action, the target, what changes, the state now
+→ after), what is left as it is, and the warnings, and a plan with nothing to change offers no confirmation.
+"Continue to confirm" lists the changes again with a checkbox ("I checked the plan; make these changes."), and
+"Confirm and apply", the one button that sends a write, sends `apply-plan` with `"confirm": true`. "Back to the plan"
+and "Change the picks" send nothing (the host's plan runs out after 15 minutes). The result says "Done", "Partly done"
+or "Not done", each change with its result and the service's sentence, and the plan record's file. An `error` reply
+shows on the card: "Refused: nothing was changed" for a plan the host could not compute or an apply it refused,
+"Stopped: check the mailbox before you try again" for an apply that broke off otherwise (an internal error, no answer
+in time). The cards wait for a sign-in, and an open plan goes back to the picks at a sign-out. The browser mock
+(`src/bridge/mock-writes.ts`) plans the writes over its made-up holders and forwarding and holds them as the host
+does; its apply changes nothing and fails a Send on Behalf change on Reception, so a partial result shows.
 
 **The task card design sketch** (task 018, `src/sketch/`): the card list (grant FullAccess on a shared mailbox, add
 a group owner, check a user's access), one card's steps (pick, the plan, the confirmation, the result) and the
 states (signed out, working, refused, partial), light and dark, in the shadcn/ui components, over made-up data and
 without a bridge request: `task-card-flow.ts` is the flow's state machine (tested with Vitest), `sketch-data.ts`
-the made-up core, whose plan shape is made up and marked so on the page (the real `Plan` comes with M3), and
+the made-up core, whose plan shape is made up and marked so on the page (the write cards above show the real `Plan`
+in the same steps, task 082), and
 `task-card-sketch.tsx` the page with its controls (signed in or out, how the made-up core answers, the theme; the
 `.light` tokens in `index.css` let it show light under a dark system). It runs in the dev server only:
 `npm run dev --prefix gui/web`, then `http://localhost:5173/#/sketch/task-cards`. `main.tsx` reaches it only under
@@ -1054,6 +1104,21 @@ without its inputs, which needs no table line. A new write command joins the enu
 `EveryWriteCommandHasItsInputs` until it has a line in the test's table of inputs (its arguments, its CSV sample), so
 it cannot land without the guard test.
 
+**The window's write guard** (task 079, `tests/M365Aegis.Core.Tests/BridgeWriteGuardTests.cs`). The window's
+counterpart of the test above takes its writes from the protocol: every type of `BridgeMessageType` marked
+`[BridgeWrite]` (`BridgeMessageType.Writes`), each planned from its sample under `tests/contracts/bridge` through the
+dispatcher of a window over every layer at once (`BridgeWindow`: the recorded Graph and Admin API answers, whose
+fixture transports write each request to a log, the fake module, which writes each write cmdlet to a file, a
+temporary home). The plan must have a change; then the same write is planned again, and every `apply-plan` that is
+not a confirmed apply of a plan the window holds is sent (no `confirm`, `false`, the string `"true"`, `1`, no id, the
+id in upper case, another id, no payload, other field names, a plan older than its lifetime, one a `logout` dropped):
+each is an `error`, only reads reached a layer (the request log read as the command line's test reads it,
+`tests/shared/SentRequests.cs`) and the `plans` folder holds no record. Beside it every message type of the protocol
+must have its sample named after it, and every sample is sent once: a request answered with `plan` must be marked,
+and nothing may reach a layer. A new write request therefore joins the test with its mark and its sample. Taking the
+mark off `mailbox-forwarding-clear` turned the sweep red ("answers with a plan but is not marked"), and an apply
+hidden behind a correct refusal turned all four writes red on the fake module's file (2026-10-30).
+
 **The CSV edge cases** (task 074, `tests/M365Aegis.Core.Tests/Operations/CsvEdgeCaseTests.cs` and
 `tests/M365Aegis.Cli.Tests/CsvEdgeCaseCommandTests.cs`). They pin what [A batch from a CSV file](#writes-and-plans)
 promises, over one file per case for each set of columns under `tests/fixtures/csv/edge-cases/<family>/<case>.csv`
@@ -1089,7 +1154,8 @@ the window's verbose sink): `whoami`, `login` with the account picker and with a
 notification), a `group-members` whose request over `HttpGraphTransport` fails with the bearer header in the
 exception's message (the `internal` error reply, the stack trace in the log), `mailbox-list` from the Admin API,
 `mailbox-access` for a user (the split read: three sidecars connect with the marked token) and for a mailbox (both
-layers), all over a `WindowExchange` on `ExchangeTokenSource.ForProfile`, a `mailbox-list` on a window whose sidecar
+layers), a `mailbox-access-grant` and its confirmed `apply-plan` (task 082: the apply over the marked session, its plan
+record under the home), all over a `WindowExchange` on `ExchangeTokenSource.ForProfile`, a `mailbox-list` on a window whose sidecar
 the fake module refuses with the token in its message (an `error` reply), and `logout`. Then every file under the
 temporary home (the `window:` lines and the internal error included), every reply and notification as the host
 writes it to the page, and the window's stderr (`Console.Error`, captured for the run) are searched for the marker.
