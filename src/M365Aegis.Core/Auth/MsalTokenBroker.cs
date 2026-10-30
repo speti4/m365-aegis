@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using M365Aegis.Core.Diagnostics;
 using Microsoft.Identity.Client;
@@ -28,6 +29,15 @@ public sealed class MsalTokenBroker : ITokenBroker
     /// no <see cref="MsalError"/> constant for it), so it is written once, here.
     /// </summary>
     public const string WindowHandleRequiredCode = "window_handle_required";
+
+    /// <summary>
+    /// Why the members that call MSAL itself are excluded from the coverage (task 070): each one builds the real
+    /// public client (the Windows account manager, the DPAPI cache file) and talks to the real sign-in service, which
+    /// no test may reach. What they do around the library is tested: the exception mapping (<see cref="Guard"/>), the
+    /// result (<see cref="ToResult"/>), the window thread, the log; the flows over them run on a fake
+    /// <see cref="ITokenBroker"/>.
+    /// </summary>
+    private const string Untestable = "calls MSAL.NET against the real broker and sign-in service (docs/development.md, Coverage)";
 
     private readonly TenantProfile _profile;
     private readonly string _home;
@@ -112,12 +122,14 @@ public sealed class MsalTokenBroker : ITokenBroker
     }
 
     /// <inheritdoc/>
+    [ExcludeFromCodeCoverage(Justification = Untestable)]
     public Task<TokenResult> AcquireSilentWithOperatingSystemAccountAsync(string scope, CancellationToken cancellationToken) =>
         GuardAsync(async application =>
             await application.AcquireTokenSilent([scope], PublicClientApplication.OperatingSystemAccount)
                 .ExecuteAsync(cancellationToken).ConfigureAwait(false));
 
     /// <inheritdoc/>
+    [ExcludeFromCodeCoverage(Justification = Untestable)]
     public async Task<IReadOnlyList<AccountInfo>> GetAccountsAsync(CancellationToken cancellationToken)
     {
         IPublicClientApplication application = await _application.Value.ConfigureAwait(false);
@@ -127,6 +139,7 @@ public sealed class MsalTokenBroker : ITokenBroker
     }
 
     /// <inheritdoc/>
+    [ExcludeFromCodeCoverage(Justification = Untestable)]
     public async Task<TokenResult> AcquireSilentAsync(string scope, AccountInfo account, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(account);
@@ -157,6 +170,7 @@ public sealed class MsalTokenBroker : ITokenBroker
     }
 
     /// <inheritdoc/>
+    [ExcludeFromCodeCoverage(Justification = Untestable)]
     public async Task<TokenResult> AcquireInteractiveAsync(string scope, string loginHint, CancellationToken cancellationToken)
     {
         // The client is built first, off the window's thread; only the picker's call starts on it.
@@ -169,6 +183,7 @@ public sealed class MsalTokenBroker : ITokenBroker
     }
 
     /// <inheritdoc/>
+    [ExcludeFromCodeCoverage(Justification = Untestable)]
     public Task<TokenResult> AcquireWithDeviceCodeAsync(string scope, Func<DeviceCodePrompt, Task> prompt, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(prompt);
@@ -180,6 +195,7 @@ public sealed class MsalTokenBroker : ITokenBroker
     }
 
     /// <inheritdoc/>
+    [ExcludeFromCodeCoverage(Justification = Untestable)]
     public async Task RemoveAsync(AccountInfo account, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(account);
@@ -192,6 +208,7 @@ public sealed class MsalTokenBroker : ITokenBroker
         }).ConfigureAwait(false);
     }
 
+    [ExcludeFromCodeCoverage(Justification = Untestable)]
     private static async Task<IAccount> FindAsync(IPublicClientApplication application, AccountInfo account, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -199,10 +216,10 @@ public sealed class MsalTokenBroker : ITokenBroker
         return known ?? throw new BrokerException(BrokerErrorKind.UiRequired, "account_not_found", $"{account.Username} is no longer a known account");
     }
 
-    private static AccountInfo ToAccountInfo(IAccount account) =>
+    internal static AccountInfo ToAccountInfo(IAccount account) =>
         new(account.Username, account.HomeAccountId.Identifier, account.HomeAccountId.ObjectId, account.HomeAccountId.TenantId);
 
-    private static TokenResult ToResult(AuthenticationResult result)
+    internal static TokenResult ToResult(AuthenticationResult result)
     {
         TokenOrigin origin = result.AuthenticationResultMetadata?.TokenSource switch
         {
@@ -222,7 +239,7 @@ public sealed class MsalTokenBroker : ITokenBroker
     }
 
     /// <summary>Runs an MSAL call and maps its exceptions.</summary>
-    private static async Task<T> Guard<T>(Func<Task<T>> call)
+    internal static async Task<T> Guard<T>(Func<Task<T>> call)
     {
         try
         {
@@ -250,7 +267,7 @@ public sealed class MsalTokenBroker : ITokenBroker
     }
 
     /// <summary>Starts a call on the window's thread when there is one (the window), here otherwise (a console).</summary>
-    private async Task<T> OnWindowThreadAsync<T>(Func<Task<T>> call)
+    internal async Task<T> OnWindowThreadAsync<T>(Func<Task<T>> call)
     {
         if (_onWindowThread is null)
         {
@@ -262,6 +279,7 @@ public sealed class MsalTokenBroker : ITokenBroker
         return await started!.ConfigureAwait(false);
     }
 
+    [ExcludeFromCodeCoverage(Justification = Untestable)]
     private async Task<TokenResult> GuardAsync(Func<IPublicClientApplication, Task<AuthenticationResult>> call)
     {
         IPublicClientApplication application = await _application.Value.ConfigureAwait(false);
@@ -269,6 +287,7 @@ public sealed class MsalTokenBroker : ITokenBroker
         return ToResult(result);
     }
 
+    [ExcludeFromCodeCoverage(Justification = Untestable)]
     private async Task<IPublicClientApplication> BuildAsync(bool withBroker)
     {
         // The redirect URI the broker needs (ms-appx-web://microsoft.aad.brokerplugin/<client id>) is a property of

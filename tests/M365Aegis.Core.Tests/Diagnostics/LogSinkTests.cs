@@ -141,6 +141,54 @@ public sealed class LogSinkTests
     }
 
     [Fact]
+    public void TheSinkWritesInTheTimeOfItsClock()
+    {
+        var clock = new FixedClock(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
+        var sink = new LogSink(Folder(), clock);
+
+        Assert.EndsWith("m365-aegis-" + clock.GetLocalNow().ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) + ".log", sink.CurrentFile, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("  ")]
+    [InlineData(" ab ")]
+    public void ANothingOrAShortValueIsNotRedacted(string? value)
+    {
+        var sink = new LogSink(Folder());
+
+        sink.Redact(value);
+
+        Assert.Equal("ab and cd", sink.Scrub("ab and cd"));
+    }
+
+    [Fact]
+    public void AScopedVerboseSinkWinsAndTheOneBeforeComesBack()
+    {
+        LogSink? before = LogSink.Verbose;
+        var sink = new LogSink(Folder());
+
+        using (LogSink.UseVerbose(sink))
+        {
+            Assert.Same(sink, LogSink.Verbose);
+        }
+
+        Assert.Same(before, LogSink.Verbose);
+    }
+
+    [Fact]
+    public void AnInternalErrorThatCannotBeLoggedHasNoFile()
+    {
+        string file = Path.Combine(Folder(), "a-file");
+        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        File.WriteAllText(file, "");
+
+        // A home that is a file: the logs folder cannot be created. A blank home is not a folder at all.
+        Assert.Null(InternalError.WriteToLog(new InvalidOperationException("boom"), file));
+        Assert.Null(InternalError.WriteToLog(new InvalidOperationException("boom"), " "));
+    }
+
+    [Fact]
     public void TheFileIsNamedByTheDayUnderTheHomesLogsFolder()
     {
         string home = ProfileStoreTests.TempHome();
@@ -190,4 +238,9 @@ public sealed class LogSinkTests
         PublicClientApplicationBuilder.Create(Profile.ClientId).WithTenantId("contoso.onmicrosoft.com");
 
     private static string Folder() => Path.Combine(ProfileStoreTests.TempHome(), "logs");
+
+    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
 }

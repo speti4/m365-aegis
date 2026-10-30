@@ -25,6 +25,9 @@ public sealed class WindowFailureHintsTests
     ];
 
     [Fact]
+    public void NoHintNamesNoCommand() => Assert.False(SignInHints.NamesACommand(null));
+
+    [Fact]
     public void TheWindowHasAHintForEveryFailureKindAndNoneNamesACommand()
     {
         Assert.Equal(Enum.GetValues<FailureKind>().Order(), SignInHints.Window.Failures.Keys.Order());

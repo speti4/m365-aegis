@@ -34,7 +34,13 @@ public sealed partial class LogSink
     /// The sink of a <c>--verbose</c> run, which MSAL logs into; null without the flag, so nothing is logged. The
     /// command line sets it once at start-up (<see cref="EnableVerbose"/>), before any command runs.
     /// </summary>
-    public static LogSink? Verbose { get; private set; }
+    public static LogSink? Verbose => Scoped.Value ?? ProcessVerbose;
+
+    /// <summary>The sink of this process, set by <see cref="EnableVerbose"/>.</summary>
+    private static LogSink? ProcessVerbose;
+
+    /// <summary>A sink for one flow of calls (<see cref="UseVerbose"/>), which wins over the process's own.</summary>
+    private static readonly AsyncLocal<LogSink?> Scoped = new();
 
     /// <summary>The folder the sink writes into.</summary>
     public string Folder { get; }
@@ -51,7 +57,18 @@ public sealed partial class LogSink
     }
 
     /// <summary>Turns on the verbose log of this process, into the home folder's <c>logs</c> folder.</summary>
-    public static void EnableVerbose(string home) => Verbose = ForHome(home);
+    public static void EnableVerbose(string home) => ProcessVerbose = ForHome(home);
+
+    /// <summary>
+    /// Makes <paramref name="sink"/> the verbose sink of the calls that follow in this flow (an <see cref="AsyncLocal{T}"/>,
+    /// so parallel tests do not see each other's) until the returned scope is disposed, which restores the one before.
+    /// </summary>
+    internal static IDisposable UseVerbose(LogSink? sink)
+    {
+        LogSink? previous = Scoped.Value;
+        Scoped.Value = sink;
+        return new Restore(() => Scoped.Value = previous);
+    }
 
     /// <summary>A value that must never reach the file (a tenant, a client id, an account); it is written as <c>&lt;redacted&gt;</c>.</summary>
     public void Redact(string? value)
@@ -161,4 +178,9 @@ public sealed partial class LogSink
 
     [GeneratedRegex(@"\b[A-Za-z0-9\-]+\.onmicrosoft\.com\b", RegexOptions.IgnoreCase)]
     private static partial Regex TenantName();
+
+    private sealed class Restore(Action restore) : IDisposable
+    {
+        public void Dispose() => restore();
+    }
 }

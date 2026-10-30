@@ -378,6 +378,92 @@ public sealed class DoctorTests
     }
 
     /// <summary>A home folder with one profile, the default.</summary>
+    [Fact]
+    public void PwshIsTheFirstFolderOfPathThatHoldsIt()
+    {
+        string empty = Directory.CreateTempSubdirectory("m365-aegis-tests-").FullName;
+        string holder = Directory.CreateTempSubdirectory("m365-aegis-tests-").FullName;
+        File.WriteAllText(Path.Combine(holder, "pwsh-test"), "");
+        string path = string.Join(Path.PathSeparator, empty, $" {holder} ", "");
+
+        Assert.Equal(Path.Combine(holder, "pwsh-test"), Doctor.FindPwsh(path, "pwsh-test"));
+        Assert.Null(Doctor.FindPwsh(empty, "pwsh-test"));
+        Assert.Null(Doctor.FindPwsh(null, "pwsh-test"));
+        Assert.Null(Doctor.FindPwsh("", "pwsh-test"));
+    }
+
+    [Fact]
+    public void AProcessAnswersWithItsOutputAndAMissingOrSlowOneWithNothing()
+    {
+        string pwsh = SidecarFixtures.Pwsh;
+
+        Assert.Equal("hello", DoctorEnvironment.RunProcess(pwsh, ["-NoProfile", "-NonInteractive", "-Command", "'hello'"], TimeSpan.FromSeconds(30))?.Trim());
+        Assert.Null(DoctorEnvironment.RunProcess(Path.Combine(Path.GetTempPath(), "m365-aegis-no-such-program"), [], TimeSpan.FromSeconds(5)));
+        Assert.Null(DoctorEnvironment.RunProcess(pwsh, ["-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 30"], TimeSpan.FromMilliseconds(200)));
+    }
+
+    [Fact]
+    public void AMissingFileReadsAsNothing()
+    {
+        string file = Path.Combine(Directory.CreateTempSubdirectory("m365-aegis-tests-").FullName, "script.ps1");
+
+        Assert.Null(DoctorEnvironment.ReadIfExists(file));
+        File.WriteAllBytes(file, Script);
+        Assert.Equal(Script, DoctorEnvironment.ReadIfExists(file));
+    }
+
+    [Fact]
+    public void AnUnreadableRuntimeVersionIsTakenAsTen()
+    {
+        DoctorEnvironment environment = Fake(ProfileStoreTests.TempHome()) with { RuntimeVersion = "unknown" };
+
+        DoctorCheck installed = Doctor.CheckDesktopRuntime(environment);
+        DoctorCheck missing = Doctor.CheckDesktopRuntime(environment with { ReadDesktopRuntimeVersions = () => [] });
+
+        Assert.Equal(CheckStatus.Pass, installed.Status);
+        Assert.Equal("10.0.4", installed.Detail);
+        Assert.Equal(CheckStatus.Fail, missing.Status);
+        Assert.DoesNotContain("(installed:", missing.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AConfigWithoutAProfileWarns()
+    {
+        string home = ProfileStoreTests.TempHome();
+        Directory.CreateDirectory(home);
+        File.WriteAllText(Path.Combine(home, "config.json"), """{"profiles":{}}""");
+
+        DoctorCheck check = Doctor.CheckConfig(home);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.EndsWith("holds no profile", check.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ABrokerThatDoesNotAnswerFailsTheSignIn()
+    {
+        DoctorEnvironment environment = Fake(WithProfile(), signIn: (_, _) =>
+            Task.FromException<SignInInfo>(new BrokerException(BrokerErrorKind.Other, "wam_provider_error_0", "the broker did not answer")));
+
+        DoctorCheck check = await Doctor.CheckSignInAsync(environment, CancellationToken.None);
+
+        Assert.Equal(CheckStatus.Fail, check.Status);
+        Assert.Contains("wam_provider_error_0", check.Detail, StringComparison.Ordinal);
+        Assert.Equal("run `m365-aegis login`", check.Hint);
+    }
+
+    [Fact]
+    public void AnEndpointThatDidNotAnswerWithoutAReasonSaysSo()
+    {
+        DoctorCheck check = Doctor.CheckEndpoint("graph", new Uri("https://graph.microsoft.com/"), new EndpointAnswer(null, TimeSpan.FromSeconds(10), null));
+
+        Assert.Equal(CheckStatus.Fail, check.Status);
+        Assert.Contains("(no reason given)", check.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnUnknownResourceHasNoName() => Assert.Equal("?", Doctor.ResourceName((Resource)99));
+
     private static string WithProfile()
     {
         string home = ProfileStoreTests.TempHome();

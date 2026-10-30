@@ -87,16 +87,11 @@ internal static class Program
     /// <summary>The output mode of a parse result: the explicit option wins, else the terminal decides.</summary>
     internal static OutputMode ResolveMode(ParseResult parsed, Option<bool> json, Option<bool> table)
     {
-        if (parsed.GetValue(json))
-        {
-            return OutputMode.Json;
-        }
-
-        if (parsed.GetValue(table))
-        {
-            return OutputMode.Table;
-        }
-
-        return Console.IsOutputRedirected ? OutputMode.Json : OutputMode.Table;
+        ArgumentNullException.ThrowIfNull(parsed);
+        return PickMode(parsed.GetValue(json), parsed.GetValue(table), Console.IsOutputRedirected);
     }
+
+    /// <summary>The output mode of the two options and the console: <c>--json</c>, else <c>--table</c>, else a pipe gets the envelope.</summary>
+    internal static OutputMode PickMode(bool json, bool table, bool outputRedirected) =>
+        json ? OutputMode.Json : table ? OutputMode.Table : outputRedirected ? OutputMode.Json : OutputMode.Table;
 }
