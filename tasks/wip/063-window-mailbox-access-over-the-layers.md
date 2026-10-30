@@ -47,7 +47,7 @@ with `mailbox access <mailbox>` (counts and shapes only).
 3. [x] Tests: C# over the fixtures and the fake module (the bridge, the layered read, the command line's `--json`);
        Vitest over the samples and the card's helpers
 4. [x] Docs; the live steps for the main session in the report
-5. [ ] Live check (main session): the access card's rows and the `window:` line against `mailbox access <mailbox>
+5. [x] Live check (main session): the access card's rows and the `window:` line against `mailbox access <mailbox>
        --json`, counts and shapes only
 
 ## Log
@@ -89,6 +89,9 @@ with `mailbox access <mailbox>` (counts and shapes only).
   none), `MailboxLayersCommandTests` (the command line's `--json` carries the layers); Vitest: the sample's layers,
   a reply without layers, an unknown layer refused, the card's `layerNames` and `describeLayers`, the mock's Finance
   equal to the sample.
+- 2026-10-30 — the main session's live round: the window's access over both layers matched `mailbox access
+  <mailbox> --json` by right and layer on a shared mailbox with delegates; the warm lookup answered in 384 ms
+  (Verification)
 
 ## Deviations from the plan
 
@@ -110,12 +113,32 @@ with `mailbox access <mailbox>` (counts and shapes only).
   job's steps with an empty `M365AEGIS_HOME`: `--json doctor --offline` 0, `--json whoami` 3, `m365-aegis-gui
   --smoke` 0 (ready after 871 ms, top-level window, no sidecar started), `scripts/release.ps1 -DryRun` 0. The
   sidecar script and the fake module are untouched, so no Pester run.
-- live: (pending, the main session's signed-in round)
+- 2026-10-30, live (the main session's signed-in round; the worktree's Release build of the window with `--verbose`,
+  the real home folder, no fixture or test variable, the maintainer at the window; nothing written). An interactive
+  sign-in through the picker (the silent attempts failed with the broker's usual state after a logout), then the
+  shared mailboxes (`window: mailbox-list answered in 9380 ms through admin-api; exchange no sidecar, token
+  acquisitions 1`), then three `mailbox-access` lookups, each `through admin-api+pwsh`: a first mailbox on the cold
+  sidecar in 10266 ms (0 Send on Behalf delegates from admin-api, 2 FullAccess and Send As grants from pwsh; session 1,
+  sidecar starts 1, last connect 1785 ms, token acquisitions 1); a shared mailbox with delegates in 3761 ms (5 from
+  admin-api, 10 from pwsh), and the same mailbox again, warm, in 384 ms with the same counts, still one session, one
+  sidecar start and one token acquisition. One `exchange-online: exchange token acquisition 1 … valid for 73 min`
+  line for the whole run; no `admin-api: the Admin API could not read the mailbox` line, so no fallback ran.
+- 2026-10-30, live, the command line on the same shared mailbox (`mailbox access <address> --json`, the worktree's
+  build, its own process and sidecar): exit 0 in 5870 ms wall (`meta.elapsedMs` 5528), `meta.backend`
+  `admin-api+pwsh`, `data.mailboxLayer` `admin-api`, 15 holders: Send on Behalf 5 on `admin-api`, FullAccess 7 and
+  Send As 3 on `pwsh`. These are the same 5 and 10 the window's line counted. Every Send on Behalf holder carries a
+  display name that differs from its address, and an address (5 of 5); the holder keys are `address`, `holder`,
+  `layer`, `right`. The card showed that mailbox's lookup; the maintainer checks the "Read through" badges and the
+  line under the mailbox at the window, and the main session confirms them in the pull request.
+- 2026-10-30, live, observed: a user lookup afterwards (the reverse lookup, unchanged by this task) answered `through
+  pwsh` in 261886 ms on the same session (sidecar starts 1, token acquisitions 1): the session's one-sidecar bulk
+  read over every mailbox, as before this task. The window starts no extra sidecars for task 043's split read;
+  that is a follow-up candidate in the pull request.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
+- [x] Verification written, dated
 - [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
