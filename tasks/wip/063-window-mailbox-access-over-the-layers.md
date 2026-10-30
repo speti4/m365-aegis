@@ -128,8 +128,13 @@ with `mailbox access <mailbox>` (counts and shapes only).
   `admin-api+pwsh`, `data.mailboxLayer` `admin-api`, 15 holders: Send on Behalf 5 on `admin-api`, FullAccess 7 and
   Send As 3 on `pwsh`. These are the same 5 and 10 the window's line counted. Every Send on Behalf holder carries a
   display name that differs from its address, and an address (5 of 5); the holder keys are `address`, `holder`,
-  `layer`, `right`. The card showed that mailbox's lookup; the maintainer checks the "Read through" badges and the
-  line under the mailbox at the window, and the main session confirms them in the pull request.
+  `layer`, `right`. The live card's visuals were not confirmed: the window was closed while the user lookup below
+  was still running.
+- 2026-10-30, mock rendering (the main session, `npm run dev` on this branch with the browser mock, not the live
+  card): the Finance lookup shows `Finance [SharedMailbox] finance@contoso.com · 3 grant(s)`, under it "The mailbox
+  and its Send on Behalf delegates by name come from the Admin API, FullAccess and Send As from the PowerShell
+  session.", and the table's "Read through" column: the FullAccess and Send As rows with a `PowerShell` badge, the
+  Send on Behalf row (Bob Example, bob@contoso.com) with an `Admin API` badge; "answered in 302 ms".
 - 2026-10-30, live, observed: a user lookup afterwards (the reverse lookup, unchanged by this task) answered `through
   pwsh` in 261886 ms on the same session (sidecar starts 1, token acquisitions 1): the session's one-sidecar bulk
   read over every mailbox, as before this task. The window starts no extra sidecars for task 043's split read;
