@@ -136,10 +136,10 @@ public sealed class WindowExchange : IExoCmdletRunner, IAsyncDisposable
 
         try
         {
-            await session.RenewAsync(cancellationToken).ConfigureAwait(false);
+            SidecarConnected connection = await session.RenewAsync(cancellationToken).ConfigureAwait(false);
             KeptWarm++;
             LogSink.Verbose?.Write("window", string.Create(CultureInfo.InvariantCulture,
-                $"exchange session kept warm: reconnected with a fresh token in {session.Connection?.ConnectMs} ms (renewal {session.Renewals})"));
+                $"exchange session kept warm: reconnected with a fresh token in {connection.ConnectMs} ms (renewal {session.Renewals})"));
             return true;
         }
         catch (Exception exception) when (exception is AegisException or ObjectDisposedException or OperationCanceledException)

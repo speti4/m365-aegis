@@ -106,8 +106,15 @@ public sealed class PlanResume
             .ToList();
 
         var warnings = fresh.Plan.Warnings.ToList();
-        foreach (PlanChange change in Pending.Where(change => !Continued(change, fresh.Plan, kept, unchanged)))
+        // A plain loop, not a Where over a lambda: the lambda would capture the locals, and its cached delegate is a
+        // branch no call can take twice.
+        foreach (PlanChange change in Pending)
         {
+            if (Continued(change, fresh.Plan, kept, unchanged))
+            {
+                continue;
+            }
+
             string where = change.Row is { } line ? string.Format(CultureInfo.InvariantCulture, "line {0}, ", line) : "";
             warnings.Add($"{where}{change.Target}, {change.Detail}: {Name} left it {Status(change)}, and the new plan does not name it; check it with a lookup");
         }

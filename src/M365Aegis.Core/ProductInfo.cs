@@ -11,13 +11,19 @@ public static class ProductInfo
     /// <summary>The version of Directory.Build.props, as the assembly carries it (without build metadata).</summary>
     public static string Version { get; } = ReadVersion();
 
-    private static string ReadVersion()
+    private static string ReadVersion() =>
+        PlainVersion(
+            typeof(ProductInfo).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>(),
+            typeof(ProductInfo).Assembly.GetName().Version);
+
+    /// <summary>The plain version of an assembly's attributes: the informational one without "+commit", else the
+    /// assembly version's three parts, else 0.0.0.</summary>
+    internal static string PlainVersion(AssemblyInformationalVersionAttribute? attribute, Version? version)
     {
-        string? informational = typeof(ProductInfo).Assembly
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        string? informational = attribute?.InformationalVersion;
         if (string.IsNullOrEmpty(informational))
         {
-            return typeof(ProductInfo).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
+            return version?.ToString(3) ?? "0.0.0";
         }
 
         // The SDK appends "+<commit>" to the informational version; the exes print the plain version.

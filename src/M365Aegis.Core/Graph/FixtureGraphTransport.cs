@@ -154,7 +154,8 @@ public sealed class FixtureGraphTransport : IGraphTransport
     private async Task<string> AnswerItemsAsync(GraphHttpRequest batch, CancellationToken cancellationToken)
     {
         string root = batch.Uri.AbsoluteUri[..batch.Uri.AbsoluteUri.LastIndexOf("/$batch", StringComparison.Ordinal)];
-        using JsonDocument document = JsonDocument.Parse(batch.Body ?? "{}");
+        // The client always sends a $batch with its body (GraphClient.BatchAsync).
+        using JsonDocument document = JsonDocument.Parse(batch.Body!);
         var responses = new List<object>();
         foreach (JsonElement item in document.RootElement.GetProperty("requests").EnumerateArray())
         {

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json.Nodes;
 using M365Aegis.Core.Auth;
@@ -51,6 +52,7 @@ public sealed record BridgeServices(
     /// with the Admin API beside it over the same token source (task 056; the fixtures when
     /// <see cref="GraphConnection.FixturesEnvironmentVariable"/> is set, none with only the test organization).
     /// </summary>
+    [ExcludeFromCodeCoverage(Justification = "Wires the window's real layers: MSAL through the Windows account manager over the window, Graph and an Exchange Online session that a first cmdlet would start against the tenant; no test may run them, the windows job's --smoke run starts the window with it, and each layer it wires is measured on its own.")]
     public static BridgeServices ForWindow(string home, string? profile, Func<IntPtr> parentWindow, Func<Func<Task>, Task> onWindowThread)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(home);
@@ -257,9 +259,7 @@ public sealed class BridgeDispatcher
 
         GraphClient graph = _services.Graph(new RequestLog());
         CommandResult<GroupMembers> result = await GroupLookups.MembersAsync(graph, group, transitive: false, cancellationToken).ConfigureAwait(false);
-        return result.Failure is { } failure
-            ? Error(request, failure)
-            : BridgeProtocol.Reply(request, BridgeMessageType.Members, result.Data);
+        return Answer(request, BridgeMessageType.Members, result);
     }
 
     private Task<BridgeMessage> MailboxAccessAsync(BridgeMessage request, CancellationToken cancellationToken)
@@ -314,10 +314,17 @@ public sealed class BridgeDispatcher
                 $"{request.Type} answered in {elapsed.ElapsedMilliseconds} ms through {backends.Backend}; exchange {exchange.Describe()}"));
         }
 
-        return result.Failure is { } failure && (failure.Kind != FailureKind.Partial || result.Data is null)
+        return Answer(request, replyType, result);
+    }
+
+    /// <summary>
+    /// The reply of a lookup's result: the data, or <c>error</c> for a failure; a partial answer that carries its data
+    /// (exit code 6 on the command line) is the reply, whose own list says what could not be read.
+    /// </summary>
+    internal BridgeMessage Answer<T>(BridgeMessage request, string replyType, CommandResult<T> result) =>
+        result.Failure is { } failure && (failure.Kind != FailureKind.Partial || result.Data is null)
             ? Error(request, failure)
             : BridgeProtocol.Reply(request, replyType, result.Data);
-    }
 
     /// <summary>A text field of the payload, trimmed; null when it is missing, not a string, or blank.</summary>
     private static string? Text(BridgeMessage request, string name)

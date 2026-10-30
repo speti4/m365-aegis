@@ -11,9 +11,11 @@ public static class AegisHome
     public const string EnvironmentVariable = "M365AEGIS_HOME";
 
     /// <summary>The home folder, resolved but not created.</summary>
-    public static string Resolve()
+    public static string Resolve() => ResolveFrom(Environment.GetEnvironmentVariable(EnvironmentVariable));
+
+    /// <summary>The home folder for the value of <see cref="EnvironmentVariable"/> (null or blank: the default).</summary>
+    internal static string ResolveFrom(string? overridden)
     {
-        string? overridden = Environment.GetEnvironmentVariable(EnvironmentVariable);
         if (!string.IsNullOrWhiteSpace(overridden))
         {
             return Path.GetFullPath(overridden);
