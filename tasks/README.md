@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-10-30 — edit the files, not this section._
 
-**State:** 6 backlog (0 ready · 0 blocked · 0 waiting · 6 ideas) · 0 in progress · 75 done · 0 dropped · 10 decisions
+**State:** 11 backlog (0 ready · 1 blocked · 0 waiting · 10 ideas) · 0 in progress · 75 done · 0 dropped · 10 decisions
 
 ### Ready
 
@@ -22,7 +22,11 @@ _none_
 
 ### Needs decision
 
-_none_
+#### M5 Snapshot and views
+
+| # | Task | Needs | Size | Created |
+|---|---|---|---|---|
+| 084 | [access <user>: which groups, sites and mailboxes one user reaches, from the sna…](backlog/084-access-view-for-one-user-from-the-snapshot.md) | D-011 (task 083, the snapshot store's format) | M | 2026-10-30 |
 
 ### Waiting on
 
@@ -48,6 +52,13 @@ _none_
 |---|---|---|---|
 | 077 | [The window's user lookup over the split read of task 043](backlog/077-window-user-lookup-over-the-split-read.md) | S | 2026-10-30 |
 | 079 | [A write-guard test over the window's bridge writes](backlog/079-write-guard-test-over-the-window-bridge-writes.md) | S | 2026-10-30 |
+| 082 | [The window's mailbox write cards: access grant and revoke, forwarding set and c…](backlog/082-window-mailbox-write-cards-behind-a-plan-and-a-confirmation.md) | L | 2026-10-30 |
+
+#### M5 Snapshot and views
+
+| # | Task | Size | Created |
+|---|---|---|---|
+| 083 | [Spike: the snapshot store's format and size, recorded as a decision](backlog/083-spike-snapshot-store-format-and-size.md) | S | 2026-10-30 |
 
 #### M6 Release and team
 
@@ -55,6 +66,8 @@ _none_
 |---|---|---|---|
 | 078 | [The doctor warns when an existing home folder is readable by other users](backlog/078-doctor-warns-on-a-home-folder-readable-by-others.md) | S | 2026-10-30 |
 | 080 | [Token hygiene through the window: the bridge's sign-in and the window: log lines](backlog/080-token-hygiene-through-the-window.md) | S | 2026-10-30 |
+| 085 | [Signed exes and the release zip through a tag-driven release workflow](backlog/085-signed-exes-and-the-release-zip.md) | M | 2026-10-30 |
+| 086 | [A usage guide for the command line and the window, shipped in the release zip](backlog/086-usage-guide-for-the-command-line-and-the-window.md) | S | 2026-10-30 |
 
 ### In progress
 

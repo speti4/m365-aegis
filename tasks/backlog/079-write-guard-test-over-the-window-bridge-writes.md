@@ -15,3 +15,5 @@ Why: SECURITY.md names a write without a confirmation as a vulnerability; task 0
 and the window's plan-and-confirm cards (M4) will add write requests to the bridge.
 Done when: the test is green over the bridge's write requests, a new write request joins it without an edit, and it is
 part of the M4 write card's done-when.
+Held back on 2026-10-30: the bridge has no write request yet, so the test would walk an empty set; it is promoted
+together with task 082, whose done-when it is.
