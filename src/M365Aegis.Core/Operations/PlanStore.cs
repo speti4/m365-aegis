@@ -117,7 +117,7 @@ public sealed class PlanStore
     internal string Begin(Plan plan)
     {
         // The home first, with its access list (task 075), then the plans folder under it.
-        AegisHome.Create(Path.GetDirectoryName(Folder) ?? Folder);
+        AegisHome.CreateAbove(Folder);
         Directory.CreateDirectory(Folder);
         DateTimeOffset started = plan.Started ?? Clock.GetUtcNow();
         string stem = string.Create(CultureInfo.InvariantCulture, $"{started.UtcDateTime:yyyyMMdd'T'HHmmss'.'fff'Z'}-{plan.Operation}");

@@ -308,8 +308,8 @@ public sealed class BridgeDispatcher
             $"{why}: the mailbox, {onBehalf} Send on Behalf delegate(s) and {rights} FullAccess and Send As grant(s) from {Backend.Pwsh}");
     }
 
-    private static string? DescribeLayers(ExchangeBackends backends, MailboxAccess? access) =>
-        access is null ? null : DescribeLayers(backends.HasAdminApi, access);
+    private static string DescribeLayers(ExchangeBackends backends, MailboxAccess access) =>
+        DescribeLayers(backends.HasAdminApi, access);
 
     /// <summary>
     /// A mailbox lookup over the window's layers (task 056: the session, the Admin API over the same token, Graph): the
@@ -323,7 +323,8 @@ public sealed class BridgeDispatcher
         string replyType,
         Func<ExchangeBackends, CancellationToken, Task<CommandResult<T>>> lookup,
         CancellationToken cancellationToken,
-        Func<ExchangeBackends, T?, string?>? describe = null)
+        Func<ExchangeBackends, T, string?>? describe = null)
+        where T : class
     {
         if (_services.Exchange is not { } exchange)
         {
@@ -342,7 +343,8 @@ public sealed class BridgeDispatcher
         }
         finally
         {
-            string? layers = result is null || describe is null ? null : describe(backends, result.Data);
+            // A lookup that threw has no result, and only an answer with its data has layers to describe.
+            string? layers = result?.Data is { } data && describe is not null ? describe(backends, data) : null;
             LogSink.Verbose?.Write("window", string.Create(
                 CultureInfo.InvariantCulture,
                 $"{request.Type} answered in {elapsed.ElapsedMilliseconds} ms through {backends.Backend}{(layers is null ? "" : $" ({layers})")}; exchange {exchange.Describe()}"));

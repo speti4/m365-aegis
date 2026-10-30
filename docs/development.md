@@ -1241,7 +1241,9 @@ failed, since that is when it is read.
   tests stay child processes, the way a shell runs the exe. The child loads the instrumented `m365-aegis.dll` next
   to the tests and inherits coverlet's environment, so its hits are written to the same report when it exits. The
   exit code, the stdout and stderr split and the pipe-or-terminal default are tested in the same run that measures
-  them; no in-process entry is needed. The table views are also tested in process (`TableViewTests`).
+  them; no in-process entry is needed (decided 2026-10-30). The safety tests' child processes (the write guard, the
+  exit codes, the CSV files, token hygiene) count the same way. The table views are also tested in process
+  (`TableViewTests`).
 - **The front end** (the `frontend` job, artifact `coverage-frontend`): Vitest with the V8 provider
   (`npm run test:coverage`). `vite.config.ts` sets 100% thresholds for lines, branches, functions and statements
   over `src/**/*.{ts,tsx}`, the generated shadcn/ui components included. Only the test files and their helpers
@@ -1259,8 +1261,9 @@ failed, since that is when it is read.
   message is the Core's `Bridge` (measured above); the WinForms form, the WebView2 control and the P/Invoke shells
   around them need a desktop session, and the `windows` job's `--smoke` run checks them.
 
-CI measures on Linux. The `windows` job runs the same tests without coverage (no threshold there): the code that
-only one operating system runs is excluded (below), so the same 100% holds on a Windows machine, where a
+CI measures on Linux. The `windows` job runs the same tests without coverage (no threshold there), the Windows-only
+ones included (the home folder's access list, which the `dotnet` job skips): the code that only one operating system
+runs is excluded (below), so the same 100% holds on a Windows machine, where a
 contributor runs the gate before a commit (CONTRIBUTING.md, "Checks before a commit").
 
 A gap is closed with a test first. A branch that no input can reach is simplified away, without changing the
@@ -1272,11 +1275,14 @@ listed here, and a new one is added to this list in the change that adds it:
 | Member | Why it is not measured |
 | --- | --- |
 | `MsalTokenBroker`: `AcquireSilentWithOperatingSystemAccountAsync`, `GetAccountsAsync`, `AcquireSilentAsync`, `AcquireInteractiveAsync`, `AcquireWithDeviceCodeAsync`, `RemoveAsync`, `FindAsync`, `GuardAsync`, `BuildAsync` (Core, `Auth`) | Each one builds the real MSAL public client (the Windows account manager, the DPAPI cache file) and calls the real sign-in service. What the broker does around the library is tested: the exception mapping, the result, the window thread, the log; the sign-in flows run over a fake `ITokenBroker`. |
+| `MsalTokenBroker.CreateCacheAsync` (Core, `Auth`) | MSAL's cache helper, one side per operating system (DPAPI on Windows, the plain file elsewhere); the token-hygiene tests run it on Windows. |
+| `AegisHome.CreateNew` and `AegisHome.UserOnly` (Core, `Config`) | The creation of a missing home: the Windows access list, a plain folder elsewhere, one side per operating system. The home folder's access list tests check the Windows side in the `windows` job (they skip on Linux, see [The safety tests](#the-safety-tests)); what calls them (`AegisHome.Create`, `CreateAbove`) is measured. |
 | `ConsoleWindow.RootOwner` (Core, `Auth`) | Win32 calls on the console window of a desktop session, which CI's runners do not have. |
 | `BridgeServices.ForWindow` (Core, `Bridge`) | Wires the window's real layers: MSAL over the window, Graph, and an Exchange Online session that a first cmdlet would start against the tenant. The `windows` job's `--smoke` run starts the window with it; each layer it wires is measured on its own. |
 | `Doctor.PwshFileName` (Core, `Diagnostics`) | `pwsh.exe` or `pwsh`: one side per operating system. The search over `PATH` is tested with a made-up file name. |
 | `DoctorEnvironment`: `RunDsregcmd`, `ReadDesktopRuntimeVersionsFromDisk`, `ReadWebView2VersionsFromRegistry`, `ReadPv`, the nested `Network` (the endpoint probe and its `HttpClient`) (Core, `Diagnostics`) | They read the real machine (`dsregcmd`, the registry, the .NET installation's folders, Microsoft's endpoints), differently on Windows and on Linux. The checks over their answers are tested through the `DoctorEnvironment` seams. |
 | `SidecarClient.KillQuietly` (Core, `Exchange/Sidecar`) | Its catch runs only when the operating system refuses the kill, or the child ends between the check and the call: a race no test can stage. |
+| `SidecarClient.WriteQuietlyAsync` (Core, `Exchange/Sidecar`) | Its catch runs only when a message reaches a child that has ended and nothing else holds the pipe's read end at that moment; whether the write fails or not, the read after it meets the end of the stream and says the sidecar stopped, which is tested. |
 | `SidecarClient.AwaitQuietly` (Core, `Exchange/Sidecar`) | Its catch runs only when the pipe breaks under the read, which .NET reports as the end of the stream on every runner. |
 | `DeviceCodePrompts.OnStderr` (Cli) | The console's stderr during a device-code sign-in, which needs the real sign-in service; the text it writes is tested through `DeviceCodePrompts.Write`. |
 

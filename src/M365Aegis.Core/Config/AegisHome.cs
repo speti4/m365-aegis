@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Principal;
@@ -47,15 +48,25 @@ public static class AegisHome
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(home);
         string full = Path.GetFullPath(home);
-        if (Directory.Exists(full))
+        if (!Directory.Exists(full))
         {
-            return full;
+            CreateNew(full);
         }
 
+        return full;
+    }
+
+    /// <summary>The home above a folder of it (the logs, the plans): its parent, or the folder itself when it is a root.</summary>
+    internal static string CreateAbove(string folder) => Create(Path.GetDirectoryName(Path.GetFullPath(folder)) ?? folder);
+
+    /// <summary>Creates the folder: with the access list of <see cref="UserOnly"/> on Windows, a plain folder elsewhere.</summary>
+    [ExcludeFromCodeCoverage(Justification = "one side per operating system; the Windows side is checked by the home folder's access list tests, which run in the windows job (docs/development.md, Coverage)")]
+    private static void CreateNew(string full)
+    {
         if (!OperatingSystem.IsWindows())
         {
             Directory.CreateDirectory(full);
-            return full;
+            return;
         }
 
         if (Path.GetDirectoryName(full) is { } parent)
@@ -64,11 +75,11 @@ public static class AegisHome
         }
 
         new DirectoryInfo(full).Create(UserOnly());
-        return full;
     }
 
     /// <summary>The access list of a home folder on Windows: the user, SYSTEM and Administrators, inherited below, protected above.</summary>
     [SupportedOSPlatform("windows")]
+    [ExcludeFromCodeCoverage(Justification = "Windows only: the access list API; the home folder's access list tests check it in the windows job (docs/development.md, Coverage)")]
     internal static DirectorySecurity UserOnly()
     {
         var security = new DirectorySecurity();

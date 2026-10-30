@@ -109,7 +109,7 @@ public sealed partial class LogSink
             lock (_gate)
             {
                 // The home first, with its access list (task 075), then the logs folder under it.
-                AegisHome.Create(Path.GetDirectoryName(Folder) ?? Folder);
+                AegisHome.CreateAbove(Folder);
                 Directory.CreateDirectory(Folder);
                 // Several processes may append to the same day's file (the command line and the window share the home).
                 using var stream = new FileStream(CurrentFile, FileMode.Append, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);

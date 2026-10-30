@@ -123,11 +123,9 @@ public sealed class SidecarProtocolTests
 }
 
 /// <summary>
-/// A write to a child that has ended, alone: run beside the other tests, the write sometimes reaches a pipe that is
-/// still open (the read end outlives the child under load), and the answer is the end of the stream instead of the
-/// failed write; both are the same failure of the contract, but only a run of its own reaches the failed write.
+/// A write to a child that has ended: whether the write itself fails depends on what else holds the pipe at that
+/// moment, and the read after it meets the end of the stream either way, so the answer is the same.
 /// </summary>
-[Collection(nameof(SidecarRunsAlone))]
 public sealed class SidecarWriteTests
 {
     [Fact]
@@ -140,13 +138,9 @@ public sealed class SidecarWriteTests
         AegisException exception = await Assert.ThrowsAsync<AegisException>(() => client.InvokeAsync(new ExoCommand("Get-Mailbox"), TestContext.Current.CancellationToken));
 
         Assert.Equal(FailureKind.SidecarUnavailable, exception.Failure.Kind);
-        Assert.StartsWith("the Exchange Online sidecar stopped while answering 'invoke' (", exception.Failure.Message, StringComparison.Ordinal);
+        Assert.Equal("the Exchange Online sidecar stopped while answering 'invoke'", exception.Failure.Message);
     }
 }
-
-/// <summary>The tests that run after every other one, one at a time.</summary>
-[CollectionDefinition(nameof(SidecarRunsAlone), DisableParallelization = true)]
-public sealed class SidecarRunsAlone;
 
 /// <summary>
 /// A pwsh child that answers request N with the N-th list of lines (<c>{id}</c> is the request's id); <c>!exit</c>

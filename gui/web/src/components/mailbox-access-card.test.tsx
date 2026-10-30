@@ -38,9 +38,9 @@ describe("the mailbox access card", () => {
       [...row.querySelectorAll("td")].map((cell) => cell.textContent),
     );
     expect(rows).toEqual([
-      ["FullAccess", "alice@contoso.com", "alice@contoso.com"],
-      ["FullAccess", "bob@contoso.com", "bob@contoso.com"],
-      ["Send As", "bob@contoso.com", "bob@contoso.com"],
+      ["FullAccess", "alice@contoso.com", "alice@contoso.com", "PowerShell"],
+      ["FullAccess", "bob@contoso.com", "bob@contoso.com", "PowerShell"],
+      ["Send As", "bob@contoso.com", "bob@contoso.com", "PowerShell"],
     ]);
     expect(container.textContent).toContain("· 3 grant(s)");
   });
@@ -93,7 +93,7 @@ describe("the mailbox access card", () => {
     const second = await card(scripted(() => ({ type: MessageType.mailboxHolders, data: access })));
     await second.lookUp("archive");
     const cells = [...second.container.querySelectorAll("tbody td")].map((cell) => cell.textContent);
-    expect(cells).toEqual(["Send on Behalf", "Finance team", ""]);
+    expect(cells).toEqual(["Send on Behalf", "Finance team", "", ""]);
   });
 
   it("hands an error to onError", async () => {

@@ -17,6 +17,19 @@ public sealed class ConfigEdgeTests
     }
 
     [Fact]
+    public void TheHomeAboveAFolderIsItsParentAndARootIsItsOwnHome()
+    {
+        string home = ProfileStoreTests.TempHome();
+        string root = Path.GetPathRoot(Path.GetTempPath())!;
+
+        Assert.Equal(Path.GetFullPath(home), AegisHome.CreateAbove(Path.Combine(home, "logs")));
+        Assert.True(Directory.Exists(home));
+        // A folder that exists already is left as it is.
+        Assert.Equal(Path.GetFullPath(home), AegisHome.Create(home));
+        Assert.Equal(root, AegisHome.CreateAbove(root));
+    }
+
+    [Fact]
     public void TheOverrideIsMadeAbsolute()
     {
         string home = ProfileStoreTests.TempHome();

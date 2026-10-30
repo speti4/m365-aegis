@@ -120,6 +120,32 @@ public sealed class GroupWritesEdgeTests
     }
 
     [Fact]
+    public async Task ADistributionGroupWithoutManagedByHasNoOwnersToResolve()
+    {
+        var sidecar = new ScriptedRunner(_ => new ExoResult([Recipient(new JsonObject { ["ManagedBy"] = new JsonArray() })], []));
+        await using var backends = new ExchangeBackends(sidecar, null, Directory);
+
+        WritePlan write = await GroupWrites.PlanAsync(backends, GroupRelation.Owners, true, GroupWrites.FromArguments(Sales, ["alice@contoso.com"]), Ct);
+
+        Assert.Single(write.Plan.Changes);
+        Assert.Equal([ExoCmdlets.GetDistributionGroup], sidecar.Commands.Select(command => command.Cmdlet));
+    }
+
+    [Fact]
+    public async Task OwnersNoRecipientResolvesAreListedByTheirNames()
+    {
+        var sidecar = new ScriptedRunner(command => command.Cmdlet == ExoCmdlets.GetDistributionGroup
+            ? new ExoResult([Recipient(new JsonObject { ["ManagedBy"] = new JsonArray("Organization Management", "alice") })], [])
+            : throw new AegisException(FailureKind.NotFound, "no recipient matches", null));
+        await using var backends = new ExchangeBackends(sidecar, null, Directory);
+
+        WritePlan write = await GroupWrites.PlanAsync(backends, GroupRelation.Owners, false, GroupWrites.FromArguments(Sales, ["alice@contoso.com"]), Ct);
+
+        Assert.Equal([ExoCmdlets.GetDistributionGroup, ExoCmdlets.GetRecipient], sidecar.Commands.Select(command => command.Cmdlet));
+        Assert.Empty(write.Plan.Changes);
+    }
+
+    [Fact]
     public async Task RemovingOneOfTwoOwnersKeepsAnOwner()
     {
         WritePlan write = await GroupWrites.PlanAsync(Directory(), GroupRelation.Owners, false, GroupWrites.FromArguments(Project, ["bob@contoso.com"]), Ct);

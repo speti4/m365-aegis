@@ -319,6 +319,7 @@ public sealed class MsalTokenBroker : ITokenBroker
     /// The cache file of a home folder, <see cref="CacheFileName"/>: the home created with its access list first
     /// (<see cref="Config.AegisHome.Create"/>, task 075), DPAPI on Windows, the plain file elsewhere.
     /// </summary>
+    [ExcludeFromCodeCoverage(Justification = "one side per operating system (DPAPI on Windows, the plain file elsewhere) of MSAL's cache helper; the token-hygiene tests run it on Windows (docs/development.md, Coverage)")]
     internal static Task<MsalCacheHelper> CreateCacheAsync(string home)
     {
         var storage = new StorageCreationPropertiesBuilder(CacheFileName, Config.AegisHome.Create(home));

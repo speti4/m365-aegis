@@ -94,7 +94,7 @@ public static class PlanPrune
 
     /// <summary>Removes one record; a file gone in the meantime is removed already.</summary>
     /// <exception cref="AegisException">The file system refused (<see cref="FailureKind.Forbidden"/>, exit code 8).</exception>
-    private static void Remove(string path, string name)
+    internal static void Remove(string path, string name)
     {
         try
         {

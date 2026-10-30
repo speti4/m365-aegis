@@ -265,9 +265,7 @@ public sealed class SidecarClient : IAsyncDisposable
             timeoutSource.CancelAfter(timeout);
             try
             {
-                await _process.StandardInput.WriteAsync(JsonSerializer.Serialize(message).AsMemory(), timeoutSource.Token).ConfigureAwait(false);
-                await _process.StandardInput.WriteAsync("\n".AsMemory(), timeoutSource.Token).ConfigureAwait(false);
-                await _process.StandardInput.FlushAsync(timeoutSource.Token).ConfigureAwait(false);
+                await WriteQuietlyAsync(_process.StandardInput, JsonSerializer.Serialize(message) + "\n", timeoutSource.Token).ConfigureAwait(false);
                 while (true)
                 {
                     string? line = await _process.StandardOutput.ReadLineAsync(timeoutSource.Token).ConfigureAwait(false);
@@ -285,10 +283,6 @@ public sealed class SidecarClient : IAsyncDisposable
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 throw Unavailable($"the Exchange Online sidecar did not answer '{type}' within {timeout.TotalSeconds:0} s");
-            }
-            catch (IOException exception)
-            {
-                throw Unavailable($"the Exchange Online sidecar stopped while answering '{type}' ({exception.Message})");
             }
         }
         finally
@@ -338,6 +332,25 @@ public sealed class SidecarClient : IAsyncDisposable
         catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
             // Already gone.
+        }
+    }
+
+    /// <summary>
+    /// Writes a message line to the child. A child that has ended breaks the pipe, and whether the write fails depends
+    /// on what else holds the pipe's read end at that moment; either way the read that follows meets the end of the
+    /// stream and says the sidecar stopped, so a failed write is left to it.
+    /// </summary>
+    [ExcludeFromCodeCoverage(Justification = "The catch runs only when the write reaches a pipe whose read end has closed, which depends on what else holds that end at the moment; the read after it reports the stop either way.")]
+    private static async Task WriteQuietlyAsync(StreamWriter input, string line, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await input.WriteAsync(line.AsMemory(), cancellationToken).ConfigureAwait(false);
+            await input.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (IOException)
+        {
+            // The child ended; its end of the stream answers below.
         }
     }
 

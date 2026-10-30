@@ -157,7 +157,7 @@ public sealed class PlanResume
     }
 
     /// <summary>Whether the new plan names a pending change of the record, as a change or as an object already as asked.</summary>
-    private static bool Continued(PlanChange pending, Plan fresh, List<int> kept, List<PlanUnchanged> unchanged)
+    internal static bool Continued(PlanChange pending, Plan fresh, List<int> kept, List<PlanUnchanged> unchanged)
     {
         if (pending.Key is { } ids
             && (kept.Any(index => fresh.Changes[index].Action == pending.Action && string.Equals(fresh.Changes[index].Key, ids, StringComparison.OrdinalIgnoreCase))

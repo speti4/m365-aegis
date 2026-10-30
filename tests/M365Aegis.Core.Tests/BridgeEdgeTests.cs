@@ -147,6 +147,26 @@ public sealed class BridgeEdgeTests
         Assert.EndsWith("last connect none", exchange.Describe(), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task AMailboxAccessUnderVerboseNamesItsLayersAndOneThatFailedHasNone()
+    {
+        string home = ProfileStoreTests.TempHome();
+        await using var exchange = new WindowExchange(() => SidecarFixtures.Session());
+
+        using (LogSink.UseVerbose(LogSink.ForHome(home)))
+        {
+            BridgeDispatcher dispatcher = Dispatcher(exchange);
+            BridgeMessage? found = await dispatcher.DispatchAsync(new BridgeMessage(BridgeProtocol.Version, "2", "mailbox-access", JsonNode.Parse("""{"mailbox":"finance"}""")), Ct);
+            BridgeMessage? missing = await dispatcher.DispatchAsync(new BridgeMessage(BridgeProtocol.Version, "3", "mailbox-access", JsonNode.Parse("""{"mailbox":"nobody-at-all"}""")), Ct);
+            Assert.Equal("mailbox-holders", found?.Type);
+            Assert.Equal("error", missing?.Type);
+        }
+
+        string[] lines = File.ReadAllLines(Assert.Single(Directory.GetFiles(Path.Combine(home, LogSink.FolderName))));
+        Assert.Contains(lines, line => line.Contains("mailbox-access answered in", StringComparison.Ordinal) && line.Contains(" (", StringComparison.Ordinal));
+        Assert.Equal(2, lines.Count(line => line.Contains("mailbox-access answered in", StringComparison.Ordinal)));
+    }
+
     private static async Task WaitUntil(Func<bool> condition)
     {
         for (int attempt = 0; attempt < 200 && !condition(); attempt++)
