@@ -119,6 +119,25 @@ count is within or under the model. The shared items were not counted (the raw `
 the maintainer declined `Sites.FullControl.All` as too strong a consent for this tool: the sharing-link read of task
 092 measures what `Sites.Read.All` gives, which may narrow the store's sharing scope but not its shape.
 
+**The sharing read, measured on 2026-10-31 (task 092)** under the delegated `Sites.Read.All` the app has, over six
+of the tenant's 106 site drives with the cached token. The route task 087 builds: the sites from `/sites?search=*`
+(111, one page); the drive and the group behind each site from `/sites/{id}/drive?$select=id,owner,quota,driveType`
+in `$batch` of 20 (`owner.group` names the Microsoft 365 group for 93 of the 106 drives; 3 sites have no drive, 2 are
+`accessDenied` for the administrator and are recorded as failed in the manifest; `/groups/{id}/sites/root` is not the
+route, 1 of 5 answered); the shared items from the drive's `delta` with `Prefer: hierarchicalsharing` (an item with a
+`shared` facet is one whose sharing differs from its parent's: 372 of 13,701 items on the largest drive against 1,006
+of 1,007 without the header, so the preference is honored although no `Preference-Applied` header is returned; about
+2 s a 1000-item page, 33,042 items in 74 s); the grantees from each marked item's `permissions` (274 calls, every one
+200, 354 ms a call, 7.5 entries an item). The store keeps the link entries (scope, type, roles, expiry, password flag;
+never the URL) with the users of a `users` link from `grantedToIdentitiesV2`, and the direct grants to a user or an
+Entra group from `grantedToV2`; it drops the site's own SharePoint groups (`siteGroup`, 822 of 2,042 entries, which the
+group behind the site already covers) and the entries inherited from a parent in the snapshot (203). The sample
+carried 459 organization links, 26 `users` links and no anonymous link. The gap of the read-only consent: other users'
+OneDrives answer 403 (`/me/drive` 200), so the sharing domain is the SharePoint sites' document libraries and the
+manifest records OneDrive as skipped. The estimate for the tenant: about 4,400 marked items and 20,000 grantee rows,
+within the model; sequentially about 26 minutes of permission calls, so the take batches them and reads a few drives
+in parallel, and keeps each drive's `deltaLink` in the manifest for a later incremental take.
+
 ## Not chosen
 
 - **JSON, one file per domain, gzip** (3.3 MB, 255 ms cold): no package and the smallest file, the runner-up; but the

@@ -38,27 +38,57 @@ tenant's values stay in a scratch file, and only counts, timings and scrubbed sh
 
 ## Steps
 
-1. [ ] The route on paper: the drive's `delta` with `Prefer: hierarchicalsharing`, the marked items' `permissions`, the
+1. [x] The route on paper: the drive's `delta` with `Prefer: hierarchicalsharing`, the marked items' `permissions`, the
        group behind a site (`/sites/{id}/drive` and `/groups/{id}/sites/root`), what the Graph reference says about
        `Sites.Read.All` for each call
-2. [ ] The measurement over a few live sites with the cached token: items returned, items marked as shared, the
+2. [x] The measurement over a few live sites with the cached token: items returned, items marked as shared, the
        permissions read per marked item and what came back empty or forbidden, the time per site, OneDrives in or out
-3. [ ] The extrapolation to the tenant's 111 sites and the gap named: what the read-only scope misses and what the
+3. [x] The extrapolation to the tenant's 111 sites and the gap named: what the read-only scope misses and what the
        store's sharing domain holds under it
-4. [ ] D-011's note (or a new decision proposed to the maintainer), the route sent to the task session of 087, the
-       Verification dated; `tasks_check` with `write` at the close on `main`
+4. [x] D-011's note (the maintainer chose the note over a new decision on 2026-10-31), the route sent to the task
+       session of 087, the Verification dated; `tasks_check` with `write` at the close on `main`
 
 ## Log
 
 - 2026-10-31 — promoted on `main` by the main session (a spike with no build; the admin-bypass housekeeping commit)
+- 2026-10-31 — measured with a throwaway .NET 10 console in the scratchpad (a project reference to the Core for
+  `AuthService.Create().GetAccessTokenAsync(Resource.Graph)`, then `HttpClient` with the `Prefer` header, which the
+  Core's `GraphRequest` cannot send; one cached token, no sign-in). The sample: the six drives of the tenant's 106 (the
+  four largest by quota used, 70 to 720 GB, and two from the middle), the `permissions` of up to 60 marked items a
+  drive; the raw answers stayed in the scratchpad
+- 2026-10-31 — the route sent to the task session of 087 (below, Verification); OneDrives are out under the consent;
+  the maintainer chose a dated note in D-011 over a new decision (the shape holds, the sharing domain narrows), written
+  the same day; the `docs/development.md` line is task 087's with the route (its *Docs that move*)
 
 ## Deviations from the plan
 
-- none yet
+- `/groups/{id}/sites/root` is not the route to the group behind a site (1 of 5 Microsoft 365 groups answered):
+  the drive's `owner.group` from `/sites/{id}/drive` is, and it comes in a `$batch` for every site at once
+- The `shared` facet's `scope` on a delta item is not the link's scope (`users` on 358 of 372 marked items while the
+  permissions carried 459 organization links): the facet marks the item, the `permissions` call tells what is shared
 
 ## Verification
 
-- <dated, concrete: what was run, what it showed, before/after where a number changed>
+- 2026-10-31 — the read under delegated `Sites.Read.All`, the maintainer's cached token, over the tenant:
+
+  | call | result |
+  | --- | --- |
+  | `GET /sites?search=*` | 111 sites, one page, 1,165 ms; no OneDrive (personal site) among them |
+  | `GET /sites/{id}/drive?$select=id,owner,quota,driveType`, 6 `$batch` of 20 | 4,404 ms; 106 drives, 93 owned by a group (`owner.group`), 3 sites without a drive (404), 2 `accessDenied` (403) for the administrator |
+  | `GET /drives/{id}/root/delta?$select=…,shared,…&$top=1000` + `Prefer: hierarchicalsharing`, six drives | 33,042 items in 74,056 ms (about 2 s a 1000-item page); 1,397 marked `shared`; the largest drive 13,701 items, 14 pages, 27,320 ms, 372 marked |
+  | the same first page without the header | 1,006 of 1,007 items marked: the preference is honored although no `Preference-Applied` header is returned |
+  | `GET /drives/{id}/items/{item}/permissions`, 274 marked items | 274 × 200, 96,945 ms (354 ms a call), 2,042 entries (7.5 an item): 485 links (organization 459: edit 448, view 11; users 26: edit 21, view 5; anonymous 0), 1,557 direct grants (siteGroup 822, user 493, Entra group 240, siteUser 2), 203 inherited; roles owner 934, write 811, read 297; the grantees of a `users` link in `grantedToIdentitiesV2[].user`, an organization link with an empty list (84) |
+  | `GET /users/{id}/drive`, 3 users | 403 for a provisioned OneDrive, 404 for two unprovisioned; `GET /me/drive` 200 |
+  | `GET /groups/{id}/sites/root`, 5 Microsoft 365 groups | 1 × 200, 4 refused: not the route |
+
+- 2026-10-31 — the extrapolation: the four largest drives carry 216 to 388 marked items each, the two middle ones 9
+  and 25; about 4,400 marked items over the 106 drives, about 20,000 grantee rows once the site groups and the
+  inherited entries are dropped (D-011's model: 9,900 items, 12,400 grantees; stress 170,000 items). Sequential, the
+  delta is about 2 ms an item and the permissions 0.35 s a marked item (about 26 minutes for the tenant); `$batch` of
+  20 and a few drives in parallel bring the sharing domain within minutes for a nightly take. Nothing was throttled.
+- 2026-10-31 — the gap under the read-only consent: other users' OneDrives (403) stay out of the store, and a site the
+  administrator cannot open (2 of 106) is recorded as failed in the manifest; the shape of D-011 holds, the sharing
+  domain is the SharePoint sites' document libraries
 
 ## Closing checklist
 
