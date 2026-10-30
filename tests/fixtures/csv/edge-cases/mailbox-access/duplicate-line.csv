@@ -1,0 +1,4 @@
+mailbox,user,right
+finance,bob@contoso.com,FullAccess
+finance,bob@contoso.com,FullAccess
+reception,carol@contoso.com,SendAs

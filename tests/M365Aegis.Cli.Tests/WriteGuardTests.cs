@@ -109,7 +109,7 @@ public sealed class WriteGuardTests
     }
 
     /// <summary>The commands of the tree that carry both guard flags, by their path under the root.</summary>
-    private static Dictionary<string, Command> WriteCommands()
+    internal static Dictionary<string, Command> WriteCommands()
     {
         var writes = new Dictionary<string, Command>(StringComparer.Ordinal);
         void Walk(Command command, string path)
@@ -129,7 +129,7 @@ public sealed class WriteGuardTests
         return writes;
     }
 
-    private static bool Has(Command command, string option) => command.Options.Any(candidate => candidate.Name == option);
+    internal static bool Has(Command command, string option) => command.Options.Any(candidate => candidate.Name == option);
 
     /// <summary>The inputs of one write command.</summary>
     /// <param name="Arguments">The arguments after the command's path.</param>
@@ -137,7 +137,7 @@ public sealed class WriteGuardTests
     private sealed record WriteInputs(string[] Arguments, string? Csv);
 
     /// <summary>The runs of one test: a temporary home, the request log and the fake module's write file.</summary>
-    private sealed class GuardRun
+    internal sealed class GuardRun
     {
         private readonly string _home = PlanSamples.TempHome();
         private readonly string _requests;

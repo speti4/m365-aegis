@@ -150,3 +150,14 @@ every fixture.
 Tasks 071 to 075. `csv/mailbox-forwarding-clear.csv` (bob, who forwards to `bob@fabrikam.com`, and carol, who forwards
 to the recipient Finance) is the `--from-csv` sample of `mailbox forwarding clear`, which the write-guard test runs
 next to the other writes' samples (task 071).
+
+`csv/edge-cases/<family>/<case>.csv` are the CSV edge cases of task 074: for each set of columns (`group`:
+`group,user`; `mailbox-access`: `mailbox,user,right`; `forwarding-set`: `mailbox,to,keepCopy`; `forwarding-clear`:
+`mailbox`) one file per case, `bom-crlf` (a UTF-8 byte order mark and CRLF, as Excel writes "CSV UTF-8"), `lf`,
+`quoted-comma` (a made-up name with a comma in quotes: `"Finance, EU"`), `surrounding-spaces`, `header-case-order`,
+`duplicate-line` (line 3 repeats line 2), `trailing-empty-lines` and `malformed-last-line` (line 4). Each carries the
+same two lines (Finance with dave and bob; finance and reception; alice and carol forwarding to `fabrikam.com`; bob and
+carol) so the dry runs plan against the recorded answers and the fake module. The rules of a CSV fixture: the made-up
+names of every fixture, no file without a case in `CsvEdgeCaseTests.CaseNames` (the test checks every family has
+exactly those), and the bytes as written, which `.gitattributes` keeps (`tests/fixtures/** -text`): an editor that
+saves the BOM away or the line endings to LF breaks the case, so a change is made with a script that writes bytes.

@@ -935,6 +935,20 @@ without its inputs, which needs no table line. A new write command joins the enu
 `EveryWriteCommandHasItsInputs` until it has a line in the test's table of inputs (its arguments, its CSV sample), so
 it cannot land without the guard test.
 
+**The CSV edge cases** (task 074, `tests/M365Aegis.Core.Tests/Operations/CsvEdgeCaseTests.cs` and
+`tests/M365Aegis.Cli.Tests/CsvEdgeCaseCommandTests.cs`). They pin what [A batch from a CSV file](#writes-and-plans)
+promises, over one file per case for each set of columns under `tests/fixtures/csv/edge-cases/<family>/<case>.csv`
+(`group`, `mailbox-access`, `forwarding-set`, `forwarding-clear`). Every write's reader (the group writes', grant's,
+revoke's, forwarding set's and clear's) reads every case in process; every write that takes `--from-csv` (found in the
+tree, as the guard test finds it) runs three of them as a child process under `--dry-run`. What the tests hold: a file
+with a UTF-8 byte order mark and CRLF line endings (Excel's "CSV UTF-8") and one with LF read alike; a cell in double
+quotes holds a comma; spaces around a cell, a quoted cell and a header's name are trimmed; the header's names match in
+any case and order; blank lines at the end (and lines of nothing but spaces) are skipped; a line that repeats an
+earlier one is planned once, the repeat listed unchanged with its line ("named twice: the change is planned once"),
+while for `mailbox forwarding set` and `clear` it is a usage error naming both lines (`duplicate-line.csv: alice is
+named twice (lines 2 and 3)`); a malformed last line refuses the whole file with exit code 2 and its line number
+(`malformed-last-line.csv, line 4: 1 cell(s), the header has 2`), with the backend `local`, nothing sent.
+
 ## CI and releases
 
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request, under a minutes budget (D-005).
