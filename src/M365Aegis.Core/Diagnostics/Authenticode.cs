@@ -109,7 +109,9 @@ public static partial class Authenticode
                 StateAction = 1, // WTD_STATEACTION_VERIFY: keep the state, to read the signer
                 ProviderFlags = 0x1000 | 0x10, // WTD_CACHE_ONLY_URL_RETRIEVAL | WTD_REVOCATION_CHECK_NONE
             };
-            Guid action = GenericVerifyV2;
+            // WINTRUST_ACTION_GENERIC_VERIFY_V2, the Authenticode policy; a local, so no static initializer runs off
+            // Windows, where nothing here is measured.
+            Guid action = new("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
             int code = WinVerifyTrust(IntPtr.Zero, ref action, ref data);
             string? signer = Signer(data.StateData);
             data.StateAction = 2; // WTD_STATEACTION_CLOSE
@@ -156,9 +158,6 @@ public static partial class Authenticode
         using var certificate = new X509Certificate2(context);
         return certificate.Subject;
     }
-
-    /// <summary><c>WINTRUST_ACTION_GENERIC_VERIFY_V2</c>: the Authenticode policy.</summary>
-    private static readonly Guid GenericVerifyV2 = new("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
 
     [GeneratedRegex(@"^(?:m365-aegis[A-Za-z0-9-]*\.(?:exe|dll)|M365Aegis\.[A-Za-z0-9.]+\.dll)$", RegexOptions.IgnoreCase)]
     private static partial Regex ProductFile();

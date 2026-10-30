@@ -88,6 +88,9 @@ as a `D-` record (task sessions create no ids), and the maintainer decides it.
   and the `WinVerifyTrust` code. Fail (not required): a signature that does not hold. Skipped off Windows and without
   a product file. The expected publisher is not pinned: it waits for the decision below (a follow-up). The interop is
   excluded from the coverage and listed in docs/development.md, Coverage; the names and the code verdicts are tested.
+- 2026-10-30 — CI's first run of the pull request: the `dotnet` job's gate on Linux found one unmeasured line, the
+  static `Guid` of the Authenticode policy, whose initializer never runs off Windows; it became a local of the
+  excluded `Verify`. Every other job, `windows` with the signing tests and the signed dry run included, was green.
 - 2026-10-30 — the certificate decision, drafted for the main session to file as a `proposed` D- record (the PR text
   carries the same):
   - **Context.** The release job signs the product's exes and assemblies with a certificate from the `release`
