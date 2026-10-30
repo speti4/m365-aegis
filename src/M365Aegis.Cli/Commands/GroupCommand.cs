@@ -11,9 +11,9 @@ namespace M365Aegis.Cli.Commands;
 /// <c>m365-aegis group members|owners &lt;name or id&gt;</c> (<c>members --transitive</c>, task 033) and
 /// <c>group owners-missing [--all-types]</c> (task 005):
 /// the reads of the groups domain over Graph (a distribution or mail-enabled security group's owners over Exchange
-/// Online, task 076), and the writes <c>group members|owners add|remove</c> behind a plan
-/// (task 052, <c>--from-csv</c> task 054). A name resolves as <see cref="GroupLookups.ResolveAsync"/> says; an
-/// ambiguous one exits 4 with the candidates in the hint.
+/// Online, task 076, and its <c>ManagedBy</c> under <c>owners-missing --all-types</c>, task 089), and the writes
+/// <c>group members|owners add|remove</c> behind a plan (task 052, <c>--from-csv</c> task 054). A name resolves as
+/// <see cref="GroupLookups.ResolveAsync"/> says; an ambiguous one exits 4 with the candidates in the hint.
 /// </summary>
 internal static class GroupCommand
 {
@@ -51,15 +51,23 @@ internal static class GroupCommand
 
         Option<bool> allTypes = new("--all-types")
         {
-            Description = "Also list the distribution, mail-enabled security and synced groups, whose owners Graph does not keep.",
+            Description = "Also list the groups whose owners Graph does not keep: a distribution or mail-enabled security group when its ManagedBy in Exchange Online is empty, and the synced groups.",
         };
         Command missing = new("owners-missing", "List every group without an owner.");
         missing.Options.Add(allTypes);
-        missing.SetAction((parsed, cancellationToken) => GraphRunner.RunAsync(
-            parsed, json, table, profile,
-            (graph, ct) => GroupLookups.OwnerlessAsync(graph, parsed.GetValue(allTypes), ct),
-            OwnerlessGroupsTableView.Instance,
-            cancellationToken));
+
+        // Only --all-types asks Exchange Online (task 089): the default list stays on Graph alone.
+        missing.SetAction((parsed, cancellationToken) => parsed.GetValue(allTypes)
+            ? ExchangeRunner.RunAsync(
+                parsed, json, table, profile,
+                (ExchangeBackends backends, CancellationToken ct) => GroupLookups.OwnerlessAsync(backends, allTypes: true, ct),
+                OwnerlessGroupsTableView.Instance,
+                cancellationToken)
+            : GraphRunner.RunAsync(
+                parsed, json, table, profile,
+                (graph, ct) => GroupLookups.OwnerlessAsync(graph, allTypes: false, ct),
+                OwnerlessGroupsTableView.Instance,
+                cancellationToken));
 
         members.Subcommands.Add(Write("add", GroupRelation.Members, add: true, json, table, profile));
         members.Subcommands.Add(Write("remove", GroupRelation.Members, add: false, json, table, profile));
@@ -258,6 +266,24 @@ internal sealed class OwnerlessGroupsTableView : ITableView<OwnerlessGroups>
                 CultureInfo.InvariantCulture,
                 "{0} distribution, mail-enabled security or synced group(s) left out: Graph keeps no owners for them (--all-types lists them)",
                 data.LeftOut);
+        }
+
+        // Under --all-types (task 089): the groups Exchange Online's ManagedBy owns, and the synced ones Graph judged.
+        if (data.ManagedInExchange > 0)
+        {
+            yield return string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} distribution or mail-enabled security group(s) left out: their ManagedBy in Exchange Online names an owner",
+                data.ManagedInExchange);
+        }
+
+        int synced = data.Groups.Count(group => group.Synced);
+        if (synced > 0)
+        {
+            yield return string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} synced group(s) as Graph lists them: Graph keeps no owners for them, on-premises Active Directory manages them",
+                synced);
         }
     }
 }

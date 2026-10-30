@@ -413,6 +413,17 @@ Describe 'the owners of a distribution group against the fake module (task 064, 
         @($run.Lines[2].data.errors).Count | Should -Be 1
     }
 
+    It 'reads every group''s object id and ManagedBy in one call without an identity (task 089)' {
+        $read = Get-InvokeLine -Id '3' -Cmdlet 'Get-DistributionGroup' -Parameters @{ ResultSize = 'Unlimited' } -Properties @('ExternalDirectoryObjectId', 'ManagedBy')
+        $run = Invoke-Sidecar -Lines @($script:Connect, $read)
+        $run.Lines[1].type | Should -Be 'result'
+        $groups = @($run.Lines[1].data.items)
+        $groups.Count | Should -Be 4
+        $groups[0].PSObject.Properties.Name | Should -Be @('ExternalDirectoryObjectId', 'ManagedBy')
+        @(($groups | Where-Object { $_.ExternalDirectoryObjectId -eq '00000000-0000-0000-0000-00000000003b' }).ManagedBy).Count | Should -Be 0
+        @(($groups | Where-Object { $_.ExternalDirectoryObjectId -eq '00000000-0000-0000-0000-00000000003d' }).ManagedBy) | Should -Be @('alice')
+    }
+
     It 'adds an owner and removes another through ManagedBy, which a later read lists, and the fake records both calls' {
         $add = Get-InvokeLine -Id '3' -Cmdlet 'Set-DistributionGroup' -Parameters @{ Identity = 'sales@contoso.com'; ManagedBy = @{ Add = @('dave@contoso.com') }; BypassSecurityGroupManagerCheck = $true; Confirm = $false }
         $remove = Get-InvokeLine -Id '4' -Cmdlet 'Set-DistributionGroup' -Parameters @{ Identity = 'sales@contoso.com'; ManagedBy = @{ Remove = @('alice@contoso.com') }; BypassSecurityGroupManagerCheck = $true; Confirm = $false }

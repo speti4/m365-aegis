@@ -1,5 +1,6 @@
 using System.Globalization;
 using M365Aegis.Core.Exchange;
+using M365Aegis.Core.Exchange.Sidecar;
 using M365Aegis.Core.Graph;
 using M365Aegis.Core.Output;
 
@@ -373,6 +374,58 @@ public static class GroupLookups
         List<GroupInfo> all = Sorted(groups);
         List<GroupInfo> listed = allTypes ? all : all.Where(group => group.OwnersInGraph).ToList();
         return CommandResult.Success(new OwnerlessGroups(listed, all.Count - listed.Count));
+    }
+
+    /// <summary>
+    /// <c>group owners-missing [--all-types]</c> over the layers of the run (task 089): the list of
+    /// <see cref="OwnerlessAsync(GraphClient, bool, CancellationToken)"/>, and under <paramref name="allTypes"/> a
+    /// distribution or mail-enabled security group that is not synced, whose owners Graph does not keep, judged by its
+    /// <c>ManagedBy</c> in Exchange Online instead: one <c>Get-DistributionGroup -ResultSize Unlimited</c> through the
+    /// sidecar reads every such group's object id and <c>ManagedBy</c>, a group whose <c>ManagedBy</c> names anyone is
+    /// left out (<see cref="OwnerlessGroups.ManagedInExchange"/> counts them), and one Exchange does not list stays as
+    /// Graph lists it. A synced group stays Graph's judgment, and without <paramref name="allTypes"/> nothing is asked of
+    /// Exchange. The envelope's backend names the layers used: <c>graph+pwsh</c>, or <c>graph</c> when Graph listed no
+    /// group Exchange owns.
+    /// </summary>
+    public static async Task<CommandResult<OwnerlessGroups>> OwnerlessAsync(ExchangeBackends backends, bool allTypes, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(backends);
+        CommandResult<OwnerlessGroups> listed = await OwnerlessAsync(backends.Graph, allTypes, cancellationToken).ConfigureAwait(false);
+        if (!allTypes)
+        {
+            return listed;
+        }
+
+        OwnerlessGroups graph = listed.Data!;
+        if (!graph.Groups.Any(GroupWrites.ThroughExchange))
+        {
+            return CommandResult.Success(graph with { ManagedInExchange = 0 });
+        }
+
+        HashSet<string> managed = await ManagedGroupsAsync(backends.Sidecar, cancellationToken).ConfigureAwait(false);
+        List<GroupInfo> ownerless = graph.Groups.Where(group => !GroupWrites.ThroughExchange(group) || !managed.Contains(group.Id)).ToList();
+        return CommandResult.Success(graph with { Groups = ownerless, ManagedInExchange = graph.Groups.Count - ownerless.Count });
+    }
+
+    /// <summary>
+    /// The object ids of the distribution and mail-enabled security groups whose <c>ManagedBy</c> names an owner: one
+    /// <c>Get-DistributionGroup -ResultSize Unlimited</c> over every such group of the organization (task 089), each
+    /// kept with its <c>ExternalDirectoryObjectId</c> (the group's object id in Graph) and <c>ManagedBy</c> only.
+    /// </summary>
+    internal static async Task<HashSet<string>> ManagedGroupsAsync(IExoCmdletRunner sidecar, CancellationToken cancellationToken)
+    {
+        ExoResult groups = await sidecar.InvokeAsync(
+            new ExoCommand(ExoCmdlets.GetDistributionGroup)
+            {
+                Parameters = new Dictionary<string, object?> { ["ResultSize"] = "Unlimited" },
+                Properties = ["ExternalDirectoryObjectId", "ManagedBy"],
+            },
+            cancellationToken).ConfigureAwait(false);
+        return groups.Items
+            .Where(group => group.Texts("ManagedBy").Count > 0)
+            .Select(group => group.Text("ExternalDirectoryObjectId"))
+            .OfType<string>()
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>The paged advanced query of the groups a filter names, at the largest page.</summary>

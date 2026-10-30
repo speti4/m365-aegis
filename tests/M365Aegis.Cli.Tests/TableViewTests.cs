@@ -201,6 +201,19 @@ public sealed class TableViewTests
 
         Assert.Contains("Finance|distribution, synced|-|", table, StringComparison.Ordinal);
         Assert.DoesNotContain("left out", table, StringComparison.Ordinal);
+        Assert.Contains("1 synced group(s) as Graph lists them", table, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnOwnerlessListExchangeJudged()
+    {
+        // Task 089: two groups left out by their ManagedBy, none synced.
+        string table = Show(OwnerlessGroupsTableView.Instance, new OwnerlessGroups([Finance], LeftOut: 0) { ManagedInExchange = 2 });
+        string none = Show(OwnerlessGroupsTableView.Instance, new OwnerlessGroups([Finance], LeftOut: 0) { ManagedInExchange = 0 });
+
+        Assert.Contains("2 distribution or mail-enabled security group(s) left out: their ManagedBy in Exchange Online names an owner", table, StringComparison.Ordinal);
+        Assert.DoesNotContain("synced", table, StringComparison.Ordinal);
+        Assert.DoesNotContain("left out", none, StringComparison.Ordinal);
     }
 
     [Fact]
