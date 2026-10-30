@@ -98,44 +98,78 @@ public sealed class HomeFolderAclTests
         DoctorCheck check = Doctor.CheckHomeAccess(environment);
 
         Assert.Equal(CheckStatus.Warn, check.Status);
-        Assert.Contains("Users (inherited)", check.Detail, StringComparison.Ordinal);
-        Assert.Contains("Authenticated Users (inherited)", check.Detail, StringComparison.Ordinal);
+        Assert.Matches(@"(^|\), )Users \(read, inherited\)", check.Detail);
+        Assert.Contains("Authenticated Users (read, inherited)", check.Detail, StringComparison.Ordinal);
         Assert.NotNull(check.Hint);
-        Assert.StartsWith("icacls ", check.Hint, StringComparison.Ordinal);
 
         // The hint is a command line the user runs as it is: icacls takes it, and afterwards the check passes and the
         // home holds the list of a home the product creates.
-        var startInfo = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "icacls.exe"), check.Hint["icacls ".Length..])
+        RunIcacls(check.Hint);
+
+        Assert.Equal(CheckStatus.Pass, Doctor.CheckHomeAccess(environment).Status);
+        AssertTheUsersOwn(home);
+    }
+
+    [Fact]
+    public void TheDoctorNamesAnotherAccountTheHomeInheritsAndItsFixLineRemovesIt()
+    {
+        // Task 088: not one of the broad groups but a sandbox group with read and a service account with modify,
+        // inherited from the parent; the detail names both with their rights, and the fix line still makes the home
+        // the user's own.
+        Assert.SkipUnless(OperatingSystem.IsWindows(), NotWindows);
+        var packages = new SecurityIdentifier("S-1-15-2-1");
+        var networkService = new SecurityIdentifier(WellKnownSidType.NetworkServiceSid, null);
+        string home = Path.Combine(Parent((packages, FileSystemRights.ReadAndExecute), (networkService, FileSystemRights.Modify)), "existing");
+        Directory.CreateDirectory(home);
+        DoctorEnvironment environment = DoctorEnvironment.ForThisMachine(home, null);
+
+        DoctorCheck check = Doctor.CheckHomeAccess(environment);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.Contains($"{Name(packages)} (read, inherited)", check.Detail, StringComparison.Ordinal);
+        Assert.Contains($"{Name(networkService)} (modify, inherited)", check.Detail, StringComparison.Ordinal);
+        Assert.Contains("an account other than you, SYSTEM and Administrators", check.Detail, StringComparison.Ordinal);
+        RunIcacls(check.Hint!);
+
+        Assert.Equal(CheckStatus.Pass, Doctor.CheckHomeAccess(environment).Status);
+        AssertTheUsersOwn(home);
+    }
+
+    /// <summary>The fix line of the doctor, run as the user would run it.</summary>
+    private static void RunIcacls(string hint)
+    {
+        Assert.StartsWith("icacls ", hint, StringComparison.Ordinal);
+        var startInfo = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "icacls.exe"), hint["icacls ".Length..])
         {
             UseShellExecute = false,
             RedirectStandardOutput = true,
             CreateNoWindow = true,
         };
-        using (Process icacls = Process.Start(startInfo)!)
-        {
-            string output = icacls.StandardOutput.ReadToEnd();
-            icacls.WaitForExit();
-            Assert.True(icacls.ExitCode == 0, $"icacls exited with {icacls.ExitCode}: {output}");
-        }
-
-        Assert.Equal(CheckStatus.Pass, Doctor.CheckHomeAccess(environment).Status);
-        AssertTheUsersOwn(home);
+        using Process icacls = Process.Start(startInfo)!;
+        string output = icacls.StandardOutput.ReadToEnd();
+        icacls.WaitForExit();
+        Assert.True(icacls.ExitCode == 0, $"icacls exited with {icacls.ExitCode}: {output}");
     }
 
     /// <summary>
     /// A new temporary folder whose access list adds, for everything below it, read access for <c>Users</c> and
     /// <c>Authenticated Users</c>: the parent a home under <c>M365AEGIS_HOME</c> may have.
     /// </summary>
-    private static string ReadableParent()
+    private static string ReadableParent() => Parent(
+        (new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null), FileSystemRights.ReadAndExecute),
+        (new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null), FileSystemRights.ReadAndExecute));
+
+    /// <summary>A new temporary folder whose access list adds the given rights for everything below it.</summary>
+    private static string Parent(params (SecurityIdentifier Account, FileSystemRights Rights)[] readers)
     {
         var parent = new DirectoryInfo(Path.Combine(Path.GetTempPath(), "m365-aegis-tests", $"acl-{Guid.NewGuid():N}"));
         parent.Create();
         DirectorySecurity security = parent.GetAccessControl();
-        foreach (WellKnownSidType reader in new[] { WellKnownSidType.BuiltinUsersSid, WellKnownSidType.AuthenticatedUserSid })
+        foreach ((SecurityIdentifier account, FileSystemRights rights) in readers)
         {
             security.AddAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(reader, null),
-                FileSystemRights.ReadAndExecute,
+                account,
+                rights,
                 InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
                 PropagationFlags.None,
                 AccessControlType.Allow));

@@ -55,16 +55,16 @@ tightened scan when they rebase; the task session owns the steps below and may r
 - 2026-10-31 — the scope: besides the fixture folders, the snapshots and `docs/usage.md`, the scan now reads every
   Markdown file at the root and under `docs/`, `tasks/` and `.github/` (the docs' links of the Context, and the task
   files the Not-in-this-change line counts on); the path-length rule stays on the fixture folders. 451 files.
-- 2026-10-31 — the findings of the tightened scan and what became of them: `System.IO` in `tests/sidecar/sidecar.Tests.ps1`
-  (9 lines; allow-listed as code), `40contoso.com` in a sign-ins fixture's file name (the URL escape, fixed in the
-  rule), the two example hosts of this task's own Context (rewritten to `<company>`), and over the prose the
-  Microsoft, GitHub, NuGet, PowerShell Gallery, DigiCert, research and library hosts (allow-listed, 24 entries, each
-  used at least once). No tenant value was found.
+- 2026-10-31 — the findings of the tightened scan and what became of them: `System.IO` in
+  `tests/sidecar/sidecar.Tests.ps1` (9 lines; allow-listed as code), a sign-ins fixture's file name whose `%40` was
+  read into the domain (fixed in the rule), the two example hosts of this task's own Context (rewritten to
+  `<company>`), and over the prose the Microsoft, GitHub, NuGet, PowerShell Gallery, DigiCert, research and library
+  hosts (allow-listed, 24 entries, each used at least once). No tenant value was found.
 - 2026-10-31 — `--self-test`: 16 lines with their expected verdict (a two-label domain, a `%40` address, another
-  tenant's SharePoint, `.onmicrosoft.com` and `mail.protection.outlook.com` hosts, a host that only starts like
-  Graph's, `evilmicrosoft.com`, a real GUID and a JWT are findings; the made-up names, the allowed hosts and file
-  names are not) and a temp fixture with `alice@<company>.hu` that must give exactly its file, line and host; the
-  `lint` job runs it before the scan.
+  tenant's SharePoint, `.onmicrosoft.com` and mail protection hosts, a host that only starts like Graph's, one that
+  only ends like Microsoft's, a real GUID and a JWT are findings; the made-up names, the allowed hosts and file names
+  are not) and a temp fixture with `alice@<company>.hu` that must give exactly its file, line and host; the `lint` job
+  runs it before the scan.
 - 2026-10-31 — `tests/fixtures/README.md` held its own text twice (a second copy from line 162 on, without the window
   bundle's section, since the merge of #89); the copy is removed and the rule is a new subsection under The rules.
 

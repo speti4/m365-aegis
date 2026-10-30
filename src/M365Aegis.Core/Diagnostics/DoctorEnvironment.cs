@@ -17,15 +17,20 @@ public sealed record EndpointAnswer(int? StatusCode, TimeSpan Elapsed, string? E
 
 /// <summary>The home folder's access list as the doctor reads it on Windows (task 078).</summary>
 /// <param name="User">The account the process runs as (<c>MACHINE\name</c> or <c>DOMAIN\name</c>), for the fix line.</param>
+/// <param name="UserSid">The SID of that account, which tells its own entries from another account's (task 088).</param>
 /// <param name="Entries">Every entry of the folder's access list, explicit and inherited.</param>
-public sealed record HomeAccess(string User, IReadOnlyList<AccessEntry> Entries);
+public sealed record HomeAccess(string User, string UserSid, IReadOnlyList<AccessEntry> Entries);
 
 /// <summary>One entry of a folder's access list, without the Windows types, so the check over it runs on every runner.</summary>
 /// <param name="Sid">The SID the entry is for, as a string (<c>S-1-5-32-545</c>).</param>
 /// <param name="Allow">An allow entry (false: a deny entry).</param>
 /// <param name="Rights">The access mask (<c>FileSystemRights</c>, generic rights included).</param>
 /// <param name="Inherited">Inherited from a folder above.</param>
-public sealed record AccessEntry(string Sid, bool Allow, int Rights, bool Inherited);
+/// <param name="Account">
+/// The account's name (<c>DOMAIN\name</c>) for the doctor's detail, or null when the SID does not resolve (a deleted
+/// account, a domain out of reach), and the detail names the SID (task 088).
+/// </param>
+public sealed record AccessEntry(string Sid, bool Allow, int Rights, bool Inherited, string? Account = null);
 
 /// <summary>
 /// What the doctor reads from the machine, each behind a seam the tests replace (task 008): the home folder's access
@@ -124,12 +129,29 @@ public sealed record DoctorEnvironment
             foreach (FileSystemAccessRule rule in new DirectoryInfo(home).GetAccessControl()
                 .GetAccessRules(includeExplicit: true, includeInherited: true, typeof(SecurityIdentifier)).OfType<FileSystemAccessRule>())
             {
-                entries.Add(new AccessEntry(rule.IdentityReference.Value, rule.AccessControlType == AccessControlType.Allow, (int)rule.FileSystemRights, rule.IsInherited));
+                var sid = (SecurityIdentifier)rule.IdentityReference;
+                entries.Add(new AccessEntry(sid.Value, rule.AccessControlType == AccessControlType.Allow, (int)rule.FileSystemRights, rule.IsInherited, AccountName(sid)));
             }
 
-            return new HomeAccess(WindowsIdentity.GetCurrent().Name, entries);
+            using WindowsIdentity user = WindowsIdentity.GetCurrent();
+            return new HomeAccess(user.Name, user.User!.Value, entries);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The account name of a SID, or null when it does not resolve.</summary>
+    [ExcludeFromCodeCoverage(Justification = ThisMachine)]
+    [SupportedOSPlatform("windows")]
+    private static string? AccountName(SecurityIdentifier sid)
+    {
+        try
+        {
+            return sid.Translate(typeof(NTAccount)).Value;
+        }
+        catch (Exception exception) when (exception is IdentityNotMappedException or SystemException)
         {
             return null;
         }

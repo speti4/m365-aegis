@@ -18,6 +18,7 @@ public sealed class DoctorTests
     /// <summary>The access masks of <c>FileSystemRights.FullControl</c> and <c>ReadAndExecute</c> (with <c>Synchronize</c>).</summary>
     private const int FullControl = 0x1F01FF;
     private const int ReadAndExecute = 0x1200A9;
+    private const int Modify = 0x1301BF;
 
     private static readonly byte[] Script = Encoding.UTF8.GetBytes("#Requires -Version 7.6\nparam()\n'hello'\n");
 
@@ -84,8 +85,65 @@ public sealed class DoctorTests
 
         DoctorCheck check = Doctor.CheckHomeAccess(environment);
 
-        Assert.Equal(new DoctorCheck("home-access", CheckStatus.Pass, "neither Everyone, Users nor Authenticated Users can read it", Required: false), check);
+        Assert.Equal(new DoctorCheck("home-access", CheckStatus.Pass, "only you, SYSTEM and Administrators can read it", Required: false), check);
     }
+
+    [Fact]
+    public void AnotherAccountThatCanReadTheHomeWarnsNamingItsRight()
+    {
+        // Task 088: a sandbox group or another user with an inherited right is named, with its right; a SID that does not
+        // resolve is named by itself; the user's own SID in another case, SYSTEM and Administrators are not judged.
+        string home = WithProfile();
+        DoctorEnvironment environment = Fake(home) with
+        {
+            ReadHomeAccess = _ => UserOnly(
+                new("S-1-15-2-1", Allow: true, ReadAndExecute, Inherited: true, @"APPLICATION PACKAGE AUTHORITY\ALL APPLICATION PACKAGES"),
+                new("S-1-5-21-0-0-0-1002", Allow: true, Modify, Inherited: true, @"CONTOSO\bob"),
+                new("S-1-5-21-0-0-0-1003", Allow: true, 0x1, Inherited: false),
+                new("s-1-5-21-0-0-0-1001", Allow: true, ReadAndExecute, Inherited: true, @"CONTOSO\alice"),
+                new("S-1-5-18", Allow: true, FullControl, Inherited: true, @"NT AUTHORITY\SYSTEM")),
+        };
+
+        DoctorCheck check = Doctor.CheckHomeAccess(environment);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.Equal(
+            @"APPLICATION PACKAGE AUTHORITY\ALL APPLICATION PACKAGES (read, inherited), CONTOSO\bob (modify, inherited), S-1-5-21-0-0-0-1003 (read) can read it: an account other than you, SYSTEM and Administrators can read the profiles, the plan records and the logs",
+            check.Detail);
+        Assert.Equal(
+            $"icacls \"{home}\" /inheritance:r /grant:r \"CONTOSO\\alice:(OI)(CI)F\" \"*S-1-5-18:(OI)(CI)F\" \"*S-1-5-32-544:(OI)(CI)F\" /remove:g *S-1-1-0 *S-1-5-32-545 *S-1-5-11 *S-1-5-21-0-0-0-1003",
+            check.Hint);
+    }
+
+    [Fact]
+    public void AnAccountWithSeveralEntriesIsNamedOnceWithItsStrongestRight()
+    {
+        // Two entries of one account add up, and an explicit one among them makes it more than inherited; one of the
+        // broad groups among the readers makes it every account on the machine.
+        DoctorEnvironment environment = Fake(WithProfile()) with
+        {
+            ReadHomeAccess = _ => UserOnly(
+                new("S-1-5-21-0-0-0-1002", Allow: true, ReadAndExecute, Inherited: true),
+                new("S-1-5-21-0-0-0-1002", Allow: true, Modify, Inherited: false, @"CONTOSO\bob"),
+                new("S-1-5-32-545", Allow: true, ReadAndExecute, Inherited: true, @"BUILTIN\Users")),
+        };
+
+        DoctorCheck check = Doctor.CheckHomeAccess(environment);
+
+        Assert.Equal(
+            @"CONTOSO\bob (modify), Users (read, inherited) can read it: every account on this machine can read the profiles, the plan records and the logs",
+            check.Detail);
+        Assert.EndsWith("/remove:g *S-1-1-0 *S-1-5-32-545 *S-1-5-11 *S-1-5-21-0-0-0-1002", check.Hint, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0x10000000, "full control")]
+    [InlineData(FullControl, "full control")]
+    [InlineData(Modify, "modify")]
+    [InlineData(ReadAndExecute, "read")]
+    [InlineData(unchecked((int)0x80000000), "read")]
+    public void TheRightOfAnEntryIsItsStrongestName(int rights, string expected) =>
+        Assert.Equal(expected, Doctor.RightName(rights));
 
     [Fact]
     public void AHomeTheBroadGroupsCanReadWarnsWithTheIcaclsLineThatFixesIt()
@@ -104,7 +162,7 @@ public sealed class DoctorTests
 
         Assert.Equal(CheckStatus.Warn, check.Status);
         Assert.False(check.Required);
-        Assert.Equal("Everyone, Users (inherited), Authenticated Users can read it: every account on this machine can read the profiles, the plan records and the logs", check.Detail);
+        Assert.Equal("Everyone (read), Users (read, inherited), Authenticated Users (full control) can read it: every account on this machine can read the profiles, the plan records and the logs", check.Detail);
         Assert.Equal(
             $"icacls \"{home}\" /inheritance:r /grant:r \"CONTOSO\\alice:(OI)(CI)F\" \"*S-1-5-18:(OI)(CI)F\" \"*S-1-5-32-544:(OI)(CI)F\" /remove:g *S-1-1-0 *S-1-5-32-545 *S-1-5-11",
             check.Hint);
@@ -608,6 +666,7 @@ public sealed class DoctorTests
     /// <summary>The access list a home the product created has (task 075), with the given entries added.</summary>
     private static HomeAccess UserOnly(params AccessEntry[] added) => new(
         @"CONTOSO\alice",
+        "S-1-5-21-0-0-0-1001",
         [
             new("S-1-5-21-0-0-0-1001", Allow: true, FullControl, Inherited: false),
             new("S-1-5-18", Allow: true, FullControl, Inherited: false),

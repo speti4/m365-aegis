@@ -347,7 +347,7 @@ three endpoints, the checks that need the network.
 | check | `warn` means | `fail` means, and the fix |
 | --- | --- | --- |
 | `home` (required) | the home folder does not exist yet; the first sign-in creates it | it is a file, not a folder: move the file away |
-| `home-access` | other accounts of the machine can read your profiles, plan records and logs: the fix line is an `icacls` command that gives the folder back to you alone | (never fails) |
+| `home-access` | an account other than you, `SYSTEM` and `Administrators` can read your profiles, plan records and logs (the row names each one with its right): the fix line is an `icacls` command that gives the folder back to you alone | (never fails) |
 | `dotnet-runtime` | (a fact: the .NET version the tool runs on) | |
 | `dotnet-desktop-runtime` | it is a patch behind the .NET runtime: `winget upgrade Microsoft.DotNet.DesktopRuntime.10` | not installed, the window cannot start: `winget install Microsoft.DotNet.DesktopRuntime.10` |
 | `pwsh` (required) | PowerShell's version could not be read | missing or older than 7.6: `winget install Microsoft.PowerShell` |

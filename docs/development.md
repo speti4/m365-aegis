@@ -1052,7 +1052,7 @@ that need the network.
 | check | required | pass | warn | fail (with the fix) |
 | --- | --- | --- | --- | --- |
 | `home` | yes | the folder exists | not created yet | a file, not a folder |
-| `home-access` | no | neither `Everyone`, `Users` nor `Authenticated Users` holds a read right on the home folder (the list a home the product creates has) | one of them does, explicitly or inherited, with the `icacls` line that gives the folder the product's own list; or the list is unreadable (`icacls "<home>"` shows it) | none; skipped off Windows and while the home does not exist |
+| `home-access` | no | no account but the user, `SYSTEM` and `Administrators` holds a read right on the home folder (the list a home the product creates has) | another account does, explicitly or inherited, named with its right, with the `icacls` line that gives the folder the product's own list; or the list is unreadable (`icacls "<home>"` shows it) | none; skipped off Windows and while the home does not exist |
 | `dotnet-runtime` | no | the runtime the process runs on (a fact, so it has no warn or fail) | | |
 | `dotnet-desktop-runtime` | no | the .NET Desktop Runtime the window needs, in the major version of the .NET Runtime (the `Microsoft.WindowsDesktop.App` folders of the same installation) | a patch behind the .NET Runtime (`winget upgrade Microsoft.DotNet.DesktopRuntime.10`) | not installed: the window cannot start (`winget install Microsoft.DotNet.DesktopRuntime.10`); skipped off Windows |
 | `pwsh` | yes | 7.6 or later on PATH | the version is unreadable | missing (`winget install Microsoft.PowerShell`) or older |
@@ -1080,14 +1080,20 @@ for the certificate decision). The interop is the one part excluded from the cov
 names and the verdict of each `WinVerifyTrust` code are tested, and `tests/release/sign-release.Tests.ps1` runs the
 doctor of a signed and of a changed folder in the `windows` job.
 
-The `home-access` check (task 078) reads the home folder's access list by SID, so the names do not depend on the
-Windows display language: an allow entry for `Everyone` (`S-1-1-0`), `Users` (`S-1-5-32-545`) or `Authenticated Users`
-(`S-1-5-11`) that carries a read right (list the folder, or the generic read or all right of an inheritable entry) is
-a warning, whether it is explicit or inherited; a deny entry is not weighed against it, and other accounts are not
-judged. The hint is one command line, the same in pwsh and in cmd, that gives the folder the list of a home the
-product creates ([The safety tests](#the-safety-tests)): `icacls "<home>" /inheritance:r /grant:r "<the user>:(OI)(CI)F"
-"*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /remove:g *S-1-1-0 *S-1-5-32-545 *S-1-5-11`. The doctor never changes
-the list itself. The check looks at the folder; the files below it inherit from it.
+The `home-access` check (tasks 078 and 088) reads the home folder's access list by SID: an allow entry that carries a
+read right (list the folder, or the generic read or all right of an inheritable entry) for any account but the
+running user (by its SID), `SYSTEM` (`S-1-5-18`) and `Administrators` (`S-1-5-32-544`) is a warning, whether it is
+explicit or inherited; a deny entry is not weighed against it. The detail names each such account once, with the
+strongest of `full control`, `modify` and `read` its entries add up to and `inherited` when no entry of it is explicit:
+`Everyone` (`S-1-1-0`), `Users` (`S-1-5-32-545`) and `Authenticated Users` (`S-1-5-11`) by these names whatever the
+Windows display language (then every account of the machine can read the home), any other by its account name (a
+sandbox group, another user, a service), or by its SID when it does not resolve (a deleted account). The hint is one
+command line, the same in pwsh and in cmd, that gives the folder the list of a home the product creates
+([The safety tests](#the-safety-tests)): `icacls "<home>" /inheritance:r /grant:r "<the user>:(OI)(CI)F"
+"*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /remove:g *S-1-1-0 *S-1-5-32-545 *S-1-5-11`, with every other account
+that has an explicit entry added to `/remove:g`; an inherited one goes with `/inheritance:r` and is not named there,
+since icacls refuses a SID that does not resolve (error 1332). The doctor never changes the list itself. The check
+looks at the folder; the files below it inherit from it.
 
 ## The safety tests
 
@@ -1192,7 +1198,8 @@ Administrators, elevated); the cache's bytes hold no token in clear (DPAPI) whil
 back. Without the protected list the same test fails on the inherited `Users` and `Authenticated Users` entries.
 The doctor's `home-access` check (task 078, [The doctor](#the-doctor)) is where a user learns that an existing home
 does not have the list: the same tests hold it `pass` on a home the product created and `warn` on one that inherits
-the parent's `Users` and `Authenticated Users` entries, run its `icacls` hint, and find the home the user's own after it.
+the parent's `Users` and `Authenticated Users` entries, or a sandbox group's read and a service account's modify (task
+088), run its `icacls` hint, and find the home the user's own after it.
 
 ## CI and releases
 
