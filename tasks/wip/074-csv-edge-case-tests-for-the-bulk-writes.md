@@ -93,6 +93,10 @@ under Deviations.
 - 2026-10-30 — `CsvEdgeCaseTests` 42 green (5 readers times 8 cases, the files' families and bytes),
   `CsvEdgeCaseCommandTests` 24 green (8 CSV writes times 3 cases as child processes, nothing sent); `CsvRows.cs`
   unchanged.
+- 2026-10-30 — after `origin/main` (with #87, the writes follow-ups) was merged into the branch, the same matrix on the
+  merged tree, all exit 0: 932 tests, 0 failed, 0 skipped, 19 s; `check-fixtures.py` 320 files, 0 findings; the
+  changelog check; `Invoke-Pester -Path tests/sidecar` 51 passed; PSScriptAnalyzer 0 findings; `doctor --offline` 0
+  and `whoami` 3 over an empty `M365AEGIS_HOME`.
 
 ## Closing checklist
 

@@ -48,7 +48,8 @@ snapshot then changes with it, which is the point.
   `| code | error code | meaning |` header, each held to the row shape, a code with two rows refused) and compares its
   codes with the enum's; `TheDocsTableNamesTheErrorCodeOfEachExitCode` compares each row's error code with the
   `FailureKind` that maps to the code (`ToExitCode`, `ToCode`), an empty cell for 0;
-  `EveryExitCodeButOkHasOneFailureKind` holds the enum and the failure kinds to each other. The repo root is found by walking up from the test's folder to
+  `EveryExitCodeButOkHasOneFailureKind` holds the enum and the failure kinds to each other. The repo root is found by
+  walking up from the test's folder to
   `docs/development.md`, as `GraphFixtures` finds `tests/fixtures/graph`.
 - 2026-10-30 — red proof (not committed): `Forbidden = 18` in `ExitCode.cs`, the Core tests rebuilt and the class run:
   3 of 4 failed — the snapshot, the docs table (`Expected: […, 7, 9, 10, …] Actual: […, 7, 8, 9, …]`) and the error
@@ -75,6 +76,10 @@ snapshot then changes with it, which is the point.
   command line steps over an empty `M365AEGIS_HOME`: `m365-aegis.exe --version` 0, `doctor --offline` 0, `whoami` 3, the
   home not created by them.
 - 2026-10-30 — `ExitCodeContractTests` 4 green; red with `Forbidden = 18` (3 of 4), green again after the revert.
+- 2026-10-30 — after `origin/main` (with #87, the writes follow-ups) was merged into the branch, the same matrix on the
+  merged tree, all exit 0: 932 tests, 0 failed, 0 skipped, 19 s; `check-fixtures.py` 320 files, 0 findings; the
+  changelog check; `Invoke-Pester -Path tests/sidecar` 51 passed; PSScriptAnalyzer 0 findings; `doctor --offline` 0
+  and `whoami` 3 over an empty `M365AEGIS_HOME`.
 
 ## Closing checklist
 

@@ -83,8 +83,8 @@ this bundle merges, so a new test here uses the harness of today (`CliTests.RunW
   the sinks are read once a phase is done; the bare runs and the raw calls likewise. The guard and the CSV classes
   together: 10 s. The hidden-write proof repeated on the new shape: 13 of 23 red again, now with the raw calls'
   `POST`, `PATCH`, `PUT` and `DELETE` named by the request log; reverted.
-- 2026-10-30 — `origin/main` merged into the branch after the writes follow-ups bundle (064–066, #87): the tree now has a
-  tenth write, `plan prune --older-than <days>`, a write of local files (backend `local`). The enumeration found it, and
+- 2026-10-30 — `origin/main` merged into the branch after the writes follow-ups bundle (064–066, #87): the tree now has
+  a tenth write, `plan prune --older-than <days>`, a write of local files (backend `local`). The enumeration found it, and
   `EveryWriteCommandHasItsInputs` failed until its line was added: `--older-than 1` over a home that starts with the
   three sample records (`PlanRecordSamples.Write`, `Seeded` on its inputs), so the plan has changes and the record
   count, which must equal the seeded three plus the test's own, proves a prune without `--yes` removes no file. No CSV
@@ -100,7 +100,8 @@ this bundle merges, so a new test here uses the harness of today (`CliTests.RunW
   `EveryWriteCommandHasItsInputs` until its line is added. The test therefore cannot be skipped by a new write, which
   is the point of Why.
 - The fixture transport writes a request log under an environment variable (a seam in the Core,
-  `M365AEGIS_FIXTURE_REQUESTS`), and `Program.Build()` was split out of `Main`; both were needed to see a child process's requests and to walk the
+  `M365AEGIS_FIXTURE_REQUESTS`), and `Program.Build()` was split out of `Main`; both were needed to see a child
+  process's requests and to walk the
   tree in process.
 - "No request other than GET" reads a `$batch` call by its items and an Admin API call by its cmdlet: both are POSTs
   that read (the user lookups go twenty to a `$batch`, every Admin API read is a POST).
@@ -116,9 +117,14 @@ this bundle merges, so a new test here uses the harness of today (`CliTests.RunW
   tests/sidecar` 46 passed; PSScriptAnalyzer over the sidecar, its tests and `scripts` 0 findings; the `windows` job's
   command line steps over an empty `M365AEGIS_HOME`: `m365-aegis.exe --version` 0, `doctor --offline` 0, `whoami` 3, the
   home not created by them.
-- 2026-10-30 — `WriteGuardTests` 23 green (9 write commands from the tree, the bare runs, `call` with four methods); red
+- 2026-10-30 — `WriteGuardTests` 23 green (25 after the merge, with `plan prune`) (9 write commands from the tree, the
+  bare runs, `call` with four methods); red
   on a guard that applies without a flag (13 of 23) and on a hidden apply behind a correct dry run (13 of 23, named by
   the request log and the fake module's file), green again after each revert.
+- 2026-10-30 — after `origin/main` (with #87, the writes follow-ups) was merged into the branch, the same matrix on the
+  merged tree, all exit 0: 932 tests, 0 failed, 0 skipped, 19 s; `check-fixtures.py` 320 files, 0 findings; the
+  changelog check; `Invoke-Pester -Path tests/sidecar` 51 passed; PSScriptAnalyzer 0 findings; `doctor --offline` 0
+  and `whoami` 3 over an empty `M365AEGIS_HOME`.
 
 ## Closing checklist
 

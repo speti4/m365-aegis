@@ -104,6 +104,10 @@ fake module, never MSAL against a tenant).
   out as the bearer of all 6 Graph requests; the Pester case green; red on the token in the sign-in result (`stdout`),
   on `Hide-Secret` without its secrets (`stdout`, `stderr`, and the Pester case) and on the log's scrubbing without its
   bearer and JWT patterns (`stdout`, `stderr`, the day's log file), green again after each revert.
+- 2026-10-30 — after `origin/main` (with #87, the writes follow-ups) was merged into the branch, the same matrix on the
+  merged tree, all exit 0: 932 tests, 0 failed, 0 skipped, 19 s; `check-fixtures.py` 320 files, 0 findings; the
+  changelog check; `Invoke-Pester -Path tests/sidecar` 51 passed; PSScriptAnalyzer 0 findings; `doctor --offline` 0
+  and `whoami` 3 over an empty `M365AEGIS_HOME`.
 
 ## Closing checklist
 
