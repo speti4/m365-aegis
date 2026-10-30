@@ -37,24 +37,45 @@ run reports `created 0, updated 0`, and the tasks README names the mirror.
 
 ## Steps
 
-1. [ ] The script and the workflow from the skill's templates (`scripts/sync-issues.py`, `.github/workflows/sync-issues.yml`),
+1. [x] The script and the workflow from the skill's templates (`scripts/sync-issues.py`, `.github/workflows/sync-issues.yml`),
        the README line, the docs line; on `task/069-issue-mirror` in the main checkout (no worktree: a settings task)
-2. [ ] `python -I scripts/sync-issues.py --dry-run`: every file reported, no `skip`, no error
-3. [ ] The backfill on the maintainer's go; a second run reports `created 0, updated 0`
+2. [x] `python -I scripts/sync-issues.py --dry-run`: every file reported, no `skip`, no error
+3. [x] The backfill on the maintainer's go; a second run reports `created 0, updated 0`
 4. [ ] Pull request, CI green (`workflow-lint` over the new workflow), squash merge; the workflow's own run on the
        push reports nothing to change
 
 ## Log
 
 - 2026-10-30 — promoted by the main session at the start of the sixth round (063–075)
+- 2026-10-30 — `scripts/sync-issues.py` was already in the repo as an older copy of the template (the changelog
+  generator reads the task files through its parser, task 067's docs said so); replaced by the template's version 3
+  unchanged (`--version` prints `3`; the names `changelog.py` imports — `TASKS`, `TASK_FILE`, `parse_frontmatter`,
+  `scalar`, `_heading`, `_trim`, `load_roadmap` — are all there, `changelog.py --check` green). The workflow is the
+  template's `sync-issues.yml` as it comes (`branches: [main]`, `paths: ["tasks/**", "scripts/sync-issues.py"]`,
+  `issues: write` on the job only, the checkout pinned by SHA); `uvx zizmor .github`: no findings. The README
+  preamble line, the CLAUDE.md line, `docs/development.md` ("CI and releases" names the workflow, a new "The issue
+  mirror" section, the changelog paragraph's "although the mirror is not set up" dropped).
+- 2026-10-30 — `python -I scripts/sync-issues.py --dry-run`: `planned (dry run): created 85, updated 0, unchanged 0,
+  duplicates closed 0; 85 items (75 tasks, 10 decisions)`, no `skip` line, exit 0.
+- 2026-10-30 — pull request #1 opened from the branch (the first pull request of the public repository); the
+  backfill ran from the main checkout on the maintainer's go: `applied: created 85, updated 0, unchanged 0,
+  duplicates closed 0`; the second run: `applied: created 0, updated 0, unchanged 85, duplicates closed 0`.
 
 ## Deviations from the plan
 
-- none yet
+- The script was not installed, it was upgraded: an older template copy was already in the repo for the changelog
+  generator's parser, so the change is a version bump of a file the repo had, not a new file.
+- The backfill ran before the pull request merged (the workflow's own run after the merge is the proof of
+  idempotence in CI; by hand it was already proven by the second run).
 
 ## Verification
 
-- (pending)
+- 2026-10-30 — `python -I scripts/sync-issues.py --dry-run` 85 to create, no skip; the backfill created 85
+  (75 tasks, 10 decisions) with the labels and the six milestones of the roadmap; the second run created 0,
+  updated 0, unchanged 85; `python -I scripts/changelog.py --check` and `python -I scripts/check-fixtures.py`
+  green with the new script; `uvx zizmor .github` no findings over the new workflow.
+- (pending) the pull request's CI, the `sync-issues` workflow's run on the merge commit reporting nothing to
+  change — written by the main session at the close.
 
 ## Closing checklist
 
