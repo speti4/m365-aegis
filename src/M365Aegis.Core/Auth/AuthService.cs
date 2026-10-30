@@ -24,8 +24,12 @@ public sealed class AuthService
         ArgumentNullException.ThrowIfNull(brokerFactory);
         Hints = hints ?? SignInHints.CommandLine;
         Profiles = new ProfileStore(home, Hints);
+        Home = home;
         _brokerFactory = brokerFactory;
     }
+
+    /// <summary>The home folder: its profiles and cache, and the window's plan records (task 082).</summary>
+    public string Home { get; }
 
     /// <summary>The profiles of the home folder.</summary>
     public ProfileStore Profiles { get; }

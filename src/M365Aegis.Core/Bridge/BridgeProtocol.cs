@@ -1,7 +1,9 @@
+using System.Reflection;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using M365Aegis.Core.Operations;
 using M365Aegis.Core.Output;
 
 namespace M365Aegis.Core.Bridge;
@@ -84,12 +86,24 @@ public static class BridgeProtocol
 }
 
 /// <summary>
+/// Marks a request type of <see cref="BridgeMessageType"/> that plans a write (task 082): the host answers it with
+/// <see cref="BridgeMessageType.Plan"/> and holds the plan until an <see cref="BridgeMessageType.ApplyPlan"/> with the
+/// confirmation applies it. <see cref="BridgeMessageType.Writes"/> lists the marked types, which the write-guard test
+/// of the bridge drives without a confirmation (task 079), so a new write request joins it by its mark.
+/// </summary>
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class BridgeWriteAttribute : Attribute;
+
+/// <summary>
 /// The message types of the protocol. The front end sends <see cref="Ready"/> (a notification) and the requests
 /// <see cref="Ping"/>, <see cref="WhoAmI"/>, <see cref="Login"/>, <see cref="OpenSignInPage"/>, <see cref="Logout"/>,
-/// <see cref="GroupMembers"/>, <see cref="MailboxList"/> and <see cref="MailboxAccess"/>; the host answers each request with one reply of the
-/// type named here, or with <see cref="Error"/>, and sends <see cref="DeviceCode"/> as a notification while a
-/// sign-in waits for the browser step. gui/web/src/bridge/protocol.ts names the same strings, and the samples under
-/// tests/contracts/bridge hold one message of each.
+/// <see cref="GroupMembers"/>, <see cref="MailboxList"/> and <see cref="MailboxAccess"/>, the write requests
+/// (<see cref="Writes"/>: <see cref="MailboxAccessGrant"/>, <see cref="MailboxAccessRevoke"/>,
+/// <see cref="MailboxForwardingSet"/>, <see cref="MailboxForwardingClear"/>) and <see cref="ApplyPlan"/>; the host
+/// answers each request with one reply of the type named here, or with <see cref="Error"/>, and sends
+/// <see cref="DeviceCode"/> as a notification while a sign-in waits for the browser step.
+/// gui/web/src/bridge/protocol.ts names the same strings, and the samples under tests/contracts/bridge hold one
+/// message of each, in a file named after its type.
 /// </summary>
 public static class BridgeMessageType
 {
@@ -182,8 +196,63 @@ public static class BridgeMessageType
     /// <summary>The members of a group: a <see cref="Groups.GroupMembers"/> as the payload.</summary>
     public const string Members = "members";
 
+    /// <summary>
+    /// Plans a grant of mailbox rights as <c>mailbox access grant</c> does (task 082); the payload is a
+    /// <see cref="MailboxAccessWriteRequest"/>. Answered with <see cref="Plan"/>.
+    /// </summary>
+    [BridgeWrite]
+    public const string MailboxAccessGrant = "mailbox-access-grant";
+
+    /// <summary>
+    /// Plans a revoke of mailbox rights as <c>mailbox access revoke</c> does; the payload is a
+    /// <see cref="MailboxAccessWriteRequest"/>, whose <c>noAutoMapping</c> is a grant's only. Answered with <see cref="Plan"/>.
+    /// </summary>
+    [BridgeWrite]
+    public const string MailboxAccessRevoke = "mailbox-access-revoke";
+
+    /// <summary>
+    /// Plans a mailbox's forwarding as <c>mailbox forwarding set</c> does; the payload is a
+    /// <see cref="MailboxForwardingWriteRequest"/>. Answered with <see cref="Plan"/>.
+    /// </summary>
+    [BridgeWrite]
+    public const string MailboxForwardingSet = "mailbox-forwarding-set";
+
+    /// <summary>
+    /// Plans the end of a mailbox's forwarding as <c>mailbox forwarding clear</c> does; the payload is a
+    /// <see cref="MailboxForwardingWriteRequest"/> with the mailbox alone. Answered with <see cref="Plan"/>.
+    /// </summary>
+    [BridgeWrite]
+    public const string MailboxForwardingClear = "mailbox-forwarding-clear";
+
+    /// <summary>
+    /// The plan of a write request: a <see cref="PlanReady"/> as the payload, the <see cref="Operations.Plan"/> as
+    /// <c>--dry-run</c> prints it (nothing sent, nothing recorded) and the id an <see cref="ApplyPlan"/> names; no id
+    /// when there is nothing to change.
+    /// </summary>
+    public const string Plan = "plan";
+
+    /// <summary>
+    /// Applies a plan the host holds, as <c>--yes</c> does on the command line (task 082); the payload is an
+    /// <see cref="ApplyPlanRequest"/>, whose <c>confirm</c> must be true: without it, or for a plan the host does not
+    /// hold, nothing is sent. Answered with <see cref="PlanApplied"/>.
+    /// </summary>
+    public const string ApplyPlan = "apply-plan";
+
+    /// <summary>
+    /// The applied plan: a <see cref="Bridge.PlanApplied"/> as the payload, each change with its result and the plan
+    /// record's file, and the failure when not every change was applied.
+    /// </summary>
+    public const string PlanApplied = "plan-applied";
+
     /// <summary>A request that failed: an <see cref="EnvelopeError"/> (code, message, hint) as the payload.</summary>
     public const string Error = "error";
+
+    /// <summary>The write requests: the types marked <see cref="BridgeWriteAttribute"/>, in the order they are declared.</summary>
+    public static IReadOnlyList<string> Writes { get; } = typeof(BridgeMessageType)
+        .GetFields(BindingFlags.Public | BindingFlags.Static)
+        .Where(field => field.IsLiteral && field.IsDefined(typeof(BridgeWriteAttribute)))
+        .Select(field => (string)field.GetRawConstantValue()!)
+        .ToList();
 }
 
 /// <summary>The payload of a <see cref="BridgeMessageType.GroupMembers"/> request.</summary>
@@ -213,3 +282,40 @@ public sealed record SignInPageOpenedInfo(Uri VerificationUri);
 /// <param name="Message">Why there is no sign-in, one sentence.</param>
 /// <param name="Hint">What to do about it, or null.</param>
 public sealed record SignedOutInfo(string? Profile, string? Account, string Message, string? Hint);
+
+/// <summary>
+/// The payload of <see cref="BridgeMessageType.MailboxAccessGrant"/> and
+/// <see cref="BridgeMessageType.MailboxAccessRevoke"/>: the arguments of <c>mailbox access grant|revoke</c>.
+/// </summary>
+/// <param name="Mailbox">The mailbox: its address, name or object id.</param>
+/// <param name="Users">The holders: user principal names, addresses or a group's address.</param>
+/// <param name="Rights">The rights: <c>full-access</c>, <c>send-as</c>, <c>send-on-behalf</c>, or any spelling <c>--right</c> takes.</param>
+/// <param name="NoAutoMapping">A grant's FullAccess without automapping (<c>--no-automapping</c>, task 059).</param>
+public sealed record MailboxAccessWriteRequest(string? Mailbox, IReadOnlyList<string>? Users, IReadOnlyList<string>? Rights, bool NoAutoMapping);
+
+/// <summary>
+/// The payload of <see cref="BridgeMessageType.MailboxForwardingSet"/> and
+/// <see cref="BridgeMessageType.MailboxForwardingClear"/>: the arguments of <c>mailbox forwarding set|clear</c>.
+/// </summary>
+/// <param name="Mailbox">The mailbox: its address, name or object id.</param>
+/// <param name="To">The address to forward to; a set's only.</param>
+/// <param name="KeepCopy">Whether the mailbox keeps a copy (<c>--keep-copy</c>); a set's only.</param>
+public sealed record MailboxForwardingWriteRequest(string? Mailbox, string? To, bool KeepCopy);
+
+/// <summary>The payload of an <see cref="BridgeMessageType.ApplyPlan"/> request.</summary>
+/// <param name="PlanId">The plan's id, as its <see cref="BridgeMessageType.Plan"/> reply named it.</param>
+/// <param name="Confirm">The confirmation, which stands for <c>--yes</c>: only <c>true</c> applies the plan.</param>
+public sealed record ApplyPlanRequest(string? PlanId, bool Confirm);
+
+/// <summary>The payload of a <see cref="BridgeMessageType.Plan"/> reply.</summary>
+/// <param name="PlanId">The id an <see cref="BridgeMessageType.ApplyPlan"/> names; null when there is nothing to change.</param>
+/// <param name="Plan">The plan as <c>--dry-run</c> prints it: <c>mode</c> is <c>dry-run</c>, or <c>up-to-date</c>.</param>
+public sealed record PlanReady(string? PlanId, Plan Plan);
+
+/// <summary>The payload of a <see cref="BridgeMessageType.PlanApplied"/> reply.</summary>
+/// <param name="Plan">The applied plan: each change with its result, the record's file, the times.</param>
+/// <param name="Error">
+/// When not every change was applied, the failure the command line's envelope carries beside the plan (exit code 6, or
+/// the one failure's own code); null when every change was applied.
+/// </param>
+public sealed record PlanApplied(Plan Plan, EnvelopeError? Error);

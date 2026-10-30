@@ -1,0 +1,6 @@
+{
+  "aegis": 1,
+  "id": "10",
+  "type": "mailbox-access-grant",
+  "data": { "mailbox": "finance@contoso.com", "users": ["bob@contoso.com"], "rights": ["full-access"], "noAutoMapping": true }
+}

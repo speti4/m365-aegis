@@ -19,9 +19,10 @@ namespace M365Aegis.Core.Tests;
 /// and with a device code), a group lookup whose Graph request fails with the bearer header in its message (the
 /// <c>internal</c> error reply and its stack trace in the log), the mailbox lookups over the window's Exchange Online
 /// token source (the list from the Admin API, a user's access split across three sidecars, a mailbox's over both
-/// layers), a connect the fake module refuses with the token in its message (an <c>error</c> reply) and a
-/// <c>logout</c>, all under <c>--verbose</c> so every mailbox request writes its <c>window:</c> line, the marker is in
-/// no file under the temporary home folder (<c>config.json</c>, <c>logs\</c>), in no reply or notification as the host
+/// layers), a write planned and applied with the confirmation (task 082: its plan record under the home), a connect the
+/// fake module refuses with the token in its message (an <c>error</c> reply) and a <c>logout</c>, all under
+/// <c>--verbose</c> so every mailbox request writes its <c>window:</c> line, the marker is in no file under the
+/// temporary home folder (<c>config.json</c>, <c>logs\</c>, <c>plans\</c>), in no reply or notification as the host
 /// sends it to the page, and not on the window's stderr. In process, through the product's own parts with the test's
 /// token source: <see cref="BridgeDispatcher"/> over <see cref="AuthService"/> with the window's hints and the broker
 /// of <see cref="MarkedTokenBroker"/>, <see cref="HttpGraphTransport"/> with the profile's Graph token,
@@ -97,6 +98,9 @@ public sealed class BridgeTokenHygieneTests
                 await SendAsync(window, BridgeMessageType.MailboxList);
                 await SendAsync(window, BridgeMessageType.MailboxAccess, """{"user":"bob@contoso.com"}""");
                 await SendAsync(window, BridgeMessageType.MailboxAccess, """{"mailbox":"finance@contoso.com"}""");
+                // A write (task 082): its plan, and the confirmed apply over the session with the plan record in the home.
+                BridgeMessage plan = await SendAsync(window, BridgeMessageType.MailboxAccessGrant, """{"mailbox":"finance@contoso.com","users":["bob@contoso.com"],"rights":["full-access"]}""");
+                await SendAsync(window, BridgeMessageType.ApplyPlan, $$"""{"planId":"{{plan.Data!["planId"]!.GetValue<string>()}}","confirm":true}""");
                 await SendAsync(refusingWindow, BridgeMessageType.MailboxList);
                 exchangeToken = exchange.Session!.Token!.AccessToken;
                 await SendAsync(window, BridgeMessageType.Logout);
@@ -125,18 +129,21 @@ public sealed class BridgeTokenHygieneTests
         // went out as the bearer, the window's sidecars connected with the profile's Exchange Online token, and every
         // mailbox request wrote its `window:` line.
         Assert.Equal(
-            ["signed-in", "signed-in", "signed-in", "error", "mailboxes", "user-grants", "mailbox-holders", "error", "logged-out"],
+            ["signed-in", "signed-in", "signed-in", "error", "mailboxes", "user-grants", "mailbox-holders", "plan", "plan-applied", "error", "logged-out"],
             replies.Select(reply => reply.Type));
         Assert.Contains(sent, message => message.Contains("\"type\":\"device-code\"", StringComparison.Ordinal));
         Assert.Equal("internal", replies[3].Data?["code"]?.GetValue<string>());
-        Assert.Equal("auth", replies[7].Data?["code"]?.GetValue<string>());
+        Assert.Null(replies[8].Data?["error"]);
+        Assert.Single(Directory.GetFiles(Path.Combine(home, "plans")));
+        Assert.Equal("auth", replies[9].Data?["code"]?.GetValue<string>());
         // The fake module put the token into its refusal; the sidecar's Hide-Secret took it out.
-        Assert.Contains("the service refused the token <token> (401)", replies[7].Data?["message"]?.GetValue<string>(), StringComparison.Ordinal);
+        Assert.Contains("the service refused the token <token> (401)", replies[9].Data?["message"]?.GetValue<string>(), StringComparison.Ordinal);
         Assert.NotEmpty(graphHandler.Bearers);
         Assert.All(graphHandler.Bearers, bearer => Assert.Equal(broker.Token(Scopes.For(Resource.Graph)), bearer));
         Assert.Equal(broker.Token(Scopes.For(Resource.Exchange)), exchangeToken);
         string log = string.Join("\n", Directory.GetFiles(Path.Combine(home, LogSink.FolderName)).Select(File.ReadAllText));
-        Assert.Equal(4, log.Split('\n').Count(line => line.Contains("window: mailbox-", StringComparison.Ordinal)));
+        Assert.Equal(5, log.Split('\n').Count(line => line.Contains("window: mailbox-", StringComparison.Ordinal)));
+        Assert.Single(log.Split('\n'), line => line.Contains("window: apply-plan answered", StringComparison.Ordinal));
         Assert.Contains("over 3 sidecar(s)", log, StringComparison.Ordinal);
         Assert.Contains("internal-error: ", log, StringComparison.Ordinal);
         Assert.Equal(string.Empty, stderr.ToString());

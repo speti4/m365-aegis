@@ -1,0 +1,6 @@
+{
+  "aegis": 1,
+  "id": "12",
+  "type": "mailbox-access-revoke",
+  "data": { "mailbox": "finance@contoso.com", "users": ["alice@contoso.com"], "rights": ["send-as"] }
+}

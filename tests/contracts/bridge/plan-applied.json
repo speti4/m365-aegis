@@ -1,0 +1,29 @@
+{
+  "aegis": 1,
+  "id": "11",
+  "type": "plan-applied",
+  "data": {
+    "plan": {
+      "operation": "mailbox-access-grant",
+      "title": "Grant mailbox rights on Finance (finance@contoso.com)",
+      "changes": [
+        {
+          "action": "add",
+          "target": "Finance (finance@contoso.com)",
+          "detail": "FullAccess for Bob Example (bob@contoso.com), without automapping",
+          "current": "no FullAccess",
+          "desired": "holds FullAccess",
+          "index": 1,
+          "key": "00000000-0000-0000-0000-000000000015/FullAccess/00000000-0000-0000-0000-000000000012",
+          "result": { "status": "applied" }
+        }
+      ],
+      "unchanged": [],
+      "warnings": [],
+      "mode": "applied",
+      "record": "%LOCALAPPDATA%\\m365-aegis\\plans\\20261030T120000.000Z-mailbox-access-grant.json",
+      "started": "2026-10-30T12:00:00+00:00",
+      "finished": "2026-10-30T12:00:00+00:00"
+    }
+  }
+}

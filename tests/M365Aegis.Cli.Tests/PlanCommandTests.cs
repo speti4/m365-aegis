@@ -340,6 +340,30 @@ public sealed partial class PlanCommandTests
         Assert.Equal(3, Records(home).Length);
     }
 
+    [Fact]
+    public void AResumeContinuesARecordTheWindowWrote()
+    {
+        // The window records the command line of the same plan with --yes (task 082); a record of it cut short while
+        // applying is continued by the command line's --resume, which parses those arguments again.
+        string home = PlanSamples.TempHome();
+        string[] window = ["mailbox", "access", "grant", "finance@contoso.com", "--user", "bob@contoso.com", "--right", "FullAccess", "--no-automapping", "--yes"];
+        (int planned, string plan, _) = CliTests.RunWith(Layers(home), ["--json", .. window[..^1], "--dry-run"]);
+        Assert.Equal(0, planned);
+        using JsonDocument dryRun = JsonDocument.Parse(plan);
+        Plan read = JsonSerializer.Deserialize<Plan>(dryRun.RootElement.GetProperty("data").GetRawText(), EnvelopeJson.Options)!;
+        var store = new PlanStore(home, new PlanRecordContext("window", null, window));
+        string record = Path.GetFileName(store.Begin(read with { Mode = PlanMode.Applying, Started = DateTimeOffset.UtcNow }));
+
+        (int exitCode, string stdout, _) = CliTests.RunWith(Layers(home), "--json", "mailbox", "access", "grant", "--resume", record, "--dry-run");
+
+        Assert.Equal(0, exitCode);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement data = document.RootElement.GetProperty("data");
+        Assert.Equal("dry-run", data.GetProperty("mode").GetString());
+        Assert.Equal("FullAccess for Bob Example (bob@contoso.com), without automapping", Assert.Single(data.GetProperty("changes").EnumerateArray()).GetProperty("detail").GetString());
+        Assert.Single(Records(home));
+    }
+
     private static string Render<T>(T data, ITableView<T> view)
     {
         var output = new StringWriter();
