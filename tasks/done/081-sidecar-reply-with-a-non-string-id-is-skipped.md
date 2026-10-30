@@ -3,6 +3,7 @@ size: S
 origin: done/070-full-line-and-branch-coverage-enforced-in-ci.md
 created: 2026-10-30
 started: 2026-10-30
+closed: 2026-10-30
 plan: none
 milestone: M2 Exchange
 ---
@@ -51,6 +52,7 @@ steps below and may reshape them.
   scripted child answers the `invoke` with a numeric-`id` reply, an `aegis` 1.5 reply, a 309-character non-JSON
   line and a reply to another (50-character) id before the real reply; the real reply is read and the log names all
   four, the long values cut, and holds none of the skipped reply's data.
+- 2026-10-30 — merged in #98 (squash); no follow-up of its own; closed on `main` by the main session.
 
 ## Deviations from the plan
 
@@ -73,4 +75,4 @@ steps below and may reshape them.
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-10-30` by the main session after the merge

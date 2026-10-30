@@ -49,6 +49,7 @@ The repository, the task standard and the empty solution: no product yet.
 - One Exchange token source for the sidecar and the Admin API ([049](https://github.com/speti4/m365-aegis/blob/main/tasks/done/049-one-exchange-token-source-for-the-sidecar-and-the-admin-api.md))
 - The sidecar tests never fall back to the machine's real Exchange Online module ([050](https://github.com/speti4/m365-aegis/blob/main/tasks/done/050-fake-module-never-falls-back-to-the-real-one.md))
 - `mailbox forwarders` through the Admin API ([055](https://github.com/speti4/m365-aegis/blob/main/tasks/done/055-mailbox-forwarders-through-the-admin-api.md))
+- A sidecar reply line whose `id` is not a string is skipped, not an internal error ([081](https://github.com/speti4/m365-aegis/blob/main/tasks/done/081-sidecar-reply-with-a-non-string-id-is-skipped.md))
 
 ### M3 Writes with safety
 
@@ -64,6 +65,7 @@ The repository, the task standard and the empty solution: no product yet.
 - Owners of a distribution or mail-enabled security group through Exchange ([064](https://github.com/speti4/m365-aegis/blob/main/tasks/done/064-distribution-group-owners-through-exchange.md))
 - A resume plans only the pending lines and matches them by object id ([065](https://github.com/speti4/m365-aegis/blob/main/tasks/done/065-resume-plans-the-pending-lines-matched-by-object-id.md))
 - `plan prune`, or a size limit on the plans folder ([066](https://github.com/speti4/m365-aegis/blob/main/tasks/done/066-plan-prune-or-a-size-limit-on-the-plans-folder.md))
+- `group owners <group>` reads a distribution group's owners from `ManagedBy` ([076](https://github.com/speti4/m365-aegis/blob/main/tasks/done/076-group-owners-read-through-managedby-for-distribution-groups.md))
 
 ### M4 Window
 
@@ -78,11 +80,14 @@ The repository, the task standard and the empty solution: no product yet.
 - The window's `mailbox-list` through the Admin API over the shared token source ([056](https://github.com/speti4/m365-aegis/blob/main/tasks/done/056-window-mailbox-list-through-the-admin-api.md))
 - The window's own hints for the failures after the sign-in ([057](https://github.com/speti4/m365-aegis/blob/main/tasks/done/057-window-hints-for-the-failures-after-the-sign-in.md))
 - The window's `mailbox-access` over the layers ([063](https://github.com/speti4/m365-aegis/blob/main/tasks/done/063-window-mailbox-access-over-the-layers.md))
+- The window's user lookup over the split read of task 043 ([077](https://github.com/speti4/m365-aegis/blob/main/tasks/done/077-window-user-lookup-over-the-split-read.md))
 
 ### M6 Release and team
 
 - The doctor checks the .NET Desktop Runtime 10 for the window ([028](https://github.com/speti4/m365-aegis/blob/main/tasks/done/028-doctor-checks-the-dotnet-desktop-runtime.md))
 - No reference documentation files in the publish ([031](https://github.com/speti4/m365-aegis/blob/main/tasks/done/031-no-reference-documentation-files-in-the-publish.md))
+- The doctor warns when an existing home folder is readable by other users ([078](https://github.com/speti4/m365-aegis/blob/main/tasks/done/078-doctor-warns-on-a-home-folder-readable-by-others.md))
+- Token hygiene through the window: the bridge's sign-in and the `window:` log lines ([080](https://github.com/speti4/m365-aegis/blob/main/tasks/done/080-token-hygiene-through-the-window.md))
 
 ### Project housekeeping
 

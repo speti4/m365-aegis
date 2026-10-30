@@ -3,6 +3,7 @@ size: S
 origin: done/063-window-mailbox-access-over-the-layers.md
 created: 2026-10-30
 started: 2026-10-30
+closed: 2026-10-30
 plan: none
 milestone: M4 Window
 ---
@@ -68,6 +69,9 @@ the task session verifies over the fixtures and the fake module.
   word in its sidecar part; over the layered holder the three sessions ask the window's token source once
   (`Acquisitions` 1); `DescribeSidecars` holds counts only, no name. `BridgeProtocolTests.MailboxAccessOfAUserIsTheUserGrantsSample`
   holds the reply to the updated sample.
+- 2026-10-30 — merged in #105 (squash). The follow-up "keep the window's extra sidecars warm across user lookups"
+  was not filed: it is worth a task only if the live timing shows the three cold sidecar starts dominate, and that
+  measurement decides it (the maintainer's call of 2026-10-30). Closed on `main` by the main session.
 
 ## Deviations from the plan
 
@@ -96,4 +100,4 @@ the task session verifies over the fixtures and the fake module.
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-10-30` by the main session after the merge

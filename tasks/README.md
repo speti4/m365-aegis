@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-10-30 — edit the files, not this section._
 
-**State:** 14 backlog (0 ready · 2 blocked · 0 waiting · 12 ideas) · 0 in progress · 75 done · 0 dropped · 10 decisions
+**State:** 9 backlog (0 ready · 2 blocked · 0 waiting · 7 ideas) · 0 in progress · 80 done · 0 dropped · 10 decisions
 
 ### Ready
 
@@ -35,24 +35,16 @@ _none_
 
 ### Ideas
 
-#### M2 Exchange
-
-| # | Task | Size | Created |
-|---|---|---|---|
-| 081 | [A sidecar reply line whose id is not a string is skipped, not an internal error](backlog/081-sidecar-reply-with-a-non-string-id-is-skipped.md) | S | 2026-10-30 |
-
 #### M3 Writes with safety
 
 | # | Task | Size | Created |
 |---|---|---|---|
-| 076 | [group owners <group> reads a distribution group's owners from ManagedBy](backlog/076-group-owners-read-through-managedby-for-distribution-groups.md) | S | 2026-10-30 |
 | 089 | [group owners-missing --all-types judges a distribution group by its ManagedBy, …](backlog/089-group-owners-missing-judges-distribution-groups-by-managedby.md) | S | 2026-10-30 |
 
 #### M4 Window
 
 | # | Task | Size | Created |
 |---|---|---|---|
-| 077 | [The window's user lookup over the split read of task 043](backlog/077-window-user-lookup-over-the-split-read.md) | S | 2026-10-30 |
 | 079 | [A write-guard test over the window's bridge writes](backlog/079-write-guard-test-over-the-window-bridge-writes.md) | S | 2026-10-30 |
 | 082 | [The window's mailbox write cards: access grant and revoke, forwarding set and c…](backlog/082-window-mailbox-write-cards-behind-a-plan-and-a-confirmation.md) | L | 2026-10-30 |
 
@@ -66,8 +58,6 @@ _none_
 
 | # | Task | Size | Created |
 |---|---|---|---|
-| 078 | [The doctor warns when an existing home folder is readable by other users](backlog/078-doctor-warns-on-a-home-folder-readable-by-others.md) | S | 2026-10-30 |
-| 080 | [Token hygiene through the window: the bridge's sign-in and the window: log lines](backlog/080-token-hygiene-through-the-window.md) | S | 2026-10-30 |
 | 085 | [Signed exes and the release zip through a tag-driven release workflow](backlog/085-signed-exes-and-the-release-zip.md) | M | 2026-10-30 |
 | 086 | [A usage guide for the command line and the window, shipped in the release zip](backlog/086-usage-guide-for-the-command-line-and-the-window.md) | S | 2026-10-30 |
 | 088 | [The home-access doctor check judges every account that is not the user, SYSTEM …](backlog/088-home-access-check-judges-every-foreign-account.md) | S | 2026-10-30 |
@@ -84,18 +74,18 @@ _none_
 
 | # | Task | Closed |
 |---|---|---|
+| 081 | [A sidecar reply line whose id is not a string is skipped, not an internal error](done/081-sidecar-reply-with-a-non-string-id-is-skipped.md) | 2026-10-30 |
+| 080 | [Token hygiene through the window: the bridge's sign-in and the window: log lines](done/080-token-hygiene-through-the-window.md) | 2026-10-30 |
+| 078 | [The doctor warns when an existing home folder is readable by other users](done/078-doctor-warns-on-a-home-folder-readable-by-others.md) | 2026-10-30 |
+| 077 | [The window's user lookup over the split read of task 043](done/077-window-user-lookup-over-the-split-read.md) | 2026-10-30 |
+| 076 | [group owners <group> reads a distribution group's owners from ManagedBy](done/076-group-owners-read-through-managedby-for-distribution-groups.md) | 2026-10-30 |
 | 075 | [A home folder ACL test: the MSAL cache, the profiles and the plan records reada…](done/075-home-folder-acl-test-for-the-cache-and-the-plan-records.md) | 2026-10-30 |
 | 074 | [CSV edge cases for the bulk writes: BOM, CRLF, quoted fields, duplicates, a mal…](done/074-csv-edge-case-tests-for-the-bulk-writes.md) | 2026-10-30 |
 | 073 | [An exit code contract snapshot: the ExitCode enum's names and values, frozen](done/073-exit-code-contract-snapshot.md) | 2026-10-30 |
 | 072 | [A token-hygiene test: a marked fake token never reaches a log, a plan record, a…](done/072-token-hygiene-test-across-logs-plans-and-output.md) | 2026-10-30 |
 | 071 | [A write-guard test over the whole command tree: without --yes, nothing is sent](done/071-write-guard-test-over-the-whole-command-tree.md) | 2026-10-30 |
-| 070 | [100% line and branch coverage of the Core, the command line, the front end and …](done/070-full-line-and-branch-coverage-enforced-in-ci.md) | 2026-10-30 |
-| 069 | [A one-way mirror of the task files into GitHub issues](done/069-issue-mirror-of-the-task-files.md) | 2026-10-30 |
-| 068 | [The windows job on every push to main, not only on pull requests and tags](done/068-windows-job-on-every-push-to-main.md) | 2026-10-30 |
-| 067 | [Publish the repository: a rewritten history in a new public repo](done/067-publish-the-repository-with-a-rewritten-history.md) | 2026-10-30 |
-| 066 | [plan prune, or a size limit on the plans folder](done/066-plan-prune-or-a-size-limit-on-the-plans-folder.md) | 2026-10-30 |
 
-_65 more in `done/`._
+_70 more in `done/`._
 
 ### Decisions
 

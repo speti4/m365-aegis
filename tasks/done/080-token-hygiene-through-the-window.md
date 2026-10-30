@@ -3,6 +3,7 @@ size: S
 origin: done/072-token-hygiene-test-across-logs-plans-and-output.md
 created: 2026-10-30
 started: 2026-10-30
+closed: 2026-10-30
 plan: none
 milestone: M6 Release and team
 ---
@@ -71,6 +72,9 @@ below and may reshape them.
 - 2026-10-30 — no leak found: the dispatcher's replies carry the core's failures (the sidecar hides the token, an
   internal error's message is scrubbed), the `window:` lines carry counts and timings only, and the window's
   `Console.Error` lines (the smoke run's and a WebView2 start failure) are not on the dispatcher's path.
+- 2026-10-30 — merged in #105 (squash). The follow-up "name the window's bridge messages among the sinks in
+  `SECURITY.md`" was not filed: the maintainer decided on 2026-10-30 that the window's write cards (task 082) carry
+  that SECURITY.md line, since they add the bridge's first writes. Closed on `main` by the main session.
 
 ## Deviations from the plan
 
@@ -92,4 +96,4 @@ below and may reshape them.
 - [x] every doc under *Docs that move* changed in this change (`SECURITY.md` lists no test, see the deviation)
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-10-30` by the main session after the merge

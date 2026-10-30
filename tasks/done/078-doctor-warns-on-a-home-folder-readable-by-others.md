@@ -3,6 +3,7 @@ size: S
 origin: done/075-home-folder-acl-test-for-the-cache-and-the-plan-records.md
 created: 2026-10-30
 started: 2026-10-30
+closed: 2026-10-30
 plan: none
 milestone: M6 Release and team
 ---
@@ -72,6 +73,9 @@ Seventh round of 2026-10-30, on its own branch; the task session owns the steps 
   the fix line, a sentence in "The safety tests" home folder paragraph, the coverage exclusion row; `README.md` — the
   doctor sentence and the safety section; `SECURITY.md` — the sign-in and tokens bullet names the user-only home and
   the doctor's warning.
+- 2026-10-30 — merged in #97 (squash) after a rebase onto the merged #105 and #98 (the index conflict resolved to
+  `main`'s, the rebased tree built and tested locally: 1272 tests, 0 failed); the one follow-up (every foreign account
+  judged) approved and filed as task 088; closed on `main` by the main session.
 
 ## Deviations from the plan
 
@@ -109,4 +113,4 @@ Seventh round of 2026-10-30, on its own branch; the task session owns the steps 
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-10-30` by the main session after the merge
