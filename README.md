@@ -251,6 +251,14 @@ The distribution group writes need an Exchange Online role that changes group me
 Recipient Management with Security Group Creation and Membership). The details are in
 [docs/development.md](docs/development.md#writes-and-plans).
 
+## Every line and branch tested
+
+Each layer's tests are measured, and CI fails a change below 100% of the lines and the branches of the core and the
+command line (coverlet), the lines, branches, functions and statements of the window's front end (Vitest), and the
+commands of the Exchange Online sidecar script (Pester). The reports are artifacts of every CI run. The few
+members that need a real sign-in, a desktop session or the machine itself are excluded by name, each with its
+reason, in [docs/development.md](docs/development.md#coverage).
+
 ## Documentation
 
 - [Development](docs/development.md): layout, CI, releases and helper scripts

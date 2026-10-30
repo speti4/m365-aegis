@@ -37,8 +37,9 @@
          sponsorship or a time-bounded exemption is declared in MSBuild; the repo stays on 32 (D-008) and
          Dependabot ignores that major (.github/dependabot.yml). -->
     <PackageVersion Include="Verify.XunitV3" Version="32.0.1" />
-    <!-- Line coverage under Microsoft.Testing.Platform, MIT (the Microsoft code coverage extension's license is
-         not on the allowlist). -->
+    <!-- Line and branch coverage of the Core and Cli tests under Microsoft.Testing.Platform (task 070: the coverlet switch of dotnet test,
+         gated by scripts/check-coverage.py), MIT (the Microsoft code coverage extension's license is not on the
+         allowlist). Its instrumented assemblies also count the Cli tests' child processes. -->
     <PackageVersion Include="coverlet.MTP" Version="10.1.0" />
   </ItemGroup>
 

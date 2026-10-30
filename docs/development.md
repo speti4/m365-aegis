@@ -821,6 +821,13 @@ primitives, variant classes, the class-name helper, the icons, the animations, t
 theme provider it follows the system's light or dark mode, as the page does); `vitest` (the tests);
 `@biomejs/biome` (lint and format in one pinned binary); `@types/*` (the type definitions).
 
+The test-only packages of the coverage (task 070): `@vitest/coverage-v8` (Vitest's V8 coverage provider, for the
+100% thresholds of `npm run test:coverage` and the CI report; Vitest measures nothing without a provider package, and
+this one is its own, pinned to the Vitest version) and `happy-dom` (a DOM for the component tests, which a file opts
+into with `// @vitest-environment happy-dom`: the cards, the page, the entry and the sketch need clicks, input and
+effects to reach every branch; there was no DOM before, and the tests drive React 19's own `act` through a small
+helper, `src/test/dom.ts`, so no testing library is added). Both are dev packages under MIT and never ship.
+
 ## The output contract
 
 Every answer of the command line is one of two renderings of the same data (D-006): a table for a terminal, or
@@ -918,7 +925,7 @@ minute; `lint`, `workflow-lint` and `commit-rules` run on every change, and a ta
 base is always the full run (task 023). The skip is a job-level `if:`, never a path filter on the trigger: a
 required check whose workflow never starts stays pending and blocks the merge, while a job skipped by its
 condition passes its check. The jobs: `dotnet` (locked restore, `dotnet format --verify-no-changes`, the build with the analyzers, the
-Core and Cli tests), `deps` (the vulnerability script, `nuget-license` against `licenses/allowed.json` over the
+Core and Cli tests under coverlet and the coverage gate, see [Coverage](#coverage)), `deps` (the vulnerability script, `nuget-license` against `licenses/allowed.json` over the
 shipped projects, with `licenses/license-texts.json`, which the release script's notices read too, naming the
 license of a package that ships it as a file instead of an SPDX expression: the broker's native runtime, `Microsoft.Identity.Client.NativeInterop`, comes
 under the Microsoft Software License Terms and is allowed as `LicenseRef-Microsoft-Software-License-Terms`, and
@@ -929,12 +936,13 @@ Dependabot bump of the two does, passes without an edit (task 029, tried over We
 0.20.7 on 2026-10-29; the tool's `--override-package-information` takes one exact version per entry and would have
 failed both). A bump whose license text changed fails the job: read the new text, and when the license is still
 the one named, replace the file under `licenses/texts/` with it;
-`npm audit` and the front end's license script), `frontend` (Biome, the type check, Vitest,
-the Vite build), `sidecar` (PSScriptAnalyzer and the Pester tests against the fake module, with the runner's own
-pwsh), all four skipped on a docs-only change, `lint` (the changelog check, skipped on a tag, see [The changelog](#the-changelog); the fixture check; the
+`npm audit` and the front end's license script), `frontend` (Biome, the type check, Vitest with its coverage
+thresholds, the Vite build), `sidecar` (PSScriptAnalyzer and the Pester tests against the fake module, with the
+runner's own pwsh, and the coverage of the sidecar script), all four skipped on a docs-only change, `lint` (the changelog check, skipped on a tag, see [The changelog](#the-changelog); the fixture check; the
 commit-rules self-test) and `workflow-lint` (zizmor over the workflows and `dependabot.yml`; a finding accepted on
 purpose carries `# zizmor: ignore[<audit>]` on the step's name line with its reason in the comment above). The
-one Windows job, `windows`, runs on pull requests and tags only, and not on a docs-only change: the full build
+one Windows job, `windows`, runs on every push to `main`, every pull request and every tag (task 068), and not on a
+docs-only change: the full build
 with the front end, the tests,
 `m365-aegis --version` and `doctor --offline`, the window's `--smoke` run (the page loads and the bridge sends
 `ready`), and the release script's dry run. `.github/workflows/commit-rules.yml` runs `commit-rules`
@@ -958,9 +966,10 @@ vulnerability reporting (the link in SECURITY.md), secret scanning and its push 
 behind the fixture check in CI and the pre-commit checks. The repository is public since task 067 (D-010): its
 history was rewritten once, in a fresh clone, before the publication, and pushed to a new repository, so a pull
 request number up to 27 in a commit subject refers to the private repository the history was carried from, kept
-as the maintainer's archive. The CI matrix of D-005 (the Linux jobs on every push, the `windows` job on pull
-requests and tags) stays although a public repository's standard runners are free; widening it is a separate
-decision.
+as the maintainer's archive. D-005 kept the `windows` job off the pushes to `main` to spare a private repository's
+billed minutes; a public repository's standard runners are free, so since task 068 (decided with the round of
+2026-10-30) the job runs on the squash commit on `main` too, and the published exes and the window's smoke test are
+checked on what was merged, not only on the pull request before it.
 
 Every action is pinned by commit SHA with the version in a comment. Dependabot proposes the updates for the
 NuGet packages, the SDK pin, the front end's packages and the actions once a week, a release only after it is a
@@ -1046,6 +1055,70 @@ regenerated `CHANGELOG.md`.
   file; `--notices` appends them to the notices file.
 - `scripts/check-commit.sh` — the commit rules of [git-workflow.md](git-workflow.md), with a `--self-test`.
 - `scripts/pester-version.txt` — the Pester version the `sidecar` job installs.
+
+## Coverage
+
+Every test layer is measured, and CI holds each one at 100% (task 070): a change that adds a line or a branch
+without a test that runs it fails its job. Each job uploads its report as a run artifact, also when the gate
+failed, since that is when it is read.
+
+- **The Core and the command line** (the `dotnet` job, artifact `coverage-dotnet`): `coverlet.MTP` instruments
+  `M365Aegis.Core.dll` and `m365-aegis.dll` next to each test project under `dotnet test --coverlet`, and each
+  project writes a JSON and a Cobertura report. `scripts/check-coverage.py` merges the JSON reports, so a line
+  or a branch counts as covered when either project ran it. It lists every file with an uncovered line or branch,
+  writes a table to the job summary, and fails when an assembly is below 100% of its lines or its branches. The Cli
+  tests stay child processes, the way a shell runs the exe. The child loads the instrumented `m365-aegis.dll` next
+  to the tests and inherits coverlet's environment, so its hits are written to the same report when it exits. The
+  exit code, the stdout and stderr split and the pipe-or-terminal default are tested in the same run that measures
+  them; no in-process entry is needed. The table views are also tested in process (`TableViewTests`).
+- **The front end** (the `frontend` job, artifact `coverage-frontend`): Vitest with the V8 provider
+  (`npm run test:coverage`). `vite.config.ts` sets 100% thresholds for lines, branches, functions and statements
+  over `src/**/*.{ts,tsx}`, the generated shadcn/ui components included. Only the test files and their helpers
+  under `src/test/` are left out. The component tests run in `happy-dom`.
+- **The sidecar script** (the `sidecar` job, artifact `coverage-sidecar`): `aegis-exo-sidecar.ps1` is still one
+  file, which the Core embeds and the doctor hash-checks. It takes `-In`, `-Out` and `-Log` (a reader and two
+  writers, which default to stdin, stdout and stderr), so a test can drive the whole protocol in its own process
+  with string streams. `-Library` defines the functions and returns before the loop, so a test can dot-source the
+  script and call one function. The Pester tests run every case twice: as a child pwsh (the process contract) and
+  in process (what Pester's profiler-based coverage sees). `tests/sidecar/run-with-coverage.ps1` writes
+  `TestResults/sidecar-coverage.xml` (JaCoCo) and fails below 100% of the script's commands, naming each missed one.
+  Pester measures commands, not branches. Its own `CoveragePercentTarget` does not fail a run in 5.7, which is why
+  the script checks the number.
+- **The window's exe** (`src/M365Aegis.Gui`) has no test project and is not measured. What it does with a
+  message is the Core's `Bridge` (measured above); the WinForms form, the WebView2 control and the P/Invoke shells
+  around them need a desktop session, and the `windows` job's `--smoke` run checks them.
+
+CI measures on Linux. The `windows` job runs the same tests without coverage (no threshold there): the code that
+only one operating system runs is excluded (below), so the same 100% holds on a Windows machine, where a
+contributor runs the gate before a commit (CONTRIBUTING.md, "Checks before a commit").
+
+A gap is closed with a test first. A branch that no input can reach is simplified away, without changing the
+behavior of any input that can. A dependency a test cannot set up gets a seam (`DoctorEnvironment`, the
+transports, `LogSink.UseVerbose`, the `-In`/`-Out` streams of the sidecar). What still needs something CI cannot
+give carries `[ExcludeFromCodeCoverage(Justification = "…")]` on the smallest member that needs it. Every one is
+listed here, and a new one is added to this list in the change that adds it:
+
+| Member | Why it is not measured |
+| --- | --- |
+| `MsalTokenBroker`: `AcquireSilentWithOperatingSystemAccountAsync`, `GetAccountsAsync`, `AcquireSilentAsync`, `AcquireInteractiveAsync`, `AcquireWithDeviceCodeAsync`, `RemoveAsync`, `FindAsync`, `GuardAsync`, `BuildAsync` (Core, `Auth`) | Each one builds the real MSAL public client (the Windows account manager, the DPAPI cache file) and calls the real sign-in service. What the broker does around the library is tested: the exception mapping, the result, the window thread, the log; the sign-in flows run over a fake `ITokenBroker`. |
+| `ConsoleWindow.RootOwner` (Core, `Auth`) | Win32 calls on the console window of a desktop session, which CI's runners do not have. |
+| `BridgeServices.ForWindow` (Core, `Bridge`) | Wires the window's real layers: MSAL over the window, Graph, and an Exchange Online session that a first cmdlet would start against the tenant. The `windows` job's `--smoke` run starts the window with it; each layer it wires is measured on its own. |
+| `Doctor.PwshFileName` (Core, `Diagnostics`) | `pwsh.exe` or `pwsh`: one side per operating system. The search over `PATH` is tested with a made-up file name. |
+| `DoctorEnvironment`: `RunDsregcmd`, `ReadDesktopRuntimeVersionsFromDisk`, `ReadWebView2VersionsFromRegistry`, `ReadPv`, the nested `Network` (the endpoint probe and its `HttpClient`) (Core, `Diagnostics`) | They read the real machine (`dsregcmd`, the registry, the .NET installation's folders, Microsoft's endpoints), differently on Windows and on Linux. The checks over their answers are tested through the `DoctorEnvironment` seams. |
+| `SidecarClient.KillQuietly` (Core, `Exchange/Sidecar`) | Its catch runs only when the operating system refuses the kill, or the child ends between the check and the call: a race no test can stage. |
+| `SidecarClient.AwaitQuietly` (Core, `Exchange/Sidecar`) | Its catch runs only when the pipe breaks under the read, which .NET reports as the end of the stream on every runner. |
+| `DeviceCodePrompts.OnStderr` (Cli) | The console's stderr during a device-code sign-in, which needs the real sign-in service; the text it writes is tested through `DeviceCodePrompts.Write`. |
+
+```powershell
+# The Core and the command line (delete the folder first, so no older report is merged in)
+Remove-Item -Recurse -Force TestResults/coverage -ErrorAction Ignore
+dotnet test --no-build -c Release --coverlet --coverlet-output-format json --results-directory TestResults/coverage
+python -I scripts/check-coverage.py TestResults/coverage
+# The front end; the HTML report is gui/web/coverage/lcov-report/index.html
+npm run test:coverage --prefix gui/web
+# The sidecar script
+pwsh -File tests/sidecar/run-with-coverage.ps1
+```
 
 ## Fixtures
 
