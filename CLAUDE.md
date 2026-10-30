@@ -56,6 +56,8 @@ lock files, `gui/web` or `.github/` change); a change that closes a task regener
   stays `proposed` until the maintainer decides it
 - A task file's `plan:` field is `none` (a plan file lives outside the repo), and no file carries a home folder
   path, so the repo can go public without a rewrite
+- `scripts/sync-issues.py` mirrors every numbered task and decision into a GitHub issue, one way (task 069): edit
+  the file, never the issue; a task file's H1 and Context are the issue text
 
 ## Memory
 

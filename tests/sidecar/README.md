@@ -62,6 +62,13 @@ anything `Get-EXORecipient` knows; adding a member who is one already, removing 
 recipient matches fail as the service's do (non-terminating errors), and each call that changed a group is recorded in
 the `M365AEGIS_FAKE_EXO_WRITES` file like the other writes.
 
+The owners of task 064: `Get-DistributionGroup` answers the two groups with `ManagedBy`, the owners by each recipient's
+name as the service lists them (Sales: `alice`; Finance Staff: `carol` and `Organization Management`, a role group no
+recipient lookup knows), and `Set-DistributionGroup` (`-Identity`, `-ManagedBy @{Add=…}` or `@{Remove=…}`,
+`-BypassSecurityGroupManagerCheck`) changes that list, each owner a recipient `Get-EXORecipient` knows; removing an
+owner who is not one, or an owner no recipient matches, fails as the service's does (a non-terminating error), and
+each call that changed a group is recorded like the other writes.
+
 ```powershell
 Invoke-Pester -Path tests/sidecar
 ```
