@@ -29,6 +29,9 @@ below and may reshape them. Decided 2026-10-30: this bundle merges last in the r
 over the final tree: before its pull request the session merges `origin/main`, moves the new child-process tests
 of the safety bundle to the in-process entry and closes the gaps the feature bundles opened. The exclusion list
 goes to the maintainer before the pull request.
+Decided 2026-10-30 (the maintainer, at checkpoint 1): the exclusion list is accepted as reported (20 members in 7
+files, each reason in `docs/development.md`, "Coverage"), and so is the deviation from the plan: no in-process entry
+for the command line, `CliTests.RunWith` stays a child process, since coverlet already counts the child processes.
 
 ## Docs that move
 
@@ -115,8 +118,8 @@ goes to the maintainer before the pull request.
 
 ## Deviations from the plan
 
-- No in-process entry for the command line: coverlet.MTP already counts the child processes (Log), so the Cli
-  tests keep the child-process harness and `CliTests.RunWith` keeps its signature. The safety bundle's new tests
+- No in-process entry for the command line (accepted by the maintainer, 2026-10-30): coverlet.MTP already counts
+  the child processes (Log), so the Cli tests keep the child-process harness and `CliTests.RunWith` keeps its signature. The safety bundle's new tests
   over it are measured as they are, and the process-global state the entry would have exposed (the environment,
   the console, `LogSink.Verbose`) stays per process. What a child cannot reach (the terminal default) moved into
   pure functions tested in process.
@@ -139,6 +142,11 @@ goes to the maintainer before the pull request.
   changelog check, `uvx zizmor .github` clean; the `windows` job's steps: `doctor --offline` exit 0, `whoami` exit 3
   in an empty home, `m365-aegis-gui.exe --smoke` exit 0, `scripts/release.ps1 -DryRun` exit 0 (11.4 MB, 4.6 MB
   zipped).
+- 2026-10-30 — GitHub, `workflow_dispatch` run 41092363648 on the branch (started by the main session): `changes`,
+  `lint`, `workflow-lint`, `deps`, `frontend`, `sidecar` and `dotnet` green (`windows` skipped on a manual run of
+  a branch, as the `if:` says); the `dotnet` gate at Core 4812/4812 lines and 2676/2676 branches, Cli 1864/1864
+  and 464/464 over 1126 tests; the sidecar 108 tests and 264/264 commands; the three artifacts `coverage-dotnet`,
+  `coverage-frontend` and `coverage-sidecar` uploaded.
 
 ## Closing checklist
 
