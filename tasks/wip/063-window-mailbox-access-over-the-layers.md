@@ -38,28 +38,84 @@ with `mailbox access <mailbox>` (counts and shapes only).
 
 ## Steps
 
-1. [ ] The bridge handler (`WindowExchange`, `BridgeDispatcher`) runs the two layers the way `MailboxLookups` does
-       for the command line, over the window's Exchange token source; the `window:` log line names both layers
-2. [ ] The front end's access card shows the rows with the display names and the layer; the contract samples
-3. [ ] Bridge tests (C# over the fixtures and the fake module; Vitest over the samples)
-4. [ ] Docs; the live steps for the main session in the report
+1. [x] The bridge handler runs the two layers the way `MailboxLookups` does for the command line, over the window's
+       Exchange token source: `mailbox-access` with a mailbox calls the layered `MailboxLookups.AccessAsync(backends,
+       …)`; the core's result names the layer of the mailbox and of every grant; the `window:` log line names what
+       each layer read
+2. [x] The front end's access card shows the rows with the display names and the layer; the contract sample, the
+       browser mock and an Admin API fixture for the mailbox by its address
+3. [x] Tests: C# over the fixtures and the fake module (the bridge, the layered read, the command line's `--json`);
+       Vitest over the samples and the card's helpers
+4. [x] Docs; the live steps for the main session in the report
+5. [ ] Live check (main session): the access card's rows and the `window:` line against `mailbox access <mailbox>
+       --json`, counts and shapes only
 
 ## Log
 
 - 2026-10-30 — promoted by the main session as the window bundle of the sixth round
+- 2026-10-30 — the core's layered read already existed (task 042: `MailboxLookups.AccessAsync(ExchangeBackends, …)`,
+  the Admin API's mailbox with the delegates by name beside the sidecar's FullAccess and Send As, the sidecar alone
+  as the fallback); the window called the sidecar-only overload on `backends.Sidecar`. `BridgeDispatcher` now calls
+  the layered one for `{"mailbox": …}` over the `ExchangeBackends` the window's `WindowExchange` gives each request
+  (task 056: the warm session as the sidecar, an Admin API client over the window's one `ExchangeTokenSource`).
+  `{"user": …}`, the reverse lookup, stays on the session: it is the sidecar's bulk read on the command line too, and
+  the window's backends start no extra sidecars for its parallel read.
+- 2026-10-30 — the layer of a row is not in `meta.backend` (which says `admin-api+pwsh` after a fallback too, the
+  Admin API having been asked), so the core's result names it: `MailboxAccess.MailboxLayer` (`admin-api`, or `pwsh`
+  when the run has no Admin API or it could not answer) and `MailboxHolder.Layer` (`admin-api` for a Send on Behalf
+  delegate the Admin API listed, `pwsh` for FullAccess, Send As and every grant of a fallback), both init properties
+  set by the layered read only (`Exchange/MailboxResults.cs`, `MailboxReads.cs`); no signature changed. The command
+  line's `--json` of `mailbox access <mailbox>` carries them too; its table and the sidecar-only lookup's envelope
+  snapshot are unchanged. `MailboxWrites` reads the access through the same call and compares rights and names only,
+  so a plan is unchanged.
+- 2026-10-30 — the `window:` line of a mailbox's access names what each layer read, by counts, never a name
+  (`BridgeDispatcher.DescribeLayers`): `mailbox-access answered in … ms through admin-api+pwsh (the mailbox and 1 Send
+  on Behalf delegate(s) from admin-api, 2 FullAccess and Send As grant(s) from pwsh); exchange session 1, sidecar
+  starts 1, …`; after a fallback `(the Admin API could not answer: the mailbox, … from pwsh)`, without an Admin API
+  `(no Admin API in this window: …)`. A fallback also writes the core's own `admin-api:` line with the service's code.
+- 2026-10-30 — front end: `protocol.ts` reads `mailboxLayer` and each holder's `layer` (optional, one of `admin-api`,
+  `pwsh`; anything else refuses the reply, as an unknown right does); the access card has a "Read through" column
+  (Admin API or PowerShell) and a line under the mailbox on what each layer read (`describeLayers`); the browser mock
+  answers Finance exactly as the sample and bob's mailbox through the session alone, as the recorded Admin API
+  refuses it. The bridge sample `mailbox-holders.json` is now the Admin API answer (the window's product wiring);
+  the request sample asks by address, as the card's pick does, so the Admin API fixture
+  `Mailbox@Identity=finance@contoso.com&IncludeGrantSendOnBehalfToWithDisplayNames=true` joins (Finance's body,
+  request id `…0a1`).
+- 2026-10-30 — tests: `BridgeProtocolTests` (the access over both layers is the sample on one sidecar start and one
+  token acquisition; a window without an Admin API and a holder made without layers answer the sample with every
+  layer `pwsh`; the Admin API's 403 for bob falls back to the session; the Admin API's 404 for nobody is `not-found`
+  with the window's hint; the log text by counts; the 056 test renamed for the access over both layers),
+  `MailboxReadsTests` (the layers of the Admin API read, of the fallback, and of the sidecar-only read, which names
+  none), `MailboxLayersCommandTests` (the command line's `--json` carries the layers); Vitest: the sample's layers,
+  a reply without layers, an unknown layer refused, the card's `layerNames` and `describeLayers`, the mock's Finance
+  equal to the sample.
 
 ## Deviations from the plan
 
-- none yet
+- The layer of a row is a field of the core's result, not of the bridge reply alone: the command line's `--json`
+  carries `mailboxLayer` and `layer` too (additive; its table, the snapshots and the plans unchanged), so the card's
+  rows and `mailbox access <mailbox> --json` compare one to one.
+- A user's access (the reverse lookup) stays on the session, as on the command line; only the mailbox direction
+  moved to the layers.
+- One Admin API fixture joins (Finance by its address) with a section of its own in `tests/fixtures/README.md`,
+  which *Docs that move* did not name.
 
 ## Verification
 
-- (pending)
+- 2026-10-30, local (the worktree, the full matrix of CONTRIBUTING): `dotnet restore --locked-mode`, `dotnet format
+  --verify-no-changes --no-restore` exit 0, `dotnet build --no-restore -c Release` with the front end (0 warnings),
+  `dotnet test --no-build -c Release` 813 passed (the 5 new and 6 changed cases of this task included; no
+  `*.received.*`, the snapshots unchanged), `changelog.py --check` up to date, `check-fixtures.py` 286 files 0
+  findings; `npm ci`, `npm run lint`, `npm run typecheck`, Vitest 63 passed (6 new), `npm run build`; the `windows`
+  job's steps with an empty `M365AEGIS_HOME`: `--json doctor --offline` 0, `--json whoami` 3, `m365-aegis-gui
+  --smoke` 0 (ready after 871 ms, top-level window, no sidecar started), `scripts/release.ps1 -DryRun` 0. The
+  sidecar script and the fake module are untouched, so no Pester run.
+- live: (pending, the main session's signed-in round)
 
 ## Closing checklist
 
 - [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
-- [ ] every doc under *Docs that move* changed in this change
+- [x] every doc under *Docs that move* changed in this change
 - [ ] Verification written, dated
 - [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
