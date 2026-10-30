@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-10-30 — edit the files, not this section._
 
-**State:** 11 backlog (0 ready · 1 blocked · 0 waiting · 10 ideas) · 0 in progress · 75 done · 0 dropped · 10 decisions
+**State:** 12 backlog (0 ready · 2 blocked · 0 waiting · 10 ideas) · 0 in progress · 75 done · 0 dropped · 10 decisions
 
 ### Ready
 
@@ -26,7 +26,8 @@ _none_
 
 | # | Task | Needs | Size | Created |
 |---|---|---|---|---|
-| 084 | [access <user>: which groups, sites and mailboxes one user reaches, from the sna…](backlog/084-access-view-for-one-user-from-the-snapshot.md) | D-011 (task 083, the snapshot store's format) | M | 2026-10-30 |
+| 084 | [access <user>: which groups, sites and mailboxes one user reaches, from the sna…](backlog/084-access-view-for-one-user-from-the-snapshot.md) | D-011 (task 083) and the store of task 087 | M | 2026-10-30 |
+| 087 | [The snapshot store and snapshot take: groups, sites, sharing and mailbox permis…](backlog/087-snapshot-store-and-snapshot-take.md) | D-011 (task 083, the snapshot store's format) | L | 2026-10-30 |
 
 ### Waiting on
 

@@ -14,5 +14,5 @@ the home folder, how the access view of task 084 would query it in under a secon
 or pruned; the answer is a decision record (D-011) with the store's shape, not code.
 Why: M5 has no task yet and every M5 item depends on the store; a format chosen in the first implementation is a
 one-way cost later (D-005 keeps the data under the home folder, never in the repo).
-Done when: D-011 is `proposed` with the format, the size per snapshot, the query path and the retention, and task 084
-is unblocked by it.
+Done when: D-011 is `proposed` with the format, the size per snapshot, the query path and the retention, and tasks 087
+and 084 are unblocked by it.
