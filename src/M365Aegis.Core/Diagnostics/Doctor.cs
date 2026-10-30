@@ -52,7 +52,7 @@ public sealed record DoctorReport(string Home, IReadOnlyList<DoctorCheck> Checks
 }
 
 /// <summary>
-/// The prerequisites of the tool, checked one by one (task 008): the home folder, the .NET runtime, PowerShell 7.6
+/// The prerequisites of the tool, checked one by one (task 008): the home folder and its access list, the .NET runtime, PowerShell 7.6
 /// and the ExchangeOnlineManagement module for the Exchange Online sidecar, the sidecar script against the copy
 /// compiled into the Core, the WebView2 runtime of the window, the tenant profiles, the device's join state, the
 /// sign-in, and the three endpoints. Everything the checks read comes through <see cref="DoctorEnvironment"/>;
@@ -105,6 +105,7 @@ public static class Doctor
         var checks = new List<DoctorCheck>
         {
             CheckHome(environment.Home),
+            CheckHomeAccess(environment),
             new("dotnet-runtime", CheckStatus.Pass, environment.RuntimeVersion, Required: false),
             CheckDesktopRuntime(environment),
             CheckPwsh(pwshPath, pwsh),
@@ -172,6 +173,71 @@ public static class Doctor
         }
 
         return new("home", CheckStatus.Warn, $"{home} does not exist yet; the first sign-in creates it", Required: true);
+    }
+
+    /// <summary>
+    /// The groups whose read right on the home folder lets every other account of the machine read it, by their
+    /// well-known SIDs: Everyone, Users and Authenticated Users (task 078).
+    /// </summary>
+    internal static IReadOnlyList<(string Sid, string Name)> BroadReaders { get; } =
+    [
+        ("S-1-1-0", "Everyone"),
+        ("S-1-5-32-545", "Users"),
+        ("S-1-5-11", "Authenticated Users"),
+    ];
+
+    /// <summary>
+    /// The access rights that read what is in a folder: list the folder (a file's read data, the same bit), and the
+    /// generic read and generic all rights an inheritable entry may carry instead of the specific ones.
+    /// </summary>
+    internal const int ReadRights = 0x1 | 0x10000000 | unchecked((int)0x80000000);
+
+    /// <summary>
+    /// The home folder's access list on Windows (task 078): a warning when Everyone, Users or Authenticated Users has
+    /// a read right on it (an allow entry, explicit or inherited; a deny entry is not weighed against it), with the
+    /// <c>icacls</c> line that gives it the list a home the product creates has (task 075, <see cref="AegisHome.Create"/>):
+    /// nothing inherited, full control for the user, SYSTEM and Administrators, the three groups removed. The doctor
+    /// does not change the list itself. Not required: the tool runs either way.
+    /// </summary>
+    internal static DoctorCheck CheckHomeAccess(DoctorEnvironment environment)
+    {
+        const string name = "home-access";
+        if (!environment.IsWindows)
+        {
+            return new(name, CheckStatus.Skipped, "not Windows; the home folder's access list is a Windows rule", Required: false);
+        }
+
+        string home = environment.Home;
+        if (!Directory.Exists(home))
+        {
+            return new(name, CheckStatus.Skipped, "no home folder yet; the product creates it readable by the user only", Required: false);
+        }
+
+        if (environment.ReadHomeAccess(home) is not { } access)
+        {
+            return new(name, CheckStatus.Warn, "the home folder's access list could not be read", Required: false, $"icacls \"{home}\" shows it");
+        }
+
+        List<string> readers = [.. BroadReaders
+            .Select(reader => (reader.Name, Entries: access.Entries.Where(entry => entry.Allow && entry.Sid == reader.Sid && (entry.Rights & ReadRights) != 0).ToList()))
+            .Where(found => found.Entries.Count > 0)
+            .Select(found => found.Entries.All(entry => entry.Inherited) ? $"{found.Name} (inherited)" : found.Name)];
+        if (readers.Count == 0)
+        {
+            return new(name, CheckStatus.Pass, "neither Everyone, Users nor Authenticated Users can read it", Required: false);
+        }
+
+        return new(name, CheckStatus.Warn,
+            $"{string.Join(", ", readers)} can read it: every account on this machine can read the profiles, the plan records and the logs",
+            Required: false, HomeAccessFix(home, access.User));
+    }
+
+    /// <summary>The <c>icacls</c> line that gives a home the product's own list; it runs the same in pwsh and in cmd.</summary>
+    internal static string HomeAccessFix(string home, string user)
+    {
+        string grants = string.Join(" ", new[] { user, "*S-1-5-18", "*S-1-5-32-544" }.Select(sid => $"\"{sid}:(OI)(CI)F\""));
+        string removes = string.Join(" ", BroadReaders.Select(reader => $"*{reader.Sid}"));
+        return $"icacls \"{home}\" /inheritance:r /grant:r {grants} /remove:g {removes}";
     }
 
     internal static DoctorCheck CheckPwsh(string? pwshPath, PwshAnswer? answer)

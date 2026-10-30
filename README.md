@@ -76,9 +76,9 @@ Without a window (an SSH session, a scheduled task) `login` falls back to a devi
 is another `login --profile <name> …`; `profile list` shows the profiles, `profile use <name>` picks the default
 and `profile remove <name>` signs one out and deletes it.
 
-When something does not work, `doctor` checks the prerequisites (the .NET Desktop Runtime of the window, pwsh and
-the Exchange Online module, the sidecar script, WebView2, the device's join state, the sign-in, the endpoints) and says what to install or do for each
-warning and failure. A sign-in that fails is diagnosed with `--verbose login`: the sign-in library's log, without
+When something does not work, `doctor` checks the prerequisites (the home folder and who can read it, the .NET
+Desktop Runtime of the window, pwsh and the Exchange Online module, the sidecar script, WebView2, the device's join
+state, the sign-in, the endpoints) and says what to install or do for each warning and failure. A sign-in that fails is diagnosed with `--verbose login`: the sign-in library's log, without
 tokens or personal data, goes to `%LOCALAPPDATA%\m365-aegis\logs\`.
 
 Any Graph request goes through `call`, its answer unchanged inside the envelope; a method other than GET is a
@@ -294,7 +294,8 @@ their numbers.
 The home folder (`%LOCALAPPDATA%\m365-aegis\`, or the folder `M365AEGIS_HOME` names) is now created with an access list
 of its own: the signed-in Windows user, SYSTEM and Administrators, and nothing inherited from the folder above it, so
 the MSAL cache, the profiles, the logs and the plan records stay readable by you alone even under a folder other users
-may read. A folder that exists already keeps its access list. The details are in
+may read. A folder that exists already keeps its access list; `doctor` warns when `Everyone`, `Users` or
+`Authenticated Users` can read it and prints the `icacls` line that makes it yours alone. The details are in
 [docs/development.md](docs/development.md#the-safety-tests).
 
 ## Every line and branch tested

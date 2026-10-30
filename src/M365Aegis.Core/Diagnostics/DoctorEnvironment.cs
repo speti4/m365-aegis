@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Versioning;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using M365Aegis.Core.Auth;
 using M365Aegis.Core.Exchange;
 using Microsoft.Win32;
@@ -13,10 +15,22 @@ namespace M365Aegis.Core.Diagnostics;
 /// <param name="Error">Why nothing answered, or null.</param>
 public sealed record EndpointAnswer(int? StatusCode, TimeSpan Elapsed, string? Error);
 
+/// <summary>The home folder's access list as the doctor reads it on Windows (task 078).</summary>
+/// <param name="User">The account the process runs as (<c>MACHINE\name</c> or <c>DOMAIN\name</c>), for the fix line.</param>
+/// <param name="Entries">Every entry of the folder's access list, explicit and inherited.</param>
+public sealed record HomeAccess(string User, IReadOnlyList<AccessEntry> Entries);
+
+/// <summary>One entry of a folder's access list, without the Windows types, so the check over it runs on every runner.</summary>
+/// <param name="Sid">The SID the entry is for, as a string (<c>S-1-5-32-545</c>).</param>
+/// <param name="Allow">An allow entry (false: a deny entry).</param>
+/// <param name="Rights">The access mask (<c>FileSystemRights</c>, generic rights included).</param>
+/// <param name="Inherited">Inherited from a folder above.</param>
+public sealed record AccessEntry(string Sid, bool Allow, int Rights, bool Inherited);
+
 /// <summary>
-/// What the doctor reads from the machine, each behind a seam the tests replace (task 008): the pwsh call, the
-/// registry, <c>dsregcmd</c>, the sidecar script's two copies, the sign-in and the endpoint probe.
-/// <see cref="ForThisMachine"/> wires the real ones.
+/// What the doctor reads from the machine, each behind a seam the tests replace (task 008): the home folder's access
+/// list, the pwsh call, the registry, <c>dsregcmd</c>, the sidecar script's two copies, the sign-in and the endpoint
+/// probe. <see cref="ForThisMachine"/> wires the real ones.
 /// </summary>
 public sealed record DoctorEnvironment
 {
@@ -28,6 +42,9 @@ public sealed record DoctorEnvironment
 
     /// <summary>Whether this is Windows; the registry and <c>dsregcmd</c> checks are skipped elsewhere.</summary>
     public bool IsWindows { get; init; } = OperatingSystem.IsWindows();
+
+    /// <summary>The access list of an existing home folder (the path), or null when it could not be read.</summary>
+    public Func<string, HomeAccess?> ReadHomeAccess { get; init; } = ReadHomeAccessFromDisk;
 
     /// <summary>The .NET runtime the process runs on.</summary>
     public string RuntimeVersion { get; init; } = Environment.Version.ToString();
@@ -85,6 +102,32 @@ public sealed record DoctorEnvironment
         OperatingSystem.IsWindows()
             ? RunProcess(Path.Combine(Environment.SystemDirectory, "dsregcmd.exe"), ["/status"], TimeSpan.FromSeconds(15))
             : null;
+
+    /// <summary>The home folder's access list through the Windows API, each entry by its SID; null off Windows or when it cannot be read.</summary>
+    [ExcludeFromCodeCoverage(Justification = ThisMachine)]
+    private static HomeAccess? ReadHomeAccessFromDisk(string home)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return null;
+        }
+
+        try
+        {
+            var entries = new List<AccessEntry>();
+            foreach (FileSystemAccessRule rule in new DirectoryInfo(home).GetAccessControl()
+                .GetAccessRules(includeExplicit: true, includeInherited: true, typeof(SecurityIdentifier)).OfType<FileSystemAccessRule>())
+            {
+                entries.Add(new AccessEntry(rule.IdentityReference.Value, rule.AccessControlType == AccessControlType.Allow, (int)rule.FileSystemRights, rule.IsInherited));
+            }
+
+            return new HomeAccess(WindowsIdentity.GetCurrent().Name, entries);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException)
+        {
+            return null;
+        }
+    }
 
     private static byte[]? ReadInstalledSidecarScript() => ReadIfExists(SidecarScript.InstalledPath);
 

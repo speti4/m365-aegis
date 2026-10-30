@@ -2,6 +2,7 @@
 check                   status  detail
 ----------------------  ------  ----------------------------------------------------------------------------------------------------------
 home                    pass    D:\aegis-home
+home-access             pass    neither Everyone, Users nor Authenticated Users can read it
 dotnet-runtime          pass    10.0.4
 dotnet-desktop-runtime  pass    10.0.4
 pwsh                    pass    7.6.9 at D:\tools\pwsh\pwsh.exe
