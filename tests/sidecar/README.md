@@ -17,7 +17,8 @@ change), and a copy of the fake without one export, in another version, answers 
 `modules/ExchangeOnlineManagement` has the real cmdlet names and parameter shapes and made-up answers for
 `contoso.onmicrosoft.com`: `Connect-ExchangeOnline` (any token for that organization, with `-Organization` or `-UserPrincipalName`;
 `fabrikam.onmicrosoft.com` is refused, `expired-token` is a 401, `refuse.contoso.onmicrosoft.com` refuses with the
-token in its message, which the script must scrub), `Disconnect-ExchangeOnline` (the connect writes the variant it got, `-SkipLoadingFormatData` and `-CommandName`, to
+token in its message, which the script must scrub), `Disconnect-ExchangeOnline` (it fails after a connect with
+`disconnect-fails-token`, task 070; the connect writes the variant it got, `-SkipLoadingFormatData` and `-CommandName`, to
 the console, which is the sidecar's stderr), and the seven read cmdlets of the
 allow-list: `Get-EXOMailbox`, `Get-EXOMailboxPermission`, `Get-EXORecipientPermission`, `Get-EXOMailboxStatistics`,
 `Get-EXORecipient`, `Get-AcceptedDomain` (`contoso.com`, `contoso.onmicrosoft.com`) and `Get-EXOMailboxFolderStatistics`. The permission cmdlets accept

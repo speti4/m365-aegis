@@ -28,32 +28,20 @@ a protocol line goes to stderr, so a module banner or a Write-Host cannot corrup
 The error replies carry {"code","message","errorId","category"}: bad-request, unknown-type, module-missing,
 not-connected, cmdlet-not-allowed, connect-failed, cmdlet-failed. Only the cmdlets of $AllowedCmdlets run, a write
 cmdlet with the parameters of $WriteParameters only; the C# allow-list (Exchange/Sidecar/ExoCmdlets.cs) is the one
-place a cmdlet is admitted and a test holds these lists to it. tests/sidecar/ runs this script against a fake module.
+place a cmdlet is admitted and a test holds these lists to it. tests/sidecar/ runs this script against a fake module, as a child process and in its own process (-In, -Out, -Log).
 #>
 [CmdletBinding()]
-param()
-
-Set-StrictMode -Version Latest
-$ErrorActionPreference = 'Stop'
-$ProgressPreference = 'SilentlyContinue'
-$InformationPreference = 'SilentlyContinue'
-$PSStyle.OutputRendering = 'PlainText'
-
-# The protocol owns stdout, in UTF-8 whatever the console's code page. Everything else the process would print (a
-# module banner, a Write-Host, a stray Out-Default) goes to stderr: the console's standard output is swapped for
-# its error stream, and the protocol reads and writes the raw standard streams.
-$script:Utf8 = [System.Text.UTF8Encoding]::new($false)
-$script:ProtocolIn = [System.IO.StreamReader]::new([Console]::OpenStandardInput(), $script:Utf8)
-$script:ProtocolOut = [System.IO.StreamWriter]::new([Console]::OpenStandardOutput(), $script:Utf8)
-[Console]::SetOut([Console]::Error)
-
-# A test module root (M365AEGIS_EXO_MODULE_ROOT) turns pwsh's module auto-loading off (task 050): a cmdlet the fake
-# module does not export would otherwise be found in the machine's real ExchangeOnlineManagement and imported from
-# there. The two built-in modules the script itself uses are imported first, since nothing loads them on demand now.
-if ($env:M365AEGIS_EXO_MODULE_ROOT) {
-    Import-Module Microsoft.PowerShell.Management, Microsoft.PowerShell.Utility -ErrorAction Stop
-    $PSModuleAutoLoadingPreference = 'None'
-}
+param(
+    # The protocol's three streams. Started as a process (the Core, the doctor, the child-process tests), they are the
+    # raw standard input and output in UTF-8 and the standard error; the Pester tests run the script in their own
+    # process with a StringReader and two StringWriters (task 070), so the coverage sees every line.
+    [System.IO.TextReader] $In = [System.IO.StreamReader]::new([Console]::OpenStandardInput(), [System.Text.UTF8Encoding]::new($false)),
+    [System.IO.TextWriter] $Out = [System.IO.StreamWriter]::new([Console]::OpenStandardOutput(), [System.Text.UTF8Encoding]::new($false)),
+    [System.IO.TextWriter] $Log = [Console]::Error,
+    # Defines the lists and the functions below and returns without reading a message: the Pester tests dot-source the
+    # script this way to call a function on its own.
+    [switch] $Library
+)
 
 $script:ProtocolVersion = 1
 # The cmdlets the sidecar runs, in the order of ExoCmdlets.Allowed in the Core; a test compares the two lists.
@@ -99,6 +87,13 @@ function Hide-Secret {
     if (-not $Text) { return $Text }
     foreach ($secret in $script:Secrets) { $Text = $Text.Replace($secret, '<token>') }
     return [regex]::Replace($Text, 'eyJ[A-Za-z0-9_-]{8,}(\.[A-Za-z0-9_-]*){0,2}', '<token>')
+}
+
+function Get-ErrorText {
+    # The message of a collected error: an ErrorRecord's exception message, anything else as a string.
+    param($Failure)
+    if ($Failure -is [System.Management.Automation.ErrorRecord]) { return $Failure.Exception.Message }
+    return [string] $Failure
 }
 
 function Write-Protocol {
@@ -278,48 +273,80 @@ function Invoke-Cmdlet {
     $errors = @($failures | Where-Object { $null -ne $_ })
     if ($items.Count -eq 0 -and $errors.Count -gt 0) {
         $first = $errors[0]
-        $message = if ($first -is [System.Management.Automation.ErrorRecord]) { $first.Exception.Message } else { [string] $first }
-        Write-ErrorReply $Request 'cmdlet-failed' $message $(if ($first -is [System.Management.Automation.ErrorRecord]) { $first })
+        Write-ErrorReply $Request 'cmdlet-failed' (Get-ErrorText $first) $(if ($first -is [System.Management.Automation.ErrorRecord]) { $first })
         return
     }
     $reply = [ordered]@{ items = $items; count = $items.Count }
     if ($errors.Count -gt 0) {
-        $reply['errors'] = @($errors | ForEach-Object {
-                Hide-Secret $(if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { [string] $_ })
-            })
+        $reply['errors'] = @($errors | ForEach-Object { Hide-Secret (Get-ErrorText $_) })
     }
     Write-Reply -Request $Request -Type 'result' -Data $reply
 }
 
-while ($true) {
-    $line = $script:ProtocolIn.ReadLine()
-    if ($null -eq $line) { break }
-    if ([string]::IsNullOrWhiteSpace($line)) { continue }
-    try {
-        $request = $line | ConvertFrom-Json -AsHashtable -ErrorAction Stop
-    } catch {
-        [Console]::Error.WriteLine('sidecar: not a message')
-        continue
-    }
-    if ($request -isnot [System.Collections.IDictionary] -or $request['aegis'] -ne $script:ProtocolVersion -or -not $request['type']) {
-        [Console]::Error.WriteLine('sidecar: foreign message refused')
-        continue
-    }
-    if ($request['type'] -eq 'exit') { break }
-    try {
-        switch ($request['type']) {
-            'hello' { Invoke-Hello $request }
-            'connect' { Invoke-Connect $request }
-            'reconnect' { Invoke-Connect $request -Again }
-            'invoke' { Invoke-Cmdlet $request }
-            default { Write-ErrorReply $request 'unknown-type' "no handler for '$($request['type'])'" }
-        }
-    } catch {
-        Write-ErrorReply $request 'cmdlet-failed' $_.Exception.Message $_
-    }
-}
+if ($Library) { return }
 
-if ($script:Connected) {
-    # Drops the session and the module's temporary copy under %TMP%; a failure here changes nothing for the caller.
-    try { Disconnect-ExchangeOnline -Confirm:$false 6> $null | Out-Null } catch { [Console]::Error.WriteLine('sidecar: disconnect failed') }
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+$InformationPreference = 'SilentlyContinue'
+
+# The protocol owns its output, in UTF-8 whatever the console's code page. Everything else the process would print (a
+# module banner, a Write-Host, a stray Out-Default) goes to the log, the standard error of a process: the console's
+# standard output is swapped for it while the script runs, and the protocol writes to the raw stream it was given.
+$script:ProtocolIn = $In
+$script:ProtocolOut = $Out
+$script:ProtocolLog = $Log
+$console = [Console]::Out
+$rendering = $PSStyle.OutputRendering
+$autoLoading = Get-Variable -Name PSModuleAutoLoadingPreference -Scope Global -ValueOnly -ErrorAction Ignore
+$PSStyle.OutputRendering = 'PlainText'
+[Console]::SetOut($Log)
+try {
+    # A test module root (M365AEGIS_EXO_MODULE_ROOT) turns pwsh's module auto-loading off (task 050): a cmdlet the fake
+    # module does not export would otherwise be found in the machine's real ExchangeOnlineManagement and imported from
+    # there. The two built-in modules the script itself uses are imported first, since nothing loads them on demand now.
+    # pwsh reads the preference from the global scope only: a script started with -File runs there anyway, and a run in
+    # the tests' process puts the global value back when it ends.
+    if ($env:M365AEGIS_EXO_MODULE_ROOT) {
+        Import-Module Microsoft.PowerShell.Management, Microsoft.PowerShell.Utility -ErrorAction Stop
+        $global:PSModuleAutoLoadingPreference = 'None'
+    }
+
+    while ($true) {
+        $line = $script:ProtocolIn.ReadLine()
+        if ($null -eq $line) { break }
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        try {
+            $request = $line | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+        } catch {
+            $script:ProtocolLog.WriteLine('sidecar: not a message')
+            continue
+        }
+        if ($request -isnot [System.Collections.IDictionary] -or $request['aegis'] -ne $script:ProtocolVersion -or -not $request['type']) {
+            $script:ProtocolLog.WriteLine('sidecar: foreign message refused')
+            continue
+        }
+        if ($request['type'] -eq 'exit') { break }
+        try {
+            switch ($request['type']) {
+                'hello' { Invoke-Hello $request }
+                'connect' { Invoke-Connect $request }
+                'reconnect' { Invoke-Connect $request -Again }
+                'invoke' { Invoke-Cmdlet $request }
+                default { Write-ErrorReply $request 'unknown-type' "no handler for '$($request['type'])'" }
+            }
+        } catch {
+            Write-ErrorReply $request 'cmdlet-failed' $_.Exception.Message $_
+        }
+    }
+
+    if ($script:Connected) {
+        # Drops the session and the module's temporary copy under %TMP%; a failure here changes nothing for the caller.
+        try { Disconnect-ExchangeOnline -Confirm:$false 6> $null | Out-Null } catch { $script:ProtocolLog.WriteLine('sidecar: disconnect failed') }
+    }
+} finally {
+    $script:ProtocolLog.Flush()
+    [Console]::SetOut($console)
+    $PSStyle.OutputRendering = $rendering
+    $global:PSModuleAutoLoadingPreference = $autoLoading
 }

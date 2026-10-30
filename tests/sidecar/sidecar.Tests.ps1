@@ -1,11 +1,18 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 <#
-The Exchange Online sidecar end to end: a real pwsh child process running aegis-exo-sidecar.ps1 with the fake
-ExchangeOnlineManagement module (M365AEGIS_EXO_MODULE_ROOT). Every answer is read back as a protocol line; the fake
-module's Write-Host and console noise must not appear among them. Runs on Linux and Windows alike (the CI
-`sidecar` job and the local checks of CONTRIBUTING.md). The Core's own tests drive the same script through the C#
-protocol client (tests/M365Aegis.Core.Tests/Exchange).
+The Exchange Online sidecar end to end: aegis-exo-sidecar.ps1 with the fake ExchangeOnlineManagement module
+(M365AEGIS_EXO_MODULE_ROOT). Every scenario runs twice: in a real pwsh child process, the process contract the Core
+relies on (stdin, stdout, stderr, the exit code), and in this process with a StringReader and two StringWriters
+(-In, -Out, -Log), which is what the coverage of the script measures (task 070: Pester's CodeCoverage sees only
+this process). Every answer is read back as a protocol line; the fake module's Write-Host and console noise must not
+appear among them. Runs on Linux and Windows alike (the CI `sidecar` job and the local checks of CONTRIBUTING.md).
+The Core's own tests drive the same script through the C# protocol client (tests/M365Aegis.Core.Tests/Exchange).
 #>
+
+BeforeDiscovery {
+    # The two ways every scenario runs, as the -ForEach data of each Describe block below.
+    $script:Modes = @(@{ Mode = 'child process' }, @{ Mode = 'in process' })
+}
 
 BeforeAll {
     $script:Repo = (Resolve-Path (Join-Path $PSScriptRoot '..' '..')).Path
@@ -13,9 +20,19 @@ BeforeAll {
     $script:FakeModules = Join-Path $PSScriptRoot 'modules' 'ExchangeOnlineManagement'
 
     function Invoke-Sidecar {
-        # Feeds the lines to a fresh sidecar and returns its stdout lines (the protocol) and stderr (the noise).
+        # Feeds the lines to a fresh sidecar and returns its protocol lines and its log (stderr, the noise), either as a
+        # child process or in this one, as the $Mode of the calling Describe block says.
         param([string[]] $Lines, [switch] $WithoutModule, [string] $ModuleRoot, [hashtable] $Environment = @{})
         $moduleRoot = if ($ModuleRoot) { $ModuleRoot } elseif ($WithoutModule) { Join-Path $PSScriptRoot 'no-such-folder' } else { Split-Path $script:FakeModules -Parent }
+        # The sidecar looks for ExchangeOnlineManagement under this root only, so the machine's real module (if any)
+        # is never imported by a test and a missing module is a deterministic case.
+        $variables = @{ M365AEGIS_EXO_MODULE_ROOT = $moduleRoot }
+        foreach ($name in $Environment.Keys) { $variables[$name] = $Environment[$name] }
+        $exit = '{"aegis":1,"type":"exit"}'
+        if ($Mode -eq 'in process') {
+            Invoke-SidecarInProcess -Text ((@($Lines) + $exit | ForEach-Object { $_ + "`n" }) -join '') -Variables $variables
+            return
+        }
         $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
         $startInfo.FileName = (Get-Process -Id $PID).Path
         foreach ($argument in @('-NoProfile', '-NonInteractive', '-File', $script:Sidecar)) { $startInfo.ArgumentList.Add($argument) }
@@ -26,22 +43,46 @@ BeforeAll {
         $utf8 = [System.Text.UTF8Encoding]::new($false)
         $startInfo.StandardInputEncoding = $utf8
         $startInfo.StandardOutputEncoding = $utf8
-        # The sidecar looks for ExchangeOnlineManagement under this root only, so the machine's real module (if any)
-        # is never imported by a test and a missing module is a deterministic case.
-        $startInfo.Environment['M365AEGIS_EXO_MODULE_ROOT'] = $moduleRoot
-        foreach ($name in $Environment.Keys) { $startInfo.Environment[$name] = $Environment[$name] }
+        foreach ($name in $variables.Keys) { $startInfo.Environment[$name] = $variables[$name] }
         $process = [System.Diagnostics.Process]::Start($startInfo)
         foreach ($line in $Lines) { $process.StandardInput.Write($line + "`n") }
-        $process.StandardInput.Write('{"aegis":1,"type":"exit"}' + "`n")
+        $process.StandardInput.Write($exit + "`n")
         $process.StandardInput.Close()
         $stderrTask = $process.StandardError.ReadToEndAsync()
         $stdout = $process.StandardOutput.ReadToEnd()
         $process.WaitForExit()
+        ConvertTo-SidecarRun -ExitCode $process.ExitCode -Stdout $stdout -Stderr $stderrTask.GetAwaiter().GetResult()
+    }
+
+    function Invoke-SidecarInProcess {
+        # The script in this process: the text as its input, two StringWriters as its output and its log, the
+        # environment variables set for the run and put back after it, and the fake module removed after it, so the
+        # next run imports it afresh with its made-up data as written (a write changes them in the module's state).
+        param([string] $Text, [hashtable] $Variables)
+        $saved = @{}
+        foreach ($name in $Variables.Keys) {
+            $saved[$name] = [Environment]::GetEnvironmentVariable($name)
+            [Environment]::SetEnvironmentVariable($name, $Variables[$name])
+        }
+        $out = [System.IO.StringWriter]::new()
+        $log = [System.IO.StringWriter]::new()
+        try {
+            & $script:Sidecar -In ([System.IO.StringReader]::new($Text)) -Out $out -Log $log 6> $null
+        } finally {
+            foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name, $saved[$name]) }
+            Remove-Module ExchangeOnlineManagement -Force -ErrorAction SilentlyContinue
+        }
+        # A run that ended without throwing is the exit code 0 of a process.
+        ConvertTo-SidecarRun -ExitCode 0 -Stdout $out.ToString() -Stderr $log.ToString()
+    }
+
+    function ConvertTo-SidecarRun {
+        param([int] $ExitCode, [string] $Stdout, [string] $Stderr)
         [pscustomobject]@{
-            ExitCode = $process.ExitCode
-            Raw = $stdout
-            Lines = @($stdout -split "`n" | Where-Object { $_.Trim() } | ForEach-Object { $_ | ConvertFrom-Json })
-            Stderr = $stderrTask.GetAwaiter().GetResult()
+            ExitCode = $ExitCode
+            Raw = $Stdout
+            Lines = @($Stdout -split "`n" | Where-Object { $_.Trim() } | ForEach-Object { $_ | ConvertFrom-Json })
+            Stderr = $Stderr
         }
     }
 
@@ -57,7 +98,7 @@ BeforeAll {
     $script:Connect = '{"aegis":1,"id":"2","type":"connect","data":{"accessToken":"fake-token","organization":"contoso.onmicrosoft.com"}}'
 }
 
-Describe 'the sidecar protocol' {
+Describe 'the sidecar protocol (<Mode>)' -ForEach $script:Modes {
     It 'answers hello with the pwsh version, the module version and the allow-list' {
         $run = Invoke-Sidecar -Lines @('{"aegis":1,"id":"1","type":"hello"}')
         $run.ExitCode | Should -Be 0
@@ -83,6 +124,19 @@ Describe 'the sidecar protocol' {
         $run.Lines[0].data.code | Should -Be 'unknown-type'
     }
 
+    It 'skips a blank line' {
+        $run = Invoke-Sidecar -Lines @('   ', '{"aegis":1,"id":"1","type":"hello"}')
+        $run.Lines.Count | Should -Be 1
+        $run.Lines[0].type | Should -Be 'hello'
+    }
+
+    It 'answers hello without a module, with nulls for its version and its folder' {
+        $run = Invoke-Sidecar -Lines @('{"aegis":1,"id":"1","type":"hello"}') -WithoutModule
+        $run.Lines[0].type | Should -Be 'hello'
+        $run.Lines[0].data.module | Should -BeNullOrEmpty
+        $run.Lines[0].data.moduleBase | Should -BeNullOrEmpty
+    }
+
     It 'stops at exit without answering it' {
         $run = Invoke-Sidecar -Lines @('{"aegis":1,"type":"exit"}', '{"aegis":1,"id":"1","type":"hello"}')
         $run.ExitCode | Should -Be 0
@@ -90,7 +144,7 @@ Describe 'the sidecar protocol' {
     }
 }
 
-Describe 'connect and reconnect against the fake module' {
+Describe 'connect and reconnect against the fake module (<Mode>)' -ForEach $script:Modes {
     It 'connects and keeps the module noise off the protocol channel' {
         $run = Invoke-Sidecar -Lines @($script:Connect)
         $run.Lines.Count | Should -Be 1
@@ -156,6 +210,14 @@ Describe 'connect and reconnect against the fake module' {
         $run.Lines[0].data.message | Should -Match 'unknown organization'
     }
 
+    It 'answers a failed disconnect at exit on its log only' {
+        $connect = '{"aegis":1,"id":"2","type":"connect","data":{"accessToken":"disconnect-fails-token","organization":"contoso.onmicrosoft.com"}}'
+        $run = Invoke-Sidecar -Lines @($connect)
+        $run.ExitCode | Should -Be 0
+        $run.Lines.type | Should -Be @('connected')
+        $run.Stderr | Should -Match 'sidecar: disconnect failed'
+    }
+
     It 'never echoes the token in an error, plain or JWT-shaped' -ForEach @(
         @{ Token = 'plain-secret-token' }
         # Built at run time, so the fixture check never meets a JWT-shaped literal in this file.
@@ -169,7 +231,7 @@ Describe 'connect and reconnect against the fake module' {
     }
 }
 
-Describe 'invoke against the fake module' {
+Describe 'invoke against the fake module (<Mode>)' -ForEach $script:Modes {
     It 'runs an allowed cmdlet and returns the chosen properties as plain values' {
         $invoke = Get-InvokeLine -Cmdlet 'Get-EXOMailbox' -Parameters @{ Identity = 'finance' } -Properties @('DisplayName', 'PrimarySmtpAddress', 'GrantSendOnBehalfTo', 'DeliverToMailboxAndForward', 'Missing')
         $run = Invoke-Sidecar -Lines @($script:Connect, $invoke)
@@ -234,6 +296,13 @@ Describe 'invoke against the fake module' {
         $run.Lines[1].data.code | Should -Be 'cmdlet-not-allowed'
     }
 
+    It 'refuses an invoke without data as a cmdlet off the allow-list' {
+        $run = Invoke-Sidecar -Lines @($script:Connect, '{"aegis":1,"id":"3","type":"invoke"}')
+        $run.Lines[1].type | Should -Be 'error'
+        $run.Lines[1].data.code | Should -Be 'cmdlet-not-allowed'
+        $run.Lines[1].data.message | Should -Be "'' is not on the sidecar's allow-list"
+    }
+
     It 'refuses to invoke before a connect' {
         $run = Invoke-Sidecar -Lines @((Get-InvokeLine -Cmdlet 'Get-EXOMailbox'))
         $run.Lines[0].type | Should -Be 'error'
@@ -262,7 +331,7 @@ Describe 'invoke against the fake module' {
     }
 }
 
-Describe 'the member writes of a distribution group against the fake module (task 061)' {
+Describe 'the member writes of a distribution group against the fake module (task 061, <Mode>)' -ForEach $script:Modes {
     BeforeEach {
         $script:MemberWrites = Join-Path ([System.IO.Path]::GetTempPath()) "aegis-sidecar-member-writes-$([guid]::NewGuid().ToString('N')).jsonl"
     }
@@ -311,7 +380,7 @@ Describe 'the member writes of a distribution group against the fake module (tas
     }
 }
 
-Describe 'the write cmdlets against the fake module (task 053)' {
+Describe 'the write cmdlets against the fake module (task 053, <Mode>)' -ForEach $script:Modes {
     BeforeEach {
         $script:Writes = Join-Path ([System.IO.Path]::GetTempPath()) "aegis-sidecar-writes-$([guid]::NewGuid().ToString('N')).jsonl"
     }
@@ -405,7 +474,7 @@ Describe 'the write cmdlets against the fake module (task 053)' {
     }
 }
 
-Describe 'the fake module and the machine''s real one (task 050)' {
+Describe 'the fake module and the machine''s real one (task 050, <Mode>)' -ForEach $script:Modes {
     BeforeAll {
         $script:Manifest = Import-PowerShellDataFile (Join-Path $script:FakeModules 'ExchangeOnlineManagement.psd1')
         $script:AllowList = @((Invoke-Sidecar -Lines @('{"aegis":1,"id":"1","type":"hello"}')).Lines[0].data.allowedCmdlets)
@@ -441,5 +510,51 @@ Describe 'the fake module and the machine''s real one (task 050)' {
         $run.Lines[1].type | Should -Be 'error'
         $run.Lines[1].data.code | Should -Be 'cmdlet-failed'
         $run.Lines[1].data.message | Should -Match "Get-EXOMailboxFolderStatistics' is not recognized"
+    }
+}
+
+Describe 'the script''s parts on their own, in this process' {
+    BeforeAll {
+        # -Library defines the lists and the functions and returns before the first message; the streams are given so
+        # the console's own are never opened here.
+        . $script:Sidecar -In ([System.IO.StringReader]::new('')) -Out ([System.IO.StringWriter]::new()) -Log ([System.IO.StringWriter]::new()) -Library
+    }
+
+    It 'finds the newest ExchangeOnlineManagement on the module path without a test module root' {
+        # Whatever this machine has installed, the real module or none; the hello names the same one.
+        $expected = Get-Module -ListAvailable -Name ExchangeOnlineManagement | Sort-Object Version -Descending | Select-Object -First 1
+        $run = Invoke-SidecarInProcess -Text ('{"aegis":1,"id":"1","type":"hello"}' + "`n") -Variables @{ M365AEGIS_EXO_MODULE_ROOT = $null }
+        $run.Lines[0].type | Should -Be 'hello'
+        $run.Lines[0].data.module | Should -Be $(if ($expected) { $expected.Version.ToString() } else { $null })
+    }
+
+    It 'leaves an empty message as it is' {
+        Hide-Secret '' | Should -Be ''
+    }
+
+    It 'takes the text of a collected error that is no ErrorRecord' {
+        Get-ErrorText 'a plain failure' | Should -Be 'a plain failure'
+    }
+
+    It 'turns <Name> into a plain value' -ForEach @(
+        @{ Name = 'a time'; Value = [datetime]::new(2026, 10, 30, 12, 0, 0, [System.DateTimeKind]::Utc); Expected = '2026-10-30T12:00:00.0000000Z' }
+        @{ Name = 'an enum'; Value = [System.DayOfWeek]::Friday; Expected = 'Friday' }
+        @{ Name = 'a number'; Value = 42; Expected = 42 }
+        @{ Name = 'a decimal'; Value = [decimal] 1.5; Expected = [decimal] 1.5 }
+        @{ Name = 'an object'; Value = [version] '3.10.1'; Expected = '3.10.1' }
+    ) {
+        ConvertTo-PlainValue $Value | Should -Be $Expected
+    }
+
+    It 'keeps a null element of a list as null and turns the others into strings' {
+        $plain = ConvertTo-PlainValue @('a', $null, 3)
+        $plain.Count | Should -Be 3
+        $plain[0] | Should -Be 'a'
+        $plain[1] | Should -BeNullOrEmpty
+        $plain[2] | Should -BeExactly '3'
+    }
+
+    It 'turns no object into an empty item' {
+        (ConvertTo-PlainItem $null @('Name')).Count | Should -Be 0
     }
 }
