@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: decided
 date: 2026-10-30
 cost: one-way
 supersedes: D-005-private-repo-ci-budget-and-no-tenant-data.md
@@ -43,7 +43,8 @@ its support purges it, so a rewrite pushed into the existing repository would no
 - The CI matrix of D-005 (the Linux jobs on every push, the `windows` job on pull requests and tags) stays as it
   is; the minutes budget no longer binds, since a public repository's standard runners are free, and widening the
   matrix is a separate decision.
-- Cost: one-way (a published history cannot be recalled). Proposed 2026-10-30.
+- Cost: one-way (a published history cannot be recalled). Decided 2026-10-30, the repository public since that
+  day (task 067).
 
 ## Not chosen
 
