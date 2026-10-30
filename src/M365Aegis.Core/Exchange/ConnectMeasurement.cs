@@ -166,6 +166,7 @@ public static partial class ConnectMeasurement
     {
         var total = Stopwatch.StartNew();
         SidecarHello? hello = null;
+        ConnectRun result;
         try
         {
             await using SidecarClient client = await session.Start(cancellationToken).ConfigureAwait(false);
@@ -181,12 +182,14 @@ public static partial class ConnectMeasurement
             await client.InvokeAsync(new ExoCommand(ExoCmdlets.GetAcceptedDomain) { Properties = ["DomainName"] }, cancellationToken).ConfigureAwait(false);
             long firstMs = first.ElapsedMilliseconds;
             long totalMs = total.ElapsedMilliseconds;
-            return (new ConnectRun(variant, run, totalMs, hello.StartMs, connected.ImportMs, connected.ConnectMs, firstMs, connected.Missing ?? [], null), hello);
+            result = new ConnectRun(variant, run, totalMs, hello.StartMs, connected.ImportMs, connected.ConnectMs, firstMs, connected.Missing ?? [], null);
         }
         catch (AegisException exception)
         {
             return (new ConnectRun(variant, run, total.ElapsedMilliseconds, hello?.StartMs ?? 0, 0, 0, 0, [], $"{exception.Failure.Code}: {exception.Failure.Message}"), hello);
         }
+
+        return (result, hello);
     }
 
     private static VariantSummary Summarize(ConnectVariant variant, List<ConnectRun> runs)

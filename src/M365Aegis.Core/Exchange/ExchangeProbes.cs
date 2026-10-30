@@ -391,7 +391,7 @@ public static class ExchangeProbes
                 JsonElement first = value[0];
                 yield return first.ValueKind switch
                 {
-                    JsonValueKind.String => $"{prefix}{property.Name}[0]: string '{Pattern(first.GetString() ?? "")}'",
+                    JsonValueKind.String => $"{prefix}{property.Name}[0]: string '{Pattern(first.GetString()!)}'",
                     JsonValueKind.Object => $"{prefix}{property.Name}[0]: object {{{string.Join(",", first.EnumerateObject().Select(inner => inner.Name))}}}",
                     _ => $"{prefix}{property.Name}[0]: {Kind(first)}",
                 };

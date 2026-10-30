@@ -26,22 +26,8 @@ public static class AdminApiConnection
     /// <param name="profileName">The tenant profile (<c>--profile</c>), or null for the default one.</param>
     /// <param name="requestLog">Where the request ids go (the command runner's log).</param>
     /// <param name="auth">The sign-in; not called when the fixtures answer.</param>
-    public static AdminApiClient? Create(string? profileName, RequestLog requestLog, Func<AuthService> auth)
-    {
-        ArgumentNullException.ThrowIfNull(auth);
-        string? fixtures = Environment.GetEnvironmentVariable(GraphConnection.FixturesEnvironmentVariable);
-        if (!string.IsNullOrWhiteSpace(fixtures))
-        {
-            return Fixtures(Path.GetFullPath(fixtures), requestLog);
-        }
-
-        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(ExchangeConnection.TestOrganizationVariable)))
-        {
-            return null;
-        }
-
-        return Create(auth(), profileName, requestLog);
-    }
+    public static AdminApiClient? Create(string? profileName, RequestLog requestLog, Func<AuthService> auth) =>
+        Create(profileName, requestLog, auth, ExchangeConnection.Tokens(profileName, auth));
 
     /// <summary>
     /// The client of a command whose sidecars share its token (task 049): the fixtures' client, or none in the

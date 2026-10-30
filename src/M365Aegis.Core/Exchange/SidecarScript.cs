@@ -19,9 +19,12 @@ public static class SidecarScript
     public static string InstalledPath => Path.Combine(AppContext.BaseDirectory, "sidecar", FileName);
 
     /// <summary>The bytes of the copy embedded at build time, or null when the resource is missing.</summary>
-    public static byte[]? ReadBuildCopy()
+    public static byte[]? ReadBuildCopy() => ReadResource(ResourceName);
+
+    /// <summary>The bytes of an embedded resource of the Core, or null when there is none of that name.</summary>
+    internal static byte[]? ReadResource(string name)
     {
-        using Stream? stream = typeof(SidecarScript).Assembly.GetManifestResourceStream(ResourceName);
+        using Stream? stream = typeof(SidecarScript).Assembly.GetManifestResourceStream(name);
         if (stream is null)
         {
             return null;
