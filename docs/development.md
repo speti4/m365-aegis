@@ -198,6 +198,13 @@ with its table view in the Cli (task 005, task 007):
   twenty groups), and followed down from each direct member group, a group met twice followed once. A batch item
   with more than a page reads the rest from its next link. The plain transitive list stays the two lists beside
   the resolution, and its envelope is unchanged (`via` is left out).
+- `group owners <group>` on a distribution or mail-enabled security group that is not synced (task 076): Graph keeps
+  no owners for it, so the command runs over the Exchange layers (`ExchangeRunner`, as the writes do) and reads the
+  group's `ManagedBy` the way the owner writes of task 064 read it (the sidecar's `Get-DistributionGroup`, the names
+  resolved with one piped `Get-EXORecipient`, a role group listed by its name; see
+  [The writes follow-ups](#the-writes-follow-ups-owners-resume-and-prune)). The envelope's backend is `graph+pwsh` and
+  its `fromExchange` is `true`; a Microsoft 365 or security group's owners stay on Graph (backend `graph`, the envelope
+  unchanged), and only a synced group keeps the footer that Graph keeps no owners for it.
 - `group owners-missing [--all-types]`: advanced queries on `owners/$count eq 0`, never a request per group.
   Graph keeps no owners for distribution, mail-enabled security and synced groups, so by default only the two
   kinds it keeps them for are asked for, side by side (task 032): the Microsoft 365 groups
@@ -270,7 +277,10 @@ has to have the same SHA-256, since it runs with the administrator's Exchange On
 **The process and the protocol.** `Exchange/Sidecar/SidecarClient.cs` starts `pwsh -NoProfile -NonInteractive
 -NoLogo -File sidecar\aegis-exo-sidecar.ps1` (pwsh from `PATH`) and speaks to it over stdin and stdout, UTF-8, one
 JSON object per line tagged `{"aegis":1,"id":…,"type":…}`, one request in flight at a time, the reply matched by its
-id. Everything else the process prints goes to stderr (the script swaps the console's standard output for its
+id. A stdout line that is not the reply is skipped, never thrown on (task 081): no JSON object, no protocol version 1,
+an `id` that is no string, or the reply to another request (one that timed out before); under `--verbose` the log
+names each skipped line with its reason: a JSON object by its `id` and `type`, never its data, any other line by its
+first 200 characters. Everything else the process prints goes to stderr (the script swaps the console's standard output for its
 error stream at start-up and writes the protocol to the raw stream), so a module banner cannot corrupt the
 channel; the client keeps the last 20 stderr lines, scrubbed like a log line, for the message of a failure. The
 messages: `hello` (the pwsh and module versions and the script's allow-list), `connect` and `reconnect` (the token,

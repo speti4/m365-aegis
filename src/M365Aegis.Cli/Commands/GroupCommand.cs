@@ -1,6 +1,7 @@
 using System.CommandLine;
 using System.Globalization;
 using M365Aegis.Cli.Output;
+using M365Aegis.Core.Exchange;
 using M365Aegis.Core.Groups;
 using M365Aegis.Core.Output;
 
@@ -9,7 +10,8 @@ namespace M365Aegis.Cli.Commands;
 /// <summary>
 /// <c>m365-aegis group members|owners &lt;name or id&gt;</c> (<c>members --transitive</c>, task 033) and
 /// <c>group owners-missing [--all-types]</c> (task 005):
-/// the reads of the groups domain over Graph, and the writes <c>group members|owners add|remove</c> behind a plan
+/// the reads of the groups domain over Graph (a distribution or mail-enabled security group's owners over Exchange
+/// Online, task 076), and the writes <c>group members|owners add|remove</c> behind a plan
 /// (task 052, <c>--from-csv</c> task 054). A name resolves as <see cref="GroupLookups.ResolveAsync"/> says; an
 /// ambiguous one exits 4 with the candidates in the hint.
 /// </summary>
@@ -39,11 +41,11 @@ internal static class GroupCommand
             cancellationToken));
 
         Argument<string> ownersOf = new("group") { Description = "The group's display name, address, object id, or a word of its name." };
-        Command owners = new("owners", "List a group's owners.");
+        Command owners = new("owners", "List a group's owners: a distribution or mail-enabled security group's from Exchange Online (ManagedBy).");
         owners.Arguments.Add(ownersOf);
-        owners.SetAction((parsed, cancellationToken) => GraphRunner.RunAsync(
+        owners.SetAction((parsed, cancellationToken) => ExchangeRunner.RunAsync(
             parsed, json, table, profile,
-            (graph, ct) => GroupLookups.OwnersAsync(graph, parsed.GetValue(ownersOf) ?? "", ct),
+            (ExchangeBackends backends, CancellationToken ct) => GroupLookups.OwnersAsync(backends, parsed.GetValue(ownersOf) ?? "", ct),
             GroupOwnersTableView.Instance,
             cancellationToken));
 
@@ -224,7 +226,9 @@ internal sealed class GroupOwnersTableView : ITableView<GroupOwners>
     public IEnumerable<string> Footer(GroupOwners data)
     {
         yield return string.Format(CultureInfo.InvariantCulture, "{0} owner(s) of {1}", data.Owners.Count, GroupCommand.Describe(data.Group));
-        if (!data.Group.OwnersInGraph)
+        // Exchange's ManagedBy answered for a distribution or mail-enabled security group (task 076); a synced group's
+        // owners, or one Graph alone was asked about, Graph cannot give.
+        if (!data.Group.OwnersInGraph && data.FromExchange != true)
         {
             yield return "Graph keeps no owners for this kind of group: Exchange or on-premises Active Directory manages it";
         }

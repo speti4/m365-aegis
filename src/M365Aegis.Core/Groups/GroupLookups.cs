@@ -1,4 +1,5 @@
 using System.Globalization;
+using M365Aegis.Core.Exchange;
 using M365Aegis.Core.Graph;
 using M365Aegis.Core.Output;
 
@@ -299,12 +300,32 @@ public static class GroupLookups
         return members;
     }
 
-    /// <summary><c>group owners</c>: the group's owners, by name.</summary>
+    /// <summary><c>group owners</c> over Graph alone: the group's owners, by name.</summary>
     public static async Task<CommandResult<GroupOwners>> OwnersAsync(GraphClient graph, string nameOrId, CancellationToken cancellationToken)
     {
         GroupInfo group = await ResolveAsync(graph, nameOrId, cancellationToken).ConfigureAwait(false);
         IReadOnlyList<GroupMember> owners = await ListAsync(graph, group, "owners", cancellationToken).ConfigureAwait(false);
         return CommandResult.Success(new GroupOwners(group, owners));
+    }
+
+    /// <summary>
+    /// <c>group owners</c> over the layers of the run (task 076): the group from Graph; a distribution or mail-enabled
+    /// security group that is not synced, whose owners Graph does not keep, answers from Exchange Online, its
+    /// <c>ManagedBy</c> read through the sidecar the way the owner writes read it (task 064); every other group's owners
+    /// come from Graph. The envelope's backend names the layers used: <c>graph+pwsh</c>, or <c>graph</c>.
+    /// </summary>
+    public static async Task<CommandResult<GroupOwners>> OwnersAsync(ExchangeBackends backends, string nameOrId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(backends);
+        GraphClient graph = backends.Graph;
+        GroupInfo group = await ResolveAsync(graph, nameOrId, cancellationToken).ConfigureAwait(false);
+        if (!GroupWrites.ThroughExchange(group))
+        {
+            return CommandResult.Success(new GroupOwners(group, await ListAsync(graph, group, "owners", cancellationToken).ConfigureAwait(false)));
+        }
+
+        IReadOnlyList<GroupMember> owners = await GroupWrites.ExchangeOwnerListAsync(backends, group, cancellationToken).ConfigureAwait(false);
+        return CommandResult.Success(new GroupOwners(group, owners) { FromExchange = true });
     }
 
     /// <summary>The advanced filter of every group without an owner.</summary>

@@ -34,30 +34,55 @@ steps below and may reshape them.
 
 ## Steps
 
-1. [ ] `group owners <group>` routes a distribution or mail-enabled security group to the Exchange owners read of
-       task 064 (`ManagedBy` resolved with `Get-EXORecipient`), with the backend named as the members read does
-2. [ ] A unified or security group stays on Graph; the "Graph keeps no owners" footer is shown only for the group
+1. [x] `group owners <group>` routes a distribution or mail-enabled security group to the Exchange owners read of
+       task 064 (`ManagedBy` resolved with `Get-EXORecipient`), with the backend named as the owner writes name it
+       (`graph+pwsh`)
+2. [x] A unified or security group stays on Graph; the "Graph keeps no owners" footer is shown only for the group
        types Graph cannot answer and Exchange is not available for
-3. [ ] Cli tests over the fake module: the distribution group's owners, the unified group's Graph answer, the footer
+3. [x] Cli tests over the fake module: the distribution group's owners, the unified group's Graph answer, the footer
        cases; snapshots updated where the rendering changed
-4. [ ] The coverage gate stays at 100% (`scripts/check-coverage.py`)
+4. [x] The coverage gate stays at 100% (`scripts/check-coverage.py`)
 
 ## Log
 
 - 2026-10-30 — promoted on `task/081-exchange-follow-ups` with task 081
+- 2026-10-30 — Core: `GroupLookups.OwnersAsync(ExchangeBackends, …)` resolves the group over Graph and, for a group
+  `GroupWrites.ThroughExchange` admits (a distribution or mail-enabled security group that is not synced), lists the
+  owners with the owner writes' own read (`GroupWrites.ExchangeOwnerListAsync` over `ExchangeOwnersAsync`: the
+  sidecar's `Get-DistributionGroup` `ManagedBy`, one piped `Get-EXORecipient`, a role group by its name); every
+  other group's owners come from Graph as before. `GroupOwners.FromExchange` is `true` for the Exchange answer and
+  left out of the envelope otherwise, so a Graph answer's envelope is unchanged. The Graph-only overload stays.
+  No cmdlet joined the allow-list: `Get-DistributionGroup` and `Get-EXORecipient` are on it since task 064.
+- 2026-10-30 — Cli: `group owners` runs over `ExchangeRunner` (the layers' overload, as the writes do), so the
+  backend is `graph+pwsh` for an Exchange-routed group and `graph` otherwise; the table's footer "Graph keeps no
+  owners…" is written only when Graph cannot keep the owners and Exchange did not answer (a synced group). The
+  command's description names the Exchange route.
+- 2026-10-30 — tests: Cli `LookupCommandTests` over the fixtures and the fake module (Sales: Alice from `ManagedBy`,
+  `fromExchange`, backend `graph+pwsh`; Finance Staff's table: Carol and the role group, no footer; Finance: Graph's
+  owners, no `fromExchange`, backend `graph`; Sales Synced: the footer stays), `TableViewTests` (no footer with
+  `FromExchange`), Core
+  `DistributionGroupWritesTests.TheOwnersReadOfADistributionGroupIsItsManagedByAndAMicrosoft365GroupsIsGraphs`. No
+  snapshot rendered a `group owners` table, so none changed.
 
 ## Deviations from the plan
 
-- none yet
+- The read of `group members` is still Graph's (task 061 routed the member writes, not the read), so the backend is
+  named as the owner writes name it, `graph+pwsh`.
 
 ## Verification
 
-- <dated, concrete: what was run, what it showed>
+- 2026-10-30 — in the worktree: `dotnet restore --locked-mode`, `dotnet format --verify-no-changes --no-restore`
+  (clean), `dotnet build --no-restore -c Release -p:SkipFrontendBuild=true` (0 warnings), `dotnet test --no-build
+  -c Release --coverlet …` (1269 tests, 0 failed), `scripts/check-coverage.py` (Core 5014/5014 lines, 2768/2768
+  branches; command line 1894/1894 lines, 468/468 branches), `scripts/changelog.py --check` (up to date),
+  `scripts/check-fixtures.py` (323 files, 0 findings). The live line (`group owners <a cloud-only
+  distribution group>` against the tenant, the owners as the Exchange admin center shows them) is the main
+  session's.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green (the stale index is the main session's)
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
+- [x] `tasks_check` green (the stale index is the main session's)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge

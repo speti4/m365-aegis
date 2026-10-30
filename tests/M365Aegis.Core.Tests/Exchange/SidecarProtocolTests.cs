@@ -1,6 +1,8 @@
 using System.Text.Json;
+using M365Aegis.Core.Diagnostics;
 using M365Aegis.Core.Exchange.Sidecar;
 using M365Aegis.Core.Output;
+using M365Aegis.Core.Tests.Config;
 using M365Aegis.Tests;
 
 namespace M365Aegis.Core.Tests.Exchange;
@@ -51,6 +53,41 @@ public sealed class SidecarProtocolTests
         Assert.Null(connected.Missing);
 
         Assert.Empty((await client.InvokeAsync(new ExoCommand("Get-Mailbox"), Ct)).Items);
+    }
+
+    [Fact]
+    public async Task AReplyWithANonStringIdIsSkippedAndLoggedAndTheNextReplyIsRead()
+    {
+        string home = ProfileStoreTests.TempHome();
+        string longLine = "WARNING: " + new string('x', 300);
+        string longId = new('y', 50);
+        using (LogSink.UseVerbose(LogSink.ForHome(home)))
+        {
+            await using SidecarClient client = await ScriptedSidecar.StartAsync(
+            [
+                [Hello],
+                [
+                    """{"aegis":1,"id":5,"type":"invoked","data":{"items":[{"Name":"not this one"}]}}""",
+                    """{"aegis":1.5,"id":"{id}"}""",
+                    longLine,
+                    $$"""{"aegis":1,"id":"{{longId}}","type":"invoked"}""",
+                    """{"aegis":1,"id":"{id}","type":"invoked","data":{"items":[{"Name":"read"}]}}""",
+                ],
+            ]);
+
+            ExoResult result = await client.InvokeAsync(new ExoCommand("Get-Mailbox"), Ct);
+
+            Assert.Equal("read", Assert.Single(result.Items).Text("Name"));
+        }
+
+        // Each skipped line is named; a JSON object by its id and type only, never by its data.
+        string log = File.ReadAllText(Assert.Single(Directory.GetFiles(Path.Combine(home, LogSink.FolderName))));
+        Assert.Contains("""a sidecar line skipped while waiting for the reply to request 2 (no string id: id 5, type "invoked")""", log, StringComparison.Ordinal);
+        Assert.Contains("""(no protocol version 1: id "2", type none)""", log, StringComparison.Ordinal);
+        Assert.Contains($"(no JSON: {longLine[..200]}…)", log, StringComparison.Ordinal);
+        Assert.Contains($$"""(the reply to another request: id "{{longId[..39]}}…, type "invoked")""", log, StringComparison.Ordinal);
+        Assert.DoesNotContain("not this one", log, StringComparison.Ordinal);
+        Assert.DoesNotContain(longLine, log, StringComparison.Ordinal);
     }
 
     [Fact]

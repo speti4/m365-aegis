@@ -259,6 +259,7 @@ plan, flags and exit codes; a Microsoft 365 group's owners stay on Graph, and a 
 Directory keeps its warning:
 
 ```powershell
+& $aegis group owners Sales                                          # its ManagedBy, through Exchange
 & $aegis group owners add Sales dave@contoso.com --dry-run            # a distribution group, through Exchange
 ```
 

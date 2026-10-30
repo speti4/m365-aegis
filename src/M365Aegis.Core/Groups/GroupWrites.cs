@@ -272,7 +272,7 @@ public static class GroupWrites
     /// Whether Exchange manages the lists: a distribution or mail-enabled security group that is not synced, whose
     /// members (task 061) and owners (task 064) Graph cannot change.
     /// </summary>
-    private static bool ThroughExchange(GroupInfo group) =>
+    internal static bool ThroughExchange(GroupInfo group) =>
         !group.Synced && group.Kind is GroupKind.Distribution or GroupKind.MailEnabledSecurity;
 
     /// <summary>
@@ -343,6 +343,10 @@ public static class GroupWrites
 
         return owners;
     }
+
+    /// <summary>The owners of <see cref="ExchangeOwnersAsync"/> as <c>group owners</c> lists them (task 076).</summary>
+    internal static async Task<IReadOnlyList<GroupMember>> ExchangeOwnerListAsync(ExchangeBackends exchange, GroupInfo group, CancellationToken cancellationToken) =>
+        (await ExchangeOwnersAsync(exchange, group, cancellationToken).ConfigureAwait(false)).Select(owner => owner.Member).ToList();
 
     /// <summary>The group as Exchange takes it: its primary address, else its object id.</summary>
     private static string ExchangeIdentity(GroupInfo group) => group.Mail ?? group.Id;
