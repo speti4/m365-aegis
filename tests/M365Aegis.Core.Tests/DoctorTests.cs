@@ -15,6 +15,10 @@ namespace M365Aegis.Core.Tests;
 /// </summary>
 public sealed class DoctorTests
 {
+    /// <summary>The access masks of <c>FileSystemRights.FullControl</c> and <c>ReadAndExecute</c> (with <c>Synchronize</c>).</summary>
+    private const int FullControl = 0x1F01FF;
+    private const int ReadAndExecute = 0x1200A9;
+
     private static readonly byte[] Script = Encoding.UTF8.GetBytes("#Requires -Version 7.6\nparam()\n'hello'\n");
 
     [Fact]
@@ -27,7 +31,7 @@ public sealed class DoctorTests
         Assert.True(report.Healthy);
         Assert.All(report.Checks, check => Assert.Equal(CheckStatus.Pass, check.Status));
         Assert.Equal(
-            ["home", "dotnet-runtime", "dotnet-desktop-runtime", "pwsh", "exchange-online-module", "sidecar-script", "webview2-runtime", "config", "device", "sign-in", "endpoint-login", "endpoint-graph", "endpoint-exchange"],
+            ["home", "home-access", "dotnet-runtime", "dotnet-desktop-runtime", "pwsh", "exchange-online-module", "sidecar-script", "webview2-runtime", "config", "device", "sign-in", "endpoint-login", "endpoint-graph", "endpoint-exchange"],
             report.Checks.Select(check => check.Name));
         Assert.All(report.Checks, check => Assert.Null(check.Hint));
         Assert.Equal(ExitCode.Ok, report.ToResult().ExitCode);
@@ -65,6 +69,60 @@ public sealed class DoctorTests
         DoctorCheck failed = Doctor.CheckHome(file);
         Assert.Equal(CheckStatus.Fail, failed.Status);
         Assert.Contains("M365AEGIS_HOME", failed.Hint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AHomeOnlyTheUserSystemAndAdministratorsCanReadPasses()
+    {
+        // Authenticated Users may add folders (no read right), and a deny entry is no read right either.
+        DoctorEnvironment environment = Fake(WithProfile()) with
+        {
+            ReadHomeAccess = _ => UserOnly(
+                new("S-1-5-11", Allow: true, Rights: 0x4, Inherited: true),
+                new("S-1-5-32-545", Allow: false, ReadAndExecute, Inherited: false)),
+        };
+
+        DoctorCheck check = Doctor.CheckHomeAccess(environment);
+
+        Assert.Equal(new DoctorCheck("home-access", CheckStatus.Pass, "neither Everyone, Users nor Authenticated Users can read it", Required: false), check);
+    }
+
+    [Fact]
+    public void AHomeTheBroadGroupsCanReadWarnsWithTheIcaclsLineThatFixesIt()
+    {
+        string home = WithProfile();
+        DoctorEnvironment environment = Fake(home) with
+        {
+            ReadHomeAccess = _ => UserOnly(
+                new("S-1-1-0", Allow: true, unchecked((int)0x80000000), Inherited: false),
+                new("S-1-5-32-545", Allow: true, ReadAndExecute, Inherited: true),
+                new("S-1-5-11", Allow: true, 0x10000000, Inherited: true),
+                new("S-1-5-11", Allow: true, ReadAndExecute, Inherited: false)),
+        };
+
+        DoctorCheck check = Doctor.CheckHomeAccess(environment);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.False(check.Required);
+        Assert.Equal("Everyone, Users (inherited), Authenticated Users can read it: every account on this machine can read the profiles, the plan records and the logs", check.Detail);
+        Assert.Equal(
+            $"icacls \"{home}\" /inheritance:r /grant:r \"CONTOSO\\alice:(OI)(CI)F\" \"*S-1-5-18:(OI)(CI)F\" \"*S-1-5-32-544:(OI)(CI)F\" /remove:g *S-1-1-0 *S-1-5-32-545 *S-1-5-11",
+            check.Hint);
+    }
+
+    [Fact]
+    public void TheHomeAccessIsSkippedOffWindowsAndWithoutAHomeAndWarnsWhenUnreadable()
+    {
+        bool read = false;
+        DoctorEnvironment environment = Fake(WithProfile()) with { ReadHomeAccess = _ => { read = true; return null; } };
+
+        Assert.Equal(CheckStatus.Skipped, Doctor.CheckHomeAccess(environment with { IsWindows = false }).Status);
+        Assert.Equal(CheckStatus.Skipped, Doctor.CheckHomeAccess(environment with { Home = ProfileStoreTests.TempHome() }).Status);
+        Assert.False(read);
+
+        DoctorCheck unreadable = Doctor.CheckHomeAccess(environment);
+        Assert.Equal(CheckStatus.Warn, unreadable.Status);
+        Assert.Equal($"icacls \"{environment.Home}\" shows it", unreadable.Hint);
     }
 
     [Theory]
@@ -350,7 +408,8 @@ public sealed class DoctorTests
         // No assumption about the machine: the checks run and each has an outcome; nothing touches the network.
         DoctorReport report = await Doctor.RunAsync(ProfileStoreTests.TempHome(), null, offline: true, CancellationToken.None);
 
-        Assert.Equal(13, report.Checks.Count);
+        Assert.Equal(14, report.Checks.Count);
+        Assert.Equal(CheckStatus.Skipped, Assert.Single(report.Checks, check => check.Name == "home-access").Status);
         DoctorCheck pwsh = Assert.Single(report.Checks, check => check.Name == "pwsh");
         string? found = Doctor.FindPwsh();
         Assert.Equal(found is null ? CheckStatus.Fail : pwsh.Status, pwsh.Status);
@@ -471,6 +530,16 @@ public sealed class DoctorTests
         return home;
     }
 
+    /// <summary>The access list a home the product created has (task 075), with the given entries added.</summary>
+    private static HomeAccess UserOnly(params AccessEntry[] added) => new(
+        @"CONTOSO\alice",
+        [
+            new("S-1-5-21-0-0-0-1001", Allow: true, FullControl, Inherited: false),
+            new("S-1-5-18", Allow: true, FullControl, Inherited: false),
+            new("S-1-5-32-544", Allow: true, FullControl, Inherited: false),
+            .. added,
+        ]);
+
     private static string Fixture(string fileName) =>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "doctor", fileName));
 
@@ -486,6 +555,7 @@ public sealed class DoctorTests
             RuntimeVersion = "10.0.4",
             FindPwsh = () => @"D:\tools\pwsh\pwsh.exe",
             RunPwsh = (_, _) => "pwsh=7.6.9\nmodule=3.10.0\n",
+            ReadHomeAccess = _ => UserOnly(),
             ReadDesktopRuntimeVersions = () => ["8.0.11", "10.0.4"],
             ReadWebView2Versions = () => webView2 ?? ["141.0.3537.71", null],
             ReadDeviceState = () => deviceState == "" ? Fixture("dsregcmd-entra-joined.txt") : deviceState,

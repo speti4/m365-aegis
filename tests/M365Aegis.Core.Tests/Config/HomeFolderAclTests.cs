@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Principal;
@@ -15,7 +16,9 @@ namespace M365Aegis.Core.Tests.Config;
 /// that <c>M365AEGIS_HOME</c> puts under a folder whose access list lets <c>Users</c> and <c>Authenticated Users</c>
 /// read everything below it (as a folder made at a drive's root does) is created through the product's own writers
 /// (the MSAL cache, <c>config.json</c>, a plan record, the log), and the home and everything in it grant access to the
-/// user, SYSTEM and Administrators only; the cache is DPAPI-protected, so its bytes hold no token in clear.
+/// user, SYSTEM and Administrators only; the cache is DPAPI-protected, so its bytes hold no token in clear. The
+/// doctor's <c>home-access</c> check (task 078) reads the same lists: a pass on a home the product created, a warning
+/// on one that inherits the parent's, whose fix line makes it the user's own.
 /// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class HomeFolderAclTests
@@ -69,6 +72,54 @@ public sealed class HomeFolderAclTests
 
         Assert.Equal(home, AegisHome.Create(home));
         Assert.Contains(Rules(home), rule => rule.IdentityReference.Equals(new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null)));
+    }
+
+    [Fact]
+    public void TheDoctorPassesAHomeTheProductCreated()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), NotWindows);
+        string home = AegisHome.Create(Path.Combine(ReadableParent(), "home"));
+
+        DoctorCheck check = Doctor.CheckHomeAccess(DoctorEnvironment.ForThisMachine(home, null));
+
+        Assert.Equal(CheckStatus.Pass, check.Status);
+        Assert.Null(check.Hint);
+    }
+
+    [Fact]
+    public void TheDoctorWarnsOnAHomeThatInheritsUsersReadAndItsFixLineMakesTheHomeTheUsersOwn()
+    {
+        // Task 078: a home that existed before the product's rule keeps its parent's list, and the doctor says so.
+        Assert.SkipUnless(OperatingSystem.IsWindows(), NotWindows);
+        string home = Path.Combine(ReadableParent(), "existing");
+        Directory.CreateDirectory(home);
+        DoctorEnvironment environment = DoctorEnvironment.ForThisMachine(home, null);
+
+        DoctorCheck check = Doctor.CheckHomeAccess(environment);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.Contains("Users (inherited)", check.Detail, StringComparison.Ordinal);
+        Assert.Contains("Authenticated Users (inherited)", check.Detail, StringComparison.Ordinal);
+        Assert.NotNull(check.Hint);
+        Assert.StartsWith("icacls ", check.Hint, StringComparison.Ordinal);
+
+        // The hint is a command line the user runs as it is: icacls takes it, and afterwards the check passes and the
+        // home holds the list of a home the product creates.
+        var startInfo = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "icacls.exe"), check.Hint["icacls ".Length..])
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true,
+        };
+        using (Process icacls = Process.Start(startInfo)!)
+        {
+            string output = icacls.StandardOutput.ReadToEnd();
+            icacls.WaitForExit();
+            Assert.True(icacls.ExitCode == 0, $"icacls exited with {icacls.ExitCode}: {output}");
+        }
+
+        Assert.Equal(CheckStatus.Pass, Doctor.CheckHomeAccess(environment).Status);
+        AssertTheUsersOwn(home);
     }
 
     /// <summary>

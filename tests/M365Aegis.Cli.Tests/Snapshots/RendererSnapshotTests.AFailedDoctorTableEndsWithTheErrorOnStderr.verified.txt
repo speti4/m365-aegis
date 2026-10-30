@@ -2,6 +2,7 @@
 check                   status  detail
 ----------------------  ------  -------------------------------------------------------------------------------------------------------------
 home                    warn    D:\aegis-home does not exist yet; the first sign-in creates it
+home-access             skip    no home folder yet; the product creates it readable by the user only
 dotnet-runtime          pass    10.0.4
 dotnet-desktop-runtime  pass    10.0.4
 pwsh                    FAIL    pwsh not found on PATH; PowerShell 7.6 or later is needed for Exchange Online

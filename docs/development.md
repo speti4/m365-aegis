@@ -989,6 +989,7 @@ that need the network.
 | check | required | pass | warn | fail (with the fix) |
 | --- | --- | --- | --- | --- |
 | `home` | yes | the folder exists | not created yet | a file, not a folder |
+| `home-access` | no | neither `Everyone`, `Users` nor `Authenticated Users` holds a read right on the home folder (the list a home the product creates has) | one of them does, explicitly or inherited, with the `icacls` line that gives the folder the product's own list; or the list is unreadable (`icacls "<home>"` shows it) | none; skipped off Windows and while the home does not exist |
 | `dotnet-runtime` | no | the runtime the process runs on (a fact, so it has no warn or fail) | | |
 | `dotnet-desktop-runtime` | no | the .NET Desktop Runtime the window needs, in the major version of the .NET Runtime (the `Microsoft.WindowsDesktop.App` folders of the same installation) | a patch behind the .NET Runtime (`winget upgrade Microsoft.DotNet.DesktopRuntime.10`) | not installed: the window cannot start (`winget install Microsoft.DotNet.DesktopRuntime.10`); skipped off Windows |
 | `pwsh` | yes | 7.6 or later on PATH | the version is unreadable | missing (`winget install Microsoft.PowerShell`) or older |
@@ -1002,9 +1003,18 @@ that need the network.
 
 The pwsh and module checks are one pwsh call; the device check reads `AzureAdJoined`, `WorkplaceJoined` and
 `AzureAdPrt` of `dsregcmd /status` and nothing that names the tenant. Everything a check reads comes through
-`DoctorEnvironment` (`Diagnostics/DoctorEnvironment.cs`), which the tests replace part by part: the pwsh call, the
-registry, `dsregcmd` (the made-up outputs under `tests/fixtures/doctor/dsregcmd-*.txt`), the installed Desktop
-Runtime versions, the two copies of the script, the sign-in and the endpoint probe.
+`DoctorEnvironment` (`Diagnostics/DoctorEnvironment.cs`), which the tests replace part by part: the home folder's
+access list, the pwsh call, the registry, `dsregcmd` (the made-up outputs under `tests/fixtures/doctor/dsregcmd-*.txt`),
+the installed Desktop Runtime versions, the two copies of the script, the sign-in and the endpoint probe.
+
+The `home-access` check (task 078) reads the home folder's access list by SID, so the names do not depend on the
+Windows display language: an allow entry for `Everyone` (`S-1-1-0`), `Users` (`S-1-5-32-545`) or `Authenticated Users`
+(`S-1-5-11`) that carries a read right (list the folder, or the generic read or all right of an inheritable entry) is
+a warning, whether it is explicit or inherited; a deny entry is not weighed against it, and other accounts are not
+judged. The hint is one command line, the same in pwsh and in cmd, that gives the folder the list of a home the
+product creates ([The safety tests](#the-safety-tests)): `icacls "<home>" /inheritance:r /grant:r "<the user>:(OI)(CI)F"
+"*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /remove:g *S-1-1-0 *S-1-5-32-545 *S-1-5-11`. The doctor never changes
+the list itself. The check looks at the folder; the files below it inherit from it.
 
 ## The safety tests
 
@@ -1091,6 +1101,9 @@ writes the MSAL cache, `config.json`, a plan record and a log line through the p
 the home and every entry in it to allow entries for the user, SYSTEM and Administrators only, owned by the user (or
 Administrators, elevated); the cache's bytes hold no token in clear (DPAPI) while the product's own reader gets it
 back. Without the protected list the same test fails on the inherited `Users` and `Authenticated Users` entries.
+The doctor's `home-access` check (task 078, [The doctor](#the-doctor)) is where a user learns that an existing home
+does not have the list: the same tests hold it `pass` on a home the product created and `warn` on one that inherits
+the parent's `Users` and `Authenticated Users` entries, run its `icacls` hint, and find the home the user's own after it.
 
 ## CI and releases
 
@@ -1309,7 +1322,7 @@ listed here, and a new one is added to this list in the change that adds it:
 | `ConsoleWindow.RootOwner` (Core, `Auth`) | Win32 calls on the console window of a desktop session, which CI's runners do not have. |
 | `BridgeServices.ForWindow` (Core, `Bridge`) | Wires the window's real layers: MSAL over the window, Graph, and an Exchange Online session that a first cmdlet would start against the tenant. The `windows` job's `--smoke` run starts the window with it; each layer it wires is measured on its own. |
 | `Doctor.PwshFileName` (Core, `Diagnostics`) | `pwsh.exe` or `pwsh`: one side per operating system. The search over `PATH` is tested with a made-up file name. |
-| `DoctorEnvironment`: `RunDsregcmd`, `ReadDesktopRuntimeVersionsFromDisk`, `ReadWebView2VersionsFromRegistry`, `ReadPv`, the nested `Network` (the endpoint probe and its `HttpClient`) (Core, `Diagnostics`) | They read the real machine (`dsregcmd`, the registry, the .NET installation's folders, Microsoft's endpoints), differently on Windows and on Linux. The checks over their answers are tested through the `DoctorEnvironment` seams. |
+| `DoctorEnvironment`: `ReadHomeAccessFromDisk`, `RunDsregcmd`, `ReadDesktopRuntimeVersionsFromDisk`, `ReadWebView2VersionsFromRegistry`, `ReadPv`, the nested `Network` (the endpoint probe and its `HttpClient`) (Core, `Diagnostics`) | They read the real machine (the home folder's access list, `dsregcmd`, the registry, the .NET installation's folders, Microsoft's endpoints), differently on Windows and on Linux. The checks over their answers are tested through the `DoctorEnvironment` seams; the access list reader also runs in the home folder's access list tests of the `windows` job. |
 | `SidecarClient.KillQuietly` (Core, `Exchange/Sidecar`) | Its catch runs only when the operating system refuses the kill, or the child ends between the check and the call: a race no test can stage. |
 | `SidecarClient.WriteQuietlyAsync` (Core, `Exchange/Sidecar`) | Its catch runs only when a message reaches a child that has ended and nothing else holds the pipe's read end at that moment; whether the write fails or not, the read after it meets the end of the stream and says the sidecar stopped, which is tested. |
 | `SidecarClient.AwaitQuietly` (Core, `Exchange/Sidecar`) | Its catch runs only when the pipe breaks under the read, which .NET reports as the end of the stream on every runner. |
