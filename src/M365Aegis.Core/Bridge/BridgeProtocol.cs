@@ -85,8 +85,8 @@ public static class BridgeProtocol
 
 /// <summary>
 /// The message types of the protocol. The front end sends <see cref="Ready"/> (a notification) and the requests
-/// <see cref="Ping"/>, <see cref="WhoAmI"/>, <see cref="Login"/>, <see cref="Logout"/>, <see cref="GroupMembers"/>,
-/// <see cref="MailboxList"/> and <see cref="MailboxAccess"/>; the host answers each request with one reply of the
+/// <see cref="Ping"/>, <see cref="WhoAmI"/>, <see cref="Login"/>, <see cref="OpenSignInPage"/>, <see cref="Logout"/>,
+/// <see cref="GroupMembers"/>, <see cref="MailboxList"/> and <see cref="MailboxAccess"/>; the host answers each request with one reply of the
 /// type named here, or with <see cref="Error"/>, and sends <see cref="DeviceCode"/> as a notification while a
 /// sign-in waits for the browser step. gui/web/src/bridge/protocol.ts names the same strings, and the samples under
 /// tests/contracts/bridge hold one message of each.
@@ -126,6 +126,16 @@ public static class BridgeMessageType
     /// <see cref="Auth.DeviceCodePrompt"/> as the payload.
     /// </summary>
     public const string DeviceCode = "device-code";
+
+    /// <summary>
+    /// Opens the page of the device-code sign-in in flight in the default browser (task 047): no payload, since the
+    /// host opens only the address its own <see cref="DeviceCode"/> notification carried, and only on a Microsoft
+    /// sign-in host (<see cref="SignInPage"/>). Answered with <see cref="SignInPageOpened"/>.
+    /// </summary>
+    public const string OpenSignInPage = "open-sign-in-page";
+
+    /// <summary>The answer to <see cref="OpenSignInPage"/>: a <see cref="SignInPageOpenedInfo"/> as the payload.</summary>
+    public const string SignInPageOpened = "sign-in-page-opened";
 
     /// <summary>Signs the profile's account out as <c>m365-aegis logout</c> does; answered with <see cref="LoggedOut"/>.</summary>
     public const string Logout = "logout";
@@ -188,6 +198,10 @@ public sealed record MailboxListRequest(bool Shared);
 /// <param name="Mailbox">The mailbox (its address, name or object id): who holds which right on it.</param>
 /// <param name="User">A user principal name: which mailboxes the user holds a right on.</param>
 public sealed record MailboxAccessRequest(string? Mailbox, string? User);
+
+/// <summary>The payload of a <see cref="BridgeMessageType.SignInPageOpened"/> reply.</summary>
+/// <param name="VerificationUri">The page the default browser was asked to open.</param>
+public sealed record SignInPageOpenedInfo(Uri VerificationUri);
 
 /// <summary>The payload of a <see cref="BridgeMessageType.SignedOut"/> reply.</summary>
 /// <param name="Profile">The tenant profile the sign-in was tried for, or null when there is none.</param>

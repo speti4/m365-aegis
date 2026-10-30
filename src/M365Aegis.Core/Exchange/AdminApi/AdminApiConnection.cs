@@ -43,6 +43,25 @@ public static class AdminApiConnection
         return Create(auth(), profileName, requestLog);
     }
 
+    /// <summary>
+    /// The client of a command whose sidecars share its token (task 049): the fixtures' client, or none in the
+    /// sidecar-only offline tests, as the overload without a source decides; else a client over <paramref name="tokens"/>.
+    /// </summary>
+    public static AdminApiClient? Create(string? profileName, RequestLog requestLog, Func<AuthService> auth, ExchangeTokenSource tokens)
+    {
+        ArgumentNullException.ThrowIfNull(auth);
+        ArgumentNullException.ThrowIfNull(tokens);
+        string? fixtures = Environment.GetEnvironmentVariable(GraphConnection.FixturesEnvironmentVariable);
+        if (!string.IsNullOrWhiteSpace(fixtures))
+        {
+            return Fixtures(Path.GetFullPath(fixtures), requestLog);
+        }
+
+        return string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(ExchangeConnection.TestOrganizationVariable))
+            ? Create(tokens, requestLog)
+            : null;
+    }
+
     /// <summary>The client over the recorded answers under <paramref name="root"/> (the tests' <c>tests/fixtures/graph</c>).</summary>
     public static AdminApiClient Fixtures(string root, RequestLog? requestLog = null, GraphClientOptions? options = null) =>
         new(new FixtureGraphTransport(root), _ => Task.FromResult(new AdminApiTarget(TestTenantId, TestAccount)), requestLog, options);
@@ -51,43 +70,32 @@ public static class AdminApiConnection
     public static AdminApiClient Create(AuthService auth, string? profileName, RequestLog requestLog, GraphClientOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(auth);
-        var tokens = new TokenSource(cancellationToken => auth.GetTokenAsync(Resource.Exchange, profileName, cancellationToken));
-        return new AdminApiClient(
-            new HttpAdminApiTransport(async cancellationToken => (await tokens.GetAsync(cancellationToken).ConfigureAwait(false)).AccessToken),
+        return Create(ExchangeTokenSource.ForProfile(auth, profileName), requestLog, options);
+    }
+
+    /// <summary>
+    /// The client over the network with the token of <paramref name="tokens"/>, the one its command's sidecars connect
+    /// with (task 049): renewed by the source five minutes before it expires, once for every layer.
+    /// </summary>
+    public static AdminApiClient Create(ExchangeTokenSource tokens, RequestLog requestLog, GraphClientOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(tokens);
+        return Create(tokens, new HttpAdminApiTransport(async cancellationToken => (await tokens.GetAsync(cancellationToken).ConfigureAwait(false)).AccessToken), requestLog, options);
+    }
+
+    /// <summary>A client over a transport whose tenant and account come from the source's token (the tests' fixture transport).</summary>
+    internal static AdminApiClient Create(ExchangeTokenSource tokens, IGraphTransport transport, RequestLog? requestLog, GraphClientOptions? options = null) =>
+        new(
+            transport,
             async cancellationToken =>
             {
-                TokenResult token = await tokens.GetAsync(cancellationToken).ConfigureAwait(false);
-                string tenant = token.TenantId ?? token.Account.TenantId ?? throw new AegisException(
+                ExchangeToken token = await tokens.GetAsync(cancellationToken).ConfigureAwait(false);
+                string tenant = token.TenantId ?? throw new AegisException(
                     FailureKind.Auth,
                     "the Exchange Online token names no tenant, which the Admin API's URL needs",
                     "run `m365-aegis login` again");
-                return new AdminApiTarget(tenant, token.Account.Username);
+                return new AdminApiTarget(tenant, token.Account);
             },
             requestLog,
             options);
-    }
-
-    /// <summary>One token for the calls of a client, asked for again five minutes before it expires (a long-lived window).</summary>
-    private sealed class TokenSource(Func<CancellationToken, Task<TokenResult>> fetch)
-    {
-        private readonly Lock _lock = new();
-        private Task<TokenResult>? _token;
-
-        internal async Task<TokenResult> GetAsync(CancellationToken cancellationToken)
-        {
-            Task<TokenResult> pending;
-            lock (_lock)
-            {
-                if (_token is null || _token.IsFaulted || _token.IsCanceled
-                    || (_token.IsCompletedSuccessfully && _token.Result.ExpiresOn - DateTimeOffset.UtcNow < TimeSpan.FromMinutes(5)))
-                {
-                    _token = fetch(cancellationToken);
-                }
-
-                pending = _token;
-            }
-
-            return await pending.ConfigureAwait(false);
-        }
-    }
 }

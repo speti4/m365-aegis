@@ -1,5 +1,9 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using M365Aegis.Core;
+using M365Aegis.Core.Bridge;
 using M365Aegis.Core.Config;
+using M365Aegis.Core.Output;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
@@ -91,6 +95,30 @@ internal sealed class WinFormsWebView2Host : IUiHost
                 TaskScheduler.Default);
         });
         return done.Task;
+    }
+
+    public void OpenInBrowser(Uri page)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        if (!SignInPage.IsAllowed(page))
+        {
+            // The dispatcher checked it already; the host opens nothing else whoever asks.
+            throw new ArgumentException($"only a Microsoft sign-in page is opened in the browser, not {page.GetLeftPart(UriPartial.Authority)}", nameof(page));
+        }
+
+        try
+        {
+            // The shell picks the default browser; the address is the one argument, never a command line.
+            using Process? browser = Process.Start(new ProcessStartInfo(page.AbsoluteUri) { UseShellExecute = true });
+        }
+        catch (Win32Exception exception)
+        {
+            throw new AegisException(
+                FailureKind.ServiceError,
+                $"the default browser could not be started: {exception.Message}",
+                "open the page the card shows in a browser and enter the code",
+                exception);
+        }
     }
 
     public void Run(Uri page)

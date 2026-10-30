@@ -16,15 +16,22 @@ public sealed class AuthService
     private readonly Func<TenantProfile, ITokenBroker> _brokerFactory;
 
     /// <summary>A service over the given home folder and broker factory.</summary>
-    public AuthService(string home, Func<TenantProfile, ITokenBroker> brokerFactory)
+    /// <param name="home">The home folder.</param>
+    /// <param name="brokerFactory">The token source of a profile.</param>
+    /// <param name="hints">What a failed sign-in tells the person to do; the command line's when null (task 046).</param>
+    public AuthService(string home, Func<TenantProfile, ITokenBroker> brokerFactory, SignInHints? hints = null)
     {
         ArgumentNullException.ThrowIfNull(brokerFactory);
-        Profiles = new ProfileStore(home);
+        Hints = hints ?? SignInHints.CommandLine;
+        Profiles = new ProfileStore(home, Hints);
         _brokerFactory = brokerFactory;
     }
 
     /// <summary>The profiles of the home folder.</summary>
     public ProfileStore Profiles { get; }
+
+    /// <summary>The hints of the surface the service signs in for (the command line or the window).</summary>
+    public SignInHints Hints { get; }
 
     /// <summary>The service of the real home folder with MSAL and the Windows account manager behind it.</summary>
     public static AuthService Create()
@@ -97,7 +104,7 @@ public sealed class AuthService
     public Task<TokenResult> GetTokenAsync(Resource resource, string? profileName, CancellationToken cancellationToken)
     {
         TenantProfile profile = Profiles.Resolve(profileName);
-        return SignInFlow.RunAsync(_brokerFactory(profile), profile, resource, SignInMode.SilentOnly, NoPrompt, cancellationToken);
+        return SignInFlow.RunAsync(_brokerFactory(profile), profile, resource, SignInMode.SilentOnly, NoPrompt, Hints, cancellationToken);
     }
 
     private static Task NoPrompt(DeviceCodePrompt prompt) => Task.CompletedTask;
@@ -128,11 +135,11 @@ public sealed class AuthService
         }
     }
 
-    private static async Task<SignInInfo> SignInAsync(
+    private async Task<SignInInfo> SignInAsync(
         ITokenBroker broker, TenantProfile profile, SignInMode mode, Func<DeviceCodePrompt, Task> prompt, CancellationToken cancellationToken)
     {
         // Graph goes through the full flow; the second resource is a silent call for the account that just signed in.
-        TokenResult first = await SignInFlow.RunAsync(broker, profile, Resources[0], mode, prompt, cancellationToken).ConfigureAwait(false);
+        TokenResult first = await SignInFlow.RunAsync(broker, profile, Resources[0], mode, prompt, Hints, cancellationToken).ConfigureAwait(false);
         var tokens = new List<ResourceToken> { ResourceToken.From(Resources[0], first) };
         foreach (Resource resource in Resources.Skip(1))
         {

@@ -39,6 +39,12 @@ internal sealed class FakeTokenBroker : ITokenBroker
     /// <summary>The device code path; null fails as an expired code.</summary>
     internal Func<string, TokenResult>? DeviceCode { get; set; }
 
+    /// <summary>The page the device code prompt names (task 047 tries one off Microsoft's sign-in hosts).</summary>
+    internal Uri DeviceCodePage { get; set; } = new("https://login.microsoftonline.com/common/oauth2/deviceauth");
+
+    /// <summary>Runs inside the device code prompt, after the host was told the code: the user's browser step.</summary>
+    internal Func<Task>? WhileTheCodeIsShown { get; set; }
+
     /// <summary>A token for a scope and an account, with the scopes a consented registration returns.</summary>
     internal static TokenResult Token(string scope, AccountInfo account, TokenOrigin origin)
     {
@@ -90,10 +96,14 @@ internal sealed class FakeTokenBroker : ITokenBroker
     {
         Calls.Add("device-code");
         await prompt(new DeviceCodePrompt(
-            new Uri("https://login.microsoftonline.com/common/oauth2/deviceauth"),
+            DeviceCodePage,
             "ABCD1234",
             "To sign in, open the page and enter the code ABCD1234.",
             DateTimeOffset.UtcNow.AddMinutes(15)));
+        if (WhileTheCodeIsShown is not null)
+        {
+            await WhileTheCodeIsShown();
+        }
         return DeviceCode is null
             ? throw new BrokerException(BrokerErrorKind.Other, "code_expired", "the device code expired")
             : DeviceCode(scope);

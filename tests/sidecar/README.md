@@ -6,6 +6,14 @@ through the C# client and session, and the Cli tests (`MailboxCommandTests`) thr
 `M365AEGIS_EXO_MODULE_ROOT` to `modules/`, so the script finds the fake `ExchangeOnlineManagement` there and never the
 machine's real module; nothing reaches a tenant (docs/development.md, "The Exchange Online sidecar").
 
+Under a test module root the script turns pwsh's module auto-loading off (`$PSModuleAutoLoadingPreference = 'None'`,
+after importing the two built-in modules it uses itself; task 050). Without it, a cmdlet the fake module does not
+export is found in the machine's real `ExchangeOnlineManagement` and imported beside the fake whenever the two differ
+in version, which made a test call the real module once (2026-10-30). Two Pester tests hold the guard: the fake
+manifest's `FunctionsToExport` equals the allow-list plus `Connect-ExchangeOnline` and `Disconnect-ExchangeOnline`
+(the failure names the missing cmdlet, so a cmdlet added to the allow-list is added to the manifest in the same
+change), and a copy of the fake without one export, in another version, answers that the cmdlet is not recognized.
+
 `modules/ExchangeOnlineManagement` has the real cmdlet names and parameter shapes and made-up answers for
 `contoso.onmicrosoft.com`: `Connect-ExchangeOnline` (any token for that organization, with `-Organization` or `-UserPrincipalName`;
 `fabrikam.onmicrosoft.com` is refused, `expired-token` is a 401, `refuse.contoso.onmicrosoft.com` refuses with the

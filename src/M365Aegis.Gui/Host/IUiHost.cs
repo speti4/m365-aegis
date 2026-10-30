@@ -31,6 +31,13 @@ internal interface IUiHost
     /// </summary>
     Task InvokeOnUiThreadAsync(Func<Task> work);
 
+    /// <summary>
+    /// Hands a device-code sign-in's page to the default browser through the shell (task 047), outside the WebView2,
+    /// which never navigates to another origin. Only for an address <see cref="Core.Bridge.SignInPage"/> allows (the
+    /// host checks it again and refuses any other); an <see cref="Core.Output.AegisException"/> when no browser starts.
+    /// </summary>
+    void OpenInBrowser(Uri page);
+
     /// <summary>Opens the window on the given page and blocks until it is closed.</summary>
     void Run(Uri page);
 

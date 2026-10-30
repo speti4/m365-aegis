@@ -300,7 +300,14 @@ since the protocol never formats an object). It is the fastest of the three vari
 `M365AEGIS_EXO_CONNECT=upn` passes `-UserPrincipalName <the profile's account>` instead of the organization, and
 `both` passes both. The token is never logged or written: the records that carry it leave it out of their
 `ToString`. The session tracks the token's `ExpiresOn` and, five minutes before it, asks for a fresh token and sends
-`reconnect` (the script disconnects and connects again).
+`reconnect` (the script disconnects and connects again). One token serves every layer of a command (task 049):
+`Exchange/ExchangeTokenSource.cs` asks the silent sign-in once and hands the same token and expiry to the command's
+sidecar, the extra sidecars of a split read and the Admin API, however many of them ask at once. The renewal happens
+there, once for all of them: a token within five minutes of its expiry is asked for again on the next request, the
+session's `reconnect` reads the same threshold and clock, and an explicit reconnect (the window's keep-warm timer,
+the probe) renews it for every layer. The sessions of one command share the organization too, asked for once. Under
+`--verbose` each acquisition writes one `exchange-online` line to the log (`exchange token acquisition 1: …`, the
+minutes it is valid for), never the token.
 
 **The exit codes.** The module reports a sign-in, a permission, a missing object and throttling all as a
 PowerShell error, so `Exchange/Sidecar/SidecarFailures.cs` reads the message for what the service said: a missing
@@ -320,8 +327,13 @@ under `--verbose` only.
 module's import 1.1 s, the connect 1.3 s; tasks 009 and 016, measured 2026-10-29), which the window's warm sidecar
 saves:
 
-- `mailbox list [--shared]`: `Get-EXOMailbox -ResultSize Unlimited` (`-RecipientTypeDetails SharedMailbox`), by
-  display name.
+- `mailbox list [--shared]` (task 048): the Admin API's `Get-Mailbox -ResultSize Unlimited` over every page, with
+  `$select` on the list's fields, by display name, and no sidecar at all; the endpoint takes no
+  `-RecipientTypeDetails` (https://learn.microsoft.com/exchange/reference/admin-api-endpoints-mailbox), so `--shared`
+  keeps the shared mailboxes of the whole list. When the run has no Admin API, or the Admin API cannot answer for a
+  reason other than the sign-in (not enabled, a refused permission, a service error), the sidecar answers with
+  `Get-EXOMailbox -ResultSize Unlimited` (`-RecipientTypeDetails SharedMailbox`). Measured live on 2026-10-30: 621
+  mailboxes in 7.5 s, no pwsh started.
 - `mailbox access <mailbox>`: FullAccess (`Get-EXOMailboxPermission`), Send As (`Get-EXORecipientPermission
   -AccessRights SendAs`) and Send on Behalf; the direct, allowed grants only, without `NT AUTHORITY\…` entries.
   The mailbox and its Send on Behalf delegates with their display names come from the Admin API (`Get-Mailbox
@@ -370,7 +382,11 @@ saves:
   `--method piped`, read the live size: `Get-EXOMailboxStatistics`, the size read from the service's text (`1.2 GB
   (1,288,490,188 bytes)`), a request per mailbox, about 0.1 s each; `--method parallel` splits the piped mailboxes
   across `--sidecars N`. Measured 2026-10-30 over 620 mailboxes, `--top 5`: report 16 s, piped 56 s, 4 sidecars
-  35 s, 8 sidecars 37 s.
+  35 s, 8 sidecars 37 s. Under `--verbose` the report method writes when each of its two reads answered, timed from
+  their common start (task 048): `mailbox size, report method: Graph's usage report answered after … ms` and the same
+  line for the Admin API's mailbox list. Measured live on 2026-10-30 over 621 mailboxes: the usage report answered
+  after 1.9 s, the Admin API's mailbox list after 6.5 s, the command in 6.5 s with no sidecar, so the list is the
+  slow half.
 - `mailbox folder-permissions <mailbox> [--folder <path>]` (task 042): `Get-MailboxFolderPermission -Identity
   <mailbox>:\<folder>` through the Admin API. The folder path is the folder's name in the mailbox's own language
   (`:\Calendar` is not found in a Hungarian mailbox, whose calendar is `Naptár`; measured 2026-10-30), and the cmdlet
@@ -396,7 +412,8 @@ with a `{"CmdletInput":{"CmdletName","Parameters"}}` body, `X-AnchorMailbox: UPN
 delegated flow's key for a call, which task 010 proved in the tenant) and the properties to keep as `$select`;
 every page is read by posting the same body to its `@odata.nextLink` (valid 5 to 10 minutes;
 https://learn.microsoft.com/exchange/reference/admin-api-get-started). The token is the broker's for
-`https://outlook.office365.com/.default`, the sidecar's own (`HttpAdminApiTransport` sends it to that host only),
+`https://outlook.office365.com/.default`, the one the command's sidecars connect with (the shared token source of
+task 049; `HttpAdminApiTransport` sends it to that host only),
 and the tenant's id comes with it. A 429 or 503 is retried within the Graph client's budget; a failed answer is
 the contract's failure: 401 is 3, 403 is 8, a 404 or a 400 that says the object was not found is 4, throttling 5,
 any other 400 a cmdlet failure (13), a server error or no network 9. The undocumented `adminapi/beta/InvokeCommand`
@@ -407,7 +424,8 @@ sidecar, the Admin API, Graph, and more sidecars on demand for `--method paralle
 
 | read | layer |
 | --- | --- |
-| `mailbox list`, `mailbox forwarders` | sidecar |
+| `mailbox list` | Admin API (the sidecar when it cannot answer) |
+| `mailbox forwarders` | sidecar |
 | `mailbox access <mailbox>`: the mailbox and its Send on Behalf delegates by name | Admin API (the sidecar when it cannot answer) |
 | `mailbox access <mailbox>`: FullAccess, Send As | sidecar |
 | `mailbox access --user`: every mailbox, every FullAccess and Send As entry | sidecar (FullAccess split across 4 by default) |
@@ -418,7 +436,9 @@ sidecar, the Admin API, Graph, and more sidecars on demand for `--method paralle
 
 **Tests and measurements.** `M365AEGIS_EXO_MODULE_ROOT` makes the script look for the module in one folder only,
 which the tests point at the fake module under `tests/sidecar/modules` (its made-up mailboxes are listed in
-`tests/sidecar/README.md`); `M365AEGIS_EXO_TEST_ORGANIZATION` makes the command line connect to that organization
+`tests/sidecar/README.md`), and under such a root the script turns pwsh's module auto-loading off, so a cmdlet the
+fake module does not export fails instead of being imported from the machine's real module (task 050; a Pester test
+holds the fake's exports to the allow-list); `M365AEGIS_EXO_TEST_ORGANIZATION` makes the command line connect to that organization
 with a placeholder token and no sign-in, which only the fake module accepts. The Pester tests drive the script on
 its own, the Core tests drive it through the client and the session, the Cli tests through the exe, all with a real
 pwsh child on Linux and Windows. Three hidden commands are the live probes of the Exchange bundle:
@@ -449,7 +469,7 @@ browser (`src/bridge/mock-transport.ts`), so `npm run dev` shows the page with m
 reply it cannot read or a host silent for two minutes (sixteen for a `login`, which waits for the user) into an
 `error` reply, and hands a message without an id, a notification of the host, to its `onNotification` handlers.
 
-The messages (tasks 017, 040 and 045; `BridgeMessageType` in C#, `MessageType` in TypeScript, one sample each under
+The messages (tasks 017, 040, 045 and 047; `BridgeMessageType` in C#, `MessageType` in TypeScript, one sample each under
 `tests/contracts/bridge`): the page sends the `ready` notification, then
 
 - `ping`, answered with `pong` (the product and the version);
@@ -459,9 +479,14 @@ The messages (tasks 017, 040 and 045; `BridgeMessageType` in C#, `MessageType` i
   silently when it can, else the broker's account picker over the window, else (or when asked) a device code,
   answered with `signed-in`. While a device-code sign-in waits for the browser step, the host sends the
   `device-code` notification (no id: the page to open, the code, the service's sentence, the expiry), which the
-  sign-in card shows with a copy button; the page opens no other site, so the address is shown to type. A profile
-  is never written from the window: without one, `login` is the `auth` error with the command line's
-  `login --tenant … --client-id … --account …` as the hint, and the card offers no "Sign in" until it exists;
+  sign-in card shows with a copy button and an "Open in browser" button (task 047); the page itself opens no other
+  site. A profile is never written from the window: without one, `login` is the `auth` error whose hint sends to the
+  administrator (the window's hints, below), and the card offers no "Sign in" until it exists;
+- `open-sign-in-page`, no payload (task 047): while a device-code sign-in waits for its browser step, the host hands
+  the page its own `device-code` notification carried to the default browser and answers `sign-in-page-opened` (the
+  page). The front end never names an address: without a sign-in waiting the request is the `usage` error, a page
+  off Microsoft's sign-in hosts is never opened (`service-error`), and the host's `OpenInBrowser` (below) is its one
+  use;
 - `logout`, answered with `logged-out` (the core's `SignOutInfo`); it also ends the window's Exchange Online
   session, whose sidecar is connected with the account's token;
 - `group-members` with `{"group": "<name, address, id or word>"}`, answered with `members` (the core's
@@ -485,6 +510,15 @@ account manager, the window as the picker's parent and its UI thread as the pick
 tenant), the window's Exchange Online session and the internal-error log the command line writes; the window takes
 the default profile.
 
+**The window's hints** (task 046, `Auth/SignInHints.cs`): a failed sign-in's hint comes from the hint set of its
+surface. `SignInHints.CommandLine` names the commands (`run m365-aegis login`, the `login --tenant …` line) and is the
+default of `AuthService`, `SignInFlow` and `ProfileStore`; `BridgeServices.ForWindow` makes the window's
+`AuthService` with `SignInHints.Window`, which names the sign-in card's buttons ("choose Sign in…", "Sign in with a
+code") or, for a missing or broken tenant profile, which only the command line writes, the administrator. A
+failure's kind and sentence are the same on both surfaces, so the silent token of a lookup carries the window's hint
+too; the card shows the hint under every signed-out state, and an `error` reply's toast shows it as its description.
+The other failures that reach the window (Graph's, the sidecar's) keep their own hints for now.
+
 **The window's Exchange Online session** (task 045, `Bridge/WindowExchange.cs`): one `ExchangeSession` for the
 window's lifetime, over the window's own sign-in and the command line's `ExchangeConnection` parts (pwsh from
 `PATH`, the script next to the exe after its hash check, the token silently, the organization), with
@@ -502,7 +536,8 @@ renewals 0, last connect … ms`), never a token.
 
 The page (`src/App.tsx`, `src/components/`): the sign-in card (its state machine in
 `components/sign-in-state.ts`: `whoami` reads it, `login` waits with the device code when one comes, `logout`
-reads it again; "Sign in" and "Sign in with a code" when signed out with a profile, "Sign out" when signed in), the
+reads it again; "Sign in" and "Sign in with a code" when signed out with a profile, with the window's hint for the
+state, the device code with "Copy the code" and "Open in browser" while it waits, "Sign out" when signed in), the
 group members card with the table, the mailbox access card (a mailbox or a user, the shared mailboxes to pick
 from, the holders or the grants in a table, the partial warning, and the time of the answer under the table), and a
 toast (sonner) for every `error` reply.
@@ -536,6 +571,11 @@ Microsoft's WebView2 SDK, in `src/M365Aegis.Gui/Host/WinFormsWebView2Host.cs` be
   device code), marshalled onto the UI thread, and `IUiHost.InvokeOnUiThreadAsync` starts work there (the account
   picker's call). `--smoke` answers no request, only waits for `ready`, so it never reaches the sign-in, the network
   or a sidecar.
+- `IUiHost.OpenInBrowser` (task 047) hands a device-code sign-in's page to the default browser through the shell
+  (`Process.Start` with `UseShellExecute`, the address its one argument), outside the WebView2, which still navigates
+  nowhere else. Its one use is the `open-sign-in-page` request, and it opens only what `Bridge/SignInPage.cs` allows:
+  https on the default port, no user info, and the host `microsoft.com`, `www.microsoft.com`,
+  `login.microsoftonline.com` or `login.microsoft.com`; the dispatcher checks it first and the host again.
 - `--verbose` registers the command line's scrubbing MSAL sink before the first sign-in (task 027): the same
   `logs\` folder, PII logging off, nothing written without the flag.
 - The browser's data folder is `webview2\` under the home folder (`CoreWebView2Environment.CreateAsync` with it as

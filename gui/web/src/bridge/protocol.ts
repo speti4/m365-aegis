@@ -22,6 +22,9 @@ export const MessageType = {
   login: "login",
   /** A notification from the host while a sign-in waits for the browser step: the page to open and the code. */
   deviceCode: "device-code",
+  /** Opens that page in the default browser (no payload: the host opens only the page it sent): answered with `sign-in-page-opened`. */
+  openSignInPage: "open-sign-in-page",
+  signInPageOpened: "sign-in-page-opened",
   /** Signs the profile's account out: answered with `logged-out`. */
   logout: "logout",
   loggedOut: "logged-out",
@@ -110,6 +113,11 @@ export interface DeviceCodePrompt {
   expiresOn: string;
 }
 
+/** The answer to `open-sign-in-page`: the page the default browser was asked to open. */
+export interface SignInPageOpened {
+  verificationUri: string;
+}
+
 /** The result of `logout`: the profile stays, the account's records are gone. */
 export interface SignOutInfo {
   profile: string;
@@ -173,6 +181,7 @@ export type Reply =
   | { type: typeof MessageType.signedOut; data: SignedOutInfo }
   | { type: typeof MessageType.members; data: GroupMembers }
   | { type: typeof MessageType.loggedOut; data: SignOutInfo }
+  | { type: typeof MessageType.signInPageOpened; data: SignInPageOpened }
   | { type: typeof MessageType.mailboxes; data: MailboxList }
   | { type: typeof MessageType.mailboxHolders; data: MailboxAccess }
   | { type: typeof MessageType.userGrants; data: UserAccess }
@@ -221,6 +230,10 @@ export function readReply(message: BridgeMessage): Reply | null {
       return isGroupMembers(data) ? { type, data } : null;
     case MessageType.loggedOut:
       return isSignOutInfo(data) ? { type, data } : null;
+    case MessageType.signInPageOpened:
+      return isRecord(data) && isString(data.verificationUri)
+        ? { type, data: { verificationUri: data.verificationUri } }
+        : null;
     case MessageType.mailboxes:
       return isMailboxList(data) ? { type, data } : null;
     case MessageType.mailboxHolders:

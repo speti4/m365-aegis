@@ -74,7 +74,7 @@ public sealed class BridgeProtocolTests
     }
 
     [Fact]
-    public async Task WhoAmIWithoutAProfileIsSignedOutWithTheLoginHint()
+    public async Task WhoAmIWithoutAProfileIsSignedOutWithTheWindowsHint()
     {
         string home = ProfileStoreTests.TempHome();
         var broker = new FakeTokenBroker();
@@ -84,7 +84,7 @@ public sealed class BridgeProtocolTests
         Assert.NotNull(reply);
         Assert.Equal("signed-out", reply.Type);
         Assert.Null(reply.Data?["profile"]);
-        Assert.Equal(ProfileStore.LoginHint, reply.Data?["hint"]?.GetValue<string>());
+        Assert.Equal(SignInHints.Window.NoProfile, reply.Data?["hint"]?.GetValue<string>());
         Assert.Empty(broker.Calls);
     }
 
@@ -231,10 +231,11 @@ public sealed class BridgeProtocolTests
         Assert.Equal("5", reply?.Id);
         Assert.Equal("auth", reply?.Data?["code"]?.GetValue<string>());
         Assert.Contains("cancelled", reply?.Data?["message"]?.GetValue<string>(), StringComparison.Ordinal);
+        Assert.Equal(SignInHints.Window.PickerCancelled, reply?.Data?["hint"]?.GetValue<string>());
     }
 
     [Fact]
-    public async Task ALoginWithoutAProfileIsAnAuthErrorThatNamesTheCommandLine()
+    public async Task ALoginWithoutAProfileIsAnAuthErrorThatSendsToTheAdministrator()
     {
         var broker = new FakeTokenBroker();
 
@@ -242,7 +243,7 @@ public sealed class BridgeProtocolTests
 
         Assert.Equal("error", reply?.Type);
         Assert.Equal("auth", reply?.Data?["code"]?.GetValue<string>());
-        Assert.Equal(ProfileStore.LoginHint, reply?.Data?["hint"]?.GetValue<string>());
+        Assert.Equal(SignInHints.Window.NoProfile, reply?.Data?["hint"]?.GetValue<string>());
         Assert.Empty(broker.Calls);
     }
 
@@ -362,7 +363,8 @@ public sealed class BridgeProtocolTests
             [
                 "device-code.json", "error.json", "group-members.json", "logged-out.json", "login.json", "logout.json",
                 "mailbox-access.json", "mailbox-holders.json", "mailbox-list.json", "mailboxes.json", "members.json",
-                "ping.json", "pong.json", "ready.json", "signed-in.json", "signed-out.json", "user-grants.json", "whoami.json",
+                "open-sign-in-page.json", "ping.json", "pong.json", "ready.json", "sign-in-page-opened.json", "signed-in.json",
+                "signed-out.json", "user-grants.json", "whoami.json",
             ],
             samples.Select(Path.GetFileName).Order(StringComparer.Ordinal));
         Assert.All(samples, path => Assert.NotNull(BridgeProtocol.TryParse(File.ReadAllText(path))));
@@ -441,14 +443,17 @@ public sealed class BridgeProtocolTests
         return home;
     }
 
-    /// <summary>The dispatcher over a scripted sign-in, the recorded Graph answers and, when given, a window's Exchange session.</summary>
+    /// <summary>
+    /// The dispatcher over a scripted sign-in with the window's hints (as <see cref="BridgeServices.ForWindow"/> makes
+    /// it), the recorded Graph answers and, when given, a window's Exchange session.
+    /// </summary>
     private static BridgeDispatcher Dispatcher(FakeTokenBroker? broker = null, string? home = null, WindowExchange? exchange = null)
     {
         home ??= WithProfile();
         broker ??= new FakeTokenBroker();
         (GraphClient graph, _) = GraphFixtures.Client();
         return new BridgeDispatcher(new BridgeServices(
-            new AuthService(home, _ => broker),
+            new AuthService(home, _ => broker, SignInHints.Window),
             null,
             _ => graph,
             exception => InternalError.WriteToLog(exception, home))

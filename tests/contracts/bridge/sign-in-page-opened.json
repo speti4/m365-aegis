@@ -1,0 +1,8 @@
+{
+  "aegis": 1,
+  "id": "9",
+  "type": "sign-in-page-opened",
+  "data": {
+    "verificationUri": "https://login.microsoftonline.com/common/oauth2/deviceauth"
+  }
+}

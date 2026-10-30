@@ -51,6 +51,13 @@ public sealed record ExchangeSessionOptions
     /// <summary>A token for Exchange Online, silently; called for the connect and before each renewal.</summary>
     public required Func<CancellationToken, Task<ExchangeToken>> Token { get; init; }
 
+    /// <summary>
+    /// A fresh token for an explicit reconnect (<see cref="ExchangeSession.RenewAsync"/>), whatever the expiry of the
+    /// current one; <see cref="Token"/> when null. A shared <see cref="ExchangeTokenSource"/> passes its
+    /// <see cref="ExchangeTokenSource.RenewAsync"/>, so the other layers get the fresh token too (task 049).
+    /// </summary>
+    public Func<CancellationToken, Task<ExchangeToken>>? RenewToken { get; init; }
+
     /// <summary>The organization and the account to connect with; called once per session.</summary>
     public required Func<CancellationToken, Task<ExchangeTarget>> Target { get; init; }
 
@@ -143,7 +150,7 @@ public sealed class ExchangeSession : IExoCmdletRunner, IAsyncDisposable
         try
         {
             SidecarClient client = await ReadyAsync(cancellationToken).ConfigureAwait(false);
-            await ReconnectAsync(client, cancellationToken).ConfigureAwait(false);
+            await ReconnectAsync(client, fresh: true, cancellationToken).ConfigureAwait(false);
             return Connection!;
         }
         finally
@@ -206,15 +213,16 @@ public sealed class ExchangeSession : IExoCmdletRunner, IAsyncDisposable
 
         if (Token is null || Token.ExpiresOn - _options.Clock.GetUtcNow() <= _options.RenewBefore)
         {
-            await ReconnectAsync(_client, cancellationToken).ConfigureAwait(false);
+            await ReconnectAsync(_client, fresh: false, cancellationToken).ConfigureAwait(false);
         }
 
         return _client;
     }
 
-    private async Task ReconnectAsync(SidecarClient client, CancellationToken cancellationToken)
+    private async Task ReconnectAsync(SidecarClient client, bool fresh, CancellationToken cancellationToken)
     {
-        ExchangeToken token = await _options.Token(cancellationToken).ConfigureAwait(false);
+        Func<CancellationToken, Task<ExchangeToken>> source = fresh ? _options.RenewToken ?? _options.Token : _options.Token;
+        ExchangeToken token = await source(cancellationToken).ConfigureAwait(false);
         Connection = await client.ConnectAsync(Connect(token), again: true, cancellationToken).ConfigureAwait(false);
         Token = token;
         Renewals++;

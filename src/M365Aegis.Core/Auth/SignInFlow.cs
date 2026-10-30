@@ -26,12 +26,30 @@ public enum SignInMode
 /// </summary>
 public static class SignInFlow
 {
-    /// <summary>Runs the flow for one resource.</summary>
+    /// <summary>Runs the flow for one resource, with the command line's hints.</summary>
     /// <param name="broker">The token source.</param>
     /// <param name="profile">Whose account, in which tenant.</param>
     /// <param name="resource">Which token.</param>
     /// <param name="mode">How far the flow may go.</param>
     /// <param name="prompt">Shows the device code to the user when that path is reached.</param>
+    /// <param name="cancellationToken">Cancels the flow.</param>
+    /// <exception cref="AegisException">No path produced a token.</exception>
+    public static Task<TokenResult> RunAsync(
+        ITokenBroker broker,
+        TenantProfile profile,
+        Resource resource,
+        SignInMode mode,
+        Func<DeviceCodePrompt, Task> prompt,
+        CancellationToken cancellationToken) =>
+        RunAsync(broker, profile, resource, mode, prompt, SignInHints.CommandLine, cancellationToken);
+
+    /// <summary>Runs the flow for one resource; a failure's hint comes from the surface's set (task 046).</summary>
+    /// <param name="broker">The token source.</param>
+    /// <param name="profile">Whose account, in which tenant.</param>
+    /// <param name="resource">Which token.</param>
+    /// <param name="mode">How far the flow may go.</param>
+    /// <param name="prompt">Shows the device code to the user when that path is reached.</param>
+    /// <param name="hints">What a failure tells the person to do: <see cref="SignInHints.CommandLine"/> or <see cref="SignInHints.Window"/>.</param>
     /// <param name="cancellationToken">Cancels the flow.</param>
     /// <exception cref="AegisException">No path produced a token.</exception>
     public static async Task<TokenResult> RunAsync(
@@ -40,11 +58,13 @@ public static class SignInFlow
         Resource resource,
         SignInMode mode,
         Func<DeviceCodePrompt, Task> prompt,
+        SignInHints hints,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(broker);
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(prompt);
+        ArgumentNullException.ThrowIfNull(hints);
 
         string scope = Scopes.For(resource);
         var attempts = new List<string>();
@@ -87,7 +107,7 @@ public static class SignInFlow
                 throw new AegisException(
                     FailureKind.Auth,
                     $"no silent sign-in for {profile.Account} ({string.Join("; ", attempts)})",
-                    "run `m365-aegis login`");
+                    hints.SignInAgain);
             }
 
             try
@@ -101,14 +121,14 @@ public static class SignInFlow
             }
             catch (BrokerException exception) when (exception.Kind == BrokerErrorKind.Cancelled)
             {
-                throw new AegisException(FailureKind.Auth, "the sign-in was cancelled in the account picker", "run `m365-aegis login` again", exception);
+                throw new AegisException(FailureKind.Auth, "the sign-in was cancelled in the account picker", hints.PickerCancelled, exception);
             }
             catch (BrokerException exception)
             {
                 throw new AegisException(
                     FailureKind.Auth,
                     $"the account picker could not sign in {profile.Account} ({exception.Code}: {exception.Message})",
-                    "run `m365-aegis login --device-code` to sign in through a browser instead",
+                    hints.PickerFailed,
                     exception);
             }
         }
@@ -122,7 +142,7 @@ public static class SignInFlow
             throw new AegisException(
                 FailureKind.Auth,
                 $"the device code sign-in failed ({exception.Code}: {exception.Message})",
-                "run `m365-aegis login --device-code` again and finish the browser step before the code expires",
+                hints.DeviceCodeFailed,
                 exception);
         }
     }

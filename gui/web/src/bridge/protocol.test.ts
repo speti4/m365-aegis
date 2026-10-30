@@ -43,9 +43,11 @@ describe("the bridge protocol", () => {
       "mailbox-list.json",
       "mailboxes.json",
       "members.json",
+      "open-sign-in-page.json",
       "ping.json",
       "pong.json",
       "ready.json",
+      "sign-in-page-opened.json",
       "signed-in.json",
       "signed-out.json",
       "user-grants.json",
@@ -94,7 +96,18 @@ describe("the bridge protocol", () => {
     expect(reply?.type).toBe(MessageType.signedOut);
     if (reply?.type !== MessageType.signedOut) return;
     expect(reply.data.profile).toBe("work");
-    expect(reply.data.hint).toBe("run `m365-aegis login`");
+    expect(reply.data.hint).toBe("choose Sign in on the sign-in card to sign in again");
+  });
+
+  it("writes the open-sign-in-page request without a payload and reads its reply sample (task 047)", () => {
+    expect(JSON.parse(writeMessage(request(MessageType.openSignInPage, undefined, "9")))).toEqual(
+      JSON.parse(sample("open-sign-in-page.json")),
+    );
+    expect(readReply(parsed("sign-in-page-opened.json"))).toEqual({
+      type: "sign-in-page-opened",
+      data: { verificationUri: "https://login.microsoftonline.com/common/oauth2/deviceauth" },
+    });
+    expect(readReply({ aegis: PROTOCOL_VERSION, id: "9", type: "sign-in-page-opened", data: {} })).toBeNull();
   });
 
   it("reads the members sample: the group and its members in order", () => {

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using M365Aegis.Core.Auth;
 using M365Aegis.Core.Output;
 
 namespace M365Aegis.Core.Config;
@@ -47,7 +48,7 @@ public sealed class ProfileStore
     /// <summary>The name a profile gets when <c>login</c> is run without <c>--profile</c>.</summary>
     public const string DefaultProfileName = "default";
 
-    /// <summary>The login command with its flags, the hint of every failure that needs a profile.</summary>
+    /// <summary>The login command with its flags, the command line's hint of every failure that needs a profile.</summary>
     public const string LoginHint =
         "run `m365-aegis login --tenant <tenant id or domain> --client-id <application id> --account <user@domain>` once";
 
@@ -63,12 +64,16 @@ public sealed class ProfileStore
     };
 
     private readonly string _home;
+    private readonly SignInHints _hints;
 
     /// <summary>A store over the given home folder (<see cref="AegisHome.Resolve"/> for the real one).</summary>
-    public ProfileStore(string home)
+    /// <param name="home">The home folder.</param>
+    /// <param name="hints">What a missing or broken profile tells the person to do; the command line's when null (task 046).</param>
+    public ProfileStore(string home, SignInHints? hints = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(home);
         _home = home;
+        _hints = hints ?? SignInHints.CommandLine;
     }
 
     /// <summary>The path of the file, whether or not it exists.</summary>
@@ -88,12 +93,12 @@ public sealed class ProfileStore
             throw new AegisException(
                 FailureKind.Auth,
                 file.Profiles.Count == 0 ? $"no tenant profile in {Path}" : $"no default profile in {Path}",
-                file.Profiles.Count == 0 ? LoginHint : "name one with --profile, or set \"default\" in the file");
+                file.Profiles.Count == 0 ? _hints.NoProfile : _hints.NoDefaultProfile);
         }
 
         if (!file.Profiles.TryGetValue(key, out ProfileEntry? entry))
         {
-            throw new AegisException(FailureKind.Auth, $"no profile named '{key}' in {Path}", LoginHint);
+            throw new AegisException(FailureKind.Auth, $"no profile named '{key}' in {Path}", _hints.NoProfile);
         }
 
         return entry.ToProfile(key);
@@ -212,7 +217,7 @@ public sealed class ProfileStore
         }
         catch (JsonException exception)
         {
-            throw new AegisException(FailureKind.Auth, $"{Path} is not valid JSON", "fix the file, or delete it and run `m365-aegis login` again", exception);
+            throw new AegisException(FailureKind.Auth, $"{Path} is not valid JSON", _hints.BrokenProfileFile, exception);
         }
 
         // A hand-edited file may hold a profile without one of its three values: the file's fault, not the tool's.
@@ -223,7 +228,7 @@ public sealed class ProfileStore
                 throw new AegisException(
                     FailureKind.Auth,
                     $"the profile '{name}' in {Path} lacks its tenant, clientId or account",
-                    "fix the file, or remove the profile with `m365-aegis profile remove`");
+                    _hints.IncompleteProfile);
             }
         }
 

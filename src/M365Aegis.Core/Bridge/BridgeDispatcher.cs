@@ -34,6 +34,12 @@ public sealed record BridgeServices(
     public WindowExchange? Exchange { get; init; }
 
     /// <summary>
+    /// Hands a device-code sign-in's page to the default browser (the host's <c>IUiHost.OpenInBrowser</c>, task 047),
+    /// or null where there is no browser to hand it to (then the request answers that it cannot).
+    /// </summary>
+    public Func<Uri, Task>? OpenInBrowser { get; init; }
+
+    /// <summary>
     /// The window's services over a home folder: MSAL through the Windows account manager with the window as the
     /// account picker's parent and the picker started on the window's thread (<paramref name="onWindowThread"/>),
     /// the cache, the profiles and the log of that home folder (shared with the command line), the Graph client of
@@ -46,7 +52,8 @@ public sealed record BridgeServices(
         ArgumentException.ThrowIfNullOrWhiteSpace(home);
         ArgumentNullException.ThrowIfNull(parentWindow);
         ArgumentNullException.ThrowIfNull(onWindowThread);
-        var auth = new AuthService(home, tenantProfile => MsalTokenBroker.Create(tenantProfile, home, parentWindow, onWindowThread));
+        // The window's own hints (task 046): a failed sign-in names the card's buttons, never a command to type.
+        var auth = new AuthService(home, tenantProfile => MsalTokenBroker.Create(tenantProfile, home, parentWindow, onWindowThread), SignInHints.Window);
         return new BridgeServices(
             auth,
             profile,
@@ -88,6 +95,9 @@ public sealed class BridgeDispatcher
 {
     private readonly BridgeServices _services;
 
+    /// <summary>The page of the device-code sign-in waiting for its browser step, or null when none waits.</summary>
+    private volatile Uri? _signInPage;
+
     /// <summary>A dispatcher over the given services.</summary>
     public BridgeDispatcher(BridgeServices services)
     {
@@ -121,6 +131,8 @@ public sealed class BridgeDispatcher
                     return await WhoAmIAsync(request, cancellationToken).ConfigureAwait(false);
                 case BridgeMessageType.Login:
                     return await LoginAsync(request, notify, cancellationToken).ConfigureAwait(false);
+                case BridgeMessageType.OpenSignInPage:
+                    return await OpenSignInPageAsync(request).ConfigureAwait(false);
                 case BridgeMessageType.Logout:
                     return await LogoutAsync(request, cancellationToken).ConfigureAwait(false);
                 case BridgeMessageType.GroupMembers:
@@ -166,11 +178,59 @@ public sealed class BridgeDispatcher
     {
         // The window's profile only: writing a profile (--tenant, --client-id, --account) stays on the command line.
         var options = new LoginOptions(_services.Profile, null, null, null, Flag(request, "deviceCode"));
-        SignInInfo info = await _services.Auth.LoginAsync(
-            options,
-            prompt => notify(BridgeProtocol.Notification(BridgeMessageType.DeviceCode, prompt)),
-            cancellationToken).ConfigureAwait(false);
-        return BridgeProtocol.Reply(request, BridgeMessageType.SignedIn, info);
+        try
+        {
+            SignInInfo info = await _services.Auth.LoginAsync(
+                options,
+                prompt =>
+                {
+                    // The one address the window may hand to the browser while this sign-in waits (task 047).
+                    _signInPage = prompt.VerificationUri;
+                    return notify(BridgeProtocol.Notification(BridgeMessageType.DeviceCode, prompt));
+                },
+                cancellationToken).ConfigureAwait(false);
+            return BridgeProtocol.Reply(request, BridgeMessageType.SignedIn, info);
+        }
+        finally
+        {
+            _signInPage = null;
+        }
+    }
+
+    /// <summary>
+    /// Opens the page of the device-code sign-in in flight in the default browser: the address the sign-in service
+    /// named in the device-code answer, and only on a Microsoft sign-in host over https (<see cref="SignInPage"/>);
+    /// without a sign-in waiting, or without a browser to hand it to, nothing is opened.
+    /// </summary>
+    private async Task<BridgeMessage> OpenSignInPageAsync(BridgeMessage request)
+    {
+        Uri? page = _signInPage;
+        if (page is null)
+        {
+            return BridgeProtocol.Error(request, new AegisFailure(
+                FailureKind.Usage,
+                "no device code sign-in is waiting for its browser step",
+                "choose Sign in with a code first; the card shows the page and the code"));
+        }
+
+        if (!SignInPage.IsAllowed(page))
+        {
+            return BridgeProtocol.Error(request, new AegisFailure(
+                FailureKind.ServiceError,
+                $"the sign-in page '{page.GetLeftPart(UriPartial.Authority)}' is not one of Microsoft's sign-in hosts, so the window does not open it",
+                "open the page the card shows in a browser yourself only if you trust it, or sign in with the account picker"));
+        }
+
+        if (_services.OpenInBrowser is not { } open)
+        {
+            return BridgeProtocol.Error(request, new AegisFailure(
+                FailureKind.ServiceError,
+                "this window cannot open a browser",
+                "open the page the card shows in a browser and enter the code"));
+        }
+
+        await open(page).ConfigureAwait(false);
+        return BridgeProtocol.Reply(request, BridgeMessageType.SignInPageOpened, new SignInPageOpenedInfo(page));
     }
 
     private async Task<BridgeMessage> LogoutAsync(BridgeMessage request, CancellationToken cancellationToken)

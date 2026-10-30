@@ -1,0 +1,20 @@
+﻿--- stdout ---
+name           address                type
+-------------  ---------------------  -------------
+Alice Example  alice@contoso.com      UserMailbox
+Bob Example    bob@contoso.com        UserMailbox
+Carol Example  carol@contoso.com      UserMailbox
+Dave Example   dave@contoso.com       UserMailbox
+Finance        finance@contoso.com    SharedMailbox
+Reception      reception@contoso.com  SharedMailbox
+
+6 mailbox(es)
+--- stderr ---
+--- stdout ---
+name       address                type
+---------  ---------------------  -------------
+Finance    finance@contoso.com    SharedMailbox
+Reception  reception@contoso.com  SharedMailbox
+
+2 shared mailbox(es)
+--- stderr ---

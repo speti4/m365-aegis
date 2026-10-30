@@ -35,7 +35,15 @@ internal static class Program
         }
 
         IUiHost host = CreateHost();
-        BridgeServices services = BridgeServices.ForWindow(home, profile: null, () => host.WindowHandle, host.InvokeOnUiThreadAsync);
+        BridgeServices services = BridgeServices.ForWindow(home, profile: null, () => host.WindowHandle, host.InvokeOnUiThreadAsync) with
+        {
+            // The device-code card's "Open in browser" (task 047): the shell opens the page, the window stays on its own.
+            OpenInBrowser = page =>
+            {
+                host.OpenInBrowser(page);
+                return Task.CompletedTask;
+            },
+        };
         var dispatcher = new BridgeDispatcher(services);
         var started = System.Diagnostics.Stopwatch.StartNew();
         int exitCode = smoke ? 1 : 0;

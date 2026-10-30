@@ -51,6 +51,14 @@ export function App() {
     [client, showError],
   );
 
+  // The device-code card's "Open in browser" (task 047): the host opens the page it sent, nothing else.
+  const openSignInPage = useCallback(async () => {
+    const reply = await client.call(MessageType.openSignInPage);
+    if (reply.type === MessageType.error) {
+      showError(reply.data);
+    }
+  }, [client, showError]);
+
   const signOut = useCallback(async () => {
     dispatch({ type: "logout" });
     const reply = await client.call(MessageType.logout);
@@ -97,6 +105,7 @@ export function App() {
           onRefresh={() => void checkSignIn()}
           onSignIn={(deviceCode) => void signInWith(deviceCode)}
           onSignOut={() => void signOut()}
+          onOpenSignInPage={() => void openSignInPage()}
         />
         <GroupMembersCard client={client} onError={showError} />
         <MailboxAccessCard client={client} onError={showError} />

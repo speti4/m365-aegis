@@ -154,6 +154,8 @@ export class MockTransport implements Transport {
   private handlers: Array<(message: BridgeMessage) => void> = [];
   private readonly delayMs: number;
   private signedIn: boolean;
+  /** The page of the device-code sign-in in flight, which `open-sign-in-page` "opens"; null when none waits. */
+  private signInPage: string | null = null;
 
   constructor({ delayMs = 0, signedIn = true }: MockOptions = {}) {
     this.delayMs = delayMs;
@@ -167,12 +169,13 @@ export class MockTransport implements Transport {
     const deviceCode =
       message.type === MessageType.login && (message.data as { deviceCode?: unknown } | undefined)?.deviceCode === true;
     if (deviceCode) {
+      this.signInPage = "https://login.microsoftonline.com/common/oauth2/deviceauth";
       this.deliver(
         {
           aegis: PROTOCOL_VERSION,
           type: MessageType.deviceCode,
           data: {
-            verificationUri: "https://login.microsoftonline.com/common/oauth2/deviceauth",
+            verificationUri: this.signInPage,
             userCode: "MOCK1234",
             message: "To sign in, open the page and enter the code MOCK1234 (a mock: nothing to do).",
             expiresOn: new Date(Date.now() + 15 * 60_000).toISOString(),
@@ -182,7 +185,11 @@ export class MockTransport implements Transport {
       );
     }
     const reply: BridgeMessage = { aegis: PROTOCOL_VERSION, id: message.id, ...this.answer(message) };
-    this.deliver(reply, deviceCode ? this.delayMs * 10 : this.delayMs);
+    this.deliver(reply, deviceCode ? this.delayMs * 10 : this.delayMs, () => {
+      if (message.type === MessageType.login) {
+        this.signInPage = null;
+      }
+    });
   }
 
   onMessage(handler: (message: BridgeMessage) => void): () => void {
@@ -192,8 +199,9 @@ export class MockTransport implements Transport {
     };
   }
 
-  private deliver(message: BridgeMessage, afterMs: number): void {
+  private deliver(message: BridgeMessage, afterMs: number, before?: () => void): void {
     setTimeout(() => {
+      before?.();
       for (const handler of this.handlers) {
         handler(message);
       }
@@ -215,12 +223,24 @@ export class MockTransport implements Transport {
                 profile: "work",
                 account: "alice@contoso.com",
                 message: "no silent sign-in for alice@contoso.com (a mock)",
-                hint: "run `m365-aegis login`",
+                hint: "choose Sign in on the sign-in card to sign in again",
               },
             };
       case MessageType.login:
         this.signedIn = true;
         return { type: MessageType.signedIn, data: mockSignIn };
+      case MessageType.openSignInPage:
+        // A plain browser has no host to hand the page to: the mock only answers as the host would.
+        return this.signInPage
+          ? { type: MessageType.signInPageOpened, data: { verificationUri: this.signInPage } }
+          : {
+              type: MessageType.error,
+              data: {
+                code: "usage",
+                message: "no device code sign-in is waiting for its browser step",
+                hint: "choose Sign in with a code first; the card shows the page and the code",
+              },
+            };
       case MessageType.logout:
         this.signedIn = false;
         return {

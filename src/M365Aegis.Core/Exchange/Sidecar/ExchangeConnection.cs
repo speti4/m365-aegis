@@ -52,25 +52,42 @@ public static class ExchangeConnection
         new(Options(profileName, requestLog, auth));
 
     /// <summary>What a session is made of, over the sign-in <paramref name="auth"/> makes (not called in the offline tests).</summary>
-    public static ExchangeSessionOptions Options(string? profileName, RequestLog requestLog, Func<AuthService> auth, ExchangeConnectWith? connectWith = null)
+    public static ExchangeSessionOptions Options(string? profileName, RequestLog requestLog, Func<AuthService> auth, ExchangeConnectWith? connectWith = null) =>
+        Options(profileName, requestLog, auth, Tokens(profileName, auth), connectWith);
+
+    /// <summary>
+    /// The Exchange Online token source of a command (task 049), which its sidecars and its Admin API share: the
+    /// offline tests' placeholder when <see cref="TestOrganizationVariable"/> is set, else the profile's sign-in
+    /// <paramref name="auth"/> makes, asked for on the first token.
+    /// </summary>
+    public static ExchangeTokenSource Tokens(string? profileName, Func<AuthService> auth)
     {
         ArgumentNullException.ThrowIfNull(auth);
+        return string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(TestOrganizationVariable))
+            ? new ExchangeTokenSource(async cancellationToken => ToExchangeToken(await auth().GetTokenAsync(Resource.Exchange, profileName, cancellationToken).ConfigureAwait(false)))
+            : new ExchangeTokenSource(_ => Task.FromResult(new ExchangeToken(TestToken, DateTimeOffset.UtcNow.AddHours(1), ["Exchange.Manage"], "alice@contoso.com", null)));
+    }
+
+    /// <summary>
+    /// What the sessions of a command are made of when its layers share one token (task 049): every session made
+    /// from these options (the command's sidecar and the extra ones of a split read) connects with the token of
+    /// <paramref name="tokens"/>, renews it on the same threshold and clock, and asks for the organization once.
+    /// </summary>
+    public static ExchangeSessionOptions Options(string? profileName, RequestLog requestLog, Func<AuthService> auth, ExchangeTokenSource tokens, ExchangeConnectWith? connectWith = null)
+    {
+        ArgumentNullException.ThrowIfNull(auth);
+        ArgumentNullException.ThrowIfNull(tokens);
         ExchangeConnectWith with = connectWith ?? ParseConnectWith(Environment.GetEnvironmentVariable(ConnectWithVariable));
         string? testOrganization = Environment.GetEnvironmentVariable(TestOrganizationVariable);
         if (!string.IsNullOrWhiteSpace(testOrganization))
         {
-            return new ExchangeSessionOptions
-            {
-                Start = StartAsync,
-                Token = _ => Task.FromResult(new ExchangeToken(TestToken, DateTimeOffset.UtcNow.AddHours(1), ["Exchange.Manage"], "alice@contoso.com", null)),
-                Target = _ => Task.FromResult(Target(with, testOrganization.Trim(), "alice@contoso.com")),
-            };
+            return Over(tokens, StartAsync, _ => Task.FromResult(Target(with, testOrganization.Trim(), "alice@contoso.com")));
         }
 
-        return Options(auth(), profileName, requestLog, with, StartAsync);
+        return Over(tokens, StartAsync, cancellationToken => TargetAsync(auth(), profileName, requestLog, with, cancellationToken));
     }
 
-    /// <summary>The session's parts over the given sign-in and sidecar start.</summary>
+    /// <summary>The session's parts over the given sign-in and sidecar start, with a token source of its own.</summary>
     public static ExchangeSessionOptions Options(
         AuthService auth,
         string? profileName,
@@ -79,19 +96,46 @@ public static class ExchangeConnection
         Func<CancellationToken, Task<SidecarClient>> start)
     {
         ArgumentNullException.ThrowIfNull(auth);
+        return Over(
+            ExchangeTokenSource.ForProfile(auth, profileName),
+            start,
+            cancellationToken => TargetAsync(auth, profileName, requestLog, connectWith, cancellationToken));
+    }
+
+    /// <summary>Session options over a token source: its token, its renewal threshold and clock, and the target asked for once.</summary>
+    private static ExchangeSessionOptions Over(ExchangeTokenSource tokens, Func<CancellationToken, Task<SidecarClient>> start, Func<CancellationToken, Task<ExchangeTarget>> target)
+    {
+        var gate = new Lock();
+        Task<ExchangeTarget>? known = null;
         return new ExchangeSessionOptions
         {
             Start = start,
-            Token = async cancellationToken => ToExchangeToken(await auth.GetTokenAsync(Resource.Exchange, profileName, cancellationToken).ConfigureAwait(false)),
-            Target = async cancellationToken =>
+            Token = tokens.GetAsync,
+            RenewToken = tokens.RenewAsync,
+            Clock = tokens.Clock,
+            RenewBefore = tokens.RenewBefore,
+            Target = cancellationToken =>
             {
-                TenantProfile profile = auth.Profiles.Resolve(profileName);
-                string? organization = connectWith == ExchangeConnectWith.UserPrincipalName
-                    ? null
-                    : await OrganizationAsync(profile, () => GraphConnection.Create(auth, profileName, requestLog), cancellationToken).ConfigureAwait(false);
-                return Target(connectWith, organization, profile.Account);
+                lock (gate)
+                {
+                    if (known is null || known.IsFaulted || known.IsCanceled)
+                    {
+                        known = target(cancellationToken);
+                    }
+
+                    return known;
+                }
             },
         };
+    }
+
+    private static async Task<ExchangeTarget> TargetAsync(AuthService auth, string? profileName, RequestLog requestLog, ExchangeConnectWith connectWith, CancellationToken cancellationToken)
+    {
+        TenantProfile profile = auth.Profiles.Resolve(profileName);
+        string? organization = connectWith == ExchangeConnectWith.UserPrincipalName
+            ? null
+            : await OrganizationAsync(profile, () => GraphConnection.Create(auth, profileName, requestLog), cancellationToken).ConfigureAwait(false);
+        return Target(connectWith, organization, profile.Account);
     }
 
     /// <summary>The broker's token as the session keeps it.</summary>

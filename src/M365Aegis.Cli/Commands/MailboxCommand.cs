@@ -25,7 +25,7 @@ internal static class MailboxCommand
         list.Options.Add(shared);
         list.SetAction((parsed, cancellationToken) => ExchangeRunner.RunAsync(
             parsed, json, table, profile,
-            (exo, ct) => MailboxLookups.ListAsync(exo, parsed.GetValue(shared), ct),
+            (ExchangeBackends backends, CancellationToken ct) => MailboxLookups.ListAsync(backends, parsed.GetValue(shared), ct),
             MailboxListTableView.Instance,
             cancellationToken));
 

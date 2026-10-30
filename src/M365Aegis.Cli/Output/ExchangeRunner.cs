@@ -66,12 +66,17 @@ internal static class ExchangeRunner
             {
                 string? name = parsed.GetValue(profile);
                 var auth = new Lazy<AuthService>(AuthService.Create);
-                await using ExchangeSession session = ExchangeConnection.Create(name, requestLog, () => auth.Value);
+
+                // One Exchange Online token for every layer (task 049): the sidecar, the extra sidecars of a split
+                // read and the Admin API ask the same source, so the sign-in is asked once and renewed once.
+                ExchangeTokenSource tokens = ExchangeConnection.Tokens(name, () => auth.Value);
+                ExchangeSessionOptions sidecars = ExchangeConnection.Options(name, requestLog, () => auth.Value, tokens);
+                await using var session = new ExchangeSession(sidecars);
                 await using var backends = new ExchangeBackends(
                     session,
-                    AdminApiConnection.Create(name, requestLog, () => auth.Value),
+                    AdminApiConnection.Create(name, requestLog, () => auth.Value, tokens),
                     () => GraphConnection.Create(name, requestLog, () => auth.Value),
-                    () => ExchangeConnection.Create(name, requestLog, () => auth.Value));
+                    () => new ExchangeSession(sidecars));
                 used = backends;
                 return await work(backends, cancellationToken).ConfigureAwait(false);
             },

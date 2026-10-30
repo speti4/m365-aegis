@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.ExceptionServices;
 using System.Text;
@@ -24,6 +25,36 @@ public static partial class MailboxLookups
     private const string Calendar = "Calendar";
 
     private static readonly string[] PermissionProperties = ["Identity", "User", "AccessRights", "IsInherited", "Deny"];
+
+    /// <summary>
+    /// <c>mailbox list [--shared]</c> over the layers (task 048): the Admin API's paged <c>Get-Mailbox</c> with
+    /// <c>$select</c> on the list's fields, no sidecar; the sidecar's <c>Get-EXOMailbox</c> when the run has no Admin
+    /// API or the Admin API cannot answer (not enabled, a refused permission, a service error). The endpoint takes no
+    /// <c>-RecipientTypeDetails</c> (https://learn.microsoft.com/exchange/reference/admin-api-endpoints-mailbox), so
+    /// <paramref name="sharedOnly"/> keeps the shared mailboxes of the whole list.
+    /// </summary>
+    public static async Task<CommandResult<MailboxList>> ListAsync(ExchangeBackends backends, bool sharedOnly, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(backends);
+        if (backends.HasAdminApi)
+        {
+            try
+            {
+                IReadOnlyList<ExoObject> mailboxes = await AdminMailboxesAsync(backends.AdminApi!, cancellationToken).ConfigureAwait(false);
+                IEnumerable<ExoObject> kept = sharedOnly
+                    ? mailboxes.Where(mailbox => string.Equals(mailbox.Text("RecipientTypeDetails"), SharedMailbox, StringComparison.OrdinalIgnoreCase))
+                    : mailboxes;
+                return CommandResult.Success(new MailboxList(kept.Select(ToMailbox).OrderBy(mailbox => mailbox.DisplayName, StringComparer.OrdinalIgnoreCase).ToList(), sharedOnly));
+            }
+            catch (AegisException exception) when (exception.Failure.Kind is not (FailureKind.Auth or FailureKind.Usage))
+            {
+                // A sign-in that failed fails the sidecar too; anything else the sidecar may still answer.
+                LogSink.Verbose?.Write("admin-api", $"the Admin API could not list the mailboxes ({exception.Failure.Code}: {exception.Message}); the sidecar answers instead");
+            }
+        }
+
+        return await ListAsync(backends.Sidecar, sharedOnly, cancellationToken).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// <c>mailbox access &lt;mailbox&gt; [--expand-groups]</c> over the layers: the mailbox and its Send on Behalf
@@ -710,11 +741,17 @@ public static partial class MailboxLookups
             throw new InvalidOperationException("the usage report needs the Graph client");
         }
 
+        // The two reads run side by side; each is timed apart from the other (task 048), so the log says which one
+        // the command waits for.
         GraphRequest request = GraphRequest.Get(ReportPath) with { Permission = "Reports.Read.All", Accept = "*/*" };
-        Task<GraphResponse> report = backends.Graph.SendAsync(request, cancellationToken);
-        Task<IReadOnlyList<ExoObject>> list = string.IsNullOrWhiteSpace(mailbox)
-            ? ListForReportAsync(backends, cancellationToken)
-            : OneForReportAsync(backends, mailbox.Trim(), cancellationToken);
+        var clock = Stopwatch.StartNew();
+        Task<GraphResponse> report = TimedAsync(backends.Graph.SendAsync(request, cancellationToken), clock, "Graph's usage report");
+        Task<IReadOnlyList<ExoObject>> list = TimedAsync(
+            string.IsNullOrWhiteSpace(mailbox)
+                ? ListForReportAsync(backends, cancellationToken)
+                : OneForReportAsync(backends, mailbox.Trim(), cancellationToken),
+            clock,
+            backends.HasAdminApi ? "the Admin API's mailbox list" : "the sidecar's mailbox list");
         try
         {
             await Task.WhenAll(report, list).ConfigureAwait(false);
@@ -770,14 +807,35 @@ public static partial class MailboxLookups
     {
         if (backends.HasAdminApi)
         {
-            // $select keeps the page to the fields the table shows: the preview answers the whole Get-Mailbox otherwise.
-            ExoResult result = await backends.AdminApi!.InvokeAsync(
-                new ExoCommand(AdminApiCmdlets.GetMailbox) { Parameters = new Dictionary<string, object?> { ["ResultSize"] = Unlimited }, Properties = MailboxProperties },
-                cancellationToken).ConfigureAwait(false);
-            return result.Items;
+            return await AdminMailboxesAsync(backends.AdminApi!, cancellationToken).ConfigureAwait(false);
         }
 
         return await AllMailboxesAsync(backends.Sidecar, sharedOnly: false, [], cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Every mailbox from the Admin API's <c>Mailbox</c> endpoint, over every page.</summary>
+    private static async Task<IReadOnlyList<ExoObject>> AdminMailboxesAsync(IExoCmdletRunner admin, CancellationToken cancellationToken)
+    {
+        // $select keeps the page to the fields the list shows: the preview answers the whole Get-Mailbox otherwise.
+        ExoResult result = await admin.InvokeAsync(
+            new ExoCommand(AdminApiCmdlets.GetMailbox) { Parameters = new Dictionary<string, object?> { ["ResultSize"] = Unlimited }, Properties = MailboxProperties },
+            cancellationToken).ConfigureAwait(false);
+        return result.Items;
+    }
+
+    /// <summary>A read that writes, under <c>--verbose</c>, how long it took from the start of <paramref name="clock"/>.</summary>
+    private static async Task<T> TimedAsync<T>(Task<T> read, Stopwatch clock, string what)
+    {
+        try
+        {
+            return await read.ConfigureAwait(false);
+        }
+        finally
+        {
+            LogSink.Verbose?.Write("exchange-online", string.Create(
+                CultureInfo.InvariantCulture,
+                $"mailbox size, report method: {what} {(read.IsCompletedSuccessfully ? "answered" : "failed")} after {clock.ElapsedMilliseconds} ms"));
+        }
     }
 
     private static async Task<IReadOnlyList<ExoObject>> OneForReportAsync(ExchangeBackends backends, string identity, CancellationToken cancellationToken) =>

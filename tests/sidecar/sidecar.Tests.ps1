@@ -14,8 +14,8 @@ BeforeAll {
 
     function Invoke-Sidecar {
         # Feeds the lines to a fresh sidecar and returns its stdout lines (the protocol) and stderr (the noise).
-        param([string[]] $Lines, [switch] $WithoutModule)
-        $moduleRoot = if ($WithoutModule) { Join-Path $PSScriptRoot 'no-such-folder' } else { Split-Path $script:FakeModules -Parent }
+        param([string[]] $Lines, [switch] $WithoutModule, [string] $ModuleRoot)
+        $moduleRoot = if ($ModuleRoot) { $ModuleRoot } elseif ($WithoutModule) { Join-Path $PSScriptRoot 'no-such-folder' } else { Split-Path $script:FakeModules -Parent }
         $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
         $startInfo.FileName = (Get-Process -Id $PID).Path
         foreach ($argument in @('-NoProfile', '-NonInteractive', '-File', $script:Sidecar)) { $startInfo.ArgumentList.Add($argument) }
@@ -257,5 +257,44 @@ Describe 'invoke against the fake module' {
         $invoke = Get-InvokeLine -Cmdlet 'Get-EXOMailbox' -Parameters @{ Identity = $name }
         $run = Invoke-Sidecar -Lines @($script:Connect, $invoke)
         $run.Lines[1].data.message | Should -Match $name
+    }
+}
+
+Describe 'the fake module and the machine''s real one (task 050)' {
+    BeforeAll {
+        $script:Manifest = Import-PowerShellDataFile (Join-Path $script:FakeModules 'ExchangeOnlineManagement.psd1')
+        $script:AllowList = @((Invoke-Sidecar -Lines @('{"aegis":1,"id":"1","type":"hello"}')).Lines[0].data.allowedCmdlets)
+        # The two cmdlets the sidecar calls itself, outside its allow-list.
+        $script:SessionCmdlets = @('Connect-ExchangeOnline', 'Disconnect-ExchangeOnline')
+    }
+
+    It 'exports every cmdlet of the allow-list from the fake module''s manifest, and no other' {
+        $exports = @($script:Manifest.FunctionsToExport)
+        $missing = @($script:AllowList | Where-Object { $exports -notcontains $_ })
+        $extra = @($exports | Where-Object { $script:AllowList -notcontains $_ -and $script:SessionCmdlets -notcontains $_ })
+        $missing -join ', ' | Should -BeNullOrEmpty -Because 'tests/sidecar/modules/ExchangeOnlineManagement/ExchangeOnlineManagement.psd1 must export every cmdlet of the allow-list (FunctionsToExport), else a test would reach for the machine''s real module; add the missing ones'
+        $extra -join ', ' | Should -BeNullOrEmpty -Because 'the fake module exports only the allow-list and the connect and disconnect cmdlets'
+    }
+
+    It 'never imports a cmdlet the fake module lacks from the machine''s real module' {
+        # A copy of the fake module without one export: the sidecar must fail on that cmdlet, not auto-load it from
+        # an ExchangeOnlineManagement elsewhere on PSModulePath. The copy's version differs from any real one, as it
+        # did on 2026-10-30: a loaded module of the same name and version shadows the real one, another version does
+        # not, and auto-loading imports the real module beside it.
+        $root = Join-Path $TestDrive 'modules'
+        $copy = Join-Path $root 'ExchangeOnlineManagement'
+        New-Item -ItemType Directory -Path $root -Force | Out-Null
+        Copy-Item -Path $script:FakeModules -Destination $root -Recurse
+        $manifestPath = Join-Path $copy 'ExchangeOnlineManagement.psd1'
+        $text = (Get-Content -Raw $manifestPath) -replace ", 'Get-EXOMailboxFolderStatistics'", '' -replace "ModuleVersion = '[^']+'", "ModuleVersion = '0.0.50'"
+        Set-Content -Path $manifestPath -Value $text -NoNewline
+        (Import-PowerShellDataFile $manifestPath).FunctionsToExport | Should -Not -Contain 'Get-EXOMailboxFolderStatistics'
+
+        $invoke = Get-InvokeLine -Cmdlet 'Get-EXOMailboxFolderStatistics' -Parameters @{ Identity = 'finance'; FolderScope = 'Calendar' }
+        $run = Invoke-Sidecar -Lines @($script:Connect, $invoke) -ModuleRoot $root
+        $run.Lines[0].type | Should -Be 'connected'
+        $run.Lines[1].type | Should -Be 'error'
+        $run.Lines[1].data.code | Should -Be 'cmdlet-failed'
+        $run.Lines[1].data.message | Should -Match "Get-EXOMailboxFolderStatistics' is not recognized"
     }
 }

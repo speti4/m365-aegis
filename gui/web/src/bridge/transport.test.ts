@@ -218,6 +218,24 @@ describe("the browser mock's sign-in and mailboxes", () => {
     expect((await client.call(MessageType.whoami)).type).toBe("signed-in");
   });
 
+  it("answers open-sign-in-page while a device-code sign-in waits, and refuses it otherwise (task 047)", async () => {
+    const client = new BridgeClient(new MockTransport({ signedIn: false }));
+    const opened: Promise<unknown>[] = [];
+    client.onNotification(() => opened.push(client.call(MessageType.openSignInPage)));
+
+    const before = await client.call(MessageType.openSignInPage);
+    expect(before.type === "error" && before.data.code).toBe("usage");
+    expect((await client.call(MessageType.login, { deviceCode: true })).type).toBe("signed-in");
+    expect(await Promise.all(opened)).toEqual([
+      {
+        type: "sign-in-page-opened",
+        data: { verificationUri: "https://login.microsoftonline.com/common/oauth2/deviceauth" },
+      },
+    ]);
+    const after = await client.call(MessageType.openSignInPage);
+    expect(after.type === "error" && after.data.code).toBe("usage");
+  });
+
   it("signs out with logout, and whoami says so", async () => {
     const client = new BridgeClient(new MockTransport());
     const logout = await client.call(MessageType.logout);

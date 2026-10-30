@@ -47,6 +47,14 @@ $script:ProtocolIn = [System.IO.StreamReader]::new([Console]::OpenStandardInput(
 $script:ProtocolOut = [System.IO.StreamWriter]::new([Console]::OpenStandardOutput(), $script:Utf8)
 [Console]::SetOut([Console]::Error)
 
+# A test module root (M365AEGIS_EXO_MODULE_ROOT) turns pwsh's module auto-loading off (task 050): a cmdlet the fake
+# module does not export would otherwise be found in the machine's real ExchangeOnlineManagement and imported from
+# there. The two built-in modules the script itself uses are imported first, since nothing loads them on demand now.
+if ($env:M365AEGIS_EXO_MODULE_ROOT) {
+    Import-Module Microsoft.PowerShell.Management, Microsoft.PowerShell.Utility -ErrorAction Stop
+    $PSModuleAutoLoadingPreference = 'None'
+}
+
 $script:ProtocolVersion = 1
 # The cmdlets the sidecar runs, in the order of ExoCmdlets.Allowed in the Core; a test compares the two lists.
 $script:AllowedCmdlets = @(

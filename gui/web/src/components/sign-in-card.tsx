@@ -10,18 +10,21 @@ export type { SignInState } from "./sign-in-state";
 /**
  * The sign-in (task 040): the state as `m365-aegis whoami` reads it, silently; "Sign in" when it is signed out (the
  * broker's account picker opens over the window), "Sign in with a code" for a device code instead, shown here while
- * the sign-in waits for the browser step; "Sign out" when it is signed in.
+ * the sign-in waits for the browser step, with "Open in browser" for its page (task 047); "Sign out" when it is
+ * signed in. A failure's hint is the window's own (task 046): the buttons here, or the administrator.
  */
 export function SignInCard({
   state,
   onRefresh,
   onSignIn,
   onSignOut,
+  onOpenSignInPage,
 }: {
   state: SignInState;
   onRefresh: () => void;
   onSignIn: (deviceCode: boolean) => void;
   onSignOut: () => void;
+  onOpenSignInPage: () => void;
 }) {
   const busy = state.status === "checking" || state.status === "signing-in" || state.status === "signing-out";
   return (
@@ -43,7 +46,7 @@ export function SignInCard({
         </CardAction>
       </CardHeader>
       <CardContent className="space-y-4">
-        <SignInDetails state={state} />
+        <SignInDetails state={state} onOpenSignInPage={onOpenSignInPage} />
         {canSignIn(state) ? (
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => onSignIn(false)}>Sign in</Button>
@@ -72,7 +75,7 @@ function StatusBadge({ state }: { state: SignInState }) {
   }
 }
 
-function SignInDetails({ state }: { state: SignInState }) {
+function SignInDetails({ state, onOpenSignInPage }: { state: SignInState; onOpenSignInPage: () => void }) {
   switch (state.status) {
     case "checking":
       return <p className="text-muted-foreground">Checking the sign-in…</p>;
@@ -80,7 +83,7 @@ function SignInDetails({ state }: { state: SignInState }) {
       return <p className="text-muted-foreground">The sign-in state could not be read.</p>;
     case "signing-in":
       return state.deviceCode ? (
-        <DeviceCode prompt={state.deviceCode} />
+        <DeviceCode prompt={state.deviceCode} onOpen={onOpenSignInPage} />
       ) : (
         <p className="text-muted-foreground" data-testid="signing-in">
           Waiting for the sign-in: choose the account in the Windows sign-in window that opened over this one.
@@ -95,10 +98,14 @@ function SignInDetails({ state }: { state: SignInState }) {
               {state.info.account ? ` (${state.info.account})` : null} has no usable sign-in.
             </p>
           ) : (
-            <p>There is no tenant profile yet: the command line writes it once, then the window signs in with it.</p>
+            <p>There is no tenant profile on this computer yet, so the window cannot sign in.</p>
           )}
           <p className="text-muted-foreground">{state.info.message}</p>
-          {state.info.profile ? null : state.info.hint ? <p className="font-mono text-xs">{state.info.hint}</p> : null}
+          {state.info.hint ? (
+            <p data-testid="sign-in-hint">
+              <span className="font-medium">What to do:</span> {state.info.hint}
+            </p>
+          ) : null}
         </div>
       );
     case "signing-out":
@@ -128,8 +135,11 @@ function SignInDetails({ state }: { state: SignInState }) {
   }
 }
 
-/** The device code: the page to open in a browser (the window opens no other site) and the code, with a copy button. */
-function DeviceCode({ prompt }: { prompt: DeviceCodePrompt }) {
+/**
+ * The device code: the page to open in a browser and the code, with a copy button; "Open in browser" asks the host
+ * to hand the page to the default browser (task 047), since the window itself opens no other site.
+ */
+function DeviceCode({ prompt, onOpen }: { prompt: DeviceCodePrompt; onOpen: () => void }) {
   const [copied, setCopied] = useState(false);
   async function copy() {
     try {
@@ -141,10 +151,15 @@ function DeviceCode({ prompt }: { prompt: DeviceCodePrompt }) {
   }
   return (
     <div className="space-y-3 rounded-lg border p-4" data-testid="device-code">
-      <p>
-        Open <span className="font-mono text-sm select-all">{prompt.verificationUri}</span> in a browser and enter the
-        code:
-      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <p>
+          Open <span className="font-mono text-sm select-all">{prompt.verificationUri}</span> in a browser and enter the
+          code:
+        </p>
+        <Button variant="outline" size="sm" onClick={onOpen}>
+          Open in browser
+        </Button>
+      </div>
       <div className="flex flex-wrap items-center gap-3">
         <span className="font-mono text-2xl font-semibold tracking-widest select-all">{prompt.userCode}</span>
         <Button variant="outline" size="sm" onClick={() => void copy()}>
