@@ -144,3 +144,9 @@ member already, one refused), `mailbox-grants.csv` (three grants against the fak
 refused, one line in quotes), `mailbox-grants-malformed.csv` (an unclosed quote on line 3) and
 `mailbox-forwarding-set.csv` (semicolons, the optional `keepCopy` column). They carry the same made-up names as
 every fixture.
+
+## The safety tests bundle: the write guard's samples
+
+Tasks 071 to 075. `csv/mailbox-forwarding-clear.csv` (bob, who forwards to `bob@fabrikam.com`, and carol, who forwards
+to the recipient Finance) is the `--from-csv` sample of `mailbox forwarding clear`, which the write-guard test runs
+next to the other writes' samples (task 071).

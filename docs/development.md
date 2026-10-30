@@ -921,6 +921,20 @@ or a row the enum does not have fails. The table's shape is therefore part of th
 number, the error code in backticks (an empty cell for 0) and the meaning. A new exit code changes the snapshot, the
 table and the `FailureKind` in the same change.
 
+**The write guard** (task 071, `tests/M365Aegis.Cli.Tests/WriteGuardTests.cs`). The test walks the command line's
+own tree (`Program.Build()`) and takes every command that carries `--dry-run` and `--yes` as a write: today `call`,
+`group members|owners add|remove`, `mailbox access grant|revoke` and `mailbox forwarding set|clear`. Each one runs as a
+child process without `--yes` (no flag, then `--dry-run`) from its arguments, from its `--from-csv` sample and from
+`--resume` over a record cut short while applying that plan, and `call` with each of POST, PATCH, PUT and DELETE; the
+recorded Graph and Admin API answers and the fake Exchange Online module answer at once. A run passes when the plan is
+the answer (exit 7 and `refused`, or 0 and `dry-run` or `up-to-date`), no record is written, and nothing but reads was
+sent: the fixture transport appends every request to the file `M365AEGIS_FIXTURE_REQUESTS` names (one JSON line, the
+method, the URL and the body), where only a GET, a `$batch` of GETs and an Admin API call of a `Get-` cmdlet may
+appear, and the fake module's write file (`M365AEGIS_FAKE_EXO_WRITES`) stays empty. Every write command also runs
+without its inputs, which needs no table line. A new write command joins the enumeration by itself and fails
+`EveryWriteCommandHasItsInputs` until it has a line in the test's table of inputs (its arguments, its CSV sample), so
+it cannot land without the guard test.
+
 ## CI and releases
 
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request, under a minutes budget (D-005).

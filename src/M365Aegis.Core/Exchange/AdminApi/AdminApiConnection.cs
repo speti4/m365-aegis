@@ -64,7 +64,11 @@ public static class AdminApiConnection
 
     /// <summary>The client over the recorded answers under <paramref name="root"/> (the tests' <c>tests/fixtures/graph</c>).</summary>
     public static AdminApiClient Fixtures(string root, RequestLog? requestLog = null, GraphClientOptions? options = null) =>
-        new(new FixtureGraphTransport(root), _ => Task.FromResult(new AdminApiTarget(TestTenantId, TestAccount)), requestLog, options);
+        new(
+            new FixtureGraphTransport(root) { RequestLog = Environment.GetEnvironmentVariable(FixtureGraphTransport.RequestLogVariable) },
+            _ => Task.FromResult(new AdminApiTarget(TestTenantId, TestAccount)),
+            requestLog,
+            options);
 
     /// <summary>The client over the network with the given sign-in; the token is asked for on the first call.</summary>
     public static AdminApiClient Create(AuthService auth, string? profileName, RequestLog requestLog, GraphClientOptions? options = null)

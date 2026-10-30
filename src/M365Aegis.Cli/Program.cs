@@ -23,6 +23,31 @@ internal static class Program
         // readable), not the console's legacy code page, which a shell started from an older locale still has.
         Console.OutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
+        (RootCommand root, Option<bool> json, Option<bool> table, Option<bool> verbose) = Build();
+        ParseResult parsed = root.Parse(args);
+        if (parsed.Errors.Count > 0)
+        {
+            // A usage error is an answer too (D-006): the envelope in a pipe, the error line at a terminal.
+            string message = string.Join(" ", parsed.Errors.Select(error => error.Message));
+            var failure = new AegisFailure(FailureKind.Usage, message, $"see '{ProductInfo.Name} --help'");
+            return CommandRunner.Fail(ResolveMode(parsed, json, table), failure);
+        }
+
+        if (parsed.GetValue(verbose))
+        {
+            // Before any command runs, so every MSAL client the command builds logs into the sink.
+            LogSink.EnableVerbose(AegisHome.Resolve());
+        }
+
+        return await parsed.InvokeAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The command tree and the root's options: what <see cref="Main"/> parses, and what the write-guard test walks to
+    /// find every write command (task 071).
+    /// </summary>
+    internal static (RootCommand Root, Option<bool> Json, Option<bool> Table, Option<bool> Verbose) Build()
+    {
         Option<bool> json = new("--json")
         {
             Description = "Print the JSON envelope (the default when stdout is not a terminal).",
@@ -65,23 +90,7 @@ internal static class Program
         root.Subcommands.Add(MailboxCommand.Build(json, table, profile));
         root.Subcommands.Add(ProbeCommand.Build(json, table, profile));
         root.Subcommands.Add(PlanCommand.Build(json, table));
-
-        ParseResult parsed = root.Parse(args);
-        if (parsed.Errors.Count > 0)
-        {
-            // A usage error is an answer too (D-006): the envelope in a pipe, the error line at a terminal.
-            string message = string.Join(" ", parsed.Errors.Select(error => error.Message));
-            var failure = new AegisFailure(FailureKind.Usage, message, $"see '{ProductInfo.Name} --help'");
-            return CommandRunner.Fail(ResolveMode(parsed, json, table), failure);
-        }
-
-        if (parsed.GetValue(verbose))
-        {
-            // Before any command runs, so every MSAL client the command builds logs into the sink.
-            LogSink.EnableVerbose(AegisHome.Resolve());
-        }
-
-        return await parsed.InvokeAsync().ConfigureAwait(false);
+        return (root, json, table, verbose);
     }
 
     /// <summary>The output mode of a parse result: the explicit option wins, else the terminal decides.</summary>
