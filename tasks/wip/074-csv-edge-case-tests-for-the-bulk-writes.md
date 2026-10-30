@@ -97,6 +97,10 @@ under Deviations.
   merged tree, all exit 0: 932 tests, 0 failed, 0 skipped, 19 s; `check-fixtures.py` 320 files, 0 findings; the
   changelog check; `Invoke-Pester -Path tests/sidecar` 51 passed; PSScriptAnalyzer 0 findings; `doctor --offline` 0
   and `whoami` 3 over an empty `M365AEGIS_HOME`.
+- 2026-10-30 — after `origin/main` was merged again (with #88, the window), the same matrix on the merged tree, all
+  exit 0: 937 tests, 0 failed, 0 skipped, 17 s; `check-fixtures.py` 322 files, 0 findings; the changelog check;
+  `Invoke-Pester -Path tests/sidecar` 51 passed; PSScriptAnalyzer 0 findings; `doctor --offline` 0 and `whoami` 3
+  over an empty `M365AEGIS_HOME`. CI on the head before this merge: every check green, `windows` included.
 
 ## Closing checklist
 
