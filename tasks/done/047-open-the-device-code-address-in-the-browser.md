@@ -4,6 +4,7 @@ origin: done/040-window-sign-in-over-the-bridge.md
 created: 2026-10-30
 started: 2026-10-30
 plan: none
+closed: 2026-10-30
 milestone: M4 Window
 ---
 
@@ -52,6 +53,8 @@ session owns the steps below and may reshape them. The host opens only the addre
   windows are unchanged. The device-code card's "Open in browser" sits next to the page's address; the browser mock
   answers the request while its device-code sign-in waits.
 
+- 2026-10-30 — closed by the main session on `main` after #23; the approved follow-ups of the pull request are filed as backlog items 055–062
+
 ## Deviations from the plan
 
 - the button sits by the page's address rather than by the code's copy button: it opens the address, the copy button
@@ -75,5 +78,5 @@ session owns the steps below and may reshape them. The host opens only the addre
 - [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)

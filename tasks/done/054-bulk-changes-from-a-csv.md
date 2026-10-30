@@ -4,6 +4,7 @@ origin: session 2026-10-30
 created: 2026-10-30
 started: 2026-10-30
 plan: none
+closed: 2026-10-30
 milestone: M3 Writes with safety
 ---
 
@@ -64,6 +65,8 @@ changes) is reached in a later round with test objects; this round proves it on 
 - 2026-10-30 — docs: `docs/development.md` "Writes and plans", "A batch from a CSV file" (the columns table, the
   rules, the partial result); `README.md` "Writes behind a plan"; `tasks/roadmap.md` untouched, the M3 wording holds.
 
+- 2026-10-30 — closed by the main session on `main` after #24; the approved follow-ups of the pull request are filed as backlog items 055–062
+
 ## Deviations from the plan
 
 - The reader is new and strict rather than the usage report's lenient parser of task 043, since a file the reader is
@@ -84,8 +87,8 @@ changes) is reached in a later round with test objects; this round proves it on 
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)

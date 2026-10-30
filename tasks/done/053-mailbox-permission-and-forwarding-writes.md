@@ -4,6 +4,7 @@ origin: session 2026-10-30
 created: 2026-10-30
 started: 2026-10-30
 plan: none
+closed: 2026-10-30
 milestone: M3 Writes with safety
 ---
 
@@ -94,6 +95,8 @@ also exported by the fake module's manifest. Nothing is applied in the tenant th
   (`Invoke-Sidecar` takes B's `-ModuleRoot` and this bundle's `-Environment`; both new `Describe` blocks kept); B's
   test that the fake module exports exactly the allow-list passes with the five write cmdlets.
 
+- 2026-10-30 — closed by the main session on `main` after #24; the approved follow-ups of the pull request are filed as backlog items 055–062
+
 ## Deviations from the plan
 
 - Beyond the cmdlet allow-list, the write cmdlets got a parameter allow-list (core and script, held equal by a
@@ -122,8 +125,8 @@ also exported by the fake module's manifest. Nothing is applied in the tenant th
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)

@@ -45,6 +45,16 @@ The repository, the task standard and the empty solution: no product yet.
 - The Exchange Online Admin API backend: Send on Behalf, folder permissions, group membership, organization reads ([042](https://github.com/speti4/m365-aegis/blob/main/tasks/done/042-admin-api-backend.md))
 - A faster `mailbox access --user` and `mailbox size` over every mailbox ([043](https://github.com/speti4/m365-aegis/blob/main/tasks/done/043-faster-reverse-lookup-and-mailbox-sizes.md))
 - `mailbox access` expands a grant made to a group into the group's members ([044](https://github.com/speti4/m365-aegis/blob/main/tasks/done/044-mailbox-access-expands-group-grants.md))
+- `mailbox list` through the Admin API, and the usage report timed apart from the mailbox list ([048](https://github.com/speti4/m365-aegis/blob/main/tasks/done/048-mailbox-list-through-the-admin-api.md))
+- One Exchange token source for the sidecar and the Admin API ([049](https://github.com/speti4/m365-aegis/blob/main/tasks/done/049-one-exchange-token-source-for-the-sidecar-and-the-admin-api.md))
+- The sidecar tests never fall back to the machine's real Exchange Online module ([050](https://github.com/speti4/m365-aegis/blob/main/tasks/done/050-fake-module-never-falls-back-to-the-real-one.md))
+
+### M3 Writes with safety
+
+- The `Plan` type, the plan records and the write guard ([051](https://github.com/speti4/m365-aegis/blob/main/tasks/done/051-plan-type-plan-records-and-the-write-guard.md))
+- Group membership and owner writes behind a plan ([052](https://github.com/speti4/m365-aegis/blob/main/tasks/done/052-group-membership-and-owner-writes.md))
+- Mailbox permission and forwarding writes through the sidecar ([053](https://github.com/speti4/m365-aegis/blob/main/tasks/done/053-mailbox-permission-and-forwarding-writes.md))
+- Bulk changes from a CSV: one plan over every row ([054](https://github.com/speti4/m365-aegis/blob/main/tasks/done/054-bulk-changes-from-a-csv.md))
 
 ### M4 Window
 
@@ -54,6 +64,8 @@ The repository, the task standard and the empty solution: no product yet.
 - The front end's transport talks to `chrome.webview` directly ([030](https://github.com/speti4/m365-aegis/blob/main/tasks/done/030-transport-talks-to-chrome-webview-directly.md))
 - The window signs in: `login` over the bridge, the account picker parented to the window ([040](https://github.com/speti4/m365-aegis/blob/main/tasks/done/040-window-sign-in-over-the-bridge.md))
 - The window holds one `ExchangeSession` through the bridge ([045](https://github.com/speti4/m365-aegis/blob/main/tasks/done/045-window-holds-one-exchange-session.md))
+- The window's sign-in failures get their own hints ([046](https://github.com/speti4/m365-aegis/blob/main/tasks/done/046-window-specific-sign-in-hints.md))
+- An "Open in browser" button for the device-code sign-in address ([047](https://github.com/speti4/m365-aegis/blob/main/tasks/done/047-open-the-device-code-address-in-the-browser.md))
 
 ### M6 Release and team
 

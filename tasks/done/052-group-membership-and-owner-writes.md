@@ -4,6 +4,7 @@ origin: session 2026-10-30
 created: 2026-10-30
 started: 2026-10-30
 plan: none
+closed: 2026-10-30
 milestone: M3 Writes with safety
 ---
 
@@ -71,6 +72,8 @@ runs in the main session's signed-in round; nothing is applied in the tenant thi
   in "Writes and plans", the fixture naming in "Fixtures"), `README.md` "Writes behind a plan",
   `tests/fixtures/README.md` (the write answers).
 
+- 2026-10-30 — closed by the main session on `main` after #24; the approved follow-ups of the pull request are filed as backlog items 055–062
+
 ## Deviations from the plan
 
 - The users to add are resolved in one `$batch` call rather than one request each; a user to remove is not
@@ -92,8 +95,8 @@ runs in the main session's signed-in round; nothing is applied in the tenant thi
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)

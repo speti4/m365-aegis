@@ -4,6 +4,7 @@ origin: done/040-window-sign-in-over-the-bridge.md
 created: 2026-10-30
 started: 2026-10-30
 plan: none
+closed: 2026-10-30
 milestone: M4 Window
 ---
 
@@ -52,6 +53,8 @@ runs in the main session's signed-in round.
   profile; the `signed-out` sample carries the window's hint, which the bridge tests now dispatch over the window's
   set; the payload's shape is unchanged.
 
+- 2026-10-30 — closed by the main session on `main` after #23; the approved follow-ups of the pull request are filed as backlog items 055–062
+
 ## Deviations from the plan
 
 - the sign-in's own failures only: Graph's and the sidecar's hints that name a command (`m365-aegis login`, `doctor`)
@@ -76,5 +79,5 @@ runs in the main session's signed-in round.
 - [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)

@@ -4,6 +4,7 @@ origin: done/042-admin-api-backend.md
 created: 2026-10-30
 started: 2026-10-30
 plan: none
+closed: 2026-10-30
 milestone: M2 Exchange
 ---
 
@@ -56,6 +57,8 @@ sidecar's allow-list and write commands under `mailbox`; this task changes the r
   `mailbox size, report method: Graph's usage report answered after N ms` and the same for the Admin API's (or the
   sidecar's) mailbox list.
 
+- 2026-10-30 — closed by the main session on `main` after #23; the approved follow-ups of the pull request are filed as backlog items 055–062
+
 ## Deviations from the plan
 
 - no new fixture: the list's request is byte for byte the report's mailbox list of task 043, whose recorded pages answer it
@@ -81,5 +84,5 @@ sidecar's allow-list and write commands under `mailbox`; this task changes the r
 - [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)

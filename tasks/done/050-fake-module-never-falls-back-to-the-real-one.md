@@ -4,6 +4,7 @@ origin: done/042-admin-api-backend.md
 created: 2026-10-30
 started: 2026-10-30
 plan: none
+closed: 2026-10-30
 milestone: M2 Exchange
 ---
 
@@ -57,6 +58,8 @@ both merge; the test's message names the missing cmdlet so the other bundle's ag
   the real module answered: `You must call Connect-ExchangeOnline before calling any other cmdlet.` (the case of the
   morning); with the guard, the cmdlet is not recognized.
 
+- 2026-10-30 — closed by the main session on `main` after #23; the approved follow-ups of the pull request are filed as backlog items 055–062
+
 ## Deviations from the plan
 
 - the copy in the second test carries another module version than the fake, which is what makes auto-loading reach
@@ -74,5 +77,5 @@ both merge; the test's message names the missing cmdlet so the other bundle's ag
 - [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)
