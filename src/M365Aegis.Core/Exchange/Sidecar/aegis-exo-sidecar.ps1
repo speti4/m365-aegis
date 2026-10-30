@@ -66,7 +66,7 @@ $script:AllowedCmdlets = @(
 # The parameters each write cmdlet may be given (task 053), as ExoCmdlets.WriteParameters in the Core; a test compares
 # the two. Set-Mailbox can change anything on a mailbox: the list keeps it to what the plans send.
 $script:WriteParameters = @{
-    'Add-MailboxPermission' = @('Identity', 'User', 'AccessRights', 'InheritanceType', 'Confirm')
+    'Add-MailboxPermission' = @('Identity', 'User', 'AccessRights', 'InheritanceType', 'AutoMapping', 'Confirm')
     'Remove-MailboxPermission' = @('Identity', 'User', 'AccessRights', 'InheritanceType', 'Confirm')
     'Add-RecipientPermission' = @('Identity', 'Trustee', 'AccessRights', 'Confirm')
     'Remove-RecipientPermission' = @('Identity', 'Trustee', 'AccessRights', 'Confirm')

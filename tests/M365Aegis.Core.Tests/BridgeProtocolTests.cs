@@ -3,8 +3,11 @@ using M365Aegis.Core.Auth;
 using M365Aegis.Core.Bridge;
 using M365Aegis.Core.Config;
 using M365Aegis.Core.Diagnostics;
+using M365Aegis.Core.Exchange;
+using M365Aegis.Core.Exchange.AdminApi;
 using M365Aegis.Core.Exchange.Sidecar;
 using M365Aegis.Core.Graph;
+using M365Aegis.Core.Output;
 using M365Aegis.Core.Tests.Auth;
 using M365Aegis.Core.Tests.Config;
 using M365Aegis.Tests;
@@ -12,7 +15,7 @@ using M365Aegis.Tests;
 namespace M365Aegis.Core.Tests;
 
 /// <summary>
-/// The bridge between the window's front end and the core (tasks 017, 030, 040 and 045): the protocol, and the
+/// The bridge between the window's front end and the core (tasks 017, 030, 040, 045, 056 and 057): the protocol, and the
 /// dispatcher's answers held against the samples under tests/contracts/bridge, which the front end's Vitest tests
 /// read too. A request sample dispatched over a scripted sign-in, the recorded Graph answers and the window's
 /// Exchange Online session over the fake module gives exactly its reply sample.
@@ -325,6 +328,9 @@ public sealed class BridgeProtocolTests
 
         Assert.Equal("error", reply?.Type);
         Assert.Equal("not-found", reply?.Data?["code"]?.GetValue<string>());
+
+        // The sidecar's hint names `m365-aegis mailbox list`; the window shows its own (task 057).
+        Assert.Equal(SignInHints.Window.Failures[FailureKind.NotFound], reply?.Data?["hint"]?.GetValue<string>());
     }
 
     [Theory]
@@ -352,6 +358,62 @@ public sealed class BridgeProtocolTests
 
         Assert.Equal("error", reply?.Type);
         Assert.Equal("sidecar-unavailable", reply?.Data?["code"]?.GetValue<string>());
+        Assert.Equal(SignInHints.Window.Failures[FailureKind.SidecarUnavailable], reply?.Data?["hint"]?.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task TheWindowsListAnswersFromTheAdminApiAndTheAccessFromTheWarmSessionOverOneToken()
+    {
+        await using WindowExchange exchange = Layers();
+        BridgeDispatcher dispatcher = Dispatcher(exchange: exchange);
+
+        BridgeMessage? list = await dispatcher.DispatchAsync(Sample("mailbox-list.json"), None);
+        string afterList = exchange.Describe();
+        ExchangeSession? sessionAfterList = exchange.Session;
+        BridgeMessage? access = await dispatcher.DispatchAsync(Sample("mailbox-access.json"), None);
+
+        AssertIsSample("mailboxes.json", list);
+        Assert.Null(sessionAfterList);
+        Assert.Equal("no sidecar, token acquisitions 1", afterList);
+        AssertIsSample("mailbox-holders.json", access);
+        Assert.Equal(1, exchange.Session!.Starts);
+        Assert.Equal(1, exchange.Tokens!.Acquisitions);
+        Assert.EndsWith(", token acquisitions 1", exchange.Describe(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ASignOutDropsTheWindowsTokenWithItsSession()
+    {
+        var broker = new FakeTokenBroker();
+        broker.Accounts.Add(FakeTokenBroker.Alice);
+        await using WindowExchange exchange = Layers();
+        BridgeDispatcher dispatcher = Dispatcher(broker, exchange: exchange);
+        await dispatcher.DispatchAsync(Sample("mailbox-access.json"), None);
+        ExchangeTokenSource? before = exchange.Tokens;
+
+        await dispatcher.DispatchAsync(Sample("logout.json"), None);
+        ExchangeTokenSource? between = exchange.Tokens;
+        BridgeMessage? again = await dispatcher.DispatchAsync(Sample("mailbox-list.json"), None);
+
+        Assert.NotNull(before);
+        Assert.Null(between);
+        Assert.Equal("mailboxes", again?.Type);
+        Assert.NotSame(before, exchange.Tokens);
+        Assert.Equal(1, exchange.Tokens!.Acquisitions);
+        Assert.Null(exchange.Session);
+    }
+
+    [Fact]
+    public async Task AWindowWithoutAnAdminApiListsOnItsSession()
+    {
+        await using WindowExchange exchange = Layers(adminApi: false);
+
+        BridgeMessage? reply = await Dispatcher(exchange: exchange).DispatchAsync(Sample("mailbox-list.json"), None);
+
+        AssertIsSample("mailboxes.json", reply);
+        Assert.Equal(1, exchange.Session!.Starts);
+        await using ExchangeBackends backends = exchange.Backends();
+        Assert.False(backends.HasAdminApi);
     }
 
     [Fact]
@@ -434,6 +496,17 @@ public sealed class BridgeProtocolTests
         JsonNode actual = JsonNode.Parse(BridgeProtocol.Write(reply))!;
         Assert.True(JsonNode.DeepEquals(expected, actual), $"{fileName} differs from the reply:\n{actual.ToJsonString()}");
     }
+
+    /// <summary>
+    /// The window's layers as <see cref="BridgeServices.ForWindow"/> makes them (task 056), over one made-up token
+    /// source: the session over the fake module and, unless <paramref name="adminApi"/> is false, the Admin API over the
+    /// recorded answers, both asking that source.
+    /// </summary>
+    private static WindowExchange Layers(bool adminApi = true) => new(
+        () => new ExchangeTokenSource(_ => Task.FromResult(new ExchangeToken(
+            "fake-token", DateTimeOffset.UtcNow.AddHours(1), ["Exchange.Manage", "Exchange.ManageV2"], AdminApiConnection.TestAccount, AdminApiConnection.TestTenantId))),
+        tokens => SidecarFixtures.Session(tokens.GetAsync),
+        tokens => adminApi ? AdminApiConnection.Create(tokens, new FixtureGraphTransport(GraphFixtures.Root), null) : null);
 
     /// <summary>A home folder with one profile, the default: alice in contoso.</summary>
     private static string WithProfile()

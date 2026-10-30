@@ -64,7 +64,7 @@ public static class ExoCmdlets
     /// </summary>
     public static IReadOnlyDictionary<string, IReadOnlyList<string>> WriteParameters { get; } = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
     {
-        [AddMailboxPermission] = ["Identity", "User", "AccessRights", "InheritanceType", "Confirm"],
+        [AddMailboxPermission] = ["Identity", "User", "AccessRights", "InheritanceType", "AutoMapping", "Confirm"],
         [RemoveMailboxPermission] = ["Identity", "User", "AccessRights", "InheritanceType", "Confirm"],
         [AddRecipientPermission] = ["Identity", "Trustee", "AccessRights", "Confirm"],
         [RemoveRecipientPermission] = ["Identity", "Trustee", "AccessRights", "Confirm"],

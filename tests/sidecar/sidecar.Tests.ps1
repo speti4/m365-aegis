@@ -284,6 +284,28 @@ Describe 'the write cmdlets against the fake module (task 053)' {
         $logged[0].parameters.PSObject.Properties.Name | Should -Not -Contain 'Confirm'
     }
 
+    It 'grants FullAccess without automapping, and the fake records AutoMapping as false (task 059)' {
+        $grant = Get-InvokeLine -Id '3' -Cmdlet 'Add-MailboxPermission' -Parameters @{ Identity = 'finance@contoso.com'; User = 'carol@contoso.com'; AccessRights = @('FullAccess'); InheritanceType = 'All'; AutoMapping = $false; Confirm = $false }
+        $run = Invoke-Sidecar -Lines @($script:Connect, $grant) -Environment @{ M365AEGIS_FAKE_EXO_WRITES = $script:Writes }
+        $run.Lines[1].type | Should -Be 'result'
+        $logged = @(Get-Content -LiteralPath $script:Writes | ForEach-Object { $_ | ConvertFrom-Json })
+        $logged.Count | Should -Be 1
+        $logged[0].parameters.AutoMapping | Should -BeFalse
+        $logged[0].parameters.PSObject.Properties.Name | Should -Contain 'AutoMapping'
+    }
+
+    It 'refuses <Name> before it runs (task 059)' -ForEach @(
+        @{ Name = 'AutoMapping on a revoke'; Cmdlet = 'Remove-MailboxPermission'; Parameters = @{ Identity = 'finance@contoso.com'; User = 'alice@contoso.com'; AccessRights = @('FullAccess'); InheritanceType = 'All'; AutoMapping = $false; Confirm = $false }; Off = 'AutoMapping' }
+        @{ Name = 'another parameter of a grant'; Cmdlet = 'Add-MailboxPermission'; Parameters = @{ Identity = 'finance@contoso.com'; User = 'carol@contoso.com'; AccessRights = @('FullAccess'); Owner = 'carol@contoso.com'; Confirm = $false }; Off = 'Owner' }
+    ) {
+        $invoke = Get-InvokeLine -Cmdlet $Cmdlet -Parameters $Parameters
+        $run = Invoke-Sidecar -Lines @($script:Connect, $invoke) -Environment @{ M365AEGIS_FAKE_EXO_WRITES = $script:Writes }
+        $run.Lines[1].type | Should -Be 'error'
+        $run.Lines[1].data.code | Should -Be 'cmdlet-not-allowed'
+        $run.Lines[1].data.message | Should -Match $Off
+        Test-Path -LiteralPath $script:Writes | Should -BeFalse
+    }
+
     It 'adds and removes a Send on Behalf delegate through the multi-valued change of Set-Mailbox' {
         $add = Get-InvokeLine -Id '3' -Cmdlet 'Set-Mailbox' -Parameters @{ Identity = 'reception@contoso.com'; GrantSendOnBehalfTo = @{ Add = @('carol@contoso.com') }; Confirm = $false }
         $read = Get-InvokeLine -Id '4' -Cmdlet 'Get-EXOMailbox' -Parameters @{ Identity = 'reception' } -Properties @('GrantSendOnBehalfTo')

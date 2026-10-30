@@ -207,6 +207,22 @@ The group writes need `GroupMember.ReadWrite.All` (and `Group.ReadWrite.All` for
 registration; the mailbox writes an Exchange Online role that changes recipients. The columns, the exit codes and the
 plan record are in [docs/development.md](docs/development.md#writes-and-plans).
 
+## Automapping, the window's layers and its hints
+
+A FullAccess grant can leave out automapping, so the shared mailbox does not appear in the holder's Outlook on its
+own; in a CSV file it is the optional `automapping` column (`false` on a FullAccess line):
+
+```powershell
+& $aegis mailbox access grant finance@contoso.com --user alice@contoso.com --right FullAccess --no-automapping --dry-run
+```
+
+`mailbox forwarders` keeps reading through PowerShell: the Admin API's mailbox list does not carry the forwarding
+settings.
+
+The window's mailbox list comes from the Admin API too, with no sidecar start; the access lookups keep the window's
+sidecar, and both share one Exchange Online token. A failure after the sign-in shows a hint written for the window
+("ask the administrator", "Sign in again") instead of a command to type.
+
 ## Documentation
 
 - [Development](docs/development.md): layout, CI, releases and helper scripts

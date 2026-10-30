@@ -295,7 +295,13 @@ with the lookup that needs it.
 `Remove-MailboxPermission` (FullAccess), `Add-RecipientPermission` and `Remove-RecipientPermission` (Send As) and
 `Set-Mailbox` (Send on Behalf and the forwarding), each with the parameters of `ExoCmdlets.WriteParameters` only:
 `Set-Mailbox` can change anything on a mailbox, so it runs with `Identity`, `GrantSendOnBehalfTo`,
-`ForwardingSmtpAddress`, `ForwardingAddress`, `DeliverToMailboxAndForward` and `Confirm` and nothing else. The session
+`ForwardingSmtpAddress`, `ForwardingAddress`, `DeliverToMailboxAndForward` and `Confirm` and nothing else.
+`Add-MailboxPermission` also takes `AutoMapping` (task 059: `mailbox access grant … --right FullAccess
+--no-automapping`, or `false` in the CSV file's `automapping` column, sends `-AutoMapping:$false`, so Outlook does
+not add the mailbox for the holder on its own; without it the parameter is not sent and the service's default, true,
+applies), `Remove-MailboxPermission` does not. The flag beside a right other than FullAccess, or on a revoke, is a
+usage error; the plan's change names the choice (`FullAccess for … , without automapping`), and a holder who has
+FullAccess already is unchanged with its automapping left as it is. The session
 refuses another parameter before anything is sent (exit code 12), the script holds the same lists
 (`$script:WriteParameters`, a Core test holds them equal) and refuses it too. Every write passes `-Confirm:$false`,
 since a sidecar cannot answer a prompt. A parameter that is a JSON object reaches the cmdlet as a hashtable, which is
@@ -388,7 +394,12 @@ saves:
 - `mailbox forwarders`: every mailbox with `ForwardingSmtpAddress` or `ForwardingAddress` set, whether it keeps a
   copy (`DeliverToMailboxAndForward`), and whether the target is outside the accepted domains (`Get-AcceptedDomain`;
   a `ForwardingAddress` is a recipient, resolved to its address with one piped `Get-EXORecipient`), the external
-  ones first.
+  ones first. It stays on the sidecar (task 055): the Admin API's `Mailbox` endpoint documents only `Identity`,
+  `ResultSize` and `IncludeGrantSendOnBehalfToWithDisplayNames` and answers its core properties only
+  (https://learn.microsoft.com/exchange/reference/admin-api-endpoints-mailbox). Measured 2026-10-30 with
+  `probe admin-api --forwarding`: a `$select` of the three forwarding fields is honored but drops them (the answer
+  carries `Identity` alone), and `Properties` or `PropertySets` in the body is a 400 ("Invalid parameter(s) for
+  cmdlet 'Get-Mailbox'"); the sidecar's read took 11.5 s over 620 mailboxes (38 forwarders, 15 external).
 - `mailbox size [<mailbox>] [--top N]`: the largest first. Every mailbox's size comes by default from Graph's
   mailbox usage report (task 043: `/reports/getMailboxUsageDetail(period='D7')`, a CSV behind a redirect, a few days
   old, three days on 2026-10-30; `Reports.Read.All` and a reports reader role), joined by user principal name to the
@@ -443,7 +454,7 @@ sidecar, the Admin API, Graph, and more sidecars on demand for `--method paralle
 | read | layer |
 | --- | --- |
 | `mailbox list` | Admin API (the sidecar when it cannot answer) |
-| `mailbox forwarders` | sidecar |
+| `mailbox forwarders` | sidecar (the Admin API's `Mailbox` endpoint does not carry the forwarding fields; task 055) |
 | `mailbox access <mailbox>`: the mailbox and its Send on Behalf delegates by name | Admin API (the sidecar when it cannot answer) |
 | `mailbox access <mailbox>`: FullAccess, Send As | sidecar |
 | `mailbox access --user`: every mailbox, every FullAccess and Send As entry | sidecar (FullAccess split across 4 by default) |
@@ -474,7 +485,10 @@ never a token, a path or a value, and none of them signs in interactively: the m
 used. `probe admin-api --mailbox <address> [--folder <name>] [--group <address>]` (task 042) also reads that
 mailbox with its delegates by name, that folder's permissions and the group's first members, and prints a list's
 first entry as its pattern (a run of letters an `a`, of digits a `9`: `a a <a@a.a>`), so the form of an entry the
-documentation leaves open shows and its value does not.
+documentation leaves open shows and its value does not. `--forwarding` (task 055) reads `Get-Mailbox` of `--mailbox`
+(else one mailbox) in four ways, a `$select` of the three forwarding fields and the body parameters `Properties`,
+`PropertySets: Delivery` and `PropertySets: All` that `Get-EXOMailbox` takes, and prints per way its status and which
+forwarding fields came back; `--mailbox-parameters '<JSON object>'` (with `--select <names>`) tries one more body.
 
 ## Writes and plans
 
@@ -567,6 +581,7 @@ line break and a doubled quote; UTF-8 with or without a byte order mark; blank l
 | --- | --- |
 | `group members add`, `remove`; `group owners add`, `remove` | `group`, `user` |
 | `mailbox access grant`, `revoke` | `mailbox`, `user`, `right` (`FullAccess`, `SendAs`, `SendOnBehalf`) |
+| `mailbox access grant` (task 059) | optionally `automapping` (`true`, `false`, `yes`, `no`, `1`, `0`; empty is true; `false` only on a `FullAccess` line) |
 | `mailbox forwarding set` | `mailbox`, `to`, and optionally `keepCopy` (`true`, `false`, `yes`, `no`, `1`, `0`; empty is false) |
 | `mailbox forwarding clear` | `mailbox` |
 
@@ -616,7 +631,8 @@ The messages (tasks 017, 040, 045 and 047; `BridgeMessageType` in C#, `MessageTy
   `GroupMembers`);
 - `mailbox-list` with `{"shared": true}` or no payload, answered with `mailboxes` (the core's `MailboxList`), and
   `mailbox-access` with `{"mailbox": "<address, name or id>"}` or `{"user": "<upn>"}` (one of the two), answered
-  with `mailbox-holders` (`MailboxAccess`) or `user-grants` (`UserAccess`) (task 045). A partial answer of the
+  with `mailbox-holders` (`MailboxAccess`) or `user-grants` (`UserAccess`) (task 045). Since task 056 the list
+  comes from the Admin API, as `mailbox list` does, and the access from the window's sidecar session (below). A partial answer of the
   reverse lookup (exit code 6 on the command line) is the `user-grants` reply, whose `failed` list the page shows as
   a warning, as the envelope carries the data with the error.
 
@@ -640,7 +656,16 @@ default of `AuthService`, `SignInFlow` and `ProfileStore`; `BridgeServices.ForWi
 code") or, for a missing or broken tenant profile, which only the command line writes, the administrator. A
 failure's kind and sentence are the same on both surfaces, so the silent token of a lookup carries the window's hint
 too; the card shows the hint under every signed-out state, and an `error` reply's toast shows it as its description.
-The other failures that reach the window (Graph's, the sidecar's) keep their own hints for now.
+The failures that reach the window after the sign-in (task 057: Graph's, the Admin API's, the sidecar's, the
+dispatcher's own and an internal error) keep their kind and sentence, and their hint goes through
+`SignInHints.ForSurface`: a hint that names something only a shell runs (`SignInHints.NamesACommand`: a command in
+backticks such as `` `m365-aegis doctor` ``, a flag, an `Install-Module` or `winget` line, an `M365AEGIS_` variable, "run
+the command") is replaced by the window's hint of the failure's kind (`SignInHints.Window.Failures`: one for every
+kind of the contract, such as "the Exchange Online tools on this computer need a check; ask the administrator" for
+`sidecar-unavailable`, and the sign-in card's "Sign in" for `auth`), and a hint written for a person stays (a group
+lookup's "give the exact display name…", the log file of an internal error). The dispatcher sends every `error`
+reply through it; the command line's set has no such hints, so its envelopes and snapshots are unchanged. A Core test
+holds the window's set complete over the failure kinds and every failure the core's layers make free of a command.
 
 **The window's Exchange Online session** (task 045, `Bridge/WindowExchange.cs`): one `ExchangeSession` for the
 window's lifetime, over the window's own sign-in and the command line's `ExchangeConnection` parts (pwsh from
@@ -653,9 +678,18 @@ session renews its token on the next cmdlet five minutes before the expiry and r
 015); a keep-warm timer of the window looks every minute and reconnects with a fresh token seven minutes before the
 expiry, so a request after an idle hour does not wait for the reconnect, and a tick that cannot renew (the sign-in
 expired) leaves it to the next request, which answers the failure. `logout` ends the session; the window's close
-disposes it after the message loop ends, which sends the sidecar `exit` (the script disconnects). Under `--verbose`
-each mailbox request writes one `window:` line to the log: the time and what the session did (`sidecar starts 1,
-renewals 0, last connect … ms`), never a token.
+disposes it after the message loop ends, which sends the sidecar `exit` (the script disconnects).
+
+**The window's layers** (task 056): the same holder gives each mailbox request the command line's `ExchangeBackends`:
+the session as the sidecar, an Admin API client and Graph, the session and the Admin API over one
+`ExchangeTokenSource` for the window (task 049), so the connect, the keep-warm renewals and the Admin API's calls
+share one token and its renewal. `mailbox-list` answers from the Admin API's mailbox list with no sidecar start (the
+session when the Admin API cannot answer, or in the sidecar-only offline tests, which have no Admin API);
+`mailbox-access` keeps the warm session in both directions. `logout` drops the token source with the session.
+Under `--verbose` each mailbox request writes one `window:` line to the log: the time, the layers the request used
+and what the session did, never a token (`mailbox-list answered in … ms through admin-api; exchange no sidecar,
+token acquisitions 1`, then `mailbox-access answered in … ms through pwsh; exchange session 1, sidecar starts 1,
+renewals 0, last connect … ms, token acquisitions 1`).
 
 The page (`src/App.tsx`, `src/components/`): the sign-in card (its state machine in
 `components/sign-in-state.ts`: `whoami` reads it, `login` waits with the device code when one comes, `logout`

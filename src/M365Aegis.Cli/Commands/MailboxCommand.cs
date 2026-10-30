@@ -177,7 +177,8 @@ internal static class MailboxCommand
 
     /// <summary>
     /// <c>mailbox access grant|revoke &lt;mailbox&gt; --user &lt;upn&gt; --right FullAccess|SendAs|SendOnBehalf</c> or
-    /// <c>--from-csv &lt;file&gt;</c> (tasks 053 and 054): a plan of the rights not so already, applied through the sidecar.
+    /// <c>--from-csv &lt;file&gt;</c> (tasks 053 and 054): a plan of the rights not so already, applied through the sidecar;
+    /// <c>grant … --no-automapping</c> grants FullAccess without automapping (task 059).
     /// </summary>
     private static Command AccessWrite(string name, bool grant, Option<bool> json, Option<bool> table, Option<string?> profile)
     {
@@ -194,7 +195,13 @@ internal static class MailboxCommand
         };
         Option<string?> csv = new("--from-csv")
         {
-            Description = "A CSV file instead of the arguments: a header line with the columns mailbox,user,right, then one change per line; one plan over every line.",
+            Description = grant
+                ? "A CSV file instead of the arguments: a header line with the columns mailbox,user,right and optionally automapping (false on a FullAccess line), then one change per line; one plan over every line."
+                : "A CSV file instead of the arguments: a header line with the columns mailbox,user,right, then one change per line; one plan over every line.",
+        };
+        Option<bool> noAutoMapping = new("--no-automapping")
+        {
+            Description = "With --right FullAccess: grant it without automapping, so Outlook does not add the mailbox for the user on its own (Add-MailboxPermission -AutoMapping:$false).",
         };
         Command command = new(name, grant
             ? "Grant FullAccess, Send As or Send on Behalf on a mailbox: a plan of the rights not held yet (--dry-run prints it, --yes applies it)."
@@ -203,6 +210,11 @@ internal static class MailboxCommand
         command.Options.Add(users);
         command.Options.Add(rights);
         command.Options.Add(csv);
+        if (grant)
+        {
+            command.Options.Add(noAutoMapping);
+        }
+
         WriteFlags flags = WriteFlags.On(command);
         command.SetAction((parsed, cancellationToken) =>
         {
@@ -210,11 +222,12 @@ internal static class MailboxCommand
             string? mailbox = parsed.GetValue(target);
             string[] holders = parsed.GetValue(users) ?? [];
             string[] named = parsed.GetValue(rights) ?? [];
+            bool autoMapping = !(grant && parsed.GetValue(noAutoMapping));
             if (!WriteRunner.TryRows(
                 parsed, json, table,
                 () => file is null
-                    ? MailboxLookups.AccessRows(mailbox, holders, named)
-                    : GroupCommand.NoArguments(mailbox is not null || holders.Length > 0 || named.Length > 0, () => MailboxLookups.AccessRowsFromCsv(file)),
+                    ? MailboxLookups.AccessRows(mailbox, holders, named, autoMapping)
+                    : GroupCommand.NoArguments(mailbox is not null || holders.Length > 0 || named.Length > 0 || !autoMapping, () => MailboxLookups.AccessRowsFromCsv(file, grant)),
                 out IReadOnlyList<AccessChangeRow> rows,
                 out int exitCode))
             {

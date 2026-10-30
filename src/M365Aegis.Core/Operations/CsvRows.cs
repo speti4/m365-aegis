@@ -11,6 +11,25 @@ public sealed record CsvRow(int Line, IReadOnlyDictionary<string, string> Cells)
 {
     /// <summary>A cell's value, or null when the column is missing or the cell is empty.</summary>
     public string? this[string column] => Cells.TryGetValue(column, out string? value) && value.Length > 0 ? value : null;
+
+    /// <summary>
+    /// A yes-or-no cell (tasks 054 and 059): <c>true</c>, <c>yes</c> or <c>1</c>, <c>false</c>, <c>no</c> or <c>0</c>, in
+    /// any case; <paramref name="whenEmpty"/> when the column is missing or the cell is empty.
+    /// </summary>
+    /// <param name="column">The column, as the messages name it.</param>
+    /// <param name="where">The file and the line, as the messages name them.</param>
+    /// <param name="whenEmpty">The value of an empty cell.</param>
+    /// <exception cref="AegisException">A usage error naming the file, the line and the cell.</exception>
+    public bool Flag(string column, string where, bool whenEmpty) => this[column]?.ToUpperInvariant() switch
+    {
+        null => whenEmpty,
+        "TRUE" or "YES" or "1" => true,
+        "FALSE" or "NO" or "0" => false,
+        _ => throw new AegisException(
+            FailureKind.Usage,
+            $"{where}: {column} is '{this[column]}'",
+            $"write true or false (or leave it empty for {(whenEmpty ? "true" : "false")}); nothing was sent"),
+    };
 }
 
 /// <summary>

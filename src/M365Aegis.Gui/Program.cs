@@ -11,8 +11,9 @@ namespace M365Aegis.Gui;
 /// server with <c>--dev-url http://localhost:5173</c>, and answers the page's requests through the Core's
 /// <see cref="BridgeDispatcher"/> with the sign-in, the Graph client and the Exchange Online session the command line
 /// uses (the default tenant profile of the home folder): the broker's account picker over this window, started on its
-/// UI thread (task 040), and one sidecar for the window's lifetime, started on the first mailbox request and ended
-/// with the window (task 045). <c>--verbose</c> writes MSAL's log, without PII and scrubbed, into the home
+/// UI thread (task 040), one sidecar for the window's lifetime, started on the first mailbox request that needs it and
+/// ended with the window (task 045), and the Admin API beside it over the same token, which answers the mailbox list
+/// without a sidecar (task 056). <c>--verbose</c> writes MSAL's log, without PII and scrubbed, into the home
 /// folder's <c>logs</c> folder, as the command line's option does (task 027). <c>--smoke</c> exits 0 as soon as the
 /// front end reports <c>ready</c> (CI's check that the window, the page and the bridge work) and 1 after a minute
 /// without it, and prints the time to <c>ready</c> and whether the window handle is a top-level window (the

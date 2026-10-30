@@ -223,6 +223,50 @@ public sealed class SidecarPartsTests
         Assert.Contains("finance@contoso.com:\\\\Calendar", handler.Bodies[3], StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task TheForwardingProbeTriesEachWayAndSaysWhichFieldsCameBack()
+    {
+        var handler = new ScriptedHandler(request =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/OrganizationConfig", StringComparison.Ordinal))
+            {
+                return (HttpStatusCode.OK, """{"value":[{"Name":"contoso.onmicrosoft.com"}]}""");
+            }
+
+            string body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return body.Contains("PropertySets", StringComparison.Ordinal)
+                ? (HttpStatusCode.OK, """{"value":[{"DisplayName":"Bob Example","ForwardingSmtpAddress":"smtp:bob@fabrikam.com","ForwardingAddress":null,"DeliverToMailboxAndForward":true}]}""")
+                : body.Contains("Properties", StringComparison.Ordinal)
+                    ? (HttpStatusCode.BadRequest, """{"error":{"code":"InvalidParameter","message":"A parameter cannot be found that matches parameter name 'Properties'."}}""")
+                    : (HttpStatusCode.OK, """{"value":[{"DisplayName":"Bob Example","PrimarySmtpAddress":"bob@contoso.com"}]}""");
+        });
+        using var http = new HttpClient(handler);
+
+        AdminApiProbeReport report = await ExchangeProbes.AdminApiAsync(
+            http,
+            SidecarFixtures.Token(DateTimeOffset.UtcNow.AddHours(1)),
+            new AdminApiProbeTargets(Forwarding: true, MailboxParameters: """{"PropertySets":["Minimum","Delivery"]}""", Select: "DisplayName,ForwardingSmtpAddress"),
+            Ct);
+
+        AdminApiCall[] variants = [.. report.Calls.Where(call => call.Endpoint.StartsWith("Mailbox (", StringComparison.Ordinal))];
+        Assert.Equal(["Mailbox (select)", "Mailbox (properties)", "Mailbox (property-sets-delivery)", "Mailbox (property-sets-all)", "Mailbox (given)"], variants.Select(call => call.Endpoint));
+        Assert.Equal([0, 0, 3, 3, 3], variants.Select(call => ExchangeProbes.ForwardingFieldsIn(call).Count));
+        Assert.Equal(400, variants[1].Status);
+        Assert.DoesNotContain(variants.SelectMany(call => call.Shape), line => line.Contains("fabrikam", StringComparison.Ordinal));
+        Assert.Contains("$select=Identity%2CForwardingSmtpAddress", handler.Requests[2].RequestUri!.ToString(), StringComparison.Ordinal);
+        Assert.Equal("""{"CmdletInput":{"CmdletName":"Get-Mailbox","Parameters":{"ResultSize":1,"PropertySets":["Minimum","Delivery"]}}}""", handler.Bodies[^1]);
+    }
+
+    [Theory]
+    [InlineData("[1]")]
+    [InlineData("{not json")]
+    public void ProbeParametersThatAreNoJsonObjectAreAUsageError(string parameters)
+    {
+        AegisException exception = Assert.Throws<AegisException>(() => ExchangeProbes.MailboxBody("bob@contoso.com", parameters));
+
+        Assert.Equal(FailureKind.Usage, exception.Failure.Kind);
+    }
+
     [Theory]
     [InlineData("Bob Example <bob@contoso.com>", "a a <a@a.a>")]
     [InlineData("SMTP:bob2@contoso.com", "a:a9@a.a")]

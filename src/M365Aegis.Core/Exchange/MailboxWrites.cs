@@ -10,7 +10,11 @@ namespace M365Aegis.Core.Exchange;
 /// <param name="User">The holder as given: a user principal name, an address, a group's name or address.</param>
 /// <param name="Right">The right.</param>
 /// <param name="Row">The CSV line it comes from (task 054), or null for the arguments.</param>
-public sealed record AccessChangeRow(string Mailbox, string User, MailboxRight Right, int? Row = null);
+/// <param name="AutoMapping">
+/// For a FullAccess grant, whether Outlook adds the mailbox for the holder on its own (task 059: false is
+/// <c>Add-MailboxPermission -AutoMapping:$false</c>); true, the service's default, for every other right.
+/// </param>
+public sealed record AccessChangeRow(string Mailbox, string User, MailboxRight Right, int? Row = null, bool AutoMapping = true);
 
 /// <summary>One mailbox's forwarding a write was asked to set or clear.</summary>
 /// <param name="Mailbox">The mailbox as given.</param>
@@ -45,6 +49,9 @@ public static partial class MailboxLookups
     /// <summary>The optional column of <c>mailbox forwarding set</c>'s file.</summary>
     public const string KeepCopyColumn = "keepCopy";
 
+    /// <summary>The optional column of <c>mailbox access grant</c>'s file (task 059): <c>false</c> on a FullAccess line grants it without automapping.</summary>
+    public const string AutoMappingColumn = "automapping";
+
     /// <summary>The right a word names: <c>FullAccess</c>, <c>SendAs</c>, <c>SendOnBehalf</c>, in any case, with or without hyphens.</summary>
     public static MailboxRight? ParseRight(string? text)
     {
@@ -58,9 +65,12 @@ public static partial class MailboxLookups
         };
     }
 
-    /// <summary>The rows of the arguments: one mailbox, each user with each right.</summary>
-    /// <exception cref="AegisException">A usage error: no mailbox, no user, no right or an unknown one.</exception>
-    public static IReadOnlyList<AccessChangeRow> AccessRows(string? mailbox, IReadOnlyList<string>? users, IReadOnlyList<string>? rights)
+    /// <summary>
+    /// The rows of the arguments: one mailbox, each user with each right; with <paramref name="autoMapping"/> false
+    /// (<c>--no-automapping</c>, task 059) the FullAccess rows are granted without automapping.
+    /// </summary>
+    /// <exception cref="AegisException">A usage error: no mailbox, no user, no right or an unknown one, or no automapping without FullAccess.</exception>
+    public static IReadOnlyList<AccessChangeRow> AccessRows(string? mailbox, IReadOnlyList<string>? users, IReadOnlyList<string>? rights, bool autoMapping = true)
     {
         string identity = RequireName(mailbox, "the mailbox");
         List<string> holders = (users ?? []).Where(user => !string.IsNullOrWhiteSpace(user)).Select(user => user.Trim()).ToList();
@@ -85,21 +95,44 @@ public static partial class MailboxLookups
             }
         }
 
-        return holders.SelectMany(user => parsed.Select(right => new AccessChangeRow(identity, user, right))).ToList();
+        if (!autoMapping && !parsed.Contains(MailboxRight.FullAccess))
+        {
+            throw new AegisException(
+                FailureKind.Usage,
+                $"--no-automapping goes with --right FullAccess, not {string.Join(" or ", parsed.Select(RightName))}",
+                "automapping is how Outlook adds a mailbox its FullAccess holder can open; drop --no-automapping, or grant FullAccess");
+        }
+
+        return holders.SelectMany(user => parsed.Select(right => new AccessChangeRow(identity, user, right, AutoMapping: autoMapping || right != MailboxRight.FullAccess))).ToList();
     }
 
-    /// <summary>The rows of a CSV file with the columns <c>mailbox,user,right</c> (task 054).</summary>
+    /// <summary>
+    /// The rows of a CSV file with the columns <c>mailbox,user,right</c> (task 054) and, for a grant, optionally
+    /// <c>automapping</c> (task 059: <c>false</c> on a FullAccess line; empty is true).
+    /// </summary>
+    /// <param name="path">The file.</param>
+    /// <param name="grant">Whether the file grants (the <c>automapping</c> column is a grant's only).</param>
     /// <exception cref="AegisException">A usage error naming the file and the line.</exception>
-    public static IReadOnlyList<AccessChangeRow> AccessRowsFromCsv(string path)
+    public static IReadOnlyList<AccessChangeRow> AccessRowsFromCsv(string path, bool grant = true)
     {
         var rows = new List<AccessChangeRow>();
-        foreach (CsvRow row in CsvRows.Read(path, AccessCsvColumns, []))
+        foreach (CsvRow row in CsvRows.Read(path, AccessCsvColumns, grant ? [AutoMappingColumn] : []))
         {
+            string where = string.Format(CultureInfo.InvariantCulture, "{0}, line {1}", Path.GetFileName(path), row.Line);
             MailboxRight right = ParseRight(row["right"]) ?? throw new AegisException(
                 FailureKind.Usage,
-                string.Format(CultureInfo.InvariantCulture, "{0}, line {1}: unknown right '{2}'", Path.GetFileName(path), row.Line, row["right"]),
+                $"{where}: unknown right '{row["right"]}'",
                 "the right is FullAccess, SendAs or SendOnBehalf; nothing was sent");
-            rows.Add(new AccessChangeRow(row["mailbox"]!, row["user"]!, right, row.Line));
+            bool autoMapping = row.Flag(AutoMappingColumn, where, whenEmpty: true);
+            if (!autoMapping && right != MailboxRight.FullAccess)
+            {
+                throw new AegisException(
+                    FailureKind.Usage,
+                    $"{where}: automapping is false on a {RightName(right)} line",
+                    "automapping is a FullAccess setting; leave the cell empty on the other lines; nothing was sent");
+            }
+
+            rows.Add(new AccessChangeRow(row["mailbox"]!, row["user"]!, right, row.Line, autoMapping));
         }
 
         return rows;
@@ -122,12 +155,7 @@ public static partial class MailboxLookups
             }
 
             string to = RequireAddress(row["to"], where);
-            bool keep = row[KeepCopyColumn]?.ToUpperInvariant() switch
-            {
-                null or "FALSE" or "NO" or "0" => false,
-                "TRUE" or "YES" or "1" => true,
-                _ => throw new AegisException(FailureKind.Usage, $"{where}: keepCopy is '{row[KeepCopyColumn]}'", "write true or false (or leave it empty for false); nothing was sent"),
-            };
+            bool keep = row.Flag(KeepCopyColumn, where, whenEmpty: false);
             result.Add(new ForwardingRow(row["mailbox"]!, to, keep, row.Line));
         }
 
@@ -188,13 +216,16 @@ public static partial class MailboxLookups
             string right = RightName(row.Right);
             string target = $"{access.Mailbox.DisplayName} ({access.Mailbox.PrimarySmtpAddress})";
             string who = Describe(holder, row.User);
-            string detail = $"{right} for {who}";
+            bool withoutAutoMapping = grant && row.Right == MailboxRight.FullAccess && !row.AutoMapping;
+            string detail = withoutAutoMapping ? $"{right} for {who}, without automapping" : $"{right} for {who}";
             bool held = access.Holders.Any(entry => entry.Right == row.Right && (names.Contains(entry.Holder) || (entry.Address is not null && names.Contains(entry.Address))));
             string holds = $"holds {right}";
             string lacks = $"no {right}";
             if (held == grant)
             {
-                builder.Unchanged(new PlanUnchanged(target, detail, grant ? $"{holds} already" : lacks) { Row = row.Row });
+                // Automapping is set by the grant: a holder's own stays as it is (task 059).
+                string already = withoutAutoMapping ? $"{holds} already; its automapping is left as it is" : $"{holds} already";
+                builder.Unchanged(new PlanUnchanged(target, detail, grant ? already : lacks) { Row = row.Row });
                 continue;
             }
 
@@ -205,7 +236,7 @@ public static partial class MailboxLookups
                 continue;
             }
 
-            ExoCommand command = AccessCommand(grant, row.Right, access.Mailbox.PrimarySmtpAddress, key);
+            ExoCommand command = AccessCommand(grant, row.Right, access.Mailbox.PrimarySmtpAddress, key, autoMapping: !withoutAutoMapping);
             IExoCmdletRunner sidecar = backends.Sidecar;
             builder.Change(
                 new PlanChange(grant ? PlanAction.Add : PlanAction.Remove, target, detail, grant ? lacks : holds, grant ? holds : lacks) { Row = row.Row },
@@ -354,18 +385,11 @@ public static partial class MailboxLookups
     }
 
     /// <summary>The cmdlet that grants or revokes one right of one holder on one mailbox.</summary>
-    private static ExoCommand AccessCommand(bool grant, MailboxRight right, string mailbox, string holder) => right switch
+    private static ExoCommand AccessCommand(bool grant, MailboxRight right, string mailbox, string holder, bool autoMapping) => right switch
     {
         MailboxRight.FullAccess => new ExoCommand(grant ? ExoCmdlets.AddMailboxPermission : ExoCmdlets.RemoveMailboxPermission)
         {
-            Parameters = new Dictionary<string, object?>
-            {
-                ["Identity"] = mailbox,
-                ["User"] = holder,
-                ["AccessRights"] = new[] { "FullAccess" },
-                ["InheritanceType"] = "All",
-                ["Confirm"] = false,
-            },
+            Parameters = FullAccessParameters(mailbox, holder, autoMapping),
         },
         MailboxRight.SendAs => new ExoCommand(grant ? ExoCmdlets.AddRecipientPermission : ExoCmdlets.RemoveRecipientPermission)
         {
@@ -387,6 +411,29 @@ public static partial class MailboxLookups
             },
         },
     };
+
+    /// <summary>
+    /// The parameters of <c>Add-</c> or <c>Remove-MailboxPermission</c>: FullAccess on every folder, and
+    /// <c>-AutoMapping:$false</c> on a grant without automapping (task 059; the service's default is true, so it is sent
+    /// only when it is false).
+    /// </summary>
+    private static Dictionary<string, object?> FullAccessParameters(string mailbox, string holder, bool autoMapping)
+    {
+        var parameters = new Dictionary<string, object?>
+        {
+            ["Identity"] = mailbox,
+            ["User"] = holder,
+            ["AccessRights"] = new[] { "FullAccess" },
+            ["InheritanceType"] = "All",
+        };
+        if (!autoMapping)
+        {
+            parameters["AutoMapping"] = false;
+        }
+
+        parameters["Confirm"] = false;
+        return parameters;
+    }
 
     /// <summary>The warnings of a grant: a group holds it for every member; a recipient that is no security principal cannot hold it.</summary>
     private static void WarnHolder(PlanBuilder builder, ExoObject holder, string who, List<MailboxRight> rights, MailboxInfo mailbox)

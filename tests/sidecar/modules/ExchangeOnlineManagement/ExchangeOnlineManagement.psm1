@@ -311,7 +311,7 @@ function Get-FakePrincipalName {
 
 function Add-MailboxPermission {
     [CmdletBinding(SupportsShouldProcess)]
-    param([string] $Identity, [string] $User, [string[]] $AccessRights, [string] $InheritanceType, [object] $AutoMapping)
+    param([string] $Identity, [string] $User, [string[]] $AccessRights, [string] $InheritanceType, [bool] $AutoMapping)
     Assert-FakeConnected
     if (-not (Assert-FakeIdentity $Identity)) { return }
     $mailbox = Find-FakeMailbox -Identity $Identity

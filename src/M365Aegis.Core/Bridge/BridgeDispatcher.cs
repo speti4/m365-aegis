@@ -5,6 +5,7 @@ using M365Aegis.Core.Auth;
 using M365Aegis.Core.Config;
 using M365Aegis.Core.Diagnostics;
 using M365Aegis.Core.Exchange;
+using M365Aegis.Core.Exchange.AdminApi;
 using M365Aegis.Core.Exchange.Sidecar;
 using M365Aegis.Core.Graph;
 using M365Aegis.Core.Groups;
@@ -28,8 +29,9 @@ public sealed record BridgeServices(
     Func<Exception, string?> LogInternalError)
 {
     /// <summary>
-    /// The window's one Exchange Online session (task 045), or null where the services have none (then a mailbox
-    /// request answers exit code 11's failure). The window disposes it when it closes.
+    /// The window's one Exchange Online session (task 045) and its layers over one token source (task 056), or null
+    /// where the services have none (then a mailbox request answers exit code 11's failure). The window disposes it
+    /// when it closes.
     /// </summary>
     public WindowExchange? Exchange { get; init; }
 
@@ -45,7 +47,9 @@ public sealed record BridgeServices(
     /// the cache, the profiles and the log of that home folder (shared with the command line), the Graph client of
     /// <see cref="GraphConnection"/> (the fixtures when <see cref="GraphConnection.FixturesEnvironmentVariable"/> is
     /// set), and one Exchange Online session for the window's lifetime over the same sign-in (the offline tests'
-    /// organization when <see cref="ExchangeConnection.TestOrganizationVariable"/> is set, as on the command line).
+    /// organization when <see cref="ExchangeConnection.TestOrganizationVariable"/> is set, as on the command line),
+    /// with the Admin API beside it over the same token source (task 056; the fixtures when
+    /// <see cref="GraphConnection.FixturesEnvironmentVariable"/> is set, none with only the test organization).
     /// </summary>
     public static BridgeServices ForWindow(string home, string? profile, Func<IntPtr> parentWindow, Func<Func<Task>, Task> onWindowThread)
     {
@@ -60,25 +64,14 @@ public sealed record BridgeServices(
             requestLog => GraphConnection.Create(profile, requestLog, () => auth),
             exception => InternalError.WriteToLog(exception, home))
         {
-            Exchange = new WindowExchange(() => new ExchangeSession(WindowSessionOptions(auth, profile))),
+            // The command line's layers over the window's own sign-in, one token source for the session and the Admin
+            // API (task 056). The session's one Graph call (the organization's .onmicrosoft.com name) and the Admin
+            // API's calls log their request ids into logs of their own: the window shows no meta, so nothing reads them.
+            Exchange = new WindowExchange(
+                () => ExchangeConnection.Tokens(profile, () => auth),
+                tokens => new ExchangeSession(ExchangeConnection.Options(profile, new RequestLog(), () => auth, tokens)),
+                tokens => AdminApiConnection.Create(profile, new RequestLog(), () => auth, tokens)),
         };
-    }
-
-    /// <summary>The parts of the window's session: the command line's, over the window's own sign-in.</summary>
-    private static ExchangeSessionOptions WindowSessionOptions(AuthService auth, string? profile)
-    {
-        // The session's one Graph call (the organization's .onmicrosoft.com name) logs its request id here; the window
-        // shows no meta, so nothing reads it.
-        var requestLog = new RequestLog();
-        string? testOrganization = Environment.GetEnvironmentVariable(ExchangeConnection.TestOrganizationVariable);
-        return string.IsNullOrWhiteSpace(testOrganization)
-            ? ExchangeConnection.Options(
-                auth,
-                profile,
-                requestLog,
-                ExchangeConnection.ParseConnectWith(Environment.GetEnvironmentVariable(ExchangeConnection.ConnectWithVariable)),
-                ExchangeConnection.StartAsync)
-            : ExchangeConnection.Options(profile, requestLog);
     }
 }
 
@@ -87,8 +80,9 @@ public sealed record BridgeServices(
 /// <c>login</c>, <c>logout</c>), a group's members (<c>group-members</c>) and the mailbox lookups over the window's
 /// Exchange Online session (<c>mailbox-list</c>, <c>mailbox-access</c>), each answered with its reply type or with
 /// <c>error</c>. A failure of the core becomes the <c>error</c> reply with the contract's code, message and hint
-/// (D-006); an unexpected exception becomes the <c>internal</c> error with the stack trace in the log, as on the
-/// command line. Every later verb (the task cards of M4) registers here, and every write goes through a plan and a
+/// (D-006), the hint in the window's words where the core's names a command (task 057,
+/// <see cref="SignInHints.ForSurface"/>); an unexpected exception becomes the <c>internal</c> error with the stack
+/// trace in the log, as on the command line. Every later verb (the task cards of M4) registers here, and every write goes through a plan and a
 /// confirmation the front end shows.
 /// </summary>
 public sealed class BridgeDispatcher
@@ -138,8 +132,9 @@ public sealed class BridgeDispatcher
                 case BridgeMessageType.GroupMembers:
                     return await GroupMembersAsync(request, cancellationToken).ConfigureAwait(false);
                 case BridgeMessageType.MailboxList:
+                    // The Admin API's list, no sidecar (task 056); the session answers when the Admin API cannot.
                     bool shared = Flag(request, "shared");
-                    return await ExchangeAsync(request, BridgeMessageType.Mailboxes, (exo, ct) => MailboxLookups.ListAsync(exo, shared, ct), cancellationToken).ConfigureAwait(false);
+                    return await ExchangeAsync(request, BridgeMessageType.Mailboxes, (backends, ct) => MailboxLookups.ListAsync(backends, shared, ct), cancellationToken).ConfigureAwait(false);
                 case BridgeMessageType.MailboxAccess:
                     return await MailboxAccessAsync(request, cancellationToken).ConfigureAwait(false);
                 default:
@@ -149,14 +144,18 @@ public sealed class BridgeDispatcher
         }
         catch (AegisException exception)
         {
-            return BridgeProtocol.Error(request, exception.Failure);
+            return Error(request, exception.Failure);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             // The tool broke: the page gets the internal error, the stack trace goes to the log.
-            return BridgeProtocol.Error(request, InternalError.ToFailure(exception, _services.LogInternalError(exception)));
+            return Error(request, InternalError.ToFailure(exception, _services.LogInternalError(exception)));
         }
     }
+
+    /// <summary>The <c>error</c> reply of a failure, its hint in the window's words where the core's names a command (task 057).</summary>
+    private BridgeMessage Error(BridgeMessage request, AegisFailure failure) =>
+        BridgeProtocol.Error(request, _services.Auth.Hints.ForSurface(failure));
 
     private async Task<BridgeMessage> WhoAmIAsync(BridgeMessage request, CancellationToken cancellationToken)
     {
@@ -207,7 +206,7 @@ public sealed class BridgeDispatcher
         Uri? page = _signInPage;
         if (page is null)
         {
-            return BridgeProtocol.Error(request, new AegisFailure(
+            return Error(request, new AegisFailure(
                 FailureKind.Usage,
                 "no device code sign-in is waiting for its browser step",
                 "choose Sign in with a code first; the card shows the page and the code"));
@@ -215,7 +214,7 @@ public sealed class BridgeDispatcher
 
         if (!SignInPage.IsAllowed(page))
         {
-            return BridgeProtocol.Error(request, new AegisFailure(
+            return Error(request, new AegisFailure(
                 FailureKind.ServiceError,
                 $"the sign-in page '{page.GetLeftPart(UriPartial.Authority)}' is not one of Microsoft's sign-in hosts, so the window does not open it",
                 "open the page the card shows in a browser yourself only if you trust it, or sign in with the account picker"));
@@ -223,7 +222,7 @@ public sealed class BridgeDispatcher
 
         if (_services.OpenInBrowser is not { } open)
         {
-            return BridgeProtocol.Error(request, new AegisFailure(
+            return Error(request, new AegisFailure(
                 FailureKind.ServiceError,
                 "this window cannot open a browser",
                 "open the page the card shows in a browser and enter the code"));
@@ -250,7 +249,7 @@ public sealed class BridgeDispatcher
         string? group = Text(request, "group");
         if (group is null)
         {
-            return BridgeProtocol.Error(request, new AegisFailure(
+            return Error(request, new AegisFailure(
                 FailureKind.Usage,
                 "the group is missing",
                 "give the exact display name, the address, the object id, or a word of the name"));
@@ -259,7 +258,7 @@ public sealed class BridgeDispatcher
         GraphClient graph = _services.Graph(new RequestLog());
         CommandResult<GroupMembers> result = await GroupLookups.MembersAsync(graph, group, transitive: false, cancellationToken).ConfigureAwait(false);
         return result.Failure is { } failure
-            ? BridgeProtocol.Error(request, failure)
+            ? Error(request, failure)
             : BridgeProtocol.Reply(request, BridgeMessageType.Members, result.Data);
     }
 
@@ -269,31 +268,33 @@ public sealed class BridgeDispatcher
         string? user = Text(request, "user");
         if ((mailbox is null) == (user is null))
         {
-            return Task.FromResult(BridgeProtocol.Error(request, new AegisFailure(
+            return Task.FromResult(Error(request, new AegisFailure(
                 FailureKind.Usage,
                 "give a mailbox or a user, not both and not neither",
                 "a mailbox lists who can open or send as it; a user lists the mailboxes the user can open or send as")));
         }
 
+        // The warm session answers both directions (task 045), as before the window had the Admin API.
         return user is not null
-            ? ExchangeAsync(request, BridgeMessageType.UserGrants, (exo, ct) => MailboxLookups.AccessForUserAsync(exo, user, ct), cancellationToken)
-            : ExchangeAsync(request, BridgeMessageType.MailboxHolders, (exo, ct) => MailboxLookups.AccessAsync(exo, mailbox!, ct), cancellationToken);
+            ? ExchangeAsync(request, BridgeMessageType.UserGrants, (backends, ct) => MailboxLookups.AccessForUserAsync(backends.Sidecar, user, ct), cancellationToken)
+            : ExchangeAsync(request, BridgeMessageType.MailboxHolders, (backends, ct) => MailboxLookups.AccessAsync(backends.Sidecar, mailbox!, ct), cancellationToken);
     }
 
     /// <summary>
-    /// A mailbox lookup over the window's session: the data as the reply, a failure as <c>error</c>, and a partial
-    /// answer (exit code 6 on the command line) as the reply, whose own list says what could not be read. Under
-    /// <c>--verbose</c> the log gets the time and what the session did (the starts and the reconnects).
+    /// A mailbox lookup over the window's layers (task 056: the session, the Admin API over the same token, Graph): the
+    /// data as the reply, a failure as <c>error</c>, and a partial answer (exit code 6 on the command line) as the reply,
+    /// whose own list says what could not be read. Under <c>--verbose</c> the log gets the time, the layers the request
+    /// used and what the session did (the starts, the reconnects, the token acquisitions).
     /// </summary>
     private async Task<BridgeMessage> ExchangeAsync<T>(
         BridgeMessage request,
         string replyType,
-        Func<IExoCmdletRunner, CancellationToken, Task<CommandResult<T>>> lookup,
+        Func<ExchangeBackends, CancellationToken, Task<CommandResult<T>>> lookup,
         CancellationToken cancellationToken)
     {
         if (_services.Exchange is not { } exchange)
         {
-            return BridgeProtocol.Error(request, new AegisFailure(
+            return Error(request, new AegisFailure(
                 FailureKind.SidecarUnavailable,
                 "this window has no Exchange Online session",
                 "run the mailbox commands of `m365-aegis` instead"));
@@ -301,19 +302,20 @@ public sealed class BridgeDispatcher
 
         var elapsed = Stopwatch.StartNew();
         CommandResult<T> result;
+        await using ExchangeBackends backends = exchange.Backends(() => _services.Graph(new RequestLog()));
         try
         {
-            result = await lookup(exchange, cancellationToken).ConfigureAwait(false);
+            result = await lookup(backends, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
             LogSink.Verbose?.Write("window", string.Create(
                 CultureInfo.InvariantCulture,
-                $"{request.Type} answered in {elapsed.ElapsedMilliseconds} ms; exchange {exchange.Describe()}"));
+                $"{request.Type} answered in {elapsed.ElapsedMilliseconds} ms through {backends.Backend}; exchange {exchange.Describe()}"));
         }
 
         return result.Failure is { } failure && (failure.Kind != FailureKind.Partial || result.Data is null)
-            ? BridgeProtocol.Error(request, failure)
+            ? Error(request, failure)
             : BridgeProtocol.Reply(request, replyType, result.Data);
     }
 

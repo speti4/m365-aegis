@@ -107,6 +107,11 @@ the short form), and the mailbox usage report `reports/getMailboxUsageDetail(per
 fixtures (`users/…001`, `users/…099`, `groups/…031` throttled once), with `$batch.try-n.headers` for the batch call's
 request ids.
 
+## The Exchange and window bundle: the automapping file
+
+Task 059. `csv/mailbox-grants-automapping.csv` grants carol FullAccess on Reception with `automapping` false, Send As
+on Finance with the cell empty, and bob FullAccess on Finance with `yes`.
+
 ## The M3 writes bundle: the write answers and the CSV files
 
 Tasks 051 to 054. A write's answer is named like a read's, with one rule more: a `$ref` POST, whose URL is the same

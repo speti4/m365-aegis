@@ -287,13 +287,13 @@ export class MockTransport implements Transport {
           const user = find(userName);
           return user
             ? { type: MessageType.userGrants, data: mockGrants(user) }
-            : notFound("user", userName, "give the user principal name");
+            : notFound("user", userName, "check the name or the address and try again");
         }
         const found = find(mailboxName);
         const access = mockHolders.find((candidate) => candidate.mailbox === found);
         return access
           ? { type: MessageType.mailboxHolders, data: access }
-          : notFound("mailbox", mailboxName, "give the address, the name or the object id");
+          : notFound("mailbox", mailboxName, "check the name or the address and try again");
       }
       default:
         return { type: MessageType.error, data: { code: "no-host", message: "no host in the browser" } };

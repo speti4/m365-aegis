@@ -3,8 +3,10 @@ using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using M365Aegis.Core.Exchange.AdminApi;
 using M365Aegis.Core.Exchange.Sidecar;
+using M365Aegis.Core.Output;
 
 namespace M365Aegis.Core.Exchange;
 
@@ -70,7 +72,21 @@ public sealed record AdminApiProbeReport(bool Answered, IReadOnlyList<string> To
 /// <param name="Mailbox">A mailbox whose delegates by name and whose folder permissions are read.</param>
 /// <param name="Folder">The folder of that mailbox (<c>Calendar</c> when null), as the mailbox's language names it.</param>
 /// <param name="Group">A distribution group whose first members are read.</param>
-public sealed record AdminApiProbeTargets(string? Mailbox = null, string? Folder = null, string? Group = null);
+/// <param name="Forwarding">
+/// Also read <c>Get-Mailbox</c> in each of <see cref="ExchangeProbes.ForwardingVariants"/> (task 055): the mailbox of
+/// <paramref name="Mailbox"/> by its identity, or one page of one mailbox, and say which forwarding fields came back.
+/// </param>
+/// <param name="MailboxParameters">
+/// A JSON object of more <c>Get-Mailbox</c> parameters to try in one more call, merged into the same body (task 055).
+/// </param>
+/// <param name="Select">The <c>$select</c> of that call, or null for none.</param>
+public sealed record AdminApiProbeTargets(
+    string? Mailbox = null,
+    string? Folder = null,
+    string? Group = null,
+    bool Forwarding = false,
+    string? MailboxParameters = null,
+    string? Select = null);
 
 /// <summary>
 /// The two live probes of the Exchange bundle, behind the hidden <c>probe</c> command: the sidecar's connect with
@@ -79,6 +95,22 @@ public sealed record AdminApiProbeTargets(string? Mailbox = null, string? Folder
 /// </summary>
 public static class ExchangeProbes
 {
+    /// <summary>The fields <c>mailbox forwarders</c> reads (task 055).</summary>
+    public static readonly IReadOnlyList<string> ForwardingFields = ["ForwardingSmtpAddress", "ForwardingAddress", "DeliverToMailboxAndForward"];
+
+    /// <summary>
+    /// The ways the probe asks <c>Get-Mailbox</c> for the forwarding fields (task 055): its name, the <c>$select</c> and
+    /// the body parameters besides the identity. Only <c>Identity</c>, <c>ResultSize</c> and
+    /// <c>IncludeGrantSendOnBehalfToWithDisplayNames</c> are documented; the others are what <c>Get-EXOMailbox</c> takes.
+    /// </summary>
+    public static IReadOnlyList<(string Name, string? Select, string? Parameters)> ForwardingVariants { get; } =
+    [
+        ("select", "Identity,ForwardingSmtpAddress,ForwardingAddress,DeliverToMailboxAndForward", null),
+        ("properties", null, """{"Properties":["ForwardingSmtpAddress","ForwardingAddress","DeliverToMailboxAndForward"]}"""),
+        ("property-sets-delivery", null, """{"PropertySets":["Delivery"]}"""),
+        ("property-sets-all", null, """{"PropertySets":["All"]}"""),
+    ];
+
     /// <summary>The Admin API's base URL in the commercial cloud.</summary>
     public const string AdminApiBase = "https://outlook.office365.com/adminapi/v2.0/";
 
@@ -157,6 +189,19 @@ public static class ExchangeProbes
             calls.Add(await CallAsync(http, token, tenant, "MailboxFolderPermission", anchor, folder, cancellationToken).ConfigureAwait(false));
         }
 
+        if (targets.Forwarding)
+        {
+            foreach ((string name, string? select, string? parameters) in ForwardingVariants)
+            {
+                calls.Add(await CallAsync(http, token, tenant, "Mailbox", anchor, MailboxBody(targets.Mailbox, parameters), cancellationToken, select, $"Mailbox ({name})").ConfigureAwait(false));
+            }
+        }
+
+        if (targets.MailboxParameters is not null || targets.Select is not null)
+        {
+            calls.Add(await CallAsync(http, token, tenant, "Mailbox", anchor, MailboxBody(targets.Mailbox, targets.MailboxParameters), cancellationToken, targets.Select, "Mailbox (given)").ConfigureAwait(false));
+        }
+
         if (targets.Group is { } group)
         {
             string members = AdminApiClient.Body(new ExoCommand(AdminApiCmdlets.GetDistributionGroupMember)
@@ -191,11 +236,69 @@ public static class ExchangeProbes
         return new AdminApiProbeReport(calls.Any(call => call.Endpoint == "OrganizationConfig" && call.Status is >= 200 and < 300), token.Permissions, calls);
     }
 
+    /// <summary>
+    /// A <c>Get-Mailbox</c> body: the mailbox by its identity, or one mailbox (<c>ResultSize</c> 1), with the parameters
+    /// of a JSON object merged in.
+    /// </summary>
+    /// <exception cref="AegisException">A usage error when <paramref name="parameters"/> is not a JSON object.</exception>
+    internal static string MailboxBody(string? mailbox, string? parameters)
+    {
+        var merged = new JsonObject();
+        if (mailbox is null)
+        {
+            merged["ResultSize"] = 1;
+        }
+        else
+        {
+            merged["Identity"] = mailbox;
+        }
+
+        if (parameters is not null)
+        {
+            JsonObject given;
+            try
+            {
+                given = JsonNode.Parse(parameters) as JsonObject
+                    ?? throw new AegisException(FailureKind.Usage, "the mailbox parameters are not a JSON object", """give an object, such as '{"PropertySets":["Delivery"]}'""");
+            }
+            catch (JsonException exception)
+            {
+                throw new AegisException(FailureKind.Usage, $"the mailbox parameters are not valid JSON: {exception.Message}", """give an object, such as '{"PropertySets":["Delivery"]}'""", exception);
+            }
+
+            foreach ((string name, JsonNode? value) in given.ToList())
+            {
+                given.Remove(name);
+                merged[name] = value;
+            }
+        }
+
+        return new JsonObject { ["CmdletInput"] = new JsonObject { ["CmdletName"] = AdminApiCmdlets.GetMailbox, ["Parameters"] = merged } }.ToJsonString();
+    }
+
+    /// <summary>The forwarding fields an answer's shape names (task 055).</summary>
+    public static IReadOnlyList<string> ForwardingFieldsIn(AdminApiCall call)
+    {
+        ArgumentNullException.ThrowIfNull(call);
+        return ForwardingFields
+            .Where(field => call.Shape.Any(line => line.StartsWith(field + ":", StringComparison.Ordinal) || line.StartsWith("value[0]." + field + ":", StringComparison.Ordinal)))
+            .ToList();
+    }
+
     private static async Task<AdminApiCall> CallAsync(
-        HttpMessageInvoker http, ExchangeToken token, string tenant, string endpoint, string anchorForm, string body, CancellationToken cancellationToken)
+        HttpMessageInvoker http,
+        ExchangeToken token,
+        string tenant,
+        string endpoint,
+        string anchorForm,
+        string body,
+        CancellationToken cancellationToken,
+        string? select = null,
+        string? label = null)
     {
         var stopwatch = Stopwatch.StartNew();
-        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri($"{AdminApiBase}{Uri.EscapeDataString(tenant)}/{endpoint}"));
+        string query = select is null ? "" : "?$select=" + Uri.EscapeDataString(select);
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri($"{AdminApiBase}{Uri.EscapeDataString(tenant)}/{endpoint}{query}"));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.AccessToken);
         request.Headers.TryAddWithoutValidation("X-AnchorMailbox", anchorForm + token.Account);
         request.Content = new StringContent(body, Encoding.UTF8, "application/json");
@@ -204,11 +307,11 @@ public static class ExchangeProbes
             using HttpResponseMessage response = await http.SendAsync(request, cancellationToken).ConfigureAwait(false);
             string text = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             long elapsed = stopwatch.ElapsedMilliseconds;
-            return Describe(endpoint, anchorForm, (int)response.StatusCode, elapsed, text);
+            return Describe(label ?? endpoint, anchorForm, (int)response.StatusCode, elapsed, text);
         }
         catch (HttpRequestException exception)
         {
-            return new AdminApiCall(endpoint, anchorForm, null, stopwatch.ElapsedMilliseconds, null, [], null, null, exception.Message);
+            return new AdminApiCall(label ?? endpoint, anchorForm, null, stopwatch.ElapsedMilliseconds, null, [], null, null, exception.Message);
         }
     }
 

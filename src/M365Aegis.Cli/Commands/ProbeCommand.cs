@@ -44,17 +44,35 @@ internal static class ProbeCommand
         Option<string?> probeMailbox = new("--mailbox") { Description = "Also read this mailbox's Send on Behalf delegates by name and its folder's permissions (task 042)." };
         Option<string?> probeFolder = new("--folder") { Description = "The folder of --mailbox, as the mailbox's language names it (Calendar by default)." };
         Option<string?> probeGroup = new("--group") { Description = "Also read the first members of this distribution group (task 042)." };
+        Option<bool> probeForwarding = new("--forwarding")
+        {
+            Description = "Also read Get-Mailbox (of --mailbox, else one mailbox) in each way of asking for the forwarding fields, and say which came back (task 055).",
+        };
+        Option<string?> probeMailboxParameters = new("--mailbox-parameters")
+        {
+            Description = "Also read Get-Mailbox (of --mailbox, else one mailbox) with these parameters, a JSON object such as '{\"PropertySets\":[\"Delivery\"]}' (task 055).",
+        };
+        Option<string?> probeSelect = new("--select") { Description = "The $select of the --mailbox-parameters call (task 055)." };
         Command adminApi = new("admin-api", "Call the Exchange Online Admin API v2.0 (OrganizationConfig, one page of Mailbox) with the broker's token; print the statuses and the shapes.");
         adminApi.Options.Add(probeMailbox);
         adminApi.Options.Add(probeFolder);
         adminApi.Options.Add(probeGroup);
+        adminApi.Options.Add(probeForwarding);
+        adminApi.Options.Add(probeMailboxParameters);
+        adminApi.Options.Add(probeSelect);
         adminApi.SetAction((parsed, cancellationToken) => CommandRunner.RunAsync(
             Program.ResolveMode(parsed, json, table),
             Backend.AdminApi,
             async () =>
             {
                 TokenResult token = await AuthService.Create().GetTokenAsync(Resource.Exchange, parsed.GetValue(profile), cancellationToken).ConfigureAwait(false);
-                var targets = new AdminApiProbeTargets(parsed.GetValue(probeMailbox), parsed.GetValue(probeFolder), parsed.GetValue(probeGroup));
+                var targets = new AdminApiProbeTargets(
+                    parsed.GetValue(probeMailbox),
+                    parsed.GetValue(probeFolder),
+                    parsed.GetValue(probeGroup),
+                    parsed.GetValue(probeForwarding),
+                    parsed.GetValue(probeMailboxParameters),
+                    parsed.GetValue(probeSelect));
                 AdminApiProbeReport report = await ExchangeProbes.AdminApiAsync(Http, ExchangeConnection.ToExchangeToken(token), targets, cancellationToken).ConfigureAwait(false);
                 return CommandResult.Success(report);
             },
@@ -191,6 +209,12 @@ internal sealed class AdminApiProbeTableView : ITableView<AdminApiProbeReport>
         foreach (AdminApiCall call in data.Calls)
         {
             yield return $"{call.Endpoint} ({call.AnchorForm}) shape: {string.Join("; ", call.Shape)}";
+        }
+
+        foreach (AdminApiCall call in data.Calls.Where(call => call.Endpoint.StartsWith("Mailbox (", StringComparison.Ordinal)))
+        {
+            IReadOnlyList<string> fields = ExchangeProbes.ForwardingFieldsIn(call);
+            yield return $"{call.Endpoint}: status {call.Status?.ToString(CultureInfo.InvariantCulture) ?? "-"}, forwarding fields {(fields.Count == 0 ? "none" : string.Join(", ", fields))}";
         }
     }
 }

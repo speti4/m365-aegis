@@ -1,0 +1,4 @@
+mailbox,user,right,automapping
+reception,carol@contoso.com,FullAccess,false
+finance,carol@contoso.com,SendAs,
+finance,bob@contoso.com,FullAccess,yes
