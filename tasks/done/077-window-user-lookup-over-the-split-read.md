@@ -93,6 +93,12 @@ the task session verifies over the fixtures and the fake module.
 - Not verified here: the live timing of a user lookup in the window over the tenant (the target: the command line's
   41 s over 620 mailboxes, against 262 s before) and the live `window:` line with `over 4 sidecar(s)`. Both are the main
   session's, in its signed-in round after the merge.
+- 2026-10-31 — live, after the merge, over the tenant's 620 mailboxes: the window's user lookup answered in 54.0 s
+  (53 793 ms; 262 s on 2026-10-30 before this task, the command line's split read 41 s), and the `window:` line read
+  `FullAccess of 620 mailbox(es) read parallel over 4 sidecar(s): the window's session and 3 started for this
+  request`. A mailbox lookup right after answered in 1.4 s through `admin-api+pwsh` with `sidecar starts 1`
+  unchanged, so the warm session served it and no sidecar was started. The 13 s over the command line is the three
+  cold sidecar starts, the measure the warm-pool follow-up was waiting for.
 
 ## Closing checklist
 

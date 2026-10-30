@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-10-30
+status: decided
+date: 2026-10-31
 cost: medium
 sources: [wip/083-spike-snapshot-store-format-and-size.md]
 ---
@@ -110,6 +110,14 @@ shared items of a few sites (a drive's `delta` with `Prefer: hierarchicalsharing
 `Sites.FullControl.All` for that read, the mailbox grants (`mailbox access --user` totals) and the calendars' entries.
 The decision holds if the shared items stay within the stress model (170,000); the JSON shapes stay viable only well
 under it.
+
+Decided by the maintainer on 2026-10-31 after the live counts of that day, read through the command line: 1021 users
+(guests not readable under the current scopes), 2446 groups (434 Microsoft 365, 135 distribution, 13 mail-enabled
+security, 1871 security), about 8,400 direct member edges (a 41-group sample, 3.4 members a group, against the model's
+51,600), 111 sites from `/sites?search=*` with no OneDrive among them, 620 mailboxes and 39 forwarders; every measured
+count is within or under the model. The shared items were not counted (the raw `call` sends no `Prefer` header), and
+the maintainer declined `Sites.FullControl.All` as too strong a consent for this tool: the sharing-link read of task
+092 measures what `Sites.Read.All` gives, which may narrow the store's sharing scope but not its shape.
 
 ## Not chosen
 

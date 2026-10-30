@@ -1,6 +1,5 @@
 ---
-status: blocked
-needs: D-011 (task 083) and the store of task 087
+status: idea
 size: M
 origin: session 2026-10-30
 created: 2026-10-30

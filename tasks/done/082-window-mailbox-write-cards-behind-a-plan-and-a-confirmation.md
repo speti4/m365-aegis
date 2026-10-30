@@ -143,6 +143,15 @@ them. The live run over the tenant (a grant and a revoke on a test mailbox from 
   confirmation and a plan record (`BridgeWriteTests`); every refused apply and the cards' going back send nothing
   (`BridgeWriteGuardTests`, the card tests). The live grant and revoke on a test mailbox from the window are the main
   session's, after the merge.
+- 2026-10-31 — live, after the merge, on a technical mailbox of the tenant with the maintainer's everyday account as the
+  holder, from the window under `--verbose`: a FullAccess grant without automapping (plan 1.7 s, apply 1.8 s), the
+  revoke (plan 1.7 s, apply 0.8 s), a forwarding set with a copy kept (plan 0.5 s, apply 0.5 s) and its clear (plan
+  0.2 s, apply 0.4 s), every one on the warm session (`sidecar starts 1` throughout) with two `window:` lines of counts
+  only. Each record is `version 2`, `source: window`, carries the equivalent command line with `--yes`, and `plan show`
+  reads it with the window's start and finish; the command line's `mailbox access` showed the grant after the apply
+  and no grant after the revoke, and `mailbox forwarders` did not list the mailbox after the clear. A "Back to the
+  plan" before the revoke's confirmation sent nothing: no request, no record. The Send As and Send on Behalf paths
+  were not exercised live.
 
 ## Closing checklist
 

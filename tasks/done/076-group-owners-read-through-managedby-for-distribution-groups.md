@@ -81,6 +81,11 @@ steps below and may reshape them.
   `scripts/check-fixtures.py` (323 files, 0 findings). The live line (`group owners <a cloud-only
   distribution group>` against the tenant, the owners as the Exchange admin center shows them) is the main
   session's.
+- 2026-10-31 — live, after the merge: `group owners <a cloud-only distribution group>` answered in 6 s with a cold
+  sidecar, backend `graph+pwsh`, `fromExchange: true`, one owner, and the table carried no footer; the maintainer
+  confirmed the same single owner in the Exchange admin center. `group owners <a Microsoft 365 group>` answered in
+  1 s from Graph, backend `graph`. The tenant that day: 2446 groups, 135 distribution (120 synced), 13 mail-enabled
+  security (4 synced), 434 Microsoft 365, 1871 security (1798 synced).
 
 ## Closing checklist
 

@@ -1,6 +1,5 @@
 ---
-status: blocked
-needs: D-011 (task 083, the snapshot store's format)
+status: idea
 size: L
 origin: session 2026-10-30
 created: 2026-10-30
