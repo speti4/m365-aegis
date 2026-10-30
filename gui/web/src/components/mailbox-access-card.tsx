@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import {
   MessageType,
   type UserAccess,
 } from "../bridge/protocol";
+import { type AppliedWrites, touches } from "./applied-writes";
 
 export const rightNames: Record<MailboxRight, string> = {
   "full-access": "FullAccess",
@@ -50,8 +51,12 @@ export function describeElapsed(ms: number): string {
 
 type Mode = "mailbox" | "user";
 
+/** The writes that change what the card shows of a mailbox: its holders. */
+const accessWrites: readonly string[] = [MessageType.mailboxAccessGrant, MessageType.mailboxAccessRevoke];
+
 type Result =
-  | { kind: "holders"; data: MailboxAccess; ms: number }
+  /** `refreshed` when the card read the mailbox again after a write card applied a change to it (task 091). */
+  | { kind: "holders"; data: MailboxAccess; ms: number; refreshed: boolean }
   | { kind: "grants"; data: UserAccess; ms: number }
   | { kind: "shared"; data: MailboxInfo[]; ms: number };
 
@@ -60,44 +65,67 @@ type Result =
  * which mailboxes a user holds them on, as `m365-aegis mailbox access` reads them, and the shared mailboxes to pick
  * one from. The window keeps one Exchange Online session: the first lookup starts it (a few seconds), the later
  * ones answer in the cmdlet's own time, which the line under the table shows. A mailbox's grants come over the
- * layers as on the command line (task 063): each row names the layer that read it.
+ * layers as on the command line (task 063): each row names the layer that read it. When the mailbox rights card applies a
+ * grant or a revoke to the mailbox the card shows (`applied`, task 091), the card reads it again with one
+ * `mailbox-access` request and says so; an apply to another mailbox, or a forwarding, sends nothing.
  */
 export function MailboxAccessCard({
   client,
   onError,
+  applied,
 }: {
   client: BridgeClient;
   onError: (error: BridgeError) => void;
+  applied?: AppliedWrites;
 }) {
   const [mode, setMode] = useState<Mode>("mailbox");
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
 
-  async function run(type: string, data: unknown): Promise<void> {
-    setBusy(true);
-    const started = performance.now();
-    try {
-      const reply = await client.call(type, data);
-      const ms = performance.now() - started;
-      switch (reply.type) {
-        case MessageType.mailboxHolders:
-          setResult({ kind: "holders", data: reply.data, ms });
-          break;
-        case MessageType.userGrants:
-          setResult({ kind: "grants", data: reply.data, ms });
-          break;
-        case MessageType.mailboxes:
-          setResult({ kind: "shared", data: reply.data.mailboxes, ms });
-          break;
-        case MessageType.error:
-          onError(reply.data);
-          break;
+  const run = useCallback(
+    async (type: string, data: unknown, refreshed = false): Promise<void> => {
+      setBusy(true);
+      setRefreshing(refreshed);
+      const started = performance.now();
+      try {
+        const reply = await client.call(type, data);
+        const ms = performance.now() - started;
+        switch (reply.type) {
+          case MessageType.mailboxHolders:
+            setResult({ kind: "holders", data: reply.data, ms, refreshed });
+            break;
+          case MessageType.userGrants:
+            setResult({ kind: "grants", data: reply.data, ms });
+            break;
+          case MessageType.mailboxes:
+            setResult({ kind: "shared", data: reply.data.mailboxes, ms });
+            break;
+          case MessageType.error:
+            onError(reply.data);
+            break;
+        }
+      } finally {
+        setBusy(false);
+        setRefreshing(false);
       }
-    } finally {
-      setBusy(false);
+    },
+    [client, onError],
+  );
+
+  // The mailbox on the card; a grant or a revoke applied to it reads it again (task 091).
+  const shown = result?.kind === "holders" ? result.data.mailbox : null;
+  useEffect(() => {
+    if (!applied || !shown) {
+      return;
     }
-  }
+    return applied.subscribe((write) => {
+      if (accessWrites.includes(write.operation) && touches(write, shown)) {
+        void run(MessageType.mailboxAccess, { mailbox: shown.primarySmtpAddress }, true);
+      }
+    });
+  }, [applied, shown, run]);
 
   function lookUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -160,6 +188,11 @@ export function MailboxAccessCard({
             {busy ? "Looking up…" : "Look up"}
           </Button>
         </form>
+        {refreshing ? (
+          <p className="text-sm text-muted-foreground" role="status">
+            A change was applied to this mailbox: reading its access again…
+          </p>
+        ) : null}
         {busy && result === null ? (
           <p className="text-sm text-muted-foreground">
             The first lookup starts the Exchange Online session, which takes a few seconds.
@@ -201,6 +234,11 @@ function ResultView({ result, onPick }: { result: Result; onPick: (mailbox: Mail
             <span className="text-muted-foreground">{mailbox.primarySmtpAddress}</span>
             <span className="text-muted-foreground">· {holders.length} grant(s)</span>
           </p>
+          {result.refreshed ? (
+            <p className="text-xs text-muted-foreground" data-testid="refreshed">
+              Read again after a change on the Mailbox rights card.
+            </p>
+          ) : null}
           {layers ? <p className="text-xs text-muted-foreground">{layers}</p> : null}
           {holders.length === 0 ? (
             <p className="text-muted-foreground">Nobody holds a right on this mailbox but its own account.</p>
