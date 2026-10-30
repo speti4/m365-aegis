@@ -2,9 +2,9 @@
  * The task card design sketch (task 018): the flow of one card as a state machine, over made-up data. Nothing here
  * talks to the bridge or the core.
  *
- * SKETCH ONLY: the plan shape below is made up for the review with the support team. The real `Plan` type comes
- * with M3 (the core computes it, `--dry-run` prints it, a confirmation applies it, D-006); a card built later reads
- * that type instead.
+ * SKETCH ONLY: the plan shape below is made up for the review with the support team. The window's mailbox write cards
+ * (task 082, `components/write-flow.ts`) follow this flow over the core's real `Plan` (the host computes it as
+ * `--dry-run` prints it, the confirmation applies it, D-006).
  */
 
 export type CardId = "grant-full-access" | "add-group-owner" | "check-user-access";

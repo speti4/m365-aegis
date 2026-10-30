@@ -21,26 +21,35 @@ internal static class SidecarFixtures
     /// <summary>The pwsh of this machine (CI's runners carry one).</summary>
     internal static string Pwsh { get; } = Doctor.FindPwsh() ?? throw new InvalidOperationException("the sidecar tests need pwsh on PATH");
 
-    /// <summary>How to start the sidecar against the fake module (or, with <paramref name="moduleRoot"/>, another folder).</summary>
-    internal static SidecarStartInfo StartInfo(string? moduleRoot = null) =>
-        new(Pwsh, SidecarScript.InstalledPath)
+    /// <summary>
+    /// How to start the sidecar against the fake module (or, with <paramref name="moduleRoot"/>, another folder);
+    /// with <paramref name="writes"/>, the fake module appends each write cmdlet it runs to that file (task 053).
+    /// </summary>
+    internal static SidecarStartInfo StartInfo(string? moduleRoot = null, string? writes = null)
+    {
+        var environment = new Dictionary<string, string> { ["M365AEGIS_EXO_MODULE_ROOT"] = moduleRoot ?? ModuleRoot };
+        if (writes is not null)
         {
-            Environment = new Dictionary<string, string> { ["M365AEGIS_EXO_MODULE_ROOT"] = moduleRoot ?? ModuleRoot },
-        };
+            environment["M365AEGIS_FAKE_EXO_WRITES"] = writes;
+        }
+
+        return new(Pwsh, SidecarScript.InstalledPath) { Environment = environment };
+    }
 
     /// <summary>A made-up token the fake module accepts; <paramref name="accessToken"/> picks one it refuses.</summary>
     internal static ExchangeToken Token(DateTimeOffset expiresOn, string accessToken = "fake-token") =>
         new(accessToken, expiresOn, ["Exchange.Manage", "Exchange.ManageV2"], "alice@contoso.com", "00000000-0000-0000-0000-000000000002");
 
-    /// <summary>A session over the fake module, with the given token source, target and clock.</summary>
+    /// <summary>A session over the fake module, with the given token source, target and clock, and its writes' file.</summary>
     internal static ExchangeSession Session(
         Func<CancellationToken, Task<ExchangeToken>>? token = null,
         ExchangeTarget? target = null,
         TimeProvider? clock = null,
-        string? moduleRoot = null) =>
+        string? moduleRoot = null,
+        string? writes = null) =>
         new(new ExchangeSessionOptions
         {
-            Start = cancellationToken => SidecarClient.StartAsync(StartInfo(moduleRoot), cancellationToken),
+            Start = cancellationToken => SidecarClient.StartAsync(StartInfo(moduleRoot, writes), cancellationToken),
             Token = token ?? (_ => Task.FromResult(Token(DateTimeOffset.UtcNow.AddHours(1)))),
             Target = _ => Task.FromResult(target ?? new ExchangeTarget(Organization, null)),
             Clock = clock ?? TimeProvider.System,

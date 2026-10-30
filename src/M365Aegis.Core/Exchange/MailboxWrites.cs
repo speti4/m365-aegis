@@ -172,12 +172,15 @@ public static partial class MailboxLookups
         return Distinct(result, name);
     }
 
-    /// <summary>The row of the arguments of <c>mailbox forwarding set|clear</c>.</summary>
+    /// <summary>
+    /// The row of the arguments of <c>mailbox forwarding set|clear</c>; <paramref name="address"/> names the address
+    /// in a usage error (the window's card says "the forwarding address", task 082).
+    /// </summary>
     /// <exception cref="AegisException">A usage error: no mailbox, or an address that is none.</exception>
-    public static IReadOnlyList<ForwardingRow> ForwardingRows(string? mailbox, string? to, bool keepCopy, bool set)
+    public static IReadOnlyList<ForwardingRow> ForwardingRows(string? mailbox, string? to, bool keepCopy, bool set, string address = "--to")
     {
         string identity = RequireName(mailbox, "the mailbox");
-        return set ? [new ForwardingRow(identity, RequireAddress(to, "--to"), keepCopy) { Index = 1 }] : [new ForwardingRow(identity, null, false) { Index = 1 }];
+        return set ? [new ForwardingRow(identity, RequireAddress(to, address), keepCopy) { Index = 1 }] : [new ForwardingRow(identity, null, false) { Index = 1 }];
     }
 
     /// <summary>The plan of <c>mailbox access grant|revoke</c> over the rows.</summary>

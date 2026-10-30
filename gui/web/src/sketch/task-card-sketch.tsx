@@ -78,8 +78,8 @@ export default function TaskCardSketch() {
           </div>
           <p className="max-w-3xl text-sm text-muted-foreground">
             How the support team would run a task from the window: pick a card, pick the objects, read the plan the core
-            computed, confirm it, see the result. Nothing here reaches a tenant; the plan's shape is made up and changes
-            when the real plan of the core exists (milestone M3).
+            computed, confirm it, see the result. Nothing here reaches a tenant; the plan's shape is made up, and the
+            window's mailbox write cards follow these steps over the core's real plan (task 082).
           </p>
           <Toolbar
             signedIn={state.signedIn}
@@ -379,8 +379,8 @@ function Working({ text }: { text: string }) {
 function SketchShapeNote() {
   return (
     <p className="flex items-center gap-2 text-xs text-muted-foreground">
-      <Info className="size-3.5" aria-hidden /> Sketch: this plan's shape is made up; the real plan of the core comes
-      with milestone M3.
+      <Info className="size-3.5" aria-hidden /> Sketch: this plan's shape is made up; the window's mailbox write cards
+      show the core's real plan in the same steps (task 082).
     </p>
   );
 }

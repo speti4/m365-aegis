@@ -239,45 +239,7 @@ public sealed class WriteGuardTests
         }
 
         /// <summary>Every request of the log that is not a read.</summary>
-        private List<string> Writes()
-        {
-            var writes = new List<string>();
-            foreach (string line in Directory.GetFiles(_sinks, "*-requests.jsonl").SelectMany(File.ReadAllLines).Where(line => line.Length > 0))
-            {
-                using JsonDocument document = JsonDocument.Parse(line);
-                string method = document.RootElement.GetProperty("method").GetString()!;
-                var uri = new Uri(document.RootElement.GetProperty("url").GetString()!);
-                string? body = document.RootElement.GetProperty("body").GetString();
-                if (method == "GET")
-                {
-                    continue;
-                }
-
-                if (method == "POST" && uri.AbsolutePath.EndsWith("/$batch", StringComparison.Ordinal))
-                {
-                    using JsonDocument batch = JsonDocument.Parse(body ?? "{}");
-                    writes.AddRange(batch.RootElement.GetProperty("requests").EnumerateArray()
-                        .Where(item => item.GetProperty("method").GetString() != "GET")
-                        .Select(item => $"$batch item {item.GetProperty("method").GetString()} {item.GetProperty("url").GetString()}"));
-                    continue;
-                }
-
-                if (method == "POST" && uri.Host == FixtureGraphTransport.AdminApiHost)
-                {
-                    using JsonDocument call = JsonDocument.Parse(body ?? "{}");
-                    string? cmdlet = call.RootElement.GetProperty("CmdletInput").GetProperty("CmdletName").GetString();
-                    if (cmdlet?.StartsWith("Get-", StringComparison.Ordinal) != true)
-                    {
-                        writes.Add($"Admin API {cmdlet}");
-                    }
-
-                    continue;
-                }
-
-                writes.Add($"{method} {uri}");
-            }
-
-            return writes;
-        }
+        private List<string> Writes() =>
+            SentRequests.Writes(Directory.GetFiles(_sinks, "*-requests.jsonl").SelectMany(File.ReadAllLines));
     }
 }

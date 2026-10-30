@@ -494,10 +494,11 @@ public sealed class BridgeProtocolTests
 
         Assert.Equal(
             [
-                "device-code.json", "error.json", "group-members.json", "logged-out.json", "login.json", "logout.json",
-                "mailbox-access.json", "mailbox-holders.json", "mailbox-list.json", "mailboxes.json", "members.json",
-                "open-sign-in-page.json", "ping.json", "pong.json", "ready.json", "sign-in-page-opened.json", "signed-in.json",
-                "signed-out.json", "user-grants.json", "whoami.json",
+                "apply-plan.json", "device-code.json", "error.json", "group-members.json", "logged-out.json", "login.json", "logout.json",
+                "mailbox-access-grant.json", "mailbox-access-revoke.json", "mailbox-access.json", "mailbox-forwarding-clear.json",
+                "mailbox-forwarding-set.json", "mailbox-holders.json", "mailbox-list.json", "mailboxes.json", "members.json",
+                "open-sign-in-page.json", "ping.json", "plan-applied.json", "plan.json", "pong.json", "ready.json",
+                "sign-in-page-opened.json", "signed-in.json", "signed-out.json", "user-grants.json", "whoami.json",
             ],
             samples.Select(Path.GetFileName).Order(StringComparer.Ordinal));
         Assert.All(samples, path => Assert.NotNull(BridgeProtocol.TryParse(File.ReadAllText(path))));

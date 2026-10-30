@@ -1,0 +1,26 @@
+{
+  "aegis": 1,
+  "id": "10",
+  "type": "plan",
+  "data": {
+    "planId": "0123456789abcdef0123456789abcdef",
+    "plan": {
+      "operation": "mailbox-access-grant",
+      "title": "Grant mailbox rights on Finance (finance@contoso.com)",
+      "changes": [
+        {
+          "action": "add",
+          "target": "Finance (finance@contoso.com)",
+          "detail": "FullAccess for Bob Example (bob@contoso.com), without automapping",
+          "current": "no FullAccess",
+          "desired": "holds FullAccess",
+          "index": 1,
+          "key": "00000000-0000-0000-0000-000000000015/FullAccess/00000000-0000-0000-0000-000000000012"
+        }
+      ],
+      "unchanged": [],
+      "warnings": [],
+      "mode": "dry-run"
+    }
+  }
+}

@@ -7,14 +7,17 @@ import { type BridgeError, MessageType } from "./bridge/protocol";
 import { createTransport } from "./bridge/transport";
 import { GroupMembersCard } from "./components/group-members-card";
 import { MailboxAccessCard } from "./components/mailbox-access-card";
+import { MailboxAccessWriteCard, MailboxForwardingCard } from "./components/mailbox-write-cards";
 import { SignInCard } from "./components/sign-in-card";
 import { signInReducer } from "./components/sign-in-state";
 
 /**
  * The window's page: it tells the host it is ready (the smoke run waits for that), shows the sign-in state and
  * signs in or out from its card (task 040), looks up a group's members (task 017) and a mailbox's access over the
- * window's Exchange Online session (task 045); an `error` reply is a toast. The task cards of M4 grow from here
- * (their design sketch, task 018, is a dev-only page: `npm run dev`, then `#/sketch/task-cards`).
+ * window's Exchange Online session (task 045), and grants or revokes mailbox rights and sets or clears a mailbox's
+ * forwarding on the write cards (task 082: the plan, the confirmation, the result); an `error` reply of a lookup is a
+ * toast, a write card shows its own. The cards follow the design sketch of task 018, a dev-only page: `npm run dev`,
+ * then `#/sketch/task-cards`.
  */
 export function App() {
   const { transport, hosted } = useMemo(() => createTransport(), []);
@@ -109,6 +112,8 @@ export function App() {
         />
         <GroupMembersCard client={client} onError={showError} />
         <MailboxAccessCard client={client} onError={showError} />
+        <MailboxAccessWriteCard client={client} signedIn={signIn.status === "signed-in"} />
+        <MailboxForwardingCard client={client} signedIn={signIn.status === "signed-in"} />
       </div>
       <Toaster position="bottom-right" />
     </main>

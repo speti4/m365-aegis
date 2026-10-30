@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-10-30 — edit the files, not this section._
 
-**State:** 9 backlog (0 ready · 2 blocked · 0 waiting · 7 ideas) · 0 in progress · 80 done · 0 dropped · 10 decisions
+**State:** 7 backlog (0 ready · 2 blocked · 0 waiting · 5 ideas) · 2 in progress · 80 done · 0 dropped · 10 decisions
 
 ### Ready
 
@@ -41,13 +41,6 @@ _none_
 |---|---|---|---|
 | 089 | [group owners-missing --all-types judges a distribution group by its ManagedBy, …](backlog/089-group-owners-missing-judges-distribution-groups-by-managedby.md) | S | 2026-10-30 |
 
-#### M4 Window
-
-| # | Task | Size | Created |
-|---|---|---|---|
-| 079 | [A write-guard test over the window's bridge writes](backlog/079-write-guard-test-over-the-window-bridge-writes.md) | S | 2026-10-30 |
-| 082 | [The window's mailbox write cards: access grant and revoke, forwarding set and c…](backlog/082-window-mailbox-write-cards-behind-a-plan-and-a-confirmation.md) | L | 2026-10-30 |
-
 #### M5 Snapshot and views
 
 | # | Task | Size | Created |
@@ -64,7 +57,12 @@ _none_
 
 ### In progress
 
-_none_
+#### M4 Window
+
+| # | Task | Started | Plan |
+|---|---|---|---|
+| 079 | [A write-guard test over the window's bridge writes](wip/079-write-guard-test-over-the-window-bridge-writes.md) | 2026-10-30 | `none` |
+| 082 | [The window's mailbox write cards: access grant and revoke, forwarding set and c…](wip/082-window-mailbox-write-cards-behind-a-plan-and-a-confirmation.md) | 2026-10-30 | `none` |
 
 ### Closed – do not reopen
 

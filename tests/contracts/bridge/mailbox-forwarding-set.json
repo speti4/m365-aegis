@@ -1,0 +1,6 @@
+{
+  "aegis": 1,
+  "id": "13",
+  "type": "mailbox-forwarding-set",
+  "data": { "mailbox": "alice@contoso.com", "to": "alice@fabrikam.com", "keepCopy": true }
+}

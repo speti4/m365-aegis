@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -11,6 +12,7 @@ using M365Aegis.Core.Exchange.AdminApi;
 using M365Aegis.Core.Exchange.Sidecar;
 using M365Aegis.Core.Graph;
 using M365Aegis.Core.Groups;
+using M365Aegis.Core.Operations;
 using M365Aegis.Core.Output;
 
 namespace M365Aegis.Core.Bridge;
@@ -42,6 +44,12 @@ public sealed record BridgeServices(
     /// or null where there is no browser to hand it to (then the request answers that it cannot).
     /// </summary>
     public Func<Uri, Task>? OpenInBrowser { get; init; }
+
+    /// <summary>
+    /// The clock of the window's writes (task 082): when a plan was made, whether it is still fresh, and the times of
+    /// its plan record. The system's in the window; a clock that stands still in the tests.
+    /// </summary>
+    public TimeProvider Clock { get; init; } = TimeProvider.System;
 
     /// <summary>
     /// The window's services over a home folder: MSAL through the Windows account manager with the window as the
@@ -83,17 +91,28 @@ public sealed record BridgeServices(
 
 /// <summary>
 /// Routes a front-end request to the core and makes the reply: <c>ping</c>, the sign-in (<c>whoami</c>,
-/// <c>login</c>, <c>logout</c>), a group's members (<c>group-members</c>) and the mailbox lookups over the window's
-/// Exchange Online session (<c>mailbox-list</c>, <c>mailbox-access</c>), each answered with its reply type or with
-/// <c>error</c>. A failure of the core becomes the <c>error</c> reply with the contract's code, message and hint
-/// (D-006), the hint in the window's words where the core's names a command (task 057,
+/// <c>login</c>, <c>logout</c>), a group's members (<c>group-members</c>), the mailbox lookups over the window's
+/// Exchange Online session (<c>mailbox-list</c>, <c>mailbox-access</c>) and the mailbox writes (task 082), each
+/// answered with its reply type or with <c>error</c>. A failure of the core becomes the <c>error</c> reply with the
+/// contract's code, message and hint (D-006), the hint in the window's words where the core's names a command (task 057,
 /// <see cref="SignInHints.ForSurface"/>); an unexpected exception becomes the <c>internal</c> error with the stack
-/// trace in the log, as on the command line. Every later verb (the task cards of M4) registers here, and every write goes through a plan and a
-/// confirmation the front end shows.
+/// trace in the log, as on the command line. A write request (<see cref="BridgeMessageType.Writes"/>) is planned over
+/// the window's layers and printed by the write guard as <c>--dry-run</c> prints it; the dispatcher holds the plan, and
+/// only an <c>apply-plan</c> that names it with <c>"confirm": true</c> applies it, once, through the guard, over the
+/// window's warm session, with the plan record the command line writes. Nothing else sends a write.
 /// </summary>
 public sealed class BridgeDispatcher
 {
+    /// <summary>How long a plan waits for its confirmation: an older one is refused, and the card plans again.</summary>
+    public static readonly TimeSpan PlanLifetime = TimeSpan.FromMinutes(15);
+
+    /// <summary>What a plan record names as the program that applied it.</summary>
+    public const string RecordSource = "window";
+
     private readonly BridgeServices _services;
+
+    /// <summary>The plans waiting for their confirmation, by id.</summary>
+    private readonly ConcurrentDictionary<string, HeldPlan> _plans = new(StringComparer.Ordinal);
 
     /// <summary>The page of the device-code sign-in waiting for its browser step, or null when none waits.</summary>
     private volatile Uri? _signInPage;
@@ -143,6 +162,16 @@ public sealed class BridgeDispatcher
                     return await ExchangeAsync(request, BridgeMessageType.Mailboxes, (backends, ct) => MailboxLookups.ListAsync(backends, shared, ct), cancellationToken).ConfigureAwait(false);
                 case BridgeMessageType.MailboxAccess:
                     return await MailboxAccessAsync(request, cancellationToken).ConfigureAwait(false);
+                case BridgeMessageType.MailboxAccessGrant:
+                    return await AccessWriteAsync(request, grant: true, cancellationToken).ConfigureAwait(false);
+                case BridgeMessageType.MailboxAccessRevoke:
+                    return await AccessWriteAsync(request, grant: false, cancellationToken).ConfigureAwait(false);
+                case BridgeMessageType.MailboxForwardingSet:
+                    return await ForwardingWriteAsync(request, set: true, cancellationToken).ConfigureAwait(false);
+                case BridgeMessageType.MailboxForwardingClear:
+                    return await ForwardingWriteAsync(request, set: false, cancellationToken).ConfigureAwait(false);
+                case BridgeMessageType.ApplyPlan:
+                    return await ApplyPlanAsync(request, cancellationToken).ConfigureAwait(false);
                 default:
                     var error = new EnvelopeError("unknown-type", $"no handler for '{request.Type}'");
                     return BridgeProtocol.Reply(request, BridgeMessageType.Error, error);
@@ -183,6 +212,8 @@ public sealed class BridgeDispatcher
     {
         // The window's profile only: writing a profile (--tenant, --client-id, --account) stays on the command line.
         var options = new LoginOptions(_services.Profile, null, null, null, Flag(request, "deviceCode"));
+        // A plan was read with the account signed in before: a sign-in drops every plan waiting for a confirmation.
+        _plans.Clear();
         try
         {
             SignInInfo info = await _services.Auth.LoginAsync(
@@ -241,6 +272,8 @@ public sealed class BridgeDispatcher
     private async Task<BridgeMessage> LogoutAsync(BridgeMessage request, CancellationToken cancellationToken)
     {
         SignOutInfo info = await _services.Auth.LogoutAsync(_services.Profile, cancellationToken).ConfigureAwait(false);
+        // The plans waiting for a confirmation go with the account they were read for.
+        _plans.Clear();
         if (_services.Exchange is { } exchange)
         {
             // The sidecar is connected with the account's token: it goes with the account.
@@ -297,6 +330,232 @@ public sealed class BridgeDispatcher
                 cancellationToken,
                 DescribeLayers);
     }
+
+    /// <summary>
+    /// <c>mailbox-access-grant</c> and <c>mailbox-access-revoke</c> (task 082): the rows of the arguments as
+    /// <c>mailbox access grant|revoke</c> makes them, in the card's words where the command line's name a flag, planned
+    /// over the window's layers as the command does.
+    /// </summary>
+    private Task<BridgeMessage> AccessWriteAsync(BridgeMessage request, bool grant, CancellationToken cancellationToken)
+    {
+        List<string> users = Texts(request, "users");
+        List<string> rights = Texts(request, "rights");
+        bool noAutoMapping = grant && Flag(request, "noAutoMapping");
+        if (users.Count == 0)
+        {
+            return Task.FromResult(Error(request, new AegisFailure(
+                FailureKind.Usage,
+                "no user was named",
+                "give each user's user principal name or address, or a mail-enabled security group's address")));
+        }
+
+        if (rights.Count == 0)
+        {
+            return Task.FromResult(Error(request, new AegisFailure(FailureKind.Usage, "no right was chosen", "choose FullAccess, Send As or Send on Behalf")));
+        }
+
+        if (noAutoMapping && !rights.Any(right => MailboxLookups.ParseRight(right) == MailboxRight.FullAccess))
+        {
+            return Task.FromResult(Error(request, new AegisFailure(
+                FailureKind.Usage,
+                "without automapping goes with FullAccess",
+                "automapping is how Outlook adds a mailbox its FullAccess holder can open; choose FullAccess, or clear Without automapping")));
+        }
+
+        // The mailbox and each right are checked as the command line checks them, in words that fit the card too.
+        IReadOnlyList<AccessChangeRow> rows = MailboxLookups.AccessRows(Text(request, "mailbox"), users, rights, autoMapping: !noAutoMapping);
+        List<string> arguments = ["mailbox", "access", grant ? "grant" : "revoke", rows[0].Mailbox];
+        arguments.AddRange(users.SelectMany(user => new[] { "--user", user }));
+        arguments.AddRange(rows.Select(row => row.Right).Distinct().SelectMany(right => new[] { "--right", right.ToString() }));
+        if (noAutoMapping)
+        {
+            arguments.Add("--no-automapping");
+        }
+
+        return PlanWriteAsync(request, arguments, (backends, ct) => MailboxLookups.PlanAccessAsync(backends, grant, rows, ct), cancellationToken);
+    }
+
+    /// <summary>
+    /// <c>mailbox-forwarding-set</c> and <c>mailbox-forwarding-clear</c> (task 082): the row of the arguments as
+    /// <c>mailbox forwarding set|clear</c> makes it, planned over the window's layers as the command does.
+    /// </summary>
+    private Task<BridgeMessage> ForwardingWriteAsync(BridgeMessage request, bool set, CancellationToken cancellationToken)
+    {
+        string? to = set ? Text(request, "to") : null;
+        bool keepCopy = set && Flag(request, "keepCopy");
+        if (set && to is null)
+        {
+            return Task.FromResult(Error(request, new AegisFailure(
+                FailureKind.Usage,
+                "the forwarding address is missing",
+                "give the address to forward to, such as bob@fabrikam.com")));
+        }
+
+        IReadOnlyList<ForwardingRow> rows = MailboxLookups.ForwardingRows(Text(request, "mailbox"), to, keepCopy, set, "the forwarding address");
+        List<string> arguments = ["mailbox", "forwarding", set ? "set" : "clear", rows[0].Mailbox];
+        if (set)
+        {
+            arguments.AddRange(["--to", rows[0].To!]);
+        }
+
+        if (keepCopy)
+        {
+            arguments.Add("--keep-copy");
+        }
+
+        return PlanWriteAsync(request, arguments, (backends, ct) => MailboxLookups.PlanForwardingAsync(backends, rows, ct), cancellationToken);
+    }
+
+    /// <summary>
+    /// A write request's plan over the window's layers (task 082): the core's plan, printed by the write guard as
+    /// <c>--dry-run</c> prints it (nothing is sent, nothing is recorded), and held under a new id for an
+    /// <c>apply-plan</c> with the confirmation, with the store its record goes to: the home folder's <c>plans</c>, the
+    /// window as the source, the window's profile and the command line that makes the same plan
+    /// (<paramref name="arguments"/> and <c>--yes</c>, which the confirmation stands for), so <c>plan show</c> reads the
+    /// record and <c>--resume</c> continues it. A plan with nothing to change gets no id.
+    /// </summary>
+    private Task<BridgeMessage> PlanWriteAsync(
+        BridgeMessage request,
+        List<string> arguments,
+        Func<ExchangeBackends, CancellationToken, Task<WritePlan>> plan,
+        CancellationToken cancellationToken) =>
+        ExchangeAsync(
+            request,
+            BridgeMessageType.Plan,
+            async (backends, ct) =>
+            {
+                WritePlan write = await plan(backends, ct).ConfigureAwait(false);
+                var store = new PlanStore(_services.Auth.Home, new PlanRecordContext(RecordSource, _services.Profile, [.. arguments, "--yes"]), _services.Clock);
+                Plan shown = (await PlanGuard.RunAsync(write, WriteMode.DryRun, store, ct).ConfigureAwait(false)).Data!;
+                string? id = shown.Mode == PlanMode.UpToDate ? null : Hold(write, store);
+                return CommandResult.Success(new PlanReady(id, shown));
+            },
+            cancellationToken,
+            (_, ready) => DescribePlan(ready.Plan));
+
+    /// <summary>What a plan holds, for the window's <c>window:</c> log line: counts only, never a name.</summary>
+    internal static string DescribePlan(Plan plan)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        return string.Create(CultureInfo.InvariantCulture,
+            $"{plan.Changes.Count} change(s) planned, {plan.Unchanged.Count} unchanged, {plan.Warnings.Count} warning(s)");
+    }
+
+    /// <summary>What an apply did, for the window's <c>window:</c> log line: the write and the counts, never a name.</summary>
+    internal static string DescribeApply(Plan applied)
+    {
+        ArgumentNullException.ThrowIfNull(applied);
+        int done = applied.Changes.Count(change => change.Result!.Status == ChangeStatus.Applied);
+        int failed = applied.Changes.Count(change => change.Result!.Status == ChangeStatus.Failed);
+        int skipped = applied.Changes.Count(change => change.Result!.Status == ChangeStatus.Skipped);
+        return string.Create(CultureInfo.InvariantCulture, $"{applied.Operation}: {done} applied, {failed} failed, {skipped} skipped");
+    }
+
+    /// <summary>Holds a plan for its confirmation under a new id, and drops the plans whose time ran out.</summary>
+    private string Hold(WritePlan write, PlanStore store)
+    {
+        DateTimeOffset now = _services.Clock.GetUtcNow();
+        // The dictionary's enumeration is safe while it changes.
+        foreach ((string key, HeldPlan held) in _plans)
+        {
+            if (IsStale(held, now))
+            {
+                _plans.TryRemove(key, out _);
+            }
+        }
+
+        string id = Guid.NewGuid().ToString("N");
+        _plans[id] = new HeldPlan(write, store, now);
+        return id;
+    }
+
+    private static bool IsStale(HeldPlan held, DateTimeOffset now) => now - held.Planned > PlanLifetime;
+
+    /// <summary>
+    /// <c>apply-plan</c> (task 082): the write guard's apply of a plan this window holds, as <c>--yes</c> applies it on
+    /// the command line, with the record under the home folder's <c>plans</c>, over the window's warm session. Refused,
+    /// with nothing sent: a plan the window does not hold (never planned, applied already, dropped by a sign-in or a
+    /// sign-out), one older than <see cref="PlanLifetime"/>, and one without <c>"confirm": true</c>, which stays held for
+    /// the confirmation. A plan is applied once: the confirmed apply takes it before anything is sent.
+    /// </summary>
+    private async Task<BridgeMessage> ApplyPlanAsync(BridgeMessage request, CancellationToken cancellationToken)
+    {
+        string? id = Text(request, "planId");
+        bool confirmed = Flag(request, "confirm");
+        HeldPlan? held = id is null ? null : confirmed ? Take(id) : _plans.GetValueOrDefault(id);
+        if (held is null)
+        {
+            return Error(request, new AegisFailure(
+                FailureKind.Usage,
+                "no plan with this id waits for a confirmation in this window; nothing was sent",
+                "see the plan again on the card: a plan is applied once, and a sign-in or a sign-out drops it"));
+        }
+
+        if (IsStale(held, _services.Clock.GetUtcNow()))
+        {
+            _plans.TryRemove(id!, out _);
+            return Error(request, new AegisFailure(
+                FailureKind.Usage,
+                string.Create(CultureInfo.InvariantCulture, $"the plan is older than {PlanLifetime.TotalMinutes} minutes; nothing was sent"),
+                "see the plan again on the card: what it read may have changed since"));
+        }
+
+        if (!confirmed)
+        {
+            // The window's hint of the kind: confirm the change in the window.
+            return Error(request, new AegisFailure(
+                FailureKind.RefusedWithoutYes,
+                string.Create(CultureInfo.InvariantCulture, $"{held.Write.Plan.Changes.Count} change(s) planned; nothing was sent"),
+                null));
+        }
+
+        var elapsed = Stopwatch.StartNew();
+        CommandResult<Plan>? result = null;
+        try
+        {
+            result = await PlanGuard.RunAsync(held.Write, WriteMode.Apply, held.Store, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            // An apply that threw (a cancellation) has its record finished by the guard; the line says it stopped.
+            string outcome = result is null ? "the apply stopped" : DescribeApply(result.Data!);
+            LogSink.Verbose?.Write("window", string.Create(
+                CultureInfo.InvariantCulture,
+                $"{request.Type} answered in {elapsed.ElapsedMilliseconds} ms ({outcome}); exchange {_services.Exchange!.Describe()}"));
+        }
+
+        Plan applied = result.Data!;
+        EnvelopeError? error = result.Failure is { } failure ? _services.Auth.Hints.ForSurface(failure).ToError() : null;
+        return BridgeProtocol.Reply(request, BridgeMessageType.PlanApplied, new PlanApplied(ForSurface(applied), error));
+    }
+
+    /// <summary>Takes a held plan out, so it is applied once.</summary>
+    private HeldPlan? Take(string id)
+    {
+        _plans.TryRemove(id, out HeldPlan? held);
+        return held;
+    }
+
+    /// <summary>
+    /// The applied plan as the window shows it: each failed change's hint in the window's words where the core's names a
+    /// command (task 057), as an <c>error</c> reply's; the record keeps the core's own.
+    /// </summary>
+    private Plan ForSurface(Plan applied) => applied with
+    {
+        Changes = applied.Changes
+            .Select(change => change.Result!.Error is { } error ? change with { Result = change.Result with { Error = ForSurface(error) } } : change)
+            .ToList(),
+    };
+
+    /// <summary>A change's error in the window's words: every error of an applied plan names a kind of the contract.</summary>
+    private EnvelopeError ForSurface(EnvelopeError error)
+    {
+        FailureKind kind = Enum.GetValues<FailureKind>().First(candidate => candidate.ToCode() == error.Code);
+        return _services.Auth.Hints.ForSurface(new AegisFailure(kind, error.Message, error.Hint)).ToError();
+    }
+
+    /// <summary>A plan waiting for its confirmation: the plan and its steps, the store of its record, when it was made.</summary>
+    private sealed record HeldPlan(WritePlan Write, PlanStore Store, DateTimeOffset Planned);
 
     /// <summary>
     /// Which layer read what of a mailbox's access, for the window's <c>window:</c> log line (task 063): the counts and
@@ -396,6 +655,12 @@ public sealed class BridgeDispatcher
             : null;
         return string.IsNullOrEmpty(text) ? null : text;
     }
+
+    /// <summary>The texts of a list of the payload, trimmed, without the blank ones and the ones that are not strings; empty when there is no list.</summary>
+    private static List<string> Texts(BridgeMessage request, string name) =>
+        request.Data is JsonObject payload && payload[name] is JsonArray items
+            ? items.Select(item => item is JsonValue value && value.TryGetValue(out string? text) ? text.Trim() : "").Where(text => text.Length > 0).ToList()
+            : [];
 
     /// <summary>A flag of the payload; false when it is missing or not a boolean.</summary>
     private static bool Flag(BridgeMessage request, string name) =>

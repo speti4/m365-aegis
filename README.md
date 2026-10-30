@@ -176,6 +176,14 @@ Behalf on a mailbox, which mailboxes a user holds them on, and which shared mail
 window keeps one Exchange Online sidecar for as long as it is open: the first lookup starts it (a few seconds),
 every later one answers in the cmdlet's own time, and the sidecar ends with the window or with "Sign out".
 
+Two write cards change a mailbox without PowerShell, the same way the command line does: "Mailbox rights" grants
+or revokes FullAccess, Send As and Send on Behalf (a FullAccess grant optionally without automapping), and
+"Mailbox forwarding" forwards a mailbox's mail to an address, with or without a copy, or stops it. Each card asks
+for the plan first (what changes, from what to what, what is so already, the warnings) and sends nothing until you
+tick "I checked the plan" and choose "Confirm and apply", which stands for `--yes`; going back sends nothing. The
+result lists each change and the plan record's file under `%LOCALAPPDATA%\m365-aegis\plans\`, which `plan show`
+reads and `--resume` continues as it does a command line's.
+
 ## Writes behind a plan
 
 Every change to the tenant is a plan first: the command reads what is there, lists only what is not so already
@@ -287,7 +295,7 @@ so under the mailbox. A user's access (the reverse lookup) still reads through t
 ## Safety tests and the home folder's access list
 
 The promises of [SECURITY.md](SECURITY.md) are held by tests over the whole tool, not one command at a time: no write
-command sends anything without `--yes`, a CSV file is read the same way whether Excel or a script wrote it (and a
+command sends anything without `--yes` and no write card of the window without its confirmation, a CSV file is read the same way whether Excel or a script wrote it (and a
 malformed one is refused whole), no token reaches a log, a plan record, an answer or stderr, and the exit codes keep
 their numbers.
 
