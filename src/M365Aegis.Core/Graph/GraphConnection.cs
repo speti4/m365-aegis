@@ -33,7 +33,9 @@ public static class GraphConnection
         string? fixtures = Environment.GetEnvironmentVariable(FixturesEnvironmentVariable);
         if (!string.IsNullOrWhiteSpace(fixtures))
         {
-            return new GraphClient(new FixtureGraphTransport(Path.GetFullPath(fixtures)), requestLog);
+            return new GraphClient(
+                new FixtureGraphTransport(Path.GetFullPath(fixtures)) { RequestLog = Environment.GetEnvironmentVariable(FixtureGraphTransport.RequestLogVariable) },
+                requestLog);
         }
 
         return Create(auth(), profileName, requestLog);

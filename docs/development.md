@@ -982,6 +982,80 @@ The pwsh and module checks are one pwsh call; the device check reads `AzureAdJoi
 registry, `dsregcmd` (the made-up outputs under `tests/fixtures/doctor/dsregcmd-*.txt`), the installed Desktop
 Runtime versions, the two copies of the script, the sign-in and the endpoint probe.
 
+## The safety tests
+
+Five tests hold the scope of [SECURITY.md](../SECURITY.md) and the output contract together, each over the whole
+product rather than one command (tasks 071 to 075, the sixth round of 2026-10-30).
+
+**The exit codes** (task 073, `tests/M365Aegis.Core.Tests/Output/ExitCodeContractTests.cs`). The `ExitCode` enum is
+a Verify snapshot of `name = value` lines in value order (`Snapshots/ExitCodeContractTests.TheExitCodes.verified.txt`),
+and the exit code table of [The output contract](#the-output-contract) is read back by the test and compared with
+the enum and with each `FailureKind`'s error code, both ways: a renumbered or renamed member, a code the table lacks
+or a row the enum does not have fails. The table's shape is therefore part of the contract too: one row per code, the
+number, the error code in backticks (an empty cell for 0) and the meaning. A new exit code changes the snapshot, the
+table and the `FailureKind` in the same change.
+
+**The write guard** (task 071, `tests/M365Aegis.Cli.Tests/WriteGuardTests.cs`). The test walks the command line's
+own tree (`Program.Build()`) and takes every command that carries `--dry-run` and `--yes` as a write: today `call`,
+`group members|owners add|remove`, `mailbox access grant|revoke`, `mailbox forwarding set|clear` and `plan prune`
+(a write of local files: its home starts with three sample records, and all of them must still be there). Each one
+runs as a child process without `--yes` (no flag, then `--dry-run`) from its arguments, from its `--from-csv` sample
+and from `--resume` over a record cut short while applying that plan, and `call` with each of POST, PATCH, PUT and DELETE; the
+recorded Graph and Admin API answers and the fake Exchange Online module answer at once. A run passes when the plan is
+the answer (exit 7 and `refused`, or 0 and `dry-run` or `up-to-date`), no record is written, and nothing but reads was
+sent: the fixture transport appends every request to the file `M365AEGIS_FIXTURE_REQUESTS` names (one JSON line, the
+method, the URL and the body), where only a GET, a `$batch` of GETs and an Admin API call of a `Get-` cmdlet may
+appear, and the fake module's write file (`M365AEGIS_FAKE_EXO_WRITES`) stays empty. Every write command also runs
+without its inputs, which needs no table line. A new write command joins the enumeration by itself and fails
+`EveryWriteCommandHasItsInputs` until it has a line in the test's table of inputs (its arguments, its CSV sample), so
+it cannot land without the guard test.
+
+**The CSV edge cases** (task 074, `tests/M365Aegis.Core.Tests/Operations/CsvEdgeCaseTests.cs` and
+`tests/M365Aegis.Cli.Tests/CsvEdgeCaseCommandTests.cs`). They pin what [A batch from a CSV file](#writes-and-plans)
+promises, over one file per case for each set of columns under `tests/fixtures/csv/edge-cases/<family>/<case>.csv`
+(`group`, `mailbox-access`, `forwarding-set`, `forwarding-clear`). Every write's reader (the group writes', grant's,
+revoke's, forwarding set's and clear's) reads every case in process; every write that takes `--from-csv` (found in the
+tree, as the guard test finds it) runs three of them as a child process under `--dry-run`. What the tests hold: a file
+with a UTF-8 byte order mark and CRLF line endings (Excel's "CSV UTF-8") and one with LF read alike; a cell in double
+quotes holds a comma; spaces around a cell, a quoted cell and a header's name are trimmed; the header's names match in
+any case and order; blank lines at the end (and lines of nothing but spaces) are skipped; a line that repeats an
+earlier one is planned once, the repeat listed unchanged with its line ("named twice: the change is planned once"),
+while for `mailbox forwarding set` and `clear` it is a usage error naming both lines (`duplicate-line.csv: alice is
+named twice (lines 2 and 3)`); a malformed last line refuses the whole file with exit code 2 and its line number
+(`malformed-last-line.csv, line 4: 1 cell(s), the header has 2`), with the backend `local`, nothing sent.
+
+**Token hygiene** (task 072, `tests/M365Aegis.Cli.Tests/TokenHygieneTests.cs`, and one Pester case in
+`tests/sidecar/sidecar.Tests.ps1`). The marker convention: every token of a run carries a marker unique to it
+(`aegismarker` and a fresh GUID), the Graph token in a JWT's shape as the service issues it and the Exchange Online
+token opaque, so a sink passes only by never taking it, not by a pattern that happens to scrub it. The test runs in
+process through the product's own parts with the test's token source: `AuthService` over a broker that hands out the
+marked tokens (`login` writes the profile, `whoami`), the sign-in library's verbose log as `MsalTokenBroker.ToSink`
+feeds the home's `LogSink` (a bearer header, a query string, a JSON body and a bare JWT, and a line marked as PII),
+`call PATCH --yes` over `HttpGraphTransport` and a handler that answers like Graph (one applied, one refused with
+403, a GET that cannot reach the service; the handler checks the token went out as the bearer of each), an internal
+error whose message carries the header, and the sidecar over the fake module (connected with the token, then
+refused with the token in the module's message). Each answer goes through `CommandRunner` in both renderings, and
+then every file under the temporary home (`config.json`, `logs\`, `plans\`) and both streams are searched for the
+marker: none may hold it, and a leak is named by its sink. The Pester case connects the sidecar with a marked token,
+reads, and connects again to a refused organization, and searches the protocol lines and stderr. A new sink of the
+product (a file under the home, a stream) is covered by the search as it is; a new place a token flows through joins
+the run with its own step.
+
+**The home folder's access list** (task 075, `Config/AegisHome.cs`, `tests/M365Aegis.Core.Tests/Config/HomeFolderAclTests.cs`).
+The rule: every writer under the home creates it through `AegisHome.Create(home)` first (the profile store, the MSAL
+cache through `MsalTokenBroker.CreateCacheAsync`, the log, the plan store, and the window before WebView2 makes its
+data folder), which creates a missing home on Windows with an explicit, protected access list: full control for the
+current user (also its owner), SYSTEM and Administrators, inherited by every folder and file below, and nothing
+inherited from the parent. `%LOCALAPPDATA%` has that list by default; a home `M365AEGIS_HOME` puts elsewhere (under a
+folder at a drive's root, where `Users` and `Authenticated Users` may read) would otherwise inherit its parent's. A home
+that exists already is left as it is: the folder is the user's. Off Windows the folder is created plainly (a Unix mode
+is not in scope). The test, Windows-only (skipped elsewhere with the reason, so the `dotnet` job skips it and the
+`windows` job runs it), creates a parent whose list lets `Users` and `Authenticated Users` read everything below it,
+writes the MSAL cache, `config.json`, a plan record and a log line through the product into a home under it, and holds
+the home and every entry in it to allow entries for the user, SYSTEM and Administrators only, owned by the user (or
+Administrators, elevated); the cache's bytes hold no token in clear (DPAPI) while the product's own reader gets it
+back. Without the protected list the same test fails on the inherited `Users` and `Authenticated Users` entries.
+
 ## CI and releases
 
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request, under a minutes budget (D-005).

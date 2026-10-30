@@ -167,6 +167,19 @@ Describe 'connect and reconnect against the fake module' {
         $run.Lines[0].data.message | Should -Match '<token>'
         $run.Raw.Contains($Token) | Should -BeFalse
     }
+
+    It 'keeps a marked token out of the protocol and stderr, connected and refused (task 072)' {
+        # The marker is unique to the run; the module's refusal names the token, the console noise does not.
+        $token = "opaque-aegismarker$([guid]::NewGuid().ToString('N'))-exchange"
+        $accepted = [ordered]@{ aegis = 1; id = '2'; type = 'connect'; data = @{ accessToken = $token; organization = 'contoso.onmicrosoft.com' } } | ConvertTo-Json -Compress
+        $refused = [ordered]@{ aegis = 1; id = '3'; type = 'connect'; data = @{ accessToken = $token; organization = 'refuse.contoso.onmicrosoft.com' } } | ConvertTo-Json -Compress
+        $run = Invoke-Sidecar -Lines @($accepted, (Get-InvokeLine -Cmdlet 'Get-EXOMailbox' -Parameters @{ Identity = 'nobody' } -Id '4'), $refused)
+        $run.Lines[0].type | Should -Be 'connected'
+        $run.Lines[2].data.code | Should -Be 'connect-failed'
+        $run.Lines[2].data.message | Should -Match 'the service refused the token <token>'
+        $run.Raw.Contains('aegismarker') | Should -BeFalse
+        $run.Stderr.Contains('aegismarker') | Should -BeFalse
+    }
 }
 
 Describe 'invoke against the fake module' {

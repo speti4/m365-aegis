@@ -283,6 +283,19 @@ the one Exchange Online token. Each row names the layer that read it ("Admin API
 the Admin API cannot answer for a mailbox, the sidecar reads all of it, as on the command line, and the card says
 so under the mailbox. A user's access (the reverse lookup) still reads through the sidecar.
 
+## Safety tests and the home folder's access list
+
+The promises of [SECURITY.md](SECURITY.md) are held by tests over the whole tool, not one command at a time: no write
+command sends anything without `--yes`, a CSV file is read the same way whether Excel or a script wrote it (and a
+malformed one is refused whole), no token reaches a log, a plan record, an answer or stderr, and the exit codes keep
+their numbers.
+
+The home folder (`%LOCALAPPDATA%\m365-aegis\`, or the folder `M365AEGIS_HOME` names) is now created with an access list
+of its own: the signed-in Windows user, SYSTEM and Administrators, and nothing inherited from the folder above it, so
+the MSAL cache, the profiles, the logs and the plan records stay readable by you alone even under a folder other users
+may read. A folder that exists already keeps its access list. The details are in
+[docs/development.md](docs/development.md#the-safety-tests).
+
 ## Documentation
 
 - [Development](docs/development.md): layout, CI, releases and helper scripts

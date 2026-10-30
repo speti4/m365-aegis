@@ -28,7 +28,8 @@ internal static class Program
     {
         bool smoke = args.Contains("--smoke", StringComparer.Ordinal);
         Uri page = ResolvePage(args);
-        string home = AegisHome.Resolve();
+        // Created with its access list before WebView2 makes its data folder under it (task 075).
+        string home = AegisHome.Create(AegisHome.Resolve());
         if (args.Contains("--verbose", StringComparer.Ordinal))
         {
             // Before the dispatcher builds any MSAL client, so every sign-in of the window logs into the sink.

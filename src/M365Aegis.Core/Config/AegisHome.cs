@@ -1,3 +1,7 @@
+using System.Runtime.Versioning;
+using System.Security.AccessControl;
+using System.Security.Principal;
+
 namespace M365Aegis.Core.Config;
 
 /// <summary>
@@ -25,4 +29,60 @@ public static class AegisHome
 
     /// <summary>The path of the tenant profiles file under the home folder.</summary>
     public static string ConfigPath(string home) => Path.Combine(home, "config.json");
+
+    /// <summary>
+    /// Creates the home folder when it does not exist yet (task 075), which every writer under it calls first (the
+    /// profiles, the MSAL cache, the log, the plan records, the window's data folder). On Windows the folder gets an
+    /// explicit access list instead of its parent's: full control for the current user, SYSTEM and Administrators,
+    /// inherited by every folder and file under it, and nothing inherited from above, so a home that
+    /// <c>M365AEGIS_HOME</c> puts under a folder other users may read (a <c>Users: read</c> entry on <c>C:\Data</c>)
+    /// stays the user's own, as <c>%LOCALAPPDATA%</c> is. A folder that exists already is left as it is: it is the
+    /// user's, and a home created by this rule keeps it.
+    /// </summary>
+    /// <param name="home">The home folder (<see cref="Resolve"/>).</param>
+    /// <returns>The home folder.</returns>
+    public static string Create(string home)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(home);
+        string full = Path.GetFullPath(home);
+        if (Directory.Exists(full))
+        {
+            return full;
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            Directory.CreateDirectory(full);
+            return full;
+        }
+
+        if (Path.GetDirectoryName(full) is { } parent)
+        {
+            Directory.CreateDirectory(parent);
+        }
+
+        new DirectoryInfo(full).Create(UserOnly());
+        return full;
+    }
+
+    /// <summary>The access list of a home folder on Windows: the user, SYSTEM and Administrators, inherited below, protected above.</summary>
+    [SupportedOSPlatform("windows")]
+    internal static DirectorySecurity UserOnly()
+    {
+        var security = new DirectorySecurity();
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        SecurityIdentifier user = WindowsIdentity.GetCurrent().User ?? throw new InvalidOperationException("the process has no user to own the home folder");
+        foreach (SecurityIdentifier sid in new[] { user, new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null) })
+        {
+            security.AddAccessRule(new FileSystemAccessRule(
+                sid,
+                FileSystemRights.FullControl,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+        }
+
+        security.SetOwner(user);
+        return security;
+    }
 }
