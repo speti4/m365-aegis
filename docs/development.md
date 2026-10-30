@@ -949,6 +949,23 @@ while for `mailbox forwarding set` and `clear` it is a usage error naming both l
 named twice (lines 2 and 3)`); a malformed last line refuses the whole file with exit code 2 and its line number
 (`malformed-last-line.csv, line 4: 1 cell(s), the header has 2`), with the backend `local`, nothing sent.
 
+**Token hygiene** (task 072, `tests/M365Aegis.Cli.Tests/TokenHygieneTests.cs`, and one Pester case in
+`tests/sidecar/sidecar.Tests.ps1`). The marker convention: every token of a run carries a marker unique to it
+(`aegismarker` and a fresh GUID), the Graph token in a JWT's shape as the service issues it and the Exchange Online
+token opaque, so a sink passes only by never taking it, not by a pattern that happens to scrub it. The test runs in
+process through the product's own parts with the test's token source: `AuthService` over a broker that hands out the
+marked tokens (`login` writes the profile, `whoami`), the sign-in library's verbose log as `MsalTokenBroker.ToSink`
+feeds the home's `LogSink` (a bearer header, a query string, a JSON body and a bare JWT, and a line marked as PII),
+`call PATCH --yes` over `HttpGraphTransport` and a handler that answers like Graph (one applied, one refused with
+403, a GET that cannot reach the service; the handler checks the token went out as the bearer of each), an internal
+error whose message carries the header, and the sidecar over the fake module (connected with the token, then
+refused with the token in the module's message). Each answer goes through `CommandRunner` in both renderings, and
+then every file under the temporary home (`config.json`, `logs\`, `plans\`) and both streams are searched for the
+marker: none may hold it, and a leak is named by its sink. The Pester case connects the sidecar with a marked token,
+reads, and connects again to a refused organization, and searches the protocol lines and stderr. A new sink of the
+product (a file under the home, a stream) is covered by the search as it is; a new place a token flows through joins
+the run with its own step.
+
 ## CI and releases
 
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request, under a minutes budget (D-005).
