@@ -36,6 +36,20 @@ public sealed class FixtureGraphTransport : IGraphTransport
         _root = root;
     }
 
+    /// <summary>
+    /// The environment variable that names a file the command line's fixture transports append every request to, one
+    /// JSON line each (<c>method</c>, <c>url</c>, <c>body</c>), so a child-process test sees what a command sent: the
+    /// write-guard test holds a run without <c>--yes</c> to reads only (task 071). Like the fixtures' own variable, it
+    /// only ever makes the tool write a local file the test named.
+    /// </summary>
+    public const string RequestLogVariable = "M365AEGIS_FIXTURE_REQUESTS";
+
+    /// <summary>One lock for every transport of the process: the Graph and the Admin API clients append to one file.</summary>
+    private static readonly Lock RequestLogLock = new();
+
+    /// <summary>The file every request is appended to (<see cref="RequestLogVariable"/>), or null for none.</summary>
+    public string? RequestLog { get; init; }
+
     /// <summary>Every request sent so far, in order, for the tests' assertions.</summary>
     public IReadOnlyList<GraphHttpRequest> Requests
     {
@@ -67,6 +81,20 @@ public sealed class FixtureGraphTransport : IGraphTransport
         lock (_lock)
         {
             _requests.Add(request);
+        }
+
+        if (RequestLog is { Length: > 0 } log)
+        {
+            string line = JsonSerializer.Serialize(new Dictionary<string, string?>
+            {
+                ["method"] = request.Method.Method,
+                ["url"] = request.Uri.AbsoluteUri,
+                ["body"] = request.Body,
+            });
+            lock (RequestLogLock)
+            {
+                File.AppendAllLines(log, [line]);
+            }
         }
 
         return AnswerAsync(request, batchItem: false, cancellationToken);

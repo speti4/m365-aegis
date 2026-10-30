@@ -86,25 +86,32 @@ const mockMailboxes: MailboxInfo[] = [
 
 const [alice, bob, finance, reception] = mockMailboxes;
 
+/**
+ * The mock's grants over the layers, as the host reads them (task 063): the mailbox and its Send on Behalf delegates
+ * by name from the Admin API, FullAccess and Send As from the session; bob's mailbox the Admin API refuses, as the
+ * recorded answers do, so the session reads it alone.
+ */
 const mockHolders: MailboxAccess[] = [
   {
     mailbox: finance,
     holders: [
-      { right: "full-access", holder: "alice@contoso.com", address: "alice@contoso.com" },
-      { right: "send-as", holder: "alice@contoso.com", address: "alice@contoso.com" },
-      { right: "send-on-behalf", holder: "Bob Example", address: "bob@contoso.com" },
+      { right: "full-access", holder: "alice@contoso.com", address: "alice@contoso.com", layer: "pwsh" },
+      { right: "send-as", holder: "alice@contoso.com", address: "alice@contoso.com", layer: "pwsh" },
+      { right: "send-on-behalf", holder: "Bob Example", address: "bob@contoso.com", layer: "admin-api" },
     ],
+    mailboxLayer: "admin-api",
   },
   {
     mailbox: reception,
     holders: [
-      { right: "full-access", holder: "alice@contoso.com", address: "alice@contoso.com" },
-      { right: "full-access", holder: "bob@contoso.com", address: "bob@contoso.com" },
-      { right: "send-as", holder: "bob@contoso.com", address: "bob@contoso.com" },
+      { right: "full-access", holder: "alice@contoso.com", address: "alice@contoso.com", layer: "pwsh" },
+      { right: "full-access", holder: "bob@contoso.com", address: "bob@contoso.com", layer: "pwsh" },
+      { right: "send-as", holder: "bob@contoso.com", address: "bob@contoso.com", layer: "pwsh" },
     ],
+    mailboxLayer: "admin-api",
   },
-  { mailbox: alice, holders: [] },
-  { mailbox: bob, holders: [] },
+  { mailbox: alice, holders: [], mailboxLayer: "admin-api" },
+  { mailbox: bob, holders: [], mailboxLayer: "pwsh" },
 ];
 
 /** The reverse lookup of a user over the mock's holders; bob's answer is partial, to show the page's warning. */

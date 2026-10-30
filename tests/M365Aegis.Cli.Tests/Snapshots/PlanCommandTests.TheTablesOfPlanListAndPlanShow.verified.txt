@@ -5,8 +5,9 @@ started (UTC)        operation             mode     changes  applied  failed  sk
 2026-10-29 10:00:00  mailbox-access-grant  applied  3        2        1       0        20261029T100000.000Z-mailbox-access-grant.json
 2026-10-28 09:00:00  group-owners-add      applied  1        1        0       0        20261028T090000.000Z-group-owners-add.json
 
-3 plan record(s) under <home>/plans, newest first
+3 plan record(s) under <home>/plans, <size> on disk, newest first
 `m365-aegis plan show <record>` shows one; `--resume <record>` on its write continues the failed and skipped changes
+`m365-aegis plan prune --older-than <days> --dry-run` lists the older records a prune would remove
 === plan show (stopped) ===
 action  target   change                                           now           after     result
 ------  -------  -----------------------------------------------  ------------  --------  -----------------

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using M365Aegis.Core.Auth;
 using M365Aegis.Core.Bridge;
@@ -15,7 +16,7 @@ using M365Aegis.Tests;
 namespace M365Aegis.Core.Tests;
 
 /// <summary>
-/// The bridge between the window's front end and the core (tasks 017, 030, 040, 045, 056 and 057): the protocol, and the
+/// The bridge between the window's front end and the core (tasks 017, 030, 040, 045, 056, 057 and 063): the protocol, and the
 /// dispatcher's answers held against the samples under tests/contracts/bridge, which the front end's Vitest tests
 /// read too. A request sample dispatched over a scripted sign-in, the recorded Graph answers and the window's
 /// Exchange Online session over the fake module gives exactly its reply sample.
@@ -279,13 +280,83 @@ public sealed class BridgeProtocolTests
     }
 
     [Fact]
-    public async Task MailboxAccessOfAMailboxIsTheMailboxHoldersSample()
+    public async Task MailboxAccessOfAMailboxIsTheMailboxHoldersSampleOverBothLayers()
+    {
+        await using WindowExchange exchange = Layers();
+
+        BridgeMessage? reply = await Dispatcher(exchange: exchange).DispatchAsync(Sample("mailbox-access.json"), None);
+
+        // The mailbox and Bob by name from the Admin API, Alice's FullAccess and Send As from the session (task 063).
+        AssertIsSample("mailbox-holders.json", reply);
+        Assert.Equal(1, exchange.Session!.Starts);
+        Assert.Equal(1, exchange.Tokens!.Acquisitions);
+    }
+
+    [Fact]
+    public async Task AWindowWithoutAnAdminApiReadsTheAccessOnItsSessionAndNamesThatLayer()
+    {
+        await using WindowExchange exchange = Layers(adminApi: false);
+
+        BridgeMessage? reply = await Dispatcher(exchange: exchange).DispatchAsync(Sample("mailbox-access.json"), None);
+
+        AssertIs(ThroughTheSession(SampleNode("mailbox-holders.json")), reply);
+        Assert.Equal(
+            "no Admin API in this window: the mailbox, 1 Send on Behalf delegate(s) and 2 FullAccess and Send As grant(s) from pwsh",
+            BridgeDispatcher.DescribeLayers(hasAdminApi: false, Holders(reply)));
+    }
+
+    [Fact]
+    public async Task AWindowHolderMadeWithoutLayersReadsTheAccessOnItsSession()
     {
         await using var exchange = new WindowExchange(() => SidecarFixtures.Session());
 
         BridgeMessage? reply = await Dispatcher(exchange: exchange).DispatchAsync(Sample("mailbox-access.json"), None);
 
-        AssertIsSample("mailbox-holders.json", reply);
+        AssertIs(ThroughTheSession(SampleNode("mailbox-holders.json")), reply);
+    }
+
+    [Fact]
+    public async Task AnAdminApiThatCannotAnswerLeavesTheAccessToTheSession()
+    {
+        await using WindowExchange exchange = Layers();
+        BridgeMessage request = Sample("mailbox-access.json") with { Data = new JsonObject { ["mailbox"] = "bob" } };
+
+        // The recorded Admin API refuses bob's mailbox (403): the session reads it, as `mailbox access bob` does.
+        BridgeMessage? reply = await Dispatcher(exchange: exchange).DispatchAsync(request, None);
+
+        Assert.Equal("mailbox-holders", reply?.Type);
+        MailboxAccess access = Holders(reply);
+        Assert.Equal("Bob Example", access.Mailbox.DisplayName);
+        Assert.Equal(Backend.Pwsh, access.MailboxLayer);
+        Assert.Equal(
+            "the Admin API could not answer: the mailbox, 0 Send on Behalf delegate(s) and 0 FullAccess and Send As grant(s) from pwsh",
+            BridgeDispatcher.DescribeLayers(hasAdminApi: true, access));
+    }
+
+    [Fact]
+    public async Task AMailboxTheAdminApiDoesNotFindIsANotFoundErrorWithTheWindowsHint()
+    {
+        await using WindowExchange exchange = Layers();
+        BridgeMessage request = Sample("mailbox-access.json") with { Data = new JsonObject { ["mailbox"] = "nobody" } };
+
+        BridgeMessage? reply = await Dispatcher(exchange: exchange).DispatchAsync(request, None);
+
+        Assert.Equal("error", reply?.Type);
+        Assert.Equal("not-found", reply?.Data?["code"]?.GetValue<string>());
+        Assert.Equal("mailbox 'nobody' not found", reply?.Data?["message"]?.GetValue<string>());
+        Assert.Equal(SignInHints.Window.Failures[FailureKind.NotFound], reply?.Data?["hint"]?.GetValue<string>());
+    }
+
+    [Fact]
+    public void TheLogLineNamesWhatEachLayerReadByCountsOnly()
+    {
+        MailboxAccess access = Holders(Sample("mailbox-holders.json"));
+
+        string layers = BridgeDispatcher.DescribeLayers(hasAdminApi: true, access);
+
+        Assert.Equal("the mailbox and 1 Send on Behalf delegate(s) from admin-api, 2 FullAccess and Send As grant(s) from pwsh", layers);
+        Assert.DoesNotContain("contoso", layers, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Bob", layers, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -362,7 +433,7 @@ public sealed class BridgeProtocolTests
     }
 
     [Fact]
-    public async Task TheWindowsListAnswersFromTheAdminApiAndTheAccessFromTheWarmSessionOverOneToken()
+    public async Task TheWindowsListAnswersFromTheAdminApiAndTheAccessFromBothLayersOverOneToken()
     {
         await using WindowExchange exchange = Layers();
         BridgeDispatcher dispatcher = Dispatcher(exchange: exchange);
@@ -486,16 +557,40 @@ public sealed class BridgeProtocolTests
     /// <summary>The reply, written as the host sends it, is the sample message, field by field (with the given id).</summary>
     private static void AssertIsSample(string fileName, BridgeMessage? reply, string? id = null)
     {
-        Assert.NotNull(reply);
-        JsonNode expected = JsonNode.Parse(File.ReadAllText(Path.Combine(Contracts, fileName)))!;
+        JsonNode expected = SampleNode(fileName);
         if (id is not null)
         {
             expected["id"] = id;
         }
 
-        JsonNode actual = JsonNode.Parse(BridgeProtocol.Write(reply))!;
-        Assert.True(JsonNode.DeepEquals(expected, actual), $"{fileName} differs from the reply:\n{actual.ToJsonString()}");
+        AssertIs(expected, reply, fileName);
     }
+
+    /// <summary>The reply, written as the host sends it, is the expected message, field by field.</summary>
+    private static void AssertIs(JsonNode expected, BridgeMessage? reply, string what = "the expected message")
+    {
+        Assert.NotNull(reply);
+        JsonNode actual = JsonNode.Parse(BridgeProtocol.Write(reply))!;
+        Assert.True(JsonNode.DeepEquals(expected, actual), $"{what} differs from the reply:\n{actual.ToJsonString()}");
+    }
+
+    private static JsonNode SampleNode(string fileName) => JsonNode.Parse(File.ReadAllText(Path.Combine(Contracts, fileName)))!;
+
+    /// <summary>A <c>mailbox-holders</c> message as the session alone answers it: every layer <c>pwsh</c> (task 063).</summary>
+    private static JsonNode ThroughTheSession(JsonNode message)
+    {
+        message["data"]!["mailboxLayer"] = Backend.Pwsh;
+        foreach (JsonNode? holder in message["data"]!["holders"]!.AsArray())
+        {
+            holder!["layer"] = Backend.Pwsh;
+        }
+
+        return message;
+    }
+
+    /// <summary>The payload of a <c>mailbox-holders</c> message, read back as the core's result.</summary>
+    private static MailboxAccess Holders(BridgeMessage? message) =>
+        message?.Data.Deserialize<MailboxAccess>(EnvelopeJson.Options) ?? throw new InvalidOperationException("no mailbox-holders payload");
 
     /// <summary>
     /// The window's layers as <see cref="BridgeServices.ForWindow"/> makes them (task 056), over one made-up token

@@ -1,0 +1,9 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#groups(id,displayName,mail,groupTypes,securityEnabled,onPremisesSyncEnabled)/$entity",
+  "id": "00000000-0000-0000-0000-00000000003a",
+  "displayName": "Sales Synced",
+  "mail": "sales-synced@contoso.com",
+  "groupTypes": [],
+  "securityEnabled": false,
+  "onPremisesSyncEnabled": true
+}

@@ -547,7 +547,7 @@ was done with the record's file.
 so the names sort by time; a second apply in the same millisecond gets `-2`): once when it starts (`mode:
 applying`, no results) and again when it ends (each change's result, the times), through a temporary file. A record
 left at `applying` is an apply that was cut short; a change whose step was running then is `failed` with the code
-`internal` or `cancelled`. The record holds `version` (1), `source` (`command line`), `profile`, `arguments` (as
+`internal` or `cancelled`. The record holds `version` (2 since task 065; 1 before), `source` (`command line`), `profile`, `arguments` (as
 given), the `plan`, and for a batch from a CSV file the file's full path and text (`input`: `file`, `content`), so a
 resume replays the lines the apply had (task 062). A dry run, a refusal and a plan with nothing to change write
 nothing. `M365AEGIS_HOME` moves the folder with the rest of the home; the tests point it at a temporary one.
@@ -592,10 +592,11 @@ operation to the core that returns a `WritePlan`, and a command whose action is 
   and each change is `Add-DistributionGroupMember` or `Remove-DistributionGroupMember -Identity <the group's address>
   -Member <the member's address> -BypassSecurityGroupManagerCheck -Confirm:$false` through the sidecar, so the envelope's
   backend is `graph+admin-api` for the plan and `graph+admin-api+pwsh` after an apply. A Microsoft 365 or security
-  group's members and every group's owners stay on Graph (backend `graph`), and so does a group synced from
+  group's members and owners stay on Graph (backend `graph`), and so does a group synced from
   on-premises Active Directory, with the warning that the service will refuse the change: Exchange Online refuses a
-  member write on a synced group too, so the change belongs in the on-premises directory. The owners of a distribution group
-  (`ManagedBy`) and the members of a dynamic distribution group are not written.
+  member write on a synced group too, so the change belongs in the on-premises directory. The owners of a distribution
+  or mail-enabled security group (`ManagedBy`) go through Exchange too (task 064, [below](#the-writes-follow-ups-owners-resume-and-prune));
+  the members and owners of a dynamic distribution group are not written.
 - `mailbox access grant|revoke <mailbox> --user <holder>… --right FullAccess|SendAs|SendOnBehalf…` (task 053):
   `--user` and `--right` repeat, a right also comma-separated, any case, with or without hyphens. The current holders
   are read as `mailbox access <mailbox>` reads them, each holder to change as a recipient (`Get-EXORecipient`, a
@@ -654,6 +655,58 @@ for `plan show`; it must be of the same write (the hint names the command that w
 of a raw `call`; a record with every change applied has nothing to resume. Arguments or `--from-csv` next to
 `--resume` are a usage error: the record names the changes.
 
+### The writes follow-ups: owners, resume and prune
+
+Tasks 064 to 066, the writes follow-ups bundle of 2026-10-30.
+
+**The owners of a distribution or mail-enabled security group** (task 064, a D-004 note of 2026-10-30). `group owners
+add|remove` on such a group (not synced; its type is Graph's, read with its name) plans against the group's `ManagedBy`
+and applies through the sidecar, the way task 061 routes its members:
+
+| step | layer |
+| --- | --- |
+| the group and its type, the users to add | Graph (as every group write) |
+| the current owners | sidecar: `Get-DistributionGroup -Identity <the group's address>` (`ManagedBy`, the owners by each recipient's name), the names resolved with one piped `Get-EXORecipient`; a name no recipient answers to (a role group) is listed as it is |
+| each change | sidecar: `Set-DistributionGroup -Identity <the group's address> -ManagedBy @{Add=<address>}` or `@{Remove=<address>}` `-BypassSecurityGroupManagerCheck -Confirm:$false` |
+
+The Admin API documents no endpoint that reads a group's settings (its six endpoints are `AcceptedDomain`,
+`DistributionGroupMember`, `DynamicDistributionGroupMember`, `Mailbox`, `MailboxFolderPermission` and
+`OrganizationConfig`; https://learn.microsoft.com/exchange/reference/admin-api-endpoints-reference), so `ManagedBy` is the
+sidecar's read and the envelope's backend is `graph+pwsh`. The allow-list admits `Get-DistributionGroup` (a read) and
+`Set-DistributionGroup` with `Identity`, `ManagedBy`, `BypassSecurityGroupManagerCheck` and `Confirm` only
+(`ExoCmdlets.WriteParameters` and the script's `$script:WriteParameters`): the cmdlet can change any setting of a
+group, and the list keeps it to the owners. A user is matched against the owners by any address, object id, alias or
+name Exchange gives the recipient; the plan warns when the group would lose its last owner. A Microsoft 365 or
+security group's owners stay on Graph, a synced group's too with the warning that the service will refuse the change,
+and over Graph alone (no Exchange layers) a distribution group's owners keep the warning that Graph keeps none. The
+owner of a distribution group must be a mailbox, a mail user or a mail-enabled security group; another one is the
+service's refusal of that change (exit code 13 for it, 6 for a partial apply).
+
+**A resume over the pending lines, by object ids** (task 065). A record of version 2 numbers each change, and each
+object already as asked, by its row's place among the write's rows (`index`, from 1: the n-th change asked for, from
+the arguments or the CSV file's lines) and keys it by object ids (`key`: `<group id>/<user id>` for a group write,
+`<mailbox id>/<right>/<holder id>` for a mailbox right, `<mailbox id>` for the forwarding); both are in the plan's
+envelope too. Under `--resume` the write reads its rows from the record as before, then keeps only the rows of the
+changes the record left to do (`PlanResume.Select`, called by `WriteRunner.TryRows`, so a write needs no code of its
+own) before it plans: 60 pending lines of 100 read 60 objects, and a line applied before whose object was deleted
+since is not read again. The new plan's changes are matched to the pending ones by the action and the object ids
+first, then by the CSV line, then by the text, so a group or a user renamed since the apply still matches. A record
+of version 1, or one whose pending changes carry no row's place, plans every row again and matches by the line and
+the text, as before.
+
+**The plan records' size, and `plan prune`** (task 066). `plan list` also gives `count` (the records) and `bytes` (every
+file in the folder, the records and any other); the table's footer says both. `plan prune --older-than <days>`
+removes the records of the applies started more than that many days ago (their `started`, else the file's time): it is a
+write like every other, local only, a plan of one change per record (`action: remove`, the file name as the target,
+the operation, the start, the changes and the size as the change), printed by `--dry-run`, refused without `--yes`
+(exit code 7), up to date with nothing older; the apply records itself like any write (`plan-prune`), and that record
+is new, so it stays. `--older-than` is required and at least 1, so a record of an apply running now is never removed
+(2 otherwise); a file that is not a plan record is never removed; a record that left changes to do warns that its
+resume goes with it; a file the file system refuses to remove fails its change with exit code 8 and the others go on.
+`--resume` does not apply to it. The folder has no automatic size limit: a limit enforced at apply time would remove
+records without a plan anyone confirmed, which D-006 rules out for every write, and the records are the audit trail
+and the resume's source; `plan list` shows the size, and the prune is the administrator's.
+
 ## The front end
 
 `gui/web` is a Vite app: React 19 with TypeScript, Tailwind 4 through the Vite plugin, shadcn/ui (the `base-nova`
@@ -693,7 +746,8 @@ The messages (tasks 017, 040, 045 and 047; `BridgeMessageType` in C#, `MessageTy
 - `mailbox-list` with `{"shared": true}` or no payload, answered with `mailboxes` (the core's `MailboxList`), and
   `mailbox-access` with `{"mailbox": "<address, name or id>"}` or `{"user": "<upn>"}` (one of the two), answered
   with `mailbox-holders` (`MailboxAccess`) or `user-grants` (`UserAccess`) (task 045). Since task 056 the list
-  comes from the Admin API, as `mailbox list` does, and the access from the window's sidecar session (below). A partial answer of the
+  comes from the Admin API, as `mailbox list` does, a mailbox's access since task 063 from the Admin API beside the
+  window's sidecar session, and a user's from the session alone (below). A partial answer of the
   reverse lookup (exit code 6 on the command line) is the `user-grants` reply, whose `failed` list the page shows as
   a warning, as the envelope carries the data with the error.
 
@@ -746,18 +800,38 @@ the session as the sidecar, an Admin API client and Graph, the session and the A
 `ExchangeTokenSource` for the window (task 049), so the connect, the keep-warm renewals and the Admin API's calls
 share one token and its renewal. `mailbox-list` answers from the Admin API's mailbox list with no sidecar start (the
 session when the Admin API cannot answer, or in the sidecar-only offline tests, which have no Admin API);
-`mailbox-access` keeps the warm session in both directions. `logout` drops the token source with the session.
+`mailbox-access` keeps the warm session for a user's access and, since task 063, reads a mailbox's over both layers
+(below). `logout` drops the token source with the session.
 Under `--verbose` each mailbox request writes one `window:` line to the log: the time, the layers the request used
 and what the session did, never a token (`mailbox-list answered in … ms through admin-api; exchange no sidecar,
 token acquisitions 1`, then `mailbox-access answered in … ms through pwsh; exchange session 1, sidecar starts 1,
 renewals 0, last connect … ms, token acquisitions 1`).
+
+**The window's mailbox access over the layers** (task 063): `mailbox-access` with `{"mailbox": …}` runs the command
+line's `MailboxLookups.AccessAsync(backends, …)` over the window's `ExchangeBackends`, so the card shows the rows
+`mailbox access <mailbox>` prints: the mailbox and its Send on Behalf delegates with their display names from the
+Admin API (`Get-Mailbox -IncludeGrantSendOnBehalfToWithDisplayNames`) while the warm session reads FullAccess and
+Send As, side by side over the window's one token; the session alone when the window has no Admin API or the Admin
+API cannot answer for that mailbox (a missing mailbox is the `not-found` error either way). The result names its
+layers: `mailboxLayer` (`admin-api`, or `pwsh` after the fallback) and each holder's `layer` (`admin-api` for a
+delegate the Admin API listed, `pwsh` for the rest), written by the layered read only, so the command line's
+`--json` carries them too and the sidecar-only lookup's envelope is unchanged. The card shows a "Read through"
+column (Admin API or PowerShell) and one line under the mailbox on what each layer read. Under `--verbose` the
+request's `window:` line names what each layer read, by counts only: `mailbox-access answered in … ms through
+admin-api+pwsh (the mailbox and 1 Send on Behalf delegate(s) from admin-api, 2 FullAccess and Send As grant(s) from
+pwsh); exchange session 1, sidecar starts 1, …`, or `(the Admin API could not answer: the mailbox, … from pwsh)` or
+`(no Admin API in this window: …)`; a fallback also writes the core's own `admin-api:` line with the service's
+code. `{"user": …}`, the reverse lookup, stays on the session (`ExchangeBackends` of the window starts no extra
+sidecars, so its parallel read would be one sidecar anyway). The bridge sample `mailbox-holders.json` is the
+Admin API answer for Finance asked by its address, as the card's pick sends it.
 
 The page (`src/App.tsx`, `src/components/`): the sign-in card (its state machine in
 `components/sign-in-state.ts`: `whoami` reads it, `login` waits with the device code when one comes, `logout`
 reads it again; "Sign in" and "Sign in with a code" when signed out with a profile, with the window's hint for the
 state, the device code with "Copy the code" and "Open in browser" while it waits, "Sign out" when signed in), the
 group members card with the table, the mailbox access card (a mailbox or a user, the shared mailboxes to pick
-from, the holders or the grants in a table, the partial warning, and the time of the answer under the table), and a
+from, the holders or the grants in a table, each holder with the layer that read it, the partial warning, and the
+time of the answer under the table), and a
 toast (sonner) for every `error` reply.
 
 **The task card design sketch** (task 018, `src/sketch/`): the card list (grant FullAccess on a shared mailbox, add
@@ -915,6 +989,80 @@ The pwsh and module checks are one pwsh call; the device check reads `AzureAdJoi
 registry, `dsregcmd` (the made-up outputs under `tests/fixtures/doctor/dsregcmd-*.txt`), the installed Desktop
 Runtime versions, the two copies of the script, the sign-in and the endpoint probe.
 
+## The safety tests
+
+Five tests hold the scope of [SECURITY.md](../SECURITY.md) and the output contract together, each over the whole
+product rather than one command (tasks 071 to 075, the sixth round of 2026-10-30).
+
+**The exit codes** (task 073, `tests/M365Aegis.Core.Tests/Output/ExitCodeContractTests.cs`). The `ExitCode` enum is
+a Verify snapshot of `name = value` lines in value order (`Snapshots/ExitCodeContractTests.TheExitCodes.verified.txt`),
+and the exit code table of [The output contract](#the-output-contract) is read back by the test and compared with
+the enum and with each `FailureKind`'s error code, both ways: a renumbered or renamed member, a code the table lacks
+or a row the enum does not have fails. The table's shape is therefore part of the contract too: one row per code, the
+number, the error code in backticks (an empty cell for 0) and the meaning. A new exit code changes the snapshot, the
+table and the `FailureKind` in the same change.
+
+**The write guard** (task 071, `tests/M365Aegis.Cli.Tests/WriteGuardTests.cs`). The test walks the command line's
+own tree (`Program.Build()`) and takes every command that carries `--dry-run` and `--yes` as a write: today `call`,
+`group members|owners add|remove`, `mailbox access grant|revoke`, `mailbox forwarding set|clear` and `plan prune`
+(a write of local files: its home starts with three sample records, and all of them must still be there). Each one
+runs as a child process without `--yes` (no flag, then `--dry-run`) from its arguments, from its `--from-csv` sample
+and from `--resume` over a record cut short while applying that plan, and `call` with each of POST, PATCH, PUT and DELETE; the
+recorded Graph and Admin API answers and the fake Exchange Online module answer at once. A run passes when the plan is
+the answer (exit 7 and `refused`, or 0 and `dry-run` or `up-to-date`), no record is written, and nothing but reads was
+sent: the fixture transport appends every request to the file `M365AEGIS_FIXTURE_REQUESTS` names (one JSON line, the
+method, the URL and the body), where only a GET, a `$batch` of GETs and an Admin API call of a `Get-` cmdlet may
+appear, and the fake module's write file (`M365AEGIS_FAKE_EXO_WRITES`) stays empty. Every write command also runs
+without its inputs, which needs no table line. A new write command joins the enumeration by itself and fails
+`EveryWriteCommandHasItsInputs` until it has a line in the test's table of inputs (its arguments, its CSV sample), so
+it cannot land without the guard test.
+
+**The CSV edge cases** (task 074, `tests/M365Aegis.Core.Tests/Operations/CsvEdgeCaseTests.cs` and
+`tests/M365Aegis.Cli.Tests/CsvEdgeCaseCommandTests.cs`). They pin what [A batch from a CSV file](#writes-and-plans)
+promises, over one file per case for each set of columns under `tests/fixtures/csv/edge-cases/<family>/<case>.csv`
+(`group`, `mailbox-access`, `forwarding-set`, `forwarding-clear`). Every write's reader (the group writes', grant's,
+revoke's, forwarding set's and clear's) reads every case in process; every write that takes `--from-csv` (found in the
+tree, as the guard test finds it) runs three of them as a child process under `--dry-run`. What the tests hold: a file
+with a UTF-8 byte order mark and CRLF line endings (Excel's "CSV UTF-8") and one with LF read alike; a cell in double
+quotes holds a comma; spaces around a cell, a quoted cell and a header's name are trimmed; the header's names match in
+any case and order; blank lines at the end (and lines of nothing but spaces) are skipped; a line that repeats an
+earlier one is planned once, the repeat listed unchanged with its line ("named twice: the change is planned once"),
+while for `mailbox forwarding set` and `clear` it is a usage error naming both lines (`duplicate-line.csv: alice is
+named twice (lines 2 and 3)`); a malformed last line refuses the whole file with exit code 2 and its line number
+(`malformed-last-line.csv, line 4: 1 cell(s), the header has 2`), with the backend `local`, nothing sent.
+
+**Token hygiene** (task 072, `tests/M365Aegis.Cli.Tests/TokenHygieneTests.cs`, and one Pester case in
+`tests/sidecar/sidecar.Tests.ps1`). The marker convention: every token of a run carries a marker unique to it
+(`aegismarker` and a fresh GUID), the Graph token in a JWT's shape as the service issues it and the Exchange Online
+token opaque, so a sink passes only by never taking it, not by a pattern that happens to scrub it. The test runs in
+process through the product's own parts with the test's token source: `AuthService` over a broker that hands out the
+marked tokens (`login` writes the profile, `whoami`), the sign-in library's verbose log as `MsalTokenBroker.ToSink`
+feeds the home's `LogSink` (a bearer header, a query string, a JSON body and a bare JWT, and a line marked as PII),
+`call PATCH --yes` over `HttpGraphTransport` and a handler that answers like Graph (one applied, one refused with
+403, a GET that cannot reach the service; the handler checks the token went out as the bearer of each), an internal
+error whose message carries the header, and the sidecar over the fake module (connected with the token, then
+refused with the token in the module's message). Each answer goes through `CommandRunner` in both renderings, and
+then every file under the temporary home (`config.json`, `logs\`, `plans\`) and both streams are searched for the
+marker: none may hold it, and a leak is named by its sink. The Pester case connects the sidecar with a marked token,
+reads, and connects again to a refused organization, and searches the protocol lines and stderr. A new sink of the
+product (a file under the home, a stream) is covered by the search as it is; a new place a token flows through joins
+the run with its own step.
+
+**The home folder's access list** (task 075, `Config/AegisHome.cs`, `tests/M365Aegis.Core.Tests/Config/HomeFolderAclTests.cs`).
+The rule: every writer under the home creates it through `AegisHome.Create(home)` first (the profile store, the MSAL
+cache through `MsalTokenBroker.CreateCacheAsync`, the log, the plan store, and the window before WebView2 makes its
+data folder), which creates a missing home on Windows with an explicit, protected access list: full control for the
+current user (also its owner), SYSTEM and Administrators, inherited by every folder and file below, and nothing
+inherited from the parent. `%LOCALAPPDATA%` has that list by default; a home `M365AEGIS_HOME` puts elsewhere (under a
+folder at a drive's root, where `Users` and `Authenticated Users` may read) would otherwise inherit its parent's. A home
+that exists already is left as it is: the folder is the user's. Off Windows the folder is created plainly (a Unix mode
+is not in scope). The test, Windows-only (skipped elsewhere with the reason, so the `dotnet` job skips it and the
+`windows` job runs it), creates a parent whose list lets `Users` and `Authenticated Users` read everything below it,
+writes the MSAL cache, `config.json`, a plan record and a log line through the product into a home under it, and holds
+the home and every entry in it to allow entries for the user, SYSTEM and Administrators only, owned by the user (or
+Administrators, elevated); the cache's bytes hold no token in clear (DPAPI) while the product's own reader gets it
+back. Without the protected list the same test fails on the inherited `Users` and `Authenticated Users` entries.
+
 ## CI and releases
 
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request, under a minutes budget (D-005).
@@ -949,8 +1097,10 @@ with the front end, the tests,
 (`scripts/check-commit.sh` over every pushed commit and the pull request text) on the same pushes and pull
 requests. `.github/workflows/advisories.yml` restores and audits the lock files every Monday and by hand (`gh
 workflow run advisories.yml`), so an advisory for a package already in a lock file shows up between pull
-requests; it is not a required check. The workflows run with a read-only token by default; only the release job
-may write contents. Every restore runs in locked mode (`RestoreLockedMode` under `CI`), so a lock file out of
+requests; it is not a required check. `.github/workflows/sync-issues.yml` mirrors the task files into GitHub
+issues on every push to `main` that touches `tasks/` or the script (task 069, see [The issue mirror](#the-issue-mirror));
+it is not a required check either. The workflows run with a read-only token by default; only the release job
+may write contents and only the mirror job may write issues. Every restore runs in locked mode (`RestoreLockedMode` under `CI`), so a lock file out of
 step with its project fails instead of being rewritten.
 
 Some of the setup lives in the repository settings, not in a file (task 012, applied 2026-10-29): a ruleset
@@ -1023,8 +1173,8 @@ written by hand and kept by every run; the lists are never edited by hand. A tas
 than the product (the repo, CI, the process) carries `changelog: housekeeping` in its frontmatter and is listed
 last, under *Project housekeeping*. The release notes are one section of the changelog without that group (one
 line counts it and links the changelog), with a footer on the checksum, the attestation and the notices file. The
-script reads the task files through the parser of `scripts/sync-issues.py`, which is why that script is in the
-repo although the issue mirror is not set up. A release goes like this:
+script reads the task files through the parser of `scripts/sync-issues.py`, the issue mirror's script. A release
+goes like this:
 
 1. In a pull request: bump `<Version>` in `Directory.Build.props`, write the summary under *Unreleased* in
    `CHANGELOG.md`, run `python -I scripts/changelog.py` and merge.
@@ -1043,6 +1193,27 @@ python -I scripts/changelog.py --notes 0.1.0   # one release's notes (a version 
 Between releases the committed *Unreleased* list matches `tasks/done/` exactly: the lint job's `--check` fails
 on any difference, so the change that closes a task also runs `python -I scripts/changelog.py` and commits the
 regenerated `CHANGELOG.md`.
+
+### The issue mirror
+
+Every numbered task and decision under `tasks/` is one GitHub issue, mirrored one way by `scripts/sync-issues.py`
+(the project-pal task standard's script, template version 3, copied unchanged: a change goes into the template and
+comes back through `/tasks mirror`): the id and the H1 as the title, a metadata line and the Context as the body,
+labels for the stage, the status and the size, the milestone from the frontmatter (every `## ` heading of
+`tasks/roadmap.md` is a milestone; a release closes one, the script never does), open or closed by the folder. The
+file is the only truth: an issue is never edited by hand and nothing flows back. `.github/workflows/sync-issues.yml`
+runs the script on every push to `main` that touches `tasks/` or the script, and by hand (`gh workflow run
+sync-issues.yml`); an issue is found again by a hidden marker in its body, so a run patches only what differs, and
+a second run reports `created 0, updated 0`. By hand, from a clone with `gh` signed in:
+
+```powershell
+python -I scripts/sync-issues.py --dry-run     # print what would change
+python -I scripts/sync-issues.py               # apply
+python -I scripts/sync-issues.py --check       # exit 1 when anything would change
+```
+
+The backfill ran once on 2026-10-30 (task 069). Since the repository is public, a task file's H1 and Context are
+public text: decisions and results, no conversation, `plan: none`, no home folder path.
 
 ### The other scripts
 

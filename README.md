@@ -220,7 +220,7 @@ own; in a CSV file it is the optional `automapping` column (`false` on a FullAcc
 settings.
 
 The window's mailbox list comes from the Admin API too, with no sidecar start; the access lookups keep the window's
-sidecar, and both share one Exchange Online token. A failure after the sign-in shows a hint written for the window
+sidecar (beside the Admin API for a mailbox, below), and both share one Exchange Online token. A failure after the sign-in shows a hint written for the window
 ("ask the administrator", "Sign in again") instead of a command to type.
 
 ## Batched group writes, distribution lists, plan records and resume
@@ -250,6 +250,51 @@ meantime comes out unchanged), under the usual `--dry-run` or `--yes`, and the n
 The distribution group writes need an Exchange Online role that changes group members (Organization Management, or
 Recipient Management with Security Group Creation and Membership). The details are in
 [docs/development.md](docs/development.md#writes-and-plans).
+
+## Distribution list owners, a narrower resume and plan prune
+
+The owners of a distribution group or a mail-enabled security group (Exchange's `ManagedBy`) are read and changed
+through the Exchange Online module too (`Get-DistributionGroup`, `Set-DistributionGroup -ManagedBy`), with the same
+plan, flags and exit codes; a Microsoft 365 group's owners stay on Graph, and a group synced from on-premises Active
+Directory keeps its warning:
+
+```powershell
+& $aegis group owners add Sales dave@contoso.com --dry-run            # a distribution group, through Exchange
+```
+
+A plan record now numbers each change's line and keys it by object ids, so `--resume` plans only the lines its record
+left to do (60 pending lines of 100 read 60 objects) and still finds a change whose group or user was renamed since;
+a record written before this keeps the old resume. `plan list` says how many records there are and how much they
+take, and `plan prune` removes the older ones behind the usual guard:
+
+```powershell
+& $aegis plan prune --older-than 90 --dry-run                          # lists the records it would remove
+& $aegis plan prune --older-than 90 --yes
+```
+
+The details are in [docs/development.md](docs/development.md#the-writes-follow-ups-owners-resume-and-prune).
+
+## The window's mailbox access over the Admin API
+
+The window's access card reads a mailbox the way `mailbox access` does: the mailbox and its Send on Behalf
+delegates by display name from the Admin API, FullAccess and Send As from the window's sidecar, side by side over
+the one Exchange Online token. Each row names the layer that read it ("Admin API" or "PowerShell"), and
+`mailbox access <mailbox> --json` carries the same `layer` on each holder and `mailboxLayer` on the answer. When
+the Admin API cannot answer for a mailbox, the sidecar reads all of it, as on the command line, and the card says
+so under the mailbox. A user's access (the reverse lookup) still reads through the sidecar.
+
+## Safety tests and the home folder's access list
+
+The promises of [SECURITY.md](SECURITY.md) are held by tests over the whole tool, not one command at a time: no write
+command sends anything without `--yes`, a CSV file is read the same way whether Excel or a script wrote it (and a
+malformed one is refused whole), no token reaches a log, a plan record, an answer or stderr, and the exit codes keep
+their numbers.
+
+The home folder (`%LOCALAPPDATA%\m365-aegis\`, or the folder `M365AEGIS_HOME` names) is now created with an access list
+of its own: the signed-in Windows user, SYSTEM and Administrators, and nothing inherited from the folder above it, so
+the MSAL cache, the profiles, the logs and the plan records stay readable by you alone even under a folder other users
+may read. A folder that exists already keeps its access list. The details are in
+[docs/development.md](docs/development.md#the-safety-tests).
 
 ## Every line and branch tested
 

@@ -274,23 +274,56 @@ public sealed class BridgeDispatcher
                 "a mailbox lists who can open or send as it; a user lists the mailboxes the user can open or send as")));
         }
 
-        // The warm session answers both directions (task 045), as before the window had the Admin API.
+        // A mailbox reads as `mailbox access <mailbox>` does (task 063): the mailbox and its Send on Behalf delegates by
+        // name from the Admin API beside FullAccess and Send As from the warm session, the session alone when the
+        // window has no Admin API or it cannot answer. The reverse lookup is the session's bulk read (task 045).
         return user is not null
             ? ExchangeAsync(request, BridgeMessageType.UserGrants, (backends, ct) => MailboxLookups.AccessForUserAsync(backends.Sidecar, user, ct), cancellationToken)
-            : ExchangeAsync(request, BridgeMessageType.MailboxHolders, (backends, ct) => MailboxLookups.AccessAsync(backends.Sidecar, mailbox!, ct), cancellationToken);
+            : ExchangeAsync(
+                request,
+                BridgeMessageType.MailboxHolders,
+                (backends, ct) => MailboxLookups.AccessAsync(backends, mailbox!, new MailboxAccessOptions(), ct),
+                cancellationToken,
+                DescribeLayers);
     }
+
+    /// <summary>
+    /// Which layer read what of a mailbox's access, for the window's <c>window:</c> log line (task 063): the counts and
+    /// the layers, never a name. <paramref name="hasAdminApi"/> tells a window without an Admin API from one whose
+    /// Admin API could not answer.
+    /// </summary>
+    internal static string DescribeLayers(bool hasAdminApi, MailboxAccess access)
+    {
+        ArgumentNullException.ThrowIfNull(access);
+        int onBehalf = access.Holders.Count(holder => holder.Right == MailboxRight.SendOnBehalf);
+        int rights = access.Holders.Count - onBehalf;
+        if (access.MailboxLayer == Backend.AdminApi)
+        {
+            return string.Create(CultureInfo.InvariantCulture,
+                $"the mailbox and {onBehalf} Send on Behalf delegate(s) from {Backend.AdminApi}, {rights} FullAccess and Send As grant(s) from {Backend.Pwsh}");
+        }
+
+        string why = hasAdminApi ? "the Admin API could not answer" : "no Admin API in this window";
+        return string.Create(CultureInfo.InvariantCulture,
+            $"{why}: the mailbox, {onBehalf} Send on Behalf delegate(s) and {rights} FullAccess and Send As grant(s) from {Backend.Pwsh}");
+    }
+
+    private static string? DescribeLayers(ExchangeBackends backends, MailboxAccess? access) =>
+        access is null ? null : DescribeLayers(backends.HasAdminApi, access);
 
     /// <summary>
     /// A mailbox lookup over the window's layers (task 056: the session, the Admin API over the same token, Graph): the
     /// data as the reply, a failure as <c>error</c>, and a partial answer (exit code 6 on the command line) as the reply,
     /// whose own list says what could not be read. Under <c>--verbose</c> the log gets the time, the layers the request
-    /// used and what the session did (the starts, the reconnects, the token acquisitions).
+    /// used, what each layer read when <paramref name="describe"/> tells it (task 063), and what the session did (the
+    /// starts, the reconnects, the token acquisitions).
     /// </summary>
     private async Task<BridgeMessage> ExchangeAsync<T>(
         BridgeMessage request,
         string replyType,
         Func<ExchangeBackends, CancellationToken, Task<CommandResult<T>>> lookup,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<ExchangeBackends, T?, string?>? describe = null)
     {
         if (_services.Exchange is not { } exchange)
         {
@@ -301,7 +334,7 @@ public sealed class BridgeDispatcher
         }
 
         var elapsed = Stopwatch.StartNew();
-        CommandResult<T> result;
+        CommandResult<T>? result = null;
         await using ExchangeBackends backends = exchange.Backends(() => _services.Graph(new RequestLog()));
         try
         {
@@ -309,9 +342,10 @@ public sealed class BridgeDispatcher
         }
         finally
         {
+            string? layers = result is null || describe is null ? null : describe(backends, result.Data);
             LogSink.Verbose?.Write("window", string.Create(
                 CultureInfo.InvariantCulture,
-                $"{request.Type} answered in {elapsed.ElapsedMilliseconds} ms through {backends.Backend}; exchange {exchange.Describe()}"));
+                $"{request.Type} answered in {elapsed.ElapsedMilliseconds} ms through {backends.Backend}{(layers is null ? "" : $" ({layers})")}; exchange {exchange.Describe()}"));
         }
 
         return Answer(request, replyType, result);

@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { BridgeClient } from "../bridge/client";
 import {
   type BridgeError,
+  type ExchangeLayer,
   type MailboxAccess,
   type MailboxInfo,
   type MailboxRight,
@@ -19,6 +20,28 @@ export const rightNames: Record<MailboxRight, string> = {
   "send-as": "Send As",
   "send-on-behalf": "Send on Behalf",
 };
+
+/** The layers a grant can come from, as the card names them in its "Read through" column (task 063). */
+export const layerNames: Record<ExchangeLayer, string> = {
+  "admin-api": "Admin API",
+  pwsh: "PowerShell",
+};
+
+/**
+ * Which layer read what of a mailbox's access, as the card writes it under the mailbox (task 063): the Admin API's
+ * mailbox read with the Send on Behalf delegates by name beside the session's FullAccess and Send As, or the session
+ * alone; null when the reply names no layer.
+ */
+export function describeLayers(access: MailboxAccess): string | null {
+  switch (access.mailboxLayer) {
+    case "admin-api":
+      return "The mailbox and its Send on Behalf delegates by name come from the Admin API, FullAccess and Send As from the PowerShell session.";
+    case "pwsh":
+      return "Everything comes from the PowerShell session: the Admin API did not answer for this mailbox, or the window has none.";
+    default:
+      return null;
+  }
+}
 
 /** How long an answer took, as the card writes it under the table. */
 export function describeElapsed(ms: number): string {
@@ -36,7 +59,8 @@ type Result =
  * The window's first mailbox page (task 045): who holds FullAccess, Send As and Send on Behalf on a mailbox, or
  * which mailboxes a user holds them on, as `m365-aegis mailbox access` reads them, and the shared mailboxes to pick
  * one from. The window keeps one Exchange Online session: the first lookup starts it (a few seconds), the later
- * ones answer in the cmdlet's own time, which the line under the table shows.
+ * ones answer in the cmdlet's own time, which the line under the table shows. A mailbox's grants come over the
+ * layers as on the command line (task 063): each row names the layer that read it.
  */
 export function MailboxAccessCard({
   client,
@@ -168,6 +192,7 @@ function ResultView({ result, onPick }: { result: Result; onPick: (mailbox: Mail
       );
     case "holders": {
       const { mailbox, holders } = result.data;
+      const layers = describeLayers(result.data);
       return (
         <div className="space-y-2">
           <p className="flex flex-wrap items-center gap-2">
@@ -176,6 +201,7 @@ function ResultView({ result, onPick }: { result: Result; onPick: (mailbox: Mail
             <span className="text-muted-foreground">{mailbox.primarySmtpAddress}</span>
             <span className="text-muted-foreground">· {holders.length} grant(s)</span>
           </p>
+          {layers ? <p className="text-xs text-muted-foreground">{layers}</p> : null}
           {holders.length === 0 ? (
             <p className="text-muted-foreground">Nobody holds a right on this mailbox but its own account.</p>
           ) : (
@@ -185,6 +211,7 @@ function ResultView({ result, onPick }: { result: Result; onPick: (mailbox: Mail
                   <TableHead>Right</TableHead>
                   <TableHead>Holder</TableHead>
                   <TableHead>Address</TableHead>
+                  <TableHead>Read through</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -193,6 +220,9 @@ function ResultView({ result, onPick }: { result: Result; onPick: (mailbox: Mail
                     <TableCell>{rightNames[holder.right]}</TableCell>
                     <TableCell>{holder.holder}</TableCell>
                     <TableCell>{holder.address ?? ""}</TableCell>
+                    <TableCell>
+                      {holder.layer ? <Badge variant="outline">{layerNames[holder.layer]}</Badge> : null}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

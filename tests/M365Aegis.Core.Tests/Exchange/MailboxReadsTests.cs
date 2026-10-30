@@ -42,6 +42,10 @@ public sealed class MailboxReadsTests(FakeExchange exchange) : IClassFixture<Fak
             access.Holders.Select(holder => (holder.Right, holder.Holder, holder.Address)));
         Assert.All(access.Holders, holder => Assert.Null(holder.Group));
         Assert.Equal("admin-api+pwsh", backends.Backend);
+
+        // Each grant names the layer that read it (task 063): the delegate the Admin API's mailbox read, the rights the sidecar.
+        Assert.Equal(Backend.AdminApi, access.MailboxLayer);
+        Assert.Equal([Backend.Pwsh, Backend.Pwsh, Backend.AdminApi], access.Holders.Select(holder => holder.Layer));
     }
 
     [Fact]
@@ -69,6 +73,7 @@ public sealed class MailboxReadsTests(FakeExchange exchange) : IClassFixture<Fak
         Assert.True(result.Ok);
         Assert.Equal("Bob Example", result.Data!.Mailbox.DisplayName);
         Assert.Empty(result.Data.Holders);
+        Assert.Equal(Backend.Pwsh, result.Data.MailboxLayer);
     }
 
     [Fact]
@@ -90,7 +95,11 @@ public sealed class MailboxReadsTests(FakeExchange exchange) : IClassFixture<Fak
         CommandResult<MailboxAccess> layered = await MailboxLookups.AccessAsync(backends, "finance", new MailboxAccessOptions(), Ct);
         CommandResult<MailboxAccess> sidecar = await MailboxLookups.AccessAsync(exchange.Session, "finance", Ct);
 
-        Assert.Equal(sidecar.Data!.Holders, layered.Data!.Holders);
+        // The same grants; the layered read names its one layer on each (task 063), the sidecar-only read none.
+        Assert.Equal(sidecar.Data!.Holders.Select(holder => holder with { Layer = Backend.Pwsh }), layered.Data!.Holders);
+        Assert.Equal(Backend.Pwsh, layered.Data.MailboxLayer);
+        Assert.Null(sidecar.Data.MailboxLayer);
+        Assert.All(sidecar.Data.Holders, holder => Assert.Null(holder.Layer));
         Assert.Equal("pwsh", backends.Backend);
     }
 

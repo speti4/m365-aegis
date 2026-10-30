@@ -426,11 +426,18 @@ function Set-Mailbox {
 # ...035), their members by address, as the service names a member by its recipient. A member is any recipient
 # Get-EXORecipient knows; adding one who is a member already, or removing one who is not, fails as the service's does
 # (a non-terminating error), and the failing identities 'broken', 'nobody' and 'busy' fail the writes too.
+#
+# The owners (task 064) are ManagedBy, kept as the service lists them, by each recipient's name: Sales is managed by
+# alice, Finance Staff by carol and by 'Organization Management', a role group no recipient lookup knows.
 $script:Groups = @(
-    [pscustomobject]@{ Name = 'Sales'; Alias = 'sales'; PrimarySmtpAddress = 'sales@contoso.com'; ExternalDirectoryObjectId = '00000000-0000-0000-0000-000000000036'
-        Members = [System.Collections.Generic.List[string]]@('bob@contoso.com', 'dave@example.com', 'alice@contoso.com') }
-    [pscustomobject]@{ Name = 'Finance Staff'; Alias = 'finance-staff'; PrimarySmtpAddress = 'finance-staff@contoso.com'; ExternalDirectoryObjectId = '00000000-0000-0000-0000-000000000035'
-        Members = [System.Collections.Generic.List[string]]@('carol@contoso.com') }
+    [pscustomobject]@{ Name = 'Sales'; Alias = 'sales'; DisplayName = 'Sales'; PrimarySmtpAddress = 'sales@contoso.com'; ExternalDirectoryObjectId = '00000000-0000-0000-0000-000000000036'
+        RecipientTypeDetails = 'MailUniversalDistributionGroup'
+        Members = [System.Collections.Generic.List[string]]@('bob@contoso.com', 'dave@example.com', 'alice@contoso.com')
+        ManagedBy = [System.Collections.Generic.List[string]]@('alice') }
+    [pscustomobject]@{ Name = 'Finance Staff'; Alias = 'finance-staff'; DisplayName = 'Finance Staff'; PrimarySmtpAddress = 'finance-staff@contoso.com'; ExternalDirectoryObjectId = '00000000-0000-0000-0000-000000000035'
+        RecipientTypeDetails = 'MailUniversalSecurityGroup'
+        Members = [System.Collections.Generic.List[string]]@('carol@contoso.com')
+        ManagedBy = [System.Collections.Generic.List[string]]@('carol', 'Organization Management') }
 )
 
 function Find-FakeGroup {
@@ -487,4 +494,57 @@ function Remove-DistributionGroupMember {
     if (-not $PSCmdlet.ShouldProcess($group.Name, 'Remove-DistributionGroupMember')) { return }
     Write-FakeWrite 'Remove-DistributionGroupMember' $PSBoundParameters
     [void] $group.Members.Remove($recipient.PrimarySmtpAddress)
+}
+
+function Get-DistributionGroup {
+    # A distribution or mail-enabled security group with its owners (task 064): ManagedBy lists them by name.
+    [CmdletBinding()]
+    param([Parameter(ValueFromPipeline)] [string] $Identity, [object] $ResultSize = 1000)
+    process {
+        Assert-FakeConnected
+        if (-not (Assert-FakeIdentity $Identity)) { return }
+        $group = Find-FakeGroup -Identity $Identity
+        if (-not $group) { return }
+        [pscustomobject]@{
+            Name = $group.Name
+            Alias = $group.Alias
+            DisplayName = $group.DisplayName
+            Identity = $group.Name
+            PrimarySmtpAddress = $group.PrimarySmtpAddress
+            ExternalDirectoryObjectId = $group.ExternalDirectoryObjectId
+            RecipientTypeDetails = $group.RecipientTypeDetails
+            ManagedBy = [System.Collections.ArrayList]@($group.ManagedBy)
+        }
+    }
+}
+
+function Set-DistributionGroup {
+    # The owners only (task 064): -ManagedBy as the multi-valued property's change (@{Add=...} / @{Remove=...}), each
+    # owner a recipient Get-EXORecipient knows, kept by its name as the service lists it. Removing an owner who is not
+    # one fails as the service's does (a non-terminating error); adding one who is changes nothing.
+    [CmdletBinding(SupportsShouldProcess)]
+    param([string] $Identity, [object] $ManagedBy, [switch] $BypassSecurityGroupManagerCheck)
+    Assert-FakeConnected
+    if (-not (Assert-FakeIdentity $Identity)) { return }
+    $group = Find-FakeGroup -Identity $Identity
+    if (-not $group) { return }
+    if ($ManagedBy -isnot [hashtable]) { throw 'fake: ManagedBy takes @{Add=...} or @{Remove=...} here' }
+    $changes = [System.Collections.Generic.List[object]]::new()
+    foreach ($operation in @('Add', 'Remove')) {
+        foreach ($name in @($ManagedBy[$operation] | Where-Object { $_ })) {
+            $recipient = Find-FakeMember -Identity $name
+            if (-not $recipient) { return }
+            if ($operation -eq 'Remove' -and $group.ManagedBy -notcontains $recipient.Name) {
+                Write-Error -Message "fake: The recipient ""$($recipient.PrimarySmtpAddress)"" isn't an owner of the group ""$($group.Name)""." -Category InvalidArgument -ErrorId 'ManagedByNotFoundException'
+                return
+            }
+            $changes.Add([pscustomobject]@{ Operation = $operation; Name = $recipient.Name })
+        }
+    }
+    if (-not $PSCmdlet.ShouldProcess($group.Name, 'Set-DistributionGroup')) { return }
+    Write-FakeWrite 'Set-DistributionGroup' $PSBoundParameters
+    foreach ($change in $changes) {
+        if ($change.Operation -eq 'Add' -and $group.ManagedBy -notcontains $change.Name) { $group.ManagedBy.Add($change.Name) }
+        if ($change.Operation -eq 'Remove') { [void] $group.ManagedBy.Remove($change.Name) }
+    }
 }
