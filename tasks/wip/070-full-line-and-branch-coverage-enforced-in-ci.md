@@ -48,28 +48,97 @@ goes to the maintainer before the pull request.
 
 ## Steps
 
-1. [ ] `coverlet.MTP` in both test projects, the lock files; the in-process entry of the command line and the Cli
-       tests over it (a child-process test or two kept for the exe contract); the `dotnet` job's threshold and
-       artifact
-2. [ ] The sidecar's dot-sourceable function layer, Pester `CodeCoverage` with its threshold in the `sidecar` job
-3. [ ] `@vitest/coverage-v8` with the threshold in `vitest` config, the `frontend` job's artifact
-4. [ ] The gap tests: the 14 Core and Cli source files, the 4 front-end modules; `[ExcludeFromCodeCoverage]` with
-       reasons; the exclusion list reported to the main session
-5. [ ] 068 in the same branch (its own file)
+1. [x] `coverlet.MTP` in both test projects, the lock files; `scripts/check-coverage.py` merges the two projects'
+       JSON reports and fails below 100% of the lines or the branches of an assembly; the `dotnet` job's gate,
+       job summary and artifact. The Cli tests stay child processes (see Deviations)
+2. [x] The sidecar loadable in process (`-In`/`-Out`/`-Log`, `-Library`), every Pester case run as a child and in
+       process, `tests/sidecar/run-with-coverage.ps1` with its threshold in the `sidecar` job and the artifact
+3. [x] `@vitest/coverage-v8` (and `happy-dom`) with the 100% thresholds in `vite.config.ts`, `npm run
+       test:coverage` in the `frontend` job and the artifact
+4. [x] The gap tests: the Core and the Cli to 100% on Windows and on Linux, the front end's modules;
+       `[ExcludeFromCodeCoverage]` with a reason each; the exclusion list reported to the main session (checkpoint 1)
+5. [x] 068 in the same branch (its own file)
 6. [ ] After the other bundles merged: `git merge origin/main`, the gaps closed again, the full local matrix, the
        pull request
 
 ## Log
 
 - 2026-10-30 — promoted by the main session into the coverage and CI bundle (070, 068)
+- 2026-10-30 — the first measure (Windows and Linux, the SDK container) showed coverlet.MTP counting the Cli
+  tests' child processes: `m365-aegis.dll` 1796/1872 lines with `Program.Main` covered. The child loads the
+  instrumented assembly next to the tests and inherits coverlet's environment variables, and its hits reach the
+  report at exit, on both systems. The in-process entry the plan named was there to make the collector see the
+  command line, so it was not built (Deviations). Baseline: Core 4519/4947 lines (91.35%), 2249/2734 branches
+  (82.26%); Cli 1796/1872 (95.94%), 354/480 (73.75%); the front end about 52% lines over 57 tests; the sidecar
+  unmeasured. Linux differed from Windows in `DoctorEnvironment` only.
+- 2026-10-30 — `scripts/check-coverage.py` (60acec6): merges coverlet's JSON reports per method, line and branch
+  (covered when either test project ran it), prints the files with a gap and their lines, appends a table to the
+  job summary, exits 1 below the thresholds (100/100 by default).
+- 2026-10-30 — the front end (6d8ff8c): 10 new test files and two helpers (`src/test/dom.ts` over React's `act`,
+  `src/test/scripted-transport.ts`), 111 tests (57 before), 527/527 statements, 560/560 branches, 213/213 functions,
+  509/509 lines; one source change (`task-card-sketch.tsx` computes the picks once; the second `?? []` could not
+  run); `biome.json` ignores `coverage/`.
+- 2026-10-30 — the sidecar (80e54a6): the script takes `-In`, `-Out`, `-Log` and `-Library`; the auto-loading
+  guard is set in the global scope (pwsh reads it only there; under `-File` the script already ran there, in
+  process a script-scope value let the machine's real module load, the task 050 failure); 108 Pester tests (45
+  before), 264/264 commands. The fake module's `disconnect-fails-token` reaches the failed disconnect.
+- 2026-10-30 — the command line, the sign-in and the doctor (0a319c6): `TableViewTests` (every view over made-up
+  results), `CliEdgeTests` (the output mode, the device-code line, the CSV input, the resume refusals of another
+  profile and of arguments that no longer parse), `MsalTokenBrokerTests` (the exception mapping, the result, the
+  window thread). Source: `Program.PickMode` (the terminal default testable), `WriteRunner.GraphAsync` removed (no
+  caller), `WriteRunner.ReadInput` and `ResumeAction.DeleteQuietly` split out, two unreachable `??` and a `for`
+  condition simplified, `CallTableView.Columns` and `Cell` without the branches no JSON reaches, the probe's
+  `HttpClient` per call; `Doctor.FindPwsh(path, fileName)` pure, `DoctorEnvironment.RunProcess` and `ReadIfExists`
+  testable, `LogSink.UseVerbose` (an `AsyncLocal` sink for a test, the process's own sink unchanged).
+- 2026-10-30 — Graph, groups, operations, audit, the output, the config and the bridge (afb1bb9): eight new test
+  files; `ProductInfo.PlainVersion`, `AegisHome.ResolveFrom`, `BridgeDispatcher.Answer` split out; an unreachable
+  `?? "{}"` in the fixture transport and a cached-delegate branch in `PlanResume.Narrow` removed; the window's keep-warm
+  log line reads the renewal's own answer.
+- 2026-10-30 — the Exchange Online layers (311c67b): four new test files (90 tests), among them a scripted pwsh child
+  for the client side of the protocol and `SidecarRunsAlone`, a collection without parallelism for the write to an
+  ended child (beside other tests on Windows the write once did not fail). Source: `SidecarStartInfo.ExitTimeout`
+  (internal, 10 s as before), `SidecarScript.ReadResource`, `ExchangeConnection.StartAsync(script)`;
+  `SidecarClient.Answer` reads non-object data as empty (it threw before); `AdminApiConnection.Create` over the
+  token source (its own copies of the fixture and test-organization checks could only be reached through the
+  process environment); unreachable `??` and casts in `MailboxReads`, `ExchangeProbes` and `SidecarClient`
+  simplified; the return inside `ConnectMeasurement.RunOnceAsync`'s `await using` moved after it.
+- 2026-10-30 — CI (13f9401): the `dotnet` job runs `dotnet test --coverlet` and the gate, the `frontend` job `npm
+  run test:coverage`, the `sidecar` job `run-with-coverage.ps1`; each uploads its report with
+  `actions/upload-artifact` v7.0.2 (pinned by SHA) under `if: !cancelled()`; `uvx zizmor .github` clean.
+- 2026-10-30 — the exclusion list (`[ExcludeFromCodeCoverage(Justification = …)]`, 20 members in 7 files), in
+  `docs/development.md`, "Coverage", for the maintainer's review: the MSAL calls of `MsalTokenBroker` (9 members),
+  `ConsoleWindow.RootOwner`, `BridgeServices.ForWindow`, `Doctor.PwshFileName`, the machine readers of
+  `DoctorEnvironment` (5 members, the endpoint probe among them), `SidecarClient.KillQuietly` and `AwaitQuietly`,
+  `DeviceCodePrompts.OnStderr`. Docs: `docs/development.md` ("Coverage", "The front end", "CI and releases"),
+  `CONTRIBUTING.md` (the three coverage runs in "Checks before a commit"), `README.md` (its own heading),
+  `Directory.Packages.props` (coverlet's reason), the Cli test project's header comment.
 
 ## Deviations from the plan
 
-- none yet
+- No in-process entry for the command line: coverlet.MTP already counts the child processes (Log), so the Cli
+  tests keep the child-process harness and `CliTests.RunWith` keeps its signature. The safety bundle's new tests
+  over it are measured as they are, and the process-global state the entry would have exposed (the environment,
+  the console, `LogSink.Verbose`) stays per process. What a child cannot reach (the terminal default) moved into
+  pure functions tested in process.
+- The sidecar stays one file (the Core embeds it and the doctor hash-checks it) instead of a separate function
+  layer: parameters and `-Library` make it loadable in process.
+- A second front-end dev package, `happy-dom`, for the component tests (no DOM was there).
+- The Gui exe has no test project and is not measured; its WinForms host carries no `[ExcludeFromCodeCoverage]`
+  (nothing measures that assembly). The window's logic is the Core's `Bridge`, which is.
+- The `windows` job runs the tests without coverage: the platform-only code is excluded, and the gate passes on a
+  Windows machine too (checked locally).
 
 ## Verification
 
-- (pending)
+- 2026-10-30 — checkpoint 1, in the worktree over the tree before the round's other bundles: `dotnet restore
+  --locked-mode`, `dotnet format --verify-no-changes --no-restore`, the build without the front end and the full
+  build with it, `dotnet test --coverlet` 1126 tests green and the gate at Core 4812/4812 lines and 2676/2676
+  branches, Cli 1864/1864 and 464/464 on Windows, the same numbers on Linux (the .NET 10 SDK container, 1126
+  green); the front end's lint, type check, `npm run test:coverage` (111 tests, 100/100/100/100) and build;
+  `run-with-coverage.ps1` 108 Pester tests, 264/264 commands, PSScriptAnalyzer clean; `check-fixtures.py`, the
+  changelog check, `uvx zizmor .github` clean; the `windows` job's steps: `doctor --offline` exit 0, `whoami` exit 3
+  in an empty home, `m365-aegis-gui.exe --smoke` exit 0, `scripts/release.ps1 -DryRun` exit 0 (11.4 MB, 4.6 MB
+  zipped).
 
 ## Closing checklist
 
