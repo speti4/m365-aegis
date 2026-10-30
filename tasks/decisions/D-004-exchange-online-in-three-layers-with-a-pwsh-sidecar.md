@@ -64,6 +64,19 @@ reverse lookup splits its FullAccess read across four sidecars by default (task 
 mailboxes, no gain past four), and the sizes over every mailbox come from Graph's usage report (16 s, a few days
 old, no sidecar); the live cmdlets stay behind `--method`.
 
+## Note 2026-10-30 — the write cmdlets join the allow-list (task 053)
+
+The mailbox writes of M3 run through the sidecar, the one layer with documented writes: the allow-list admits
+`Add-MailboxPermission`, `Remove-MailboxPermission` (FullAccess), `Add-RecipientPermission`,
+`Remove-RecipientPermission` (Send As) and `Set-Mailbox` (Send on Behalf through `-GrantSendOnBehalfTo @{Add=…}` /
+`@{Remove=…}`, and the forwarding). A write cmdlet also has a parameter allow-list (`ExoCmdlets.WriteParameters` and
+the script's `$script:WriteParameters`, held equal by a test): `Set-Mailbox` can change anything on a mailbox, so it
+runs with `Identity`, `GrantSendOnBehalfTo`, `ForwardingSmtpAddress`, `ForwardingAddress`,
+`DeliverToMailboxAndForward` and `Confirm` only, and any other parameter is refused before anything is sent (exit
+code 12), by the core and again by the script. Every write passes `-Confirm:$false` and runs only from a plan's apply
+(D-006, task 051). The Admin API stays read-only: its documented endpoints are reads, and `InvokeCommand` is still
+never called.
+
 ## Not chosen
 
 - Graph only: it cannot cover the mailbox domain the tool exists for.

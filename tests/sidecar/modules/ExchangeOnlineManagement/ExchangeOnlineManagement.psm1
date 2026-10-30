@@ -16,6 +16,11 @@
 #
 # Identities that fail on purpose: 'broken' (a terminating error), 'nobody' (not found, a non-terminating error),
 # 'busy' (throttled).
+#
+# The write cmdlets (task 053) change the made-up data of this process, so a read after a write sees it, and append
+# each call as one JSON line ({"cmdlet","parameters"}) to the file M365AEGIS_FAKE_EXO_WRITES names, when it is set, so
+# a test can assert what the apply sent. A mailbox right for the mail contact Dave Private fails as the service's
+# does (it is no security principal), a non-terminating error; removing a right nobody holds fails the same way.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '', Justification = 'the real cmdlets'' signatures')]
 param()
 
@@ -264,4 +269,150 @@ function Get-AcceptedDomain {
     Assert-FakeConnected
     [pscustomobject]@{ DomainName = 'contoso.com'; DomainType = 'Authoritative'; Default = $true }
     [pscustomobject]@{ DomainName = 'contoso.onmicrosoft.com'; DomainType = 'Authoritative'; Default = $false }
+}
+
+function Write-FakeWrite {
+    # One write as the test sees it: a JSON line in the file M365AEGIS_FAKE_EXO_WRITES names, and a console line.
+    param([string] $Cmdlet, [System.Collections.IDictionary] $Parameters)
+    $common = [System.Management.Automation.PSCmdlet]::CommonParameters + [System.Management.Automation.PSCmdlet]::OptionalCommonParameters
+    $kept = [ordered]@{}
+    foreach ($key in @($Parameters.Keys | Sort-Object)) {
+        if ($common -contains $key) { continue }
+        $kept[$key] = $Parameters[$key]
+    }
+    $line = [ordered]@{ cmdlet = $Cmdlet; parameters = $kept } | ConvertTo-Json -Compress -Depth 4
+    [Console]::Out.WriteLine("fake write: $line")
+    if ($env:M365AEGIS_FAKE_EXO_WRITES) { Add-Content -LiteralPath $env:M365AEGIS_FAKE_EXO_WRITES -Value $line -Encoding utf8 }
+}
+
+function Find-FakePrincipal {
+    # The recipient a right is granted to: a mailbox or the group Finance Staff; the mail contact is no security
+    # principal, as the service says. Returns $null after a non-terminating error.
+    [CmdletBinding()]
+    param([string] $Identity)
+    $recipient = Get-EXORecipient -Identity $Identity -ErrorAction SilentlyContinue
+    if (-not $recipient) {
+        Write-Error -Message "fake: The operation couldn't be performed because object '$Identity' couldn't be found on 'contoso.onmicrosoft.com'." -Category ObjectNotFound -ErrorId 'ManagementObjectNotFoundException'
+        return
+    }
+    if ($recipient.RecipientTypeDetails -eq 'MailContact') {
+        Write-Error -Message "fake: The user '$($recipient.DisplayName)' isn't a valid security principal for a mailbox permission." -Category InvalidArgument -ErrorId 'InvalidTrusteeException'
+        return
+    }
+    $recipient
+}
+
+function Get-FakePrincipalName {
+    # How a permission entry names its holder: a mailbox by its address, a group by its name (as the service lists them).
+    param($Principal)
+    if ($Principal.RecipientTypeDetails -like '*Group') { return $Principal.Name }
+    return $Principal.PrimarySmtpAddress
+}
+
+function Add-MailboxPermission {
+    [CmdletBinding(SupportsShouldProcess)]
+    param([string] $Identity, [string] $User, [string[]] $AccessRights, [string] $InheritanceType, [object] $AutoMapping)
+    Assert-FakeConnected
+    if (-not (Assert-FakeIdentity $Identity)) { return }
+    $mailbox = Find-FakeMailbox -Identity $Identity
+    if (-not $mailbox) { return }
+    $principal = Find-FakePrincipal -Identity $User
+    if (-not $principal) { return }
+    if (-not $PSCmdlet.ShouldProcess($mailbox.Name, 'Add-MailboxPermission')) { return }
+    Write-FakeWrite 'Add-MailboxPermission' $PSBoundParameters
+    $holder = Get-FakePrincipalName $principal
+    if (-not ($script:FullAccess | Where-Object { $_.Mailbox -eq $mailbox.Name -and $_.User -eq $holder -and -not $_.Deny })) {
+        $script:FullAccess += @{ Mailbox = $mailbox.Name; User = $holder; Inherited = $false; Deny = $false }
+    }
+    [pscustomobject]@{ Identity = $mailbox.Name; User = $holder; AccessRights = [System.Collections.ArrayList]@('FullAccess'); IsInherited = $false; Deny = $false }
+}
+
+function Remove-MailboxPermission {
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
+    param([string] $Identity, [string] $User, [string[]] $AccessRights, [string] $InheritanceType)
+    Assert-FakeConnected
+    if (-not (Assert-FakeIdentity $Identity)) { return }
+    $mailbox = Find-FakeMailbox -Identity $Identity
+    if (-not $mailbox) { return }
+    $principal = Find-FakePrincipal -Identity $User
+    if (-not $principal) { return }
+    $holder = Get-FakePrincipalName $principal
+    $held = @($script:FullAccess | Where-Object { $_.Mailbox -eq $mailbox.Name -and $_.User -eq $holder -and -not $_.Deny })
+    if ($held.Count -eq 0) {
+        Write-Error -Message "fake: Can't remove the access control entry on the object '$($mailbox.Name)' for account '$holder' because the ACE doesn't exist on the object." -Category InvalidOperation -ErrorId 'ACENotFoundException'
+        return
+    }
+    if (-not $PSCmdlet.ShouldProcess($mailbox.Name, 'Remove-MailboxPermission')) { return }
+    Write-FakeWrite 'Remove-MailboxPermission' $PSBoundParameters
+    $script:FullAccess = @($script:FullAccess | Where-Object { -not ($_.Mailbox -eq $mailbox.Name -and $_.User -eq $holder -and -not $_.Deny) })
+}
+
+function Add-RecipientPermission {
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
+    param([string] $Identity, [string] $Trustee, [string[]] $AccessRights)
+    Assert-FakeConnected
+    if (-not (Assert-FakeIdentity $Identity)) { return }
+    $mailbox = Find-FakeMailbox -Identity $Identity
+    if (-not $mailbox) { return }
+    $principal = Find-FakePrincipal -Identity $Trustee
+    if (-not $principal) { return }
+    if (-not $PSCmdlet.ShouldProcess($mailbox.Name, 'Add-RecipientPermission')) { return }
+    Write-FakeWrite 'Add-RecipientPermission' $PSBoundParameters
+    $holder = Get-FakePrincipalName $principal
+    if (-not ($script:SendAs | Where-Object { $_.Mailbox -eq $mailbox.Name -and $_.Trustee -eq $holder })) {
+        $script:SendAs += @{ Mailbox = $mailbox.Name; Trustee = $holder }
+    }
+    [pscustomobject]@{ Identity = $mailbox.Name; Trustee = $holder; AccessControlType = 'Allow'; AccessRights = [System.Collections.ArrayList]@('SendAs'); IsInherited = $false }
+}
+
+function Remove-RecipientPermission {
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
+    param([string] $Identity, [string] $Trustee, [string[]] $AccessRights)
+    Assert-FakeConnected
+    if (-not (Assert-FakeIdentity $Identity)) { return }
+    $mailbox = Find-FakeMailbox -Identity $Identity
+    if (-not $mailbox) { return }
+    $principal = Find-FakePrincipal -Identity $Trustee
+    if (-not $principal) { return }
+    $holder = Get-FakePrincipalName $principal
+    if (-not ($script:SendAs | Where-Object { $_.Mailbox -eq $mailbox.Name -and $_.Trustee -eq $holder })) {
+        Write-Error -Message "fake: Can't remove the access control entry on the object '$($mailbox.Name)' for account '$holder' because the ACE doesn't exist on the object." -Category InvalidOperation -ErrorId 'ACENotFoundException'
+        return
+    }
+    if (-not $PSCmdlet.ShouldProcess($mailbox.Name, 'Remove-RecipientPermission')) { return }
+    Write-FakeWrite 'Remove-RecipientPermission' $PSBoundParameters
+    $script:SendAs = @($script:SendAs | Where-Object { -not ($_.Mailbox -eq $mailbox.Name -and $_.Trustee -eq $holder) })
+}
+
+function Set-Mailbox {
+    # Send on Behalf as the multi-valued property's change (@{Add=...} / @{Remove=...}, stored as display names, as the
+    # service lists them), and the forwarding.
+    [CmdletBinding(SupportsShouldProcess)]
+    param([string] $Identity, [object] $GrantSendOnBehalfTo, [object] $ForwardingSmtpAddress, [object] $ForwardingAddress, [object] $DeliverToMailboxAndForward)
+    Assert-FakeConnected
+    if (-not (Assert-FakeIdentity $Identity)) { return }
+    $mailbox = Find-FakeMailbox -Identity $Identity
+    if (-not $mailbox) { return }
+    $delegates = [System.Collections.Generic.List[object]]::new()
+    if ($PSBoundParameters.ContainsKey('GrantSendOnBehalfTo')) {
+        if ($GrantSendOnBehalfTo -isnot [hashtable]) { throw 'fake: GrantSendOnBehalfTo takes @{Add=...} or @{Remove=...} here' }
+        foreach ($operation in @('Add', 'Remove')) {
+            foreach ($name in @($GrantSendOnBehalfTo[$operation] | Where-Object { $_ })) {
+                $principal = Find-FakePrincipal -Identity $name
+                if (-not $principal) { return }
+                $delegates.Add([pscustomobject]@{ Operation = $operation; Name = $principal.DisplayName })
+            }
+        }
+    }
+    if (-not $PSCmdlet.ShouldProcess($mailbox.Name, 'Set-Mailbox')) { return }
+    Write-FakeWrite 'Set-Mailbox' $PSBoundParameters
+    foreach ($delegate in $delegates) {
+        if ($delegate.Operation -eq 'Add' -and $mailbox.GrantSendOnBehalfTo -notcontains $delegate.Name) { [void] $mailbox.GrantSendOnBehalfTo.Add($delegate.Name) }
+        if ($delegate.Operation -eq 'Remove') { $mailbox.GrantSendOnBehalfTo.Remove($delegate.Name) }
+    }
+    if ($PSBoundParameters.ContainsKey('ForwardingSmtpAddress')) {
+        $mailbox.ForwardingSmtpAddress = if ($ForwardingSmtpAddress) { 'smtp:' + ([string] $ForwardingSmtpAddress -replace '^smtp:', '') } else { $null }
+    }
+    if ($PSBoundParameters.ContainsKey('ForwardingAddress')) { $mailbox.ForwardingAddress = if ($ForwardingAddress) { [string] $ForwardingAddress } else { $null } }
+    if ($PSBoundParameters.ContainsKey('DeliverToMailboxAndForward')) { $mailbox.DeliverToMailboxAndForward = [bool] $DeliverToMailboxAndForward }
 }

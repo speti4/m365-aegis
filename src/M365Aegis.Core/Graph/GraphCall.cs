@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using M365Aegis.Core.Operations;
 using M365Aegis.Core.Output;
 
 namespace M365Aegis.Core.Graph;
@@ -22,47 +23,88 @@ public sealed record GraphCallOptions(string Method, string Path, bool Beta, str
 
 /// <summary>
 /// The raw <c>call</c>: any Graph request, the answer unchanged as the envelope's data (D-006); the data is null
-/// only when the call failed before an answer. A GET is sent as
-/// it is; any other method changes the tenant, so without <c>--yes</c> the request itself is returned as the
-/// plan and the command exits 7 with nothing sent. The throttling, the request ids and the failures are the
-/// client's, as for every lookup.
+/// only when the call failed before an answer. A GET is sent as it is; any other method changes the tenant, so it is
+/// a <see cref="Operations.Plan"/> of one change (task 051): <c>--dry-run</c> prints it, no flag prints it and exits
+/// 7, <c>--yes</c> sends it through the write guard, which records it under the home folder. The throttling, the
+/// request ids and the failures are the client's, as for every lookup.
 /// </summary>
 public static class GraphCall
 {
     private static readonly string[] Methods = ["GET", "POST", "PATCH", "PUT", "DELETE"];
 
-    /// <summary>Runs the call.</summary>
+    /// <summary>Runs a GET (the write of a call needs a plan store: the other overload).</summary>
     /// <exception cref="AegisException">A usage error, or the failure of the request.</exception>
-    public static async Task<CommandResult<JsonElement?>> RunAsync(GraphClient graph, GraphCallOptions options, CancellationToken cancellationToken)
+    public static Task<CommandResult<JsonElement?>> RunAsync(GraphClient graph, GraphCallOptions options, CancellationToken cancellationToken) =>
+        RunAsync(graph, options, null, cancellationToken);
+
+    /// <summary>
+    /// Runs the call: a GET is sent as it is; any other method only with <see cref="GraphCallOptions.Yes"/>, through
+    /// the write guard with its one-change plan (<see cref="Plan"/>) recorded in <paramref name="store"/>, and the
+    /// answer is the data as for a GET. A write without <c>--yes</c> is the plan's (the command line runs
+    /// <see cref="PlanGuard"/> on <see cref="Plan"/> instead).
+    /// </summary>
+    /// <exception cref="AegisException">A usage error, or the failure of the request.</exception>
+    public static async Task<CommandResult<JsonElement?>> RunAsync(GraphClient graph, GraphCallOptions options, PlanStore? store, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(graph);
         ArgumentNullException.ThrowIfNull(options);
 
         GraphRequest request = Describe(options);
-        if (request.Method != HttpMethod.Get && !options.Yes)
+        if (request.Method != HttpMethod.Get)
         {
-            var plan = new JsonObject
+            if (!options.Yes || store is null)
             {
-                ["method"] = request.Method.Method,
-                ["url"] = GraphClient.BuildUri(request).ToString(),
-                ["body"] = request.Body is null ? null : JsonNode.Parse(request.Body),
-            };
-            return CommandResult.Failure<JsonElement?>(
-                new AegisFailure(
-                    FailureKind.RefusedWithoutYes,
-                    $"{request.Method.Method} changes the tenant; nothing was sent",
-                    "check the request in the data and run the command again with --yes"),
-                JsonSerializer.SerializeToElement(plan));
+                throw new InvalidOperationException("a write of call goes through its plan: PlanGuard over GraphCall.Plan");
+            }
+
+            GraphResponse? sent = null;
+            WritePlan write = Plan(graph, options, response => sent = response);
+            CommandResult<Plan> applied = await PlanGuard.RunAsync(write, WriteMode.Apply, store, cancellationToken).ConfigureAwait(false);
+            return applied.Ok && sent is not null
+                ? CommandResult.Success<JsonElement?>(Parse(sent.Body))
+                : CommandResult.Failure<JsonElement?>(applied.Failure!);
         }
 
         GraphResponse response = await graph.SendAsync(request, cancellationToken).ConfigureAwait(false);
         JsonElement answer = Parse(response.Body);
-        if (options.All && request.Method == HttpMethod.Get)
+        if (options.All)
         {
             answer = await FollowAsync(graph, request, answer, cancellationToken).ConfigureAwait(false);
         }
 
         return CommandResult.Success<JsonElement?>(answer);
+    }
+
+    /// <summary>
+    /// The plan of a write of <c>call</c> (task 051): one change, the request as it is (the method, the URL, the body),
+    /// which the step sends. <c>call</c> reads no current state, so the plan says what is sent, not what changes.
+    /// </summary>
+    /// <param name="graph">The client the step sends with.</param>
+    /// <param name="options">The call; its method is not GET.</param>
+    /// <param name="answered">Gets the service's answer once the step sent the request.</param>
+    /// <exception cref="AegisException">A usage error in the options.</exception>
+    public static WritePlan Plan(GraphClient graph, GraphCallOptions options, Action<GraphResponse>? answered = null)
+    {
+        ArgumentNullException.ThrowIfNull(graph);
+        ArgumentNullException.ThrowIfNull(options);
+        GraphRequest request = Describe(options);
+        if (request.Method == HttpMethod.Get)
+        {
+            throw new AegisException(FailureKind.Usage, "a GET changes nothing and has no plan", "drop --dry-run");
+        }
+
+        string url = GraphClient.BuildUri(request).ToString();
+        string detail = request.Body is null ? request.Method.Method : $"{request.Method.Method} with the body {request.Body}";
+        return new PlanBuilder("call", $"{request.Method.Method} {url}")
+            .Change(
+                new PlanChange(PlanAction.Send, url, detail, "not sent", "sent"),
+                async cancellationToken =>
+                {
+                    GraphResponse response = await graph.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                    answered?.Invoke(response);
+                })
+            .Warn("call sends the request as it is: it reads no current state, so the plan names the request, not what it changes")
+            .Build();
     }
 
     /// <summary>

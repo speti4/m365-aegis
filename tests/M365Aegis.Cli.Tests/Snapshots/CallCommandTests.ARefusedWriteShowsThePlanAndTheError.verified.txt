@@ -1,9 +1,11 @@
 ﻿--- stdout ---
-field   value
-------  ----------------------------------------------------------------------------
-method  DELETE
-url     https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000031
-body    -
+action  target                                                                        change  now       after  result
+------  ----------------------------------------------------------------------------  ------  --------  -----  --------
+send    https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000031  DELETE  not sent  sent   not sent
+
+plan: DELETE https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000031
+1 change(s), 0 already as asked
+warning: call sends the request as it is: it reads no current state, so the plan names the request, not what it changes
 --- stderr ---
-error: DELETE changes the tenant; nothing was sent (refused-without-yes)
-hint: check the request in the data and run the command again with --yes
+error: 1 change(s) planned; nothing was sent (refused-without-yes)
+hint: check the plan and run the command again with --yes to apply it; --dry-run prints it with exit code 0

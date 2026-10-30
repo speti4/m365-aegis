@@ -203,7 +203,8 @@ public sealed class FixtureGraphTransport : IGraphTransport
     /// The fixture's path for a request: <see cref="RelativePath(Uri)"/>, and for an Exchange Online Admin API call
     /// (a POST to <see cref="AdminApiHost"/>, whose URL is the same for every read of an endpoint) the parameters of
     /// its <c>CmdletInput</c> body joined to the query, sorted with it: <c>Identity=finance@contoso.com</c>,
-    /// <c>ResultSize=Unlimited</c>, a list as its items joined with a comma (task 042).
+    /// <c>ResultSize=Unlimited</c>, a list as its items joined with a comma (task 042); for a Graph <c>$ref</c> write
+    /// the id its body points at, as <c>@odata.id=&lt;id&gt;</c> (task 052).
     /// </summary>
     public static string RelativePath(Uri uri, string? body)
     {
@@ -229,6 +230,10 @@ public sealed class FixtureGraphTransport : IGraphTransport
         {
             pairs.AddRange(CmdletParameters(body));
         }
+        else if (Reference(body) is { } reference)
+        {
+            pairs.Add(("@odata.id", reference));
+        }
 
         if (pairs.Count == 0)
         {
@@ -240,6 +245,34 @@ public sealed class FixtureGraphTransport : IGraphTransport
             .ThenBy(pair => pair.Value, StringComparer.Ordinal)
             .Select(pair => $"{pair.Name}={pair.Value}");
         return $"{path}@{Safe(string.Join("&", sorted))}";
+    }
+
+    /// <summary>
+    /// The object a <c>$ref</c> write's body points at (<c>{"@odata.id":"https://graph.microsoft.com/v1.0/directoryObjects/{id}"}</c>,
+    /// task 052), as the last segment of its URL, or null for any other body: two members added to one group are two
+    /// requests to the same URL, told apart by it.
+    /// </summary>
+    private static string? Reference(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body) || !body.Contains("@odata.id", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(body);
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("@odata.id", out JsonElement value)
+                && value.ValueKind == JsonValueKind.String
+                && value.GetString() is { Length: > 0 } link
+                ? link[(link.TrimEnd('/').LastIndexOf('/') + 1)..].TrimEnd('/')
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     /// <summary>The host of the Exchange Online Admin API, whose POST bodies name their fixtures too.</summary>

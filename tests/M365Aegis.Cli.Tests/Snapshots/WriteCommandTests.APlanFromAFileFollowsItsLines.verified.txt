@@ -1,0 +1,12 @@
+﻿--- stdout ---
+line  action  target   change                                       now               after     result
+----  ------  -------  -------------------------------------------  ----------------  --------  ---------
+2     add     Finance  Dave Example (dave@contoso.com) as a member  not a member      a member  planned
+3     -       Finance  Bob Example (bob@contoso.com) as a member    a member already  -         unchanged
+4     add     Finance  Eve Example (eve@contoso.com) as a member    not a member      a member  planned
+
+plan: Add members to Finance (00000000-0000-0000-0000-000000000031)
+2 change(s), 1 already as asked
+warning: a made-up warning: Finance is a sample
+dry run: nothing was sent; --yes applies the plan
+--- stderr ---

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using M365Aegis.Core.Graph;
+using M365Aegis.Core.Operations;
 using M365Aegis.Core.Output;
 using M365Aegis.Tests;
 
@@ -53,33 +54,60 @@ public sealed class GraphCallTests
     }
 
     [Fact]
-    public async Task AWriteWithoutYesIsThePlanAndSendsNothing()
+    public async Task AWriteWithoutYesIsAPlanOfOneChangeAndSendsNothing()
     {
         var transport = new ScriptedTransport(_ => throw new InvalidOperationException("nothing may be sent"));
         var graph = new GraphClient(transport);
+        string home = PlanSamples.TempHome();
 
-        CommandResult<JsonElement?> result = await GraphCall.RunAsync(
-            graph, new GraphCallOptions("patch", "/groups/00000000-0000-0000-0000-000000000031", false, "{\"description\":\"Finance team\"}", false, false), None);
+        WritePlan write = GraphCall.Plan(graph, new GraphCallOptions("patch", "/groups/00000000-0000-0000-0000-000000000031", false, "{\"description\":\"Finance team\"}", false, false));
+        CommandResult<Plan> result = await PlanGuard.RunAsync(write, WriteMode.Refuse, PlanSamples.Store(home), None);
 
         Assert.Equal(ExitCode.RefusedWithoutYes, result.ExitCode);
-        Assert.Equal("PATCH", result.Data!.Value.GetProperty("method").GetString());
-        Assert.Equal("https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000031", result.Data!.Value.GetProperty("url").GetString());
-        Assert.Equal("Finance team", result.Data!.Value.GetProperty("body").GetProperty("description").GetString());
+        PlanChange change = Assert.Single(result.Data!.Changes);
+        Assert.Equal(PlanAction.Send, change.Action);
+        Assert.Equal("https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000031", change.Target);
+        Assert.Equal("PATCH with the body {\"description\":\"Finance team\"}", change.Detail);
+        Assert.Equal("call", result.Data.Operation);
+        Assert.Single(result.Data.Warnings);
         Assert.Empty(transport.Requests);
+        Assert.False(Directory.Exists(Path.Combine(home, "plans")));
     }
 
     [Fact]
-    public async Task AWriteWithYesIsSentAndAnEmptyAnswerIsNull()
+    public void AGetHasNoPlan()
+    {
+        Assert.Equal(FailureKind.Usage, Assert.Throws<AegisException>(() => GraphCall.Plan(new GraphClient(new ScriptedTransport(_ => throw new InvalidOperationException())), new GraphCallOptions("GET", "/me", false, null, false, false))).Failure.Kind);
+    }
+
+    [Fact]
+    public async Task AWriteWithYesIsSentThroughTheGuardRecordedAndAnEmptyAnswerIsNull()
     {
         var transport = new ScriptedTransport(_ => new GraphResponse(204, [], ""));
         var graph = new GraphClient(transport);
+        string home = PlanSamples.TempHome();
 
         CommandResult<JsonElement?> result = await GraphCall.RunAsync(
-            graph, new GraphCallOptions("DELETE", "/groups/00000000-0000-0000-0000-000000000031/owners/00000000-0000-0000-0000-000000000001/$ref", false, null, true, false), None);
+            graph, new GraphCallOptions("DELETE", "/groups/00000000-0000-0000-0000-000000000031/owners/00000000-0000-0000-0000-000000000001/$ref", false, null, true, false), PlanSamples.Store(home), None);
 
         Assert.True(result.Ok);
         Assert.Equal(JsonValueKind.Null, result.Data!.Value.ValueKind);
         Assert.Equal(HttpMethod.Delete, Assert.Single(transport.Requests).Method);
+        PlanRecord record = PlanStore.Read(Assert.Single(Directory.GetFiles(Path.Combine(home, "plans"), "*-call.json")))!;
+        Assert.Equal(ChangeStatus.Applied, record.Plan.Changes[0].Result!.Status);
+    }
+
+    [Fact]
+    public async Task ARefusedWriteWithYesIsTheServicesFailure()
+    {
+        var transport = new ScriptedTransport(_ => new GraphResponse(403, [], "{\"error\":{\"code\":\"Authorization_RequestDenied\",\"message\":\"Insufficient privileges to complete the operation.\"}}"));
+        var graph = new GraphClient(transport);
+
+        CommandResult<JsonElement?> result = await GraphCall.RunAsync(
+            graph, new GraphCallOptions("POST", "/groups", false, "{}", true, false), PlanSamples.Store(PlanSamples.TempHome()), None);
+
+        Assert.Equal(ExitCode.Forbidden, result.ExitCode);
+        Assert.Null(result.Data);
     }
 
     [Fact]

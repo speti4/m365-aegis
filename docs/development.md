@@ -80,6 +80,9 @@ line here:
 - Groups (task 005): `GroupMember.Read.All` for the groups, their members and owners and `group owners-missing`,
   and `User.ReadBasic.All` for the names of members and owners that are users (without it Graph returns their ids
   and types only).
+- Group writes (task 052): `GroupMember.ReadWrite.All` for `group members add|remove`, `Group.ReadWrite.All` for
+  `group owners add|remove`, and `User.ReadBasic.All` for the users to add; the account also needs a role that
+  changes the group (Groups Administrator, User Administrator, or the group's owner).
 - Teams (task 005): `Team.ReadBasic.All` for `team list`.
 - SharePoint (task 005): `Sites.Read.All` for `site list`; with a delegated token the site search is trimmed to the
   sites the signed-in account can open (`getAllSites`, every site regardless, is application-only).
@@ -211,6 +214,8 @@ with its table view in the Cli (task 005, task 007):
   took two pages), against 7.9 s for the one wide query of task 005, the rest being the process start and the
   token. `call GET "<path>" --advanced` sends the same `ConsistencyLevel: eventual` for a raw
   advanced query.
+- `group members|owners add|remove <group> <user…>` (task 052) are the groups domain's writes, plans over the lists
+  above: see [Writes and plans](#writes-and-plans).
 - The mailbox lookups are listed with [the sidecar](#the-exchange-online-sidecar), which runs most of them:
   `mailbox access … --expand-groups` (task 044) reads a group holder's members and a user's groups through the
   group lookups above, batched; `mailbox access --user` splits its bulk read across sidecars and `mailbox size`
@@ -280,10 +285,23 @@ the script replaces every token it was handed, and anything shaped like a JWT, i
 
 **The allow-list.** `Exchange/Sidecar/ExoCmdlets.cs` is the one place a cmdlet is admitted: `Get-EXOMailbox`,
 `Get-EXOMailboxPermission`, `Get-EXORecipientPermission`, `Get-EXOMailboxStatistics`, `Get-EXORecipient`,
-`Get-AcceptedDomain` and `Get-EXOMailboxFolderStatistics` (task 042), exactly the cmdlets the lookups use. The session refuses any other name before anything is
+`Get-AcceptedDomain` and `Get-EXOMailboxFolderStatistics` (task 042), exactly the cmdlets the lookups use, and the
+write cmdlets below. The session refuses any other name before anything is
 sent (exit code 12); the script carries the same list as its own guard (`$script:AllowedCmdlets`), a Core test
 holds the two equal, and the session also compares the list the script reports in `hello`. A cmdlet joins the list
 with the lookup that needs it.
+
+**The write cmdlets** (task 053, a D-004 note of 2026-10-30). The allow-list also admits `Add-MailboxPermission` and
+`Remove-MailboxPermission` (FullAccess), `Add-RecipientPermission` and `Remove-RecipientPermission` (Send As) and
+`Set-Mailbox` (Send on Behalf and the forwarding), each with the parameters of `ExoCmdlets.WriteParameters` only:
+`Set-Mailbox` can change anything on a mailbox, so it runs with `Identity`, `GrantSendOnBehalfTo`,
+`ForwardingSmtpAddress`, `ForwardingAddress`, `DeliverToMailboxAndForward` and `Confirm` and nothing else. The session
+refuses another parameter before anything is sent (exit code 12), the script holds the same lists
+(`$script:WriteParameters`, a Core test holds them equal) and refuses it too. Every write passes `-Confirm:$false`,
+since a sidecar cannot answer a prompt. A parameter that is a JSON object reaches the cmdlet as a hashtable, which is
+how a multi-valued property's change is sent (`-GrantSendOnBehalfTo @{Add="bob@contoso.com"}`). The write cmdlets are
+REST cmdlets, so the connect's `-CommandName` imports them with `Get-AcceptedDomain`. The Admin API stays read-only:
+its documented endpoints are reads. The writes run only from a plan's apply (see [Writes and plans](#writes-and-plans)).
 
 **The connect and the token.** `Exchange/Sidecar/ExchangeSession.cs` holds one sidecar: the command line one per
 run (started on the first cmdlet, ended with the command), the window one for its lifetime (it is safe to call
@@ -433,6 +451,9 @@ sidecar, the Admin API, Graph, and more sidecars on demand for `--method paralle
 | `mailbox size` | every mailbox: Graph's usage report and the Admin API's mailbox list; one mailbox or `--method piped`/`parallel`: sidecar |
 | `mailbox folder-permissions` | Admin API (without `--folder`, the calendar's name from the sidecar first) |
 | `mailbox group-members`, `mailbox organization` | Admin API |
+| `mailbox access grant`, `revoke`: the plan's current state | as `mailbox access <mailbox>`, and each holder as a recipient through the sidecar |
+| `mailbox forwarding set`, `clear`: the plan's current state | sidecar (the mailbox's forwarding, the accepted domains) |
+| every mailbox write: the apply | sidecar (the write cmdlets; the Admin API has no documented write) |
 
 **Tests and measurements.** `M365AEGIS_EXO_MODULE_ROOT` makes the script look for the module in one folder only,
 which the tests point at the fake module under `tests/sidecar/modules` (its made-up mailboxes are listed in
@@ -454,6 +475,108 @@ used. `probe admin-api --mailbox <address> [--folder <name>] [--group <address>]
 mailbox with its delegates by name, that folder's permissions and the group's first members, and prints a list's
 first entry as its pattern (a run of letters an `a`, of digits a `9`: `a a <a@a.a>`), so the form of an entry the
 documentation leaves open shows and its value does not.
+
+## Writes and plans
+
+Every write is a plan first (D-006, tasks 051 to 054): the command reads the current state, compares it with what
+was asked for, and lists only what is not so already; nothing is sent until the plan is applied.
+
+**The flags and the exit codes.** Every write command takes `--dry-run` and `--yes`; there is no `--force`.
+
+| asked | answer | exit code |
+| --- | --- | --- |
+| `--dry-run` | the plan (`mode: dry-run`), nothing sent | 0 |
+| neither flag | the plan (`mode: refused`) and the `refused-without-yes` error, nothing sent | 7 |
+| `--dry-run` and `--yes` | a usage error before anything starts | 2 |
+| any, with nothing to change | the plan (`mode: up-to-date`), nothing sent | 0 |
+| `--yes`, every change applied | the plan with each result (`mode: applied`) | 0 |
+| `--yes`, some changes failed | the same, with the `partial` error | 6 |
+| `--yes`, no change applied, every one failing the same way | the same, with that failure (one change refused with 403 is 8) | its code |
+
+A plan that cannot be computed (a group, a mailbox, a user or a recipient that does not exist, a read that failed)
+is that failure, with nothing sent. The apply sends the changes one after another and keeps going past a change the
+service refused; it stops at a failure no later change could pass (the sign-in, exit code 3; the sidecar, 11; the
+allow-list, 12; an internal error, 70) and marks the rest `skipped`. `call` with a method other than GET is a plan of
+one change, the request as it is (`action: send`); under `--yes` its answer is the data, as for a GET.
+
+**The `Plan`** (`Core/Operations/Plan.cs`), the envelope's data of every write, and the shape the task card
+sketch of task 018 made up, so the window's card reads it: `operation` (stable and kebab-case,
+`group-members-add`, `mailbox-access-grant`, `mailbox-forwarding-set`, `call`, …), `title` (one line), `changes`
+(each with `action` — `add`, `remove`, `set`, `clear`, `send` —, `target`, `detail`, `current`, `desired`, the CSV
+`row` when it comes from a file, and after an apply `result`: `status` `applied`, `failed` with the envelope's
+`error`, or `skipped`), `unchanged` (`target`, `detail`, `state`, `row`), `warnings`, `mode` (`dry-run`, `refused`,
+`applying`, `applied`, `up-to-date`), and after an apply `record`, `started` and `finished`. The table is a row per
+change and per object already as asked (by the CSV line when the plan comes from a file): the action, the target,
+the change, the state now and after, the result (`planned`, `not sent`, `applied`, `failed: <code>`, `skipped`,
+`unchanged`); under it the title, the counts, the warnings, each failed change with the service's message, and what
+was done with the record's file.
+
+**The plan records.** An apply writes `%LOCALAPPDATA%\m365-aegis\plans\<yyyyMMddTHHmmss.fffZ>-<operation>.json` (UTC,
+so the names sort by time; a second apply in the same millisecond gets `-2`): once when it starts (`mode:
+applying`, no results) and again when it ends (each change's result, the times), through a temporary file. A record
+left at `applying` is an apply that was cut short; a change whose step was running then is `failed` with the code
+`internal` or `cancelled`. The record holds `version` (1), `source` (`command line`), `profile`, `arguments` (as
+given) and the `plan`. A dry run, a refusal and a plan with nothing to change write nothing. `M365AEGIS_HOME` moves
+the folder with the rest of the home; the tests point it at a temporary one.
+
+**In code.** A write operation of the core returns a `WritePlan` (`Core/Operations/WritePlan.cs`): the `Plan` and one
+step per change, built with `PlanBuilder`. `PlanGuard.RunAsync(plan, mode, store, …)` is the one place a step runs:
+it prints, refuses or applies, and writes the records through `PlanStore`. In the Cli, `WriteFlags` adds the two
+flags to a command and `WriteRunner` reads them, runs the plan over `GraphRunner` or `ExchangeRunner` (so the
+envelope's `meta.backend` names the layers the plan read and the apply wrote through) and renders the `Plan` with
+`PlanTableView`. A new write adds an operation to the core that returns a `WritePlan`, and a command whose action is
+one `WriteRunner` call.
+
+**The writes:**
+
+- `group members add|remove <group> <user…>` and `group owners add|remove <group> <user…>` (task 052,
+  `Groups/GroupWrites.cs`): the group is named as for `group members`; the current list is the lookup's. A user to
+  add is a user principal name (`/users/{upn}`) or the object id of any directory object (`/directoryObjects/{id}`),
+  resolved twenty to a `$batch` call, and one that does not exist is exit code 4 before anything is sent; a user to
+  remove who is not on the list is unchanged. A change is `POST /groups/{id}/members/$ref` with
+  `{"@odata.id":"https://graph.microsoft.com/v1.0/directoryObjects/{id}"}`, or `DELETE /groups/{id}/members/{id}/$ref`,
+  the owners alike (https://learn.microsoft.com/graph/api/group-post-owners). The plan warns when a group would lose
+  its last owner, and when Graph cannot change the list: a distribution or mail-enabled security group (Exchange
+  manages its members), a group Graph keeps no owners for, a group synced from on-premises Active Directory.
+- `mailbox access grant|revoke <mailbox> --user <holder>… --right FullAccess|SendAs|SendOnBehalf…` (task 053):
+  `--user` and `--right` repeat, a right also comma-separated, any case, with or without hyphens. The current holders
+  are read as `mailbox access <mailbox>` reads them, each holder to change as a recipient (`Get-EXORecipient`, a
+  missing one exit code 4), so a grant held already is told by every name Exchange may write in a permission entry.
+  The apply runs `Add-MailboxPermission -AccessRights FullAccess -InheritanceType All` or
+  `Remove-MailboxPermission` the same way, `Add-RecipientPermission -AccessRights SendAs` or
+  `Remove-RecipientPermission`, or `Set-Mailbox -GrantSendOnBehalfTo @{Add=…}` or `@{Remove=…}`. A grant to a group
+  warns that every member, the nested ones too, holds it (and that FullAccess through a group is not automapped);
+  a grant to a mail contact or a distribution group warns that the service will likely refuse it. The account needs
+  an Exchange Online role that changes recipients (Recipient Management or Organization Management).
+- `mailbox forwarding set <mailbox> --to <address> [--keep-copy]` and `mailbox forwarding clear <mailbox>` (task 053):
+  the current forwarding as `Get-EXOMailbox` carries it; `set` is `Set-Mailbox -ForwardingSmtpAddress <address>
+  -DeliverToMailboxAndForward <keep a copy>`, unchanged when the mailbox forwards there already with the same copy
+  setting; a `ForwardingAddress` (a recipient), which takes precedence over an SMTP address, is cleared with it and
+  the plan warns; an address outside the accepted domains warns that the mail leaves the organization and that the
+  outbound spam filter policy blocks automatic external forwarding unless it allows it; forwarding without a copy
+  warns too. `clear` sets both to `$null` and `DeliverToMailboxAndForward` to `$false`. A mailbox named twice is a
+  usage error.
+
+**A batch from a CSV file** (task 054). `--from-csv <file>` on every write above takes the changes from a file
+instead of the arguments (both at once is a usage error): a header line naming the columns, in any case and order,
+then one change per line; commas between the cells, or semicolons when the header has semicolons and no comma (a
+spreadsheet saved under a locale whose decimal mark is the comma); a cell in double quotes may hold the separator, a
+line break and a doubled quote; UTF-8 with or without a byte order mark; blank lines are skipped.
+
+| write | columns |
+| --- | --- |
+| `group members add`, `remove`; `group owners add`, `remove` | `group`, `user` |
+| `mailbox access grant`, `revoke` | `mailbox`, `user`, `right` (`FullAccess`, `SendAs`, `SendOnBehalf`) |
+| `mailbox forwarding set` | `mailbox`, `to`, and optionally `keepCopy` (`true`, `false`, `yes`, `no`, `1`, `0`; empty is false) |
+| `mailbox forwarding clear` | `mailbox` |
+
+The file is read before anything starts, with no sign-in: an unknown or missing column, a line with more or fewer
+cells than the header, a stray or unclosed quote, an empty required cell, an unknown right or no line under the
+header refuses the whole file with exit code 2 and a message that names the file and the line. The rest is one plan
+over every line (a group, a mailbox or a user is read once however many lines name it, a line that repeats an
+earlier change is unchanged, and two lines setting one mailbox's forwarding are a usage error), each change and each unchanged object with its line (`row`, the table's `line`
+column); a line naming a missing object fails the plan with the line in the message. The apply goes past a failed
+line (exit code 6 with each line's result), and the record holds the whole batch.
 
 ## The front end
 
@@ -628,7 +751,8 @@ the JSON envelope `{"ok":…,"data":…,"error":{"code","message","hint"},"meta"
 | 70 | `internal` | the tool broke: an unexpected exception stopped the command (task 021); `EX_SOFTWARE` of sysexits.h |
 
 A write is a plan the command prints
-under `--dry-run` and applies under `--yes`; the window shows the same plan and asks for a confirmation.
+under `--dry-run` and applies under `--yes`; the window shows the same plan and asks for a confirmation (see
+[Writes and plans](#writes-and-plans) for the exit codes of an apply).
 
 In code the path is one. A command's work returns a `CommandResult<T>` (`M365Aegis.Core.Output`): the data,
 whole on success or partial on a failure, and an `AegisFailure` when something went wrong, which is a
@@ -842,3 +966,8 @@ to the endpoint's one URL, so the cmdlet's parameters name its fixture too, sort
 recorded answer of its own is answered item by item from each item's own fixture (task 041), and an answer that is
 not JSON, the usage report's CSV, is a `.csv` file (task 043). With `M365AEGIS_EXO_TEST_ORGANIZATION` alone the
 command line has no Admin API and the mailbox lookups read the fake module only.
+
+The writes' answers (task 052) are recorded the same way: a `$ref` POST is named by its URL and the id its body
+points at (`groups/<id>/members/$ref@@odata.id=<object id>.headers`, with `Status: 204` or the refusal), a DELETE by
+its URL alone; the sample CSV files of `--from-csv` are under `tests/fixtures/csv/` (task 054). The fake module
+records each Exchange write it is sent in the file `M365AEGIS_FAKE_EXO_WRITES` names (task 053).

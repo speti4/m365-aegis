@@ -2,6 +2,7 @@ using System.Text.Json;
 using M365Aegis.Cli.Commands;
 using M365Aegis.Cli.Output;
 using M365Aegis.Core.Graph;
+using M365Aegis.Core.Operations;
 using M365Aegis.Core.Output;
 using M365Aegis.Tests;
 
@@ -52,8 +53,10 @@ public sealed class CallCommandTests
         using JsonDocument document = JsonDocument.Parse(stdout);
         JsonElement root = document.RootElement;
         Assert.Equal("refused-without-yes", root.GetProperty("error").GetProperty("code").GetString());
-        Assert.Equal("POST", root.GetProperty("data").GetProperty("method").GetString());
-        Assert.Equal("Finance", root.GetProperty("data").GetProperty("body").GetProperty("displayName").GetString());
+        JsonElement change = Assert.Single(root.GetProperty("data").GetProperty("changes").EnumerateArray());
+        Assert.Equal("send", change.GetProperty("action").GetString());
+        Assert.Equal("https://graph.microsoft.com/v1.0/groups", change.GetProperty("target").GetString());
+        Assert.Equal("POST with the body {\"displayName\":\"Finance\",\"mailEnabled\":false}", change.GetProperty("detail").GetString());
     }
 
     [Fact]
@@ -136,9 +139,14 @@ public sealed class CallCommandTests
     [Fact]
     public async Task ARefusedWriteShowsThePlanAndTheError()
     {
-        string rendering = await RenderAsync(new GraphCallOptions("DELETE", "/groups/00000000-0000-0000-0000-000000000031", false, null, false, false));
+        (GraphClient graph, _) = GraphFixtures.Client();
+        WritePlan write = GraphCall.Plan(graph, new GraphCallOptions("DELETE", "/groups/00000000-0000-0000-0000-000000000031", false, null, false, false));
+        CommandResult<Plan> result = await PlanGuard.RunAsync(write, WriteMode.Refuse, PlanSamples.Store(PlanSamples.TempHome()), TestContext.Current.CancellationToken);
+        var output = new StringWriter();
+        var error = new StringWriter();
+        Renderer.Render(result, new EnvelopeMeta([], 12, Backend.Graph), PlanTableView.Instance, OutputMode.Table, output, error);
 
-        await Verify(rendering);
+        await Verify($"--- stdout ---\n{output}--- stderr ---\n{error}");
     }
 
     private static async Task<string> RenderAsync(GraphCallOptions options)

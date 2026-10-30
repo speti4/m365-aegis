@@ -3,15 +3,17 @@ using System.Globalization;
 using System.Text.Json;
 using M365Aegis.Cli.Output;
 using M365Aegis.Core.Graph;
+using M365Aegis.Core.Operations;
 using M365Aegis.Core.Output;
 
 namespace M365Aegis.Cli.Commands;
 
 /// <summary>
-/// <c>m365-aegis call &lt;METHOD&gt; &lt;path&gt; [--beta] [--body &lt;json|@file&gt;] [--all] [--advanced] [--yes]</c>: any Graph
-/// request, the answer unchanged as the envelope's data (task 003). A GET is sent as it is; any other method
-/// changes the tenant and is sent only with <c>--yes</c>, else the request is printed as the plan and the exit code
-/// is 7 (D-006). The result is the answer's JSON, the table <see cref="CallTableView"/>.
+/// <c>m365-aegis call &lt;METHOD&gt; &lt;path&gt; [--beta] [--body &lt;json|@file&gt;] [--all] [--advanced] [--dry-run|--yes]</c>:
+/// any Graph request, the answer unchanged as the envelope's data (task 003). A GET is sent as it is; any other method
+/// changes the tenant and is a plan of one change (task 051): <c>--dry-run</c> prints it, no flag prints it with exit
+/// code 7, and <c>--yes</c> sends it through the write guard, which records it (D-006). The result is the answer's
+/// JSON, the table <see cref="CallTableView"/>, or the plan, the table <see cref="PlanTableView"/>.
 /// </summary>
 internal static class CallCommand
 {
@@ -37,10 +39,6 @@ internal static class CallCommand
         {
             Description = "Follow @odata.nextLink and return every page's items in one answer.",
         };
-        Option<bool> yes = new("--yes")
-        {
-            Description = "Send a method other than GET; without it the request is printed as the plan and nothing is sent.",
-        };
         Option<bool> advanced = new("--advanced")
         {
             Description = "Send ConsistencyLevel: eventual, for an advanced query on directory objects ($search, $count, owners/$count); put $count=true in the path.",
@@ -57,9 +55,9 @@ internal static class CallCommand
         command.Options.Add(beta);
         command.Options.Add(body);
         command.Options.Add(all);
-        command.Options.Add(yes);
         command.Options.Add(advanced);
         command.Options.Add(fixtureName);
+        WriteFlags flags = WriteFlags.On(command);
         command.SetAction((parsed, cancellationToken) =>
         {
             GraphCallOptions Options() => new(
@@ -67,7 +65,7 @@ internal static class CallCommand
                 parsed.GetValue(path) ?? "",
                 parsed.GetValue(beta),
                 parsed.GetValue(body),
-                parsed.GetValue(yes),
+                parsed.GetValue(flags.Yes),
                 parsed.GetValue(all),
                 parsed.GetValue(advanced));
 
@@ -80,13 +78,31 @@ internal static class CallCommand
                     FixtureNameTableView.Instance);
             }
 
+            OutputMode mode = Program.ResolveMode(parsed, json, table);
+            bool read = string.Equals((parsed.GetValue(method) ?? "").Trim(), "GET", StringComparison.OrdinalIgnoreCase);
+            if (read)
+            {
+                return parsed.GetValue(flags.DryRun)
+                    ? Task.FromResult(CommandRunner.Fail(mode, new AegisFailure(FailureKind.Usage, "a GET changes nothing and has no plan", "drop --dry-run")))
+                    : GraphRunner.RunAsync(parsed, json, table, profile, (graph, ct) => GraphCall.RunAsync(graph, Options(), ct), CallTableView.Instance, cancellationToken);
+            }
+
+            // A write is a plan of one change (task 051): --yes sends it through the guard and answers as a GET does.
+            if (flags.Resolve(parsed, out AegisFailure? failure) is not { } writeMode)
+            {
+                return Task.FromResult(CommandRunner.Fail(mode, failure!));
+            }
+
+            PlanStore store = WriteRunner.Store(parsed, profile);
+            if (writeMode == WriteMode.Apply)
+            {
+                return GraphRunner.RunAsync(parsed, json, table, profile, (graph, ct) => GraphCall.RunAsync(graph, Options(), store, ct), CallTableView.Instance, cancellationToken);
+            }
+
             return GraphRunner.RunAsync(
-                parsed,
-                json,
-                table,
-                profile,
-                (graph, ct) => GraphCall.RunAsync(graph, Options(), ct),
-                CallTableView.Instance,
+                parsed, json, table, profile,
+                (graph, ct) => PlanGuard.RunAsync(GraphCall.Plan(graph, Options()), writeMode, store, ct),
+                PlanTableView.Instance,
                 cancellationToken);
         });
         return command;

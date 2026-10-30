@@ -28,6 +28,17 @@ draft and the research both asked for deterministic exit codes and a dry run.
 - **Paging, throttling (429 and 503 with `Retry-After`), `$batch` and the v1.0/beta switch live in the core's
   client**, never in a command. Cost: medium, the shape of every command. Decided 2026-10-28.
 
+## Note 2026-10-30 — the write guard as built (task 051)
+
+The plan is the `Plan` type of the core (`Core/Operations`): the changes as current → desired per object, what is
+already so, the warnings, and after an apply each change's result. `--dry-run` prints it with exit code 0, no flag
+prints it with 7, `--dry-run` with `--yes` is a usage error (2), and a plan with nothing to change is exit code 0
+under any flag, since nothing would be sent. An apply sends the changes one after another, goes past a change the
+service refused and stops at one no later change could pass (the sign-in, the sidecar, the allow-list), marking the
+rest skipped; every change applied is 0, some failed is 6 (`partial`), and no change applied with every one failing
+the same way is that failure's own code (one change refused with 403 is 8), so no exit code was added. The record is
+one JSON file per apply under the home folder's `plans\`, written when the apply starts and again when it ends.
+
 ## Not chosen
 
 - JSON only: the administrator reads the table more often than a script reads the envelope.

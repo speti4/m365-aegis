@@ -12,7 +12,9 @@ namespace M365Aegis.Cli.Commands;
 /// <c>mailbox folder-permissions|group-members|organization</c> (task 042): the mailbox lookups over the three layers of
 /// D-004, each read through the layer that answers it best. <c>access</c> takes a mailbox (who holds which right on
 /// it) or <c>--user</c> (every mailbox the user holds a right on), never both; <c>--expand-groups</c> reads a group's
-/// members through Graph (task 044), and <c>--method</c> picks how the bulk reads go (task 043).
+/// members through Graph (task 044), and <c>--method</c> picks how the bulk reads go (task 043). The writes behind a
+/// plan: <c>access grant|revoke</c> and <c>forwarding set|clear</c> through the sidecar (task 053, <c>--from-csv</c> task
+/// 054).
 /// </summary>
 internal static class MailboxCommand
 {
@@ -156,14 +158,121 @@ internal static class MailboxCommand
             OrganizationTableView.Instance,
             cancellationToken));
 
+        access.Subcommands.Add(AccessWrite("grant", grant: true, json, table, profile));
+        access.Subcommands.Add(AccessWrite("revoke", grant: false, json, table, profile));
+        Command forwarding = new("forwarding", "Set or clear a mailbox's forwarding behind a plan (--dry-run prints it, --yes applies it).");
+        forwarding.Subcommands.Add(ForwardingWrite("set", set: true, json, table, profile));
+        forwarding.Subcommands.Add(ForwardingWrite("clear", set: false, json, table, profile));
+
         mailbox.Subcommands.Add(list);
         mailbox.Subcommands.Add(access);
+        mailbox.Subcommands.Add(forwarding);
         mailbox.Subcommands.Add(forwarders);
         mailbox.Subcommands.Add(size);
         mailbox.Subcommands.Add(folderPermissions);
         mailbox.Subcommands.Add(groupMembers);
         mailbox.Subcommands.Add(organization);
         return mailbox;
+    }
+
+    /// <summary>
+    /// <c>mailbox access grant|revoke &lt;mailbox&gt; --user &lt;upn&gt; --right FullAccess|SendAs|SendOnBehalf</c> or
+    /// <c>--from-csv &lt;file&gt;</c> (tasks 053 and 054): a plan of the rights not so already, applied through the sidecar.
+    /// </summary>
+    private static Command AccessWrite(string name, bool grant, Option<bool> json, Option<bool> table, Option<string?> profile)
+    {
+        Argument<string?> target = new("mailbox") { Description = "The mailbox: its address, name or object id.", Arity = ArgumentArity.ZeroOrOne };
+        Option<string[]> users = new("--user")
+        {
+            Description = grant
+                ? "Who gets the right: a user principal name, an address, or a mail-enabled security group's address; repeat it for several."
+                : "Whose right goes: a user principal name, an address or a group's address; repeat it for several.",
+        };
+        Option<string[]> rights = new("--right")
+        {
+            Description = "FullAccess, SendAs or SendOnBehalf; repeat it, or give several with commas.",
+        };
+        Option<string?> csv = new("--from-csv")
+        {
+            Description = "A CSV file instead of the arguments: a header line with the columns mailbox,user,right, then one change per line; one plan over every line.",
+        };
+        Command command = new(name, grant
+            ? "Grant FullAccess, Send As or Send on Behalf on a mailbox: a plan of the rights not held yet (--dry-run prints it, --yes applies it)."
+            : "Revoke FullAccess, Send As or Send on Behalf on a mailbox: a plan of the rights held (--dry-run prints it, --yes applies it).");
+        command.Arguments.Add(target);
+        command.Options.Add(users);
+        command.Options.Add(rights);
+        command.Options.Add(csv);
+        WriteFlags flags = WriteFlags.On(command);
+        command.SetAction((parsed, cancellationToken) =>
+        {
+            string? file = parsed.GetValue(csv);
+            string? mailbox = parsed.GetValue(target);
+            string[] holders = parsed.GetValue(users) ?? [];
+            string[] named = parsed.GetValue(rights) ?? [];
+            if (!WriteRunner.TryRows(
+                parsed, json, table,
+                () => file is null
+                    ? MailboxLookups.AccessRows(mailbox, holders, named)
+                    : GroupCommand.NoArguments(mailbox is not null || holders.Length > 0 || named.Length > 0, () => MailboxLookups.AccessRowsFromCsv(file)),
+                out IReadOnlyList<AccessChangeRow> rows,
+                out int exitCode))
+            {
+                return Task.FromResult(exitCode);
+            }
+
+            return WriteRunner.ExchangeAsync(parsed, json, table, profile, flags, (backends, ct) => MailboxLookups.PlanAccessAsync(backends, grant, rows, ct), cancellationToken);
+        });
+        return command;
+    }
+
+    /// <summary>
+    /// <c>mailbox forwarding set &lt;mailbox&gt; --to &lt;address&gt; [--keep-copy]</c> and <c>mailbox forwarding clear
+    /// &lt;mailbox&gt;</c>, or <c>--from-csv &lt;file&gt;</c> (tasks 053 and 054).
+    /// </summary>
+    private static Command ForwardingWrite(string name, bool set, Option<bool> json, Option<bool> table, Option<string?> profile)
+    {
+        Argument<string?> target = new("mailbox") { Description = "The mailbox: its address, name or object id.", Arity = ArgumentArity.ZeroOrOne };
+        Option<string?> to = new("--to") { Description = "The address to forward to (ForwardingSmtpAddress); one inside or outside the organization." };
+        Option<bool> keepCopy = new("--keep-copy") { Description = "Keep a copy in the mailbox too (DeliverToMailboxAndForward); without it the mail goes to the address only." };
+        Option<string?> csv = new("--from-csv")
+        {
+            Description = set
+                ? "A CSV file instead of the arguments: a header line with the columns mailbox,to and optionally keepCopy (true or false), then one mailbox per line."
+                : "A CSV file instead of the arguments: a header line with the column mailbox, then one mailbox per line.",
+        };
+        Command command = new(name, set
+            ? "Forward a mailbox's mail to an address: a plan of the change from the current forwarding (--dry-run prints it, --yes applies it)."
+            : "Stop a mailbox forwarding its mail: a plan of the change (--dry-run prints it, --yes applies it).");
+        command.Arguments.Add(target);
+        if (set)
+        {
+            command.Options.Add(to);
+            command.Options.Add(keepCopy);
+        }
+
+        command.Options.Add(csv);
+        WriteFlags flags = WriteFlags.On(command);
+        command.SetAction((parsed, cancellationToken) =>
+        {
+            string? file = parsed.GetValue(csv);
+            string? mailbox = parsed.GetValue(target);
+            string? address = set ? parsed.GetValue(to) : null;
+            bool keep = set && parsed.GetValue(keepCopy);
+            if (!WriteRunner.TryRows(
+                parsed, json, table,
+                () => file is null
+                    ? MailboxLookups.ForwardingRows(mailbox, address, keep, set)
+                    : GroupCommand.NoArguments(mailbox is not null || address is not null || keep, () => MailboxLookups.ForwardingRowsFromCsv(file, set)),
+                out IReadOnlyList<ForwardingRow> rows,
+                out int exitCode))
+            {
+                return Task.FromResult(exitCode);
+            }
+
+            return WriteRunner.ExchangeAsync(parsed, json, table, profile, flags, (backends, ct) => MailboxLookups.PlanForwardingAsync(backends, rows, ct), cancellationToken);
+        });
+        return command;
     }
 
     private static readonly Dictionary<string, PermissionReadMethod> PermissionReadMethods = new(StringComparer.OrdinalIgnoreCase)

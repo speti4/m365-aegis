@@ -2,13 +2,15 @@ using System.CommandLine;
 using System.Globalization;
 using M365Aegis.Cli.Output;
 using M365Aegis.Core.Groups;
+using M365Aegis.Core.Output;
 
 namespace M365Aegis.Cli.Commands;
 
 /// <summary>
 /// <c>m365-aegis group members|owners &lt;name or id&gt;</c> (<c>members --transitive</c>, task 033) and
 /// <c>group owners-missing [--all-types]</c> (task 005):
-/// the reads of the groups domain over Graph. A name resolves as <see cref="GroupLookups.ResolveAsync"/> says; an
+/// the reads of the groups domain over Graph, and the writes <c>group members|owners add|remove</c> behind a plan
+/// (task 052, <c>--from-csv</c> task 054). A name resolves as <see cref="GroupLookups.ResolveAsync"/> says; an
 /// ambiguous one exits 4 with the candidates in the hint.
 /// </summary>
 internal static class GroupCommand
@@ -57,11 +59,71 @@ internal static class GroupCommand
             OwnerlessGroupsTableView.Instance,
             cancellationToken));
 
+        members.Subcommands.Add(Write("add", GroupRelation.Members, add: true, json, table, profile));
+        members.Subcommands.Add(Write("remove", GroupRelation.Members, add: false, json, table, profile));
+        owners.Subcommands.Add(Write("add", GroupRelation.Owners, add: true, json, table, profile));
+        owners.Subcommands.Add(Write("remove", GroupRelation.Owners, add: false, json, table, profile));
+
         group.Subcommands.Add(members);
         group.Subcommands.Add(owners);
         group.Subcommands.Add(missing);
         return group;
     }
+
+    /// <summary>
+    /// <c>group members|owners add|remove &lt;group&gt; &lt;user…&gt;</c> or <c>--from-csv &lt;file&gt;</c> (tasks 052 and 054): a
+    /// plan of the users not so already, printed under <c>--dry-run</c>, applied under <c>--yes</c>.
+    /// </summary>
+    private static Command Write(string name, GroupRelation relation, bool add, Option<bool> json, Option<bool> table, Option<string?> profile)
+    {
+        string list = relation == GroupRelation.Members ? "members" : "owners";
+        Argument<string?> groupName = new("group")
+        {
+            Description = "The group's display name, address, object id, or a word of its name.",
+            Arity = ArgumentArity.ZeroOrOne,
+        };
+        Argument<string[]> users = new("user")
+        {
+            Description = add
+                ? "The users to add: user principal names, or object ids (a group, a device, a service principal too)."
+                : "The users to remove: user principal names, addresses or object ids.",
+            Arity = ArgumentArity.ZeroOrMore,
+        };
+        Option<string?> csv = new("--from-csv")
+        {
+            Description = "A CSV file instead of the arguments: a header line with the columns group,user, then one change per line; one plan over every line.",
+        };
+        string description = add
+            ? $"Add users to a group's {list}: a plan of the ones not there yet (--dry-run prints it, --yes applies it)."
+            : $"Remove users from a group's {list}: a plan of the ones there (--dry-run prints it, --yes applies it).";
+        Command command = new(name, description);
+        command.Arguments.Add(groupName);
+        command.Arguments.Add(users);
+        command.Options.Add(csv);
+        WriteFlags flags = WriteFlags.On(command);
+        command.SetAction((parsed, cancellationToken) =>
+        {
+            string? file = parsed.GetValue(csv);
+            string? named = parsed.GetValue(groupName);
+            string[] given = parsed.GetValue(users) ?? [];
+            if (!WriteRunner.TryRows(
+                parsed, json, table,
+                () => file is null ? GroupWrites.FromArguments(named, given) : NoArguments(named is not null || given.Length > 0, () => GroupWrites.FromCsv(file)),
+                out IReadOnlyList<GroupChangeRow> rows,
+                out int exitCode))
+            {
+                return Task.FromResult(exitCode);
+            }
+
+            return WriteRunner.GraphAsync(parsed, json, table, profile, flags, (graph, ct) => GroupWrites.PlanAsync(graph, relation, add, rows, ct), cancellationToken);
+        });
+        return command;
+    }
+
+    /// <summary>The rows of a CSV file, or the usage failure of arguments given beside it.</summary>
+    internal static IReadOnlyList<T> NoArguments<T>(bool arguments, Func<IReadOnlyList<T>> read) => arguments
+        ? throw new AegisException(FailureKind.Usage, "give the arguments or --from-csv, not both", "a CSV file names every change on its lines; nothing was sent")
+        : read();
 
     /// <summary>A group kind as the tables write it.</summary>
     internal static string Kind(GroupKind kind) => kind switch

@@ -56,7 +56,7 @@ public sealed class WindowExchange : IExoCmdletRunner, IAsyncDisposable
     public async Task<ExoResult> InvokeAsync(ExoCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-        ExoCmdlets.EnsureAllowed(command.Cmdlet);
+        ExoCmdlets.EnsureAllowed(command);
         ExchangeSession session = await CurrentAsync(cancellationToken).ConfigureAwait(false);
         return await session.InvokeAsync(command, cancellationToken).ConfigureAwait(false);
     }

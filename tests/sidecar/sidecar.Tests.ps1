@@ -14,7 +14,7 @@ BeforeAll {
 
     function Invoke-Sidecar {
         # Feeds the lines to a fresh sidecar and returns its stdout lines (the protocol) and stderr (the noise).
-        param([string[]] $Lines, [switch] $WithoutModule, [string] $ModuleRoot)
+        param([string[]] $Lines, [switch] $WithoutModule, [string] $ModuleRoot, [hashtable] $Environment = @{})
         $moduleRoot = if ($ModuleRoot) { $ModuleRoot } elseif ($WithoutModule) { Join-Path $PSScriptRoot 'no-such-folder' } else { Split-Path $script:FakeModules -Parent }
         $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
         $startInfo.FileName = (Get-Process -Id $PID).Path
@@ -29,6 +29,7 @@ BeforeAll {
         # The sidecar looks for ExchangeOnlineManagement under this root only, so the machine's real module (if any)
         # is never imported by a test and a missing module is a deterministic case.
         $startInfo.Environment['M365AEGIS_EXO_MODULE_ROOT'] = $moduleRoot
+        foreach ($name in $Environment.Keys) { $startInfo.Environment[$name] = $Environment[$name] }
         $process = [System.Diagnostics.Process]::Start($startInfo)
         foreach ($line in $Lines) { $process.StandardInput.Write($line + "`n") }
         $process.StandardInput.Write('{"aegis":1,"type":"exit"}' + "`n")
@@ -117,7 +118,8 @@ Describe 'connect and reconnect against the fake module' {
 
     It 'connects with the default variant: no format data, only the REST cmdlets of the allow-list' {
         $run = Invoke-Sidecar -Lines @($script:Connect)
-        $run.Stderr | Should -Match 'fake connect: SkipLoadingFormatData=True CommandName=Get-AcceptedDomain'
+        # The write cmdlets of task 053 are REST cmdlets too, imported by name with the connect.
+        $run.Stderr | Should -Match 'fake connect: SkipLoadingFormatData=True CommandName=Get-AcceptedDomain,Add-MailboxPermission,Remove-MailboxPermission,Add-RecipientPermission,Remove-RecipientPermission,Set-Mailbox'
         $run.Lines[0].data.PSObject.Properties.Name | Should -Not -Contain 'missing'
     }
 
@@ -257,6 +259,78 @@ Describe 'invoke against the fake module' {
         $invoke = Get-InvokeLine -Cmdlet 'Get-EXOMailbox' -Parameters @{ Identity = $name }
         $run = Invoke-Sidecar -Lines @($script:Connect, $invoke)
         $run.Lines[1].data.message | Should -Match $name
+    }
+}
+
+Describe 'the write cmdlets against the fake module (task 053)' {
+    BeforeEach {
+        $script:Writes = Join-Path ([System.IO.Path]::GetTempPath()) "aegis-sidecar-writes-$([guid]::NewGuid().ToString('N')).jsonl"
+    }
+
+    AfterEach {
+        Remove-Item -LiteralPath $script:Writes -ErrorAction SilentlyContinue
+    }
+
+    It 'grants FullAccess, which a later read lists, and the fake records the call' {
+        $grant = Get-InvokeLine -Id '3' -Cmdlet 'Add-MailboxPermission' -Parameters @{ Identity = 'finance@contoso.com'; User = 'bob@contoso.com'; AccessRights = @('FullAccess'); InheritanceType = 'All'; Confirm = $false }
+        $read = Get-InvokeLine -Id '4' -Cmdlet 'Get-EXOMailboxPermission' -Parameters @{ Identity = 'finance' } -Properties @('User', 'IsInherited')
+        $run = Invoke-Sidecar -Lines @($script:Connect, $grant, $read) -Environment @{ M365AEGIS_FAKE_EXO_WRITES = $script:Writes }
+        $run.Lines[1].type | Should -Be 'result'
+        @($run.Lines[2].data.items | Where-Object { $_.User -eq 'bob@contoso.com' }).Count | Should -Be 1
+        $logged = @(Get-Content -LiteralPath $script:Writes | ForEach-Object { $_ | ConvertFrom-Json })
+        $logged.Count | Should -Be 1
+        $logged[0].cmdlet | Should -Be 'Add-MailboxPermission'
+        $logged[0].parameters.User | Should -Be 'bob@contoso.com'
+        $logged[0].parameters.PSObject.Properties.Name | Should -Not -Contain 'Confirm'
+    }
+
+    It 'adds and removes a Send on Behalf delegate through the multi-valued change of Set-Mailbox' {
+        $add = Get-InvokeLine -Id '3' -Cmdlet 'Set-Mailbox' -Parameters @{ Identity = 'reception@contoso.com'; GrantSendOnBehalfTo = @{ Add = @('carol@contoso.com') }; Confirm = $false }
+        $read = Get-InvokeLine -Id '4' -Cmdlet 'Get-EXOMailbox' -Parameters @{ Identity = 'reception' } -Properties @('GrantSendOnBehalfTo')
+        $remove = Get-InvokeLine -Id '5' -Cmdlet 'Set-Mailbox' -Parameters @{ Identity = 'reception@contoso.com'; GrantSendOnBehalfTo = @{ Remove = @('carol@contoso.com') }; Confirm = $false }
+        $again = Get-InvokeLine -Id '6' -Cmdlet 'Get-EXOMailbox' -Parameters @{ Identity = 'reception' } -Properties @('GrantSendOnBehalfTo')
+        $run = Invoke-Sidecar -Lines @($script:Connect, $add, $read, $remove, $again)
+        $run.Lines[1].type | Should -Be 'result'
+        @($run.Lines[2].data.items[0].GrantSendOnBehalfTo) | Should -Be @('Carol Example')
+        $run.Lines[3].type | Should -Be 'result'
+        @($run.Lines[4].data.items[0].GrantSendOnBehalfTo | Where-Object { $_ }).Count | Should -Be 0
+    }
+
+    It 'sets and clears the forwarding' {
+        $set = Get-InvokeLine -Id '3' -Cmdlet 'Set-Mailbox' -Parameters @{ Identity = 'alice@contoso.com'; ForwardingSmtpAddress = 'alice@fabrikam.com'; DeliverToMailboxAndForward = $true; Confirm = $false }
+        $read = Get-InvokeLine -Id '4' -Cmdlet 'Get-EXOMailbox' -Parameters @{ Identity = 'alice' } -Properties @('ForwardingSmtpAddress', 'DeliverToMailboxAndForward')
+        $clear = Get-InvokeLine -Id '5' -Cmdlet 'Set-Mailbox' -Parameters @{ Identity = 'alice@contoso.com'; ForwardingSmtpAddress = $null; ForwardingAddress = $null; DeliverToMailboxAndForward = $false; Confirm = $false }
+        $again = Get-InvokeLine -Id '6' -Cmdlet 'Get-EXOMailbox' -Parameters @{ Identity = 'alice' } -Properties @('ForwardingSmtpAddress')
+        $run = Invoke-Sidecar -Lines @($script:Connect, $set, $read, $clear, $again)
+        $run.Lines[2].data.items[0].ForwardingSmtpAddress | Should -Be 'smtp:alice@fabrikam.com'
+        $run.Lines[2].data.items[0].DeliverToMailboxAndForward | Should -BeTrue
+        $run.Lines[4].data.items[0].ForwardingSmtpAddress | Should -BeNullOrEmpty
+    }
+
+    It 'refuses a write cmdlet''s parameter off the allow-list before it runs' {
+        $invoke = Get-InvokeLine -Cmdlet 'Set-Mailbox' -Parameters @{ Identity = 'alice@contoso.com'; HiddenFromAddressListsEnabled = $true }
+        $run = Invoke-Sidecar -Lines @($script:Connect, $invoke) -Environment @{ M365AEGIS_FAKE_EXO_WRITES = $script:Writes }
+        $run.Lines[1].type | Should -Be 'error'
+        $run.Lines[1].data.code | Should -Be 'cmdlet-not-allowed'
+        $run.Lines[1].data.message | Should -Match 'HiddenFromAddressListsEnabled'
+        Test-Path -LiteralPath $script:Writes | Should -BeFalse
+    }
+
+    It 'fails a grant to the mail contact, which is no security principal' {
+        $invoke = Get-InvokeLine -Cmdlet 'Add-RecipientPermission' -Parameters @{ Identity = 'finance@contoso.com'; Trustee = 'dave@example.com'; AccessRights = @('SendAs'); Confirm = $false }
+        $run = Invoke-Sidecar -Lines @($script:Connect, $invoke)
+        $run.Lines[1].type | Should -Be 'error'
+        $run.Lines[1].data.code | Should -Be 'cmdlet-failed'
+        $run.Lines[1].data.message | Should -Match 'valid security principal'
+    }
+
+    It 'fails the revoke of a right nobody holds, and a write on an identity that fails on purpose' -ForEach @(
+        @{ Cmdlet = 'Remove-MailboxPermission'; Parameters = @{ Identity = 'alice@contoso.com'; User = 'bob@contoso.com'; AccessRights = @('FullAccess'); InheritanceType = 'All'; Confirm = $false }; Pattern = "ACE doesn't exist" }
+        @{ Cmdlet = 'Add-MailboxPermission'; Parameters = @{ Identity = 'busy'; User = 'bob@contoso.com'; AccessRights = @('FullAccess'); InheritanceType = 'All'; Confirm = $false }; Pattern = 'throttled' }
+    ) {
+        $run = Invoke-Sidecar -Lines @($script:Connect, (Get-InvokeLine -Cmdlet $Cmdlet -Parameters $Parameters))
+        $run.Lines[1].type | Should -Be 'error'
+        $run.Lines[1].data.message | Should -Match $Pattern
     }
 }
 

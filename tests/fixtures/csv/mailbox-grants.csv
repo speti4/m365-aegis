@@ -1,0 +1,4 @@
+mailbox,user,right
+reception,carol@contoso.com,FullAccess
+finance,dave@example.com,SendAs
+"reception","carol@contoso.com",send-as

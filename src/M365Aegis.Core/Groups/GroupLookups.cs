@@ -403,7 +403,8 @@ public static class GroupLookups
     private static async Task<IReadOnlyList<GroupMember>> ListAsync(GraphClient graph, GroupInfo group, string relation, CancellationToken cancellationToken) =>
         await ListAsync(graph, group.Id, relation, cancellationToken).ConfigureAwait(false);
 
-    private static async Task<IReadOnlyList<GroupMember>> ListAsync(GraphClient graph, string groupId, string relation, CancellationToken cancellationToken)
+    /// <summary>A group's members, transitive members or owners by its object id, by name (the writes' current state, task 052).</summary>
+    internal static async Task<IReadOnlyList<GroupMember>> ListAsync(GraphClient graph, string groupId, string relation, CancellationToken cancellationToken)
     {
         IReadOnlyList<GraphDirectoryObject> objects = await graph.ListAsync<GraphDirectoryObject>(MembersRequest(groupId, relation), cancellationToken).ConfigureAwait(false);
         return objects

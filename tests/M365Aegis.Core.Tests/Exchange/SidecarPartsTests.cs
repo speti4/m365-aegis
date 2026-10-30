@@ -119,7 +119,7 @@ public sealed class SidecarPartsTests
     public void OnlyTheListedCmdletsAreAllowed()
     {
         Assert.True(ExoCmdlets.IsAllowed("get-exomailbox"));
-        Assert.False(ExoCmdlets.IsAllowed("Set-Mailbox"));
+        Assert.False(ExoCmdlets.IsAllowed("Remove-Mailbox"));
         Assert.False(ExoCmdlets.IsAllowed(null));
         AegisException exception = Assert.Throws<AegisException>(() => ExoCmdlets.EnsureAllowed("Invoke-Expression"));
         Assert.Equal(12, (int)exception.Failure.ExitCode);

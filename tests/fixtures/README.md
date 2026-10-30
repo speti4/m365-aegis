@@ -106,3 +106,22 @@ the short form), and the mailbox usage report `reports/getMailboxUsageDetail(per
 2026-10-28: five of the six mailboxes, and a deleted one). The client's `$batch` test answers from its items' own
 fixtures (`users/…001`, `users/…099`, `groups/…031` throttled once), with `$batch.try-n.headers` for the batch call's
 request ids.
+
+## The M3 writes bundle: the write answers and the CSV files
+
+Tasks 051 to 054. A write's answer is named like a read's, with one rule more: a `$ref` POST, whose URL is the same
+for every object added to a list, is named by the id its body's `@odata.id` points at, joined to the query after the
+`@` (`FixtureGraphTransport.RelativePath(uri, body)`): `groups/…031/members/$ref@@odata.id=…005.headers` (adding Dave
+Example to Finance, `Status: 204`), `…007` (Eve Example, a 403 `Authorization_RequestDenied` with its `.json` body),
+and `groups/…031/owners/$ref@@odata.id=…003` (Bob Example as an owner, 204). A DELETE is named by its URL:
+`groups/…031/members/…004/$ref` (Carol Example) and `groups/…031/owners/…001/$ref` (Alice Example, Finance's last
+owner), both 204. The users a write adds are read through `users/<upn>@$select=id,displayName,userPrincipalName,mail`:
+dave (`…005`), bob (`…003`), eve (`…007`, a user only these fixtures know) and nobody (a 404). The request ids of the
+writes are `…0ec` to `…0ef` and `…083` to `…088`.
+
+`csv/` holds the sample files of `--from-csv` (task 054), read from the source tree through
+`tests/shared/PlanSamples.cs`: `group-members-add.csv` (Finance with dave, bob and eve: one change applied, one
+member already, one refused), `mailbox-grants.csv` (three grants against the fake module, the mail contact's
+refused, one line in quotes), `mailbox-grants-malformed.csv` (an unclosed quote on line 3) and
+`mailbox-forwarding-set.csv` (semicolons, the optional `keepCopy` column). They carry the same made-up names as
+every fixture.

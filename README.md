@@ -176,6 +176,37 @@ Behalf on a mailbox, which mailboxes a user holds them on, and which shared mail
 window keeps one Exchange Online sidecar for as long as it is open: the first lookup starts it (a few seconds),
 every later one answers in the cmdlet's own time, and the sidecar ends with the window or with "Sign out".
 
+## Writes behind a plan
+
+Every change to the tenant is a plan first: the command reads what is there, lists only what is not so already
+(the state now and after), and sends nothing until you say so. `--dry-run` prints the plan; without a flag the plan
+is printed and the exit code is 7; `--yes` applies it, keeps going past a change the service refuses (exit code 6,
+each change's result in the answer) and records the plan with every result under
+`%LOCALAPPDATA%\m365-aegis\plans\`. A plan warns before you confirm: a group's last owner, a grant to a group, an
+address outside the organization.
+
+```powershell
+& $aegis group members add Finance dave@contoso.com bob@contoso.com --dry-run   # bob is a member already
+& $aegis group owners remove Finance alice@contoso.com --yes
+& $aegis mailbox access grant finance@contoso.com --user bob@contoso.com --right FullAccess,SendAs --dry-run
+& $aegis mailbox access revoke finance@contoso.com --user alice@contoso.com --right SendOnBehalf --yes
+& $aegis mailbox forwarding set bob@contoso.com --to bob@fabrikam.com --keep-copy --dry-run
+& $aegis mailbox forwarding clear bob@contoso.com --yes
+```
+
+A list of changes is one plan from a CSV file, a header line and one change per line (`group,user` for the group
+writes, `mailbox,user,right` for the mailbox rights, `mailbox,to,keepCopy` and `mailbox` for the forwarding); a
+file with a malformed line is refused whole before anything is sent:
+
+```powershell
+& $aegis mailbox access grant --from-csv grants.csv --dry-run
+& $aegis group members add --from-csv new-team.csv --yes
+```
+
+The group writes need `GroupMember.ReadWrite.All` (and `Group.ReadWrite.All` for the owners) consented for the app
+registration; the mailbox writes an Exchange Online role that changes recipients. The columns, the exit codes and the
+plan record are in [docs/development.md](docs/development.md#writes-and-plans).
+
 ## Documentation
 
 - [Development](docs/development.md): layout, CI, releases and helper scripts

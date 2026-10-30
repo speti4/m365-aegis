@@ -75,7 +75,7 @@ public sealed partial class SidecarTests
         await client.ConnectAsync(new SidecarConnect("fake-token", SidecarFixtures.Organization, null), again: false, Ct);
 
         AegisException exception = await Assert.ThrowsAsync<AegisException>(() =>
-            client.SendAsync("invoke", new Dictionary<string, object?> { ["cmdlet"] = "Set-Mailbox" }, TimeSpan.FromSeconds(30), Ct));
+            client.SendAsync("invoke", new Dictionary<string, object?> { ["cmdlet"] = "Remove-Mailbox" }, TimeSpan.FromSeconds(30), Ct));
 
         Assert.Equal(FailureKind.CmdletNotAllowed, exception.Failure.Kind);
     }

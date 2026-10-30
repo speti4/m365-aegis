@@ -26,9 +26,9 @@ a protocol line goes to stderr, so a module banner or a Write-Host cannot corrup
       -> the session is disconnected and the process ends
 
 The error replies carry {"code","message","errorId","category"}: bad-request, unknown-type, module-missing,
-not-connected, cmdlet-not-allowed, connect-failed, cmdlet-failed. Only the cmdlets of $AllowedCmdlets run; the
-C# allow-list (Exchange/Sidecar/ExoCmdlets.cs) is the one place a cmdlet is admitted and a test holds this list to
-it. tests/sidecar/ runs this script against a fake module.
+not-connected, cmdlet-not-allowed, connect-failed, cmdlet-failed. Only the cmdlets of $AllowedCmdlets run, a write
+cmdlet with the parameters of $WriteParameters only; the C# allow-list (Exchange/Sidecar/ExoCmdlets.cs) is the one
+place a cmdlet is admitted and a test holds these lists to it. tests/sidecar/ runs this script against a fake module.
 #>
 [CmdletBinding()]
 param()
@@ -59,8 +59,19 @@ $script:ProtocolVersion = 1
 # The cmdlets the sidecar runs, in the order of ExoCmdlets.Allowed in the Core; a test compares the two lists.
 $script:AllowedCmdlets = @(
     'Get-EXOMailbox', 'Get-EXOMailboxPermission', 'Get-EXORecipientPermission', 'Get-EXOMailboxStatistics',
-    'Get-EXORecipient', 'Get-AcceptedDomain', 'Get-EXOMailboxFolderStatistics'
+    'Get-EXORecipient', 'Get-AcceptedDomain', 'Get-EXOMailboxFolderStatistics',
+    'Add-MailboxPermission', 'Remove-MailboxPermission', 'Add-RecipientPermission', 'Remove-RecipientPermission',
+    'Set-Mailbox'
 )
+# The parameters each write cmdlet may be given (task 053), as ExoCmdlets.WriteParameters in the Core; a test compares
+# the two. Set-Mailbox can change anything on a mailbox: the list keeps it to what the plans send.
+$script:WriteParameters = @{
+    'Add-MailboxPermission' = @('Identity', 'User', 'AccessRights', 'InheritanceType', 'Confirm')
+    'Remove-MailboxPermission' = @('Identity', 'User', 'AccessRights', 'InheritanceType', 'Confirm')
+    'Add-RecipientPermission' = @('Identity', 'Trustee', 'AccessRights', 'Confirm')
+    'Remove-RecipientPermission' = @('Identity', 'Trustee', 'AccessRights', 'Confirm')
+    'Set-Mailbox' = @('Identity', 'GrantSendOnBehalfTo', 'ForwardingSmtpAddress', 'ForwardingAddress', 'DeliverToMailboxAndForward', 'Confirm')
+}
 $script:Connected = $false
 # The tokens this process was handed, so an error message that quotes one is scrubbed before it is written.
 $script:Secrets = [System.Collections.Generic.List[string]]::new()
@@ -229,7 +240,24 @@ function Invoke-Cmdlet {
     }
     $parameters = @{}
     if ($data['parameters'] -is [System.Collections.IDictionary]) {
-        foreach ($key in $data['parameters'].Keys) { $parameters[$key] = $data['parameters'][$key] }
+        foreach ($key in $data['parameters'].Keys) {
+            $value = $data['parameters'][$key]
+            # A multi-valued property's change (-GrantSendOnBehalfTo @{Add=...}) comes as a JSON object: a hashtable.
+            if ($value -is [System.Collections.IDictionary]) {
+                $table = @{}
+                foreach ($name in $value.Keys) { $table[$name] = $value[$name] }
+                $value = $table
+            }
+            $parameters[$key] = $value
+        }
+    }
+    $writable = $script:WriteParameters[$cmdlet]
+    if ($writable) {
+        $off = @($parameters.Keys | Where-Object { $writable -notcontains $_ })
+        if ($off.Count -gt 0) {
+            Write-ErrorReply $Request 'cmdlet-not-allowed' "'$cmdlet -$($off[0])' is not on the sidecar's allow-list"
+            return
+        }
     }
     [string[]] $properties = if ($data['properties']) { @($data['properties']) } else { @() }
 

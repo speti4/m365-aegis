@@ -18,10 +18,21 @@ change), and a copy of the fake without one export, in another version, answers 
 `contoso.onmicrosoft.com`: `Connect-ExchangeOnline` (any token for that organization, with `-Organization` or `-UserPrincipalName`;
 `fabrikam.onmicrosoft.com` is refused, `expired-token` is a 401, `refuse.contoso.onmicrosoft.com` refuses with the
 token in its message, which the script must scrub), `Disconnect-ExchangeOnline` (the connect writes the variant it got, `-SkipLoadingFormatData` and `-CommandName`, to
-the console, which is the sidecar's stderr), and the seven cmdlets of the
+the console, which is the sidecar's stderr), and the seven read cmdlets of the
 allow-list: `Get-EXOMailbox`, `Get-EXOMailboxPermission`, `Get-EXORecipientPermission`, `Get-EXOMailboxStatistics`,
 `Get-EXORecipient`, `Get-AcceptedDomain` (`contoso.com`, `contoso.onmicrosoft.com`) and `Get-EXOMailboxFolderStatistics`. The permission cmdlets accept
 piped identities, as the real ones do.
+
+The write cmdlets of the allow-list (task 053), `Add-MailboxPermission`, `Remove-MailboxPermission`,
+`Add-RecipientPermission`, `Remove-RecipientPermission` and `Set-Mailbox` (`-GrantSendOnBehalfTo` as `@{Add=…}` or
+`@{Remove=…}`, `-ForwardingSmtpAddress`, `-ForwardingAddress`, `-DeliverToMailboxAndForward`), change the made-up
+data of the process they run in, so a read after a write sees it, and append each call as one JSON line
+(`{"cmdlet","parameters"}`, without `Confirm` and the common parameters) to the file `M365AEGIS_FAKE_EXO_WRITES`
+names, when it is set, which is how a test sees what an apply sent. A holder is a mailbox (named in an entry by its
+address) or the group Finance Staff (by its name); a right for the mail contact Dave Private fails as the service's
+does (no security principal, a non-terminating error, exit code 13), and so does the revoke of a right nobody holds.
+The removals declare `ConfirmImpact = 'High'`, as the real ones do, so a write sent without `-Confirm:$false` would
+stop at a prompt; the failing identities `broken`, `nobody` and `busy` fail the writes too.
 
 | mailbox | type | object id | forwarding | rights on it | size |
 | --- | --- | --- | --- | --- | --- |

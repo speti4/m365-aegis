@@ -140,7 +140,7 @@ public sealed class WindowExchangeTests
     {
         await using var exchange = new WindowExchange(() => SidecarFixtures.Session());
 
-        AegisException refused = await Assert.ThrowsAsync<AegisException>(() => exchange.InvokeAsync(new ExoCommand("Set-Mailbox"), Ct));
+        AegisException refused = await Assert.ThrowsAsync<AegisException>(() => exchange.InvokeAsync(new ExoCommand("Remove-Mailbox"), Ct));
 
         Assert.Equal(FailureKind.CmdletNotAllowed, refused.Failure.Kind);
         Assert.Null(exchange.Session);

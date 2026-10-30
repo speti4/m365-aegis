@@ -112,7 +112,7 @@ public sealed class ExchangeSession : IExoCmdletRunner, IAsyncDisposable
     public async Task<ExoResult> InvokeAsync(ExoCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-        ExoCmdlets.EnsureAllowed(command.Cmdlet);
+        ExoCmdlets.EnsureAllowed(command);
         ObjectDisposedException.ThrowIf(_disposed, this);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try

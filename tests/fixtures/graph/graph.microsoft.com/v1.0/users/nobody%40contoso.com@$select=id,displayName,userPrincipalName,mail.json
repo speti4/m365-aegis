@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "Request_ResourceNotFound",
+    "message": "Resource 'nobody@contoso.com' does not exist or one of its queried reference-property objects are not present."
+  }
+}

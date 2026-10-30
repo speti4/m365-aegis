@@ -1,0 +1,43 @@
+﻿=== --dry-run ===
+--- stdout ---
+action  target   change                                       now               after     result
+------  -------  -------------------------------------------  ----------------  --------  ---------
+add     Finance  Dave Example (dave@contoso.com) as a member  not a member      a member  planned
+add     Finance  Eve Example (eve@contoso.com) as a member    not a member      a member  planned
+-       Finance  Bob Example (bob@contoso.com) as a member    a member already  -         unchanged
+
+plan: Add members to Finance (00000000-0000-0000-0000-000000000031)
+2 change(s), 1 already as asked
+warning: a made-up warning: Finance is a sample
+dry run: nothing was sent; --yes applies the plan
+--- stderr ---
+=== no flag ===
+--- stdout ---
+action  target   change                                       now               after     result
+------  -------  -------------------------------------------  ----------------  --------  ---------
+add     Finance  Dave Example (dave@contoso.com) as a member  not a member      a member  not sent
+add     Finance  Eve Example (eve@contoso.com) as a member    not a member      a member  not sent
+-       Finance  Bob Example (bob@contoso.com) as a member    a member already  -         unchanged
+
+plan: Add members to Finance (00000000-0000-0000-0000-000000000031)
+2 change(s), 1 already as asked
+warning: a made-up warning: Finance is a sample
+--- stderr ---
+error: 2 change(s) planned; nothing was sent (refused-without-yes)
+hint: check the plan and run the command again with --yes to apply it; --dry-run prints it with exit code 0
+=== --yes ===
+--- stdout ---
+action  target   change                                       now               after     result
+------  -------  -------------------------------------------  ----------------  --------  -----------------
+add     Finance  Dave Example (dave@contoso.com) as a member  not a member      a member  applied
+add     Finance  Eve Example (eve@contoso.com) as a member    not a member      a member  failed: forbidden
+-       Finance  Bob Example (bob@contoso.com) as a member    a member already  -         unchanged
+
+plan: Add members to Finance (00000000-0000-0000-0000-000000000031)
+2 change(s), 1 already as asked
+warning: a made-up warning: Finance is a sample
+failed (Finance, Eve Example (eve@contoso.com) as a member): Microsoft Graph answered 403 to POST /groups/00000000-0000-0000-0000-000000000031/members/$ref: Authorization_RequestDenied: Insufficient privileges to complete the operation. (forbidden)
+applied 1 of 2 change(s); the plan record is <home>/plans/20261030T120000.000Z-group-members-add.json
+--- stderr ---
+error: 1 of 2 change(s) applied, 1 failed (partial)
+hint: the data lists each change's result and the service's message; the plan record is <home>/plans/20261030T120000.000Z-group-members-add.json
