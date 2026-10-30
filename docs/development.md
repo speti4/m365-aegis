@@ -309,6 +309,14 @@ how a multi-valued property's change is sent (`-GrantSendOnBehalfTo @{Add="bob@c
 REST cmdlets, so the connect's `-CommandName` imports them with `Get-AcceptedDomain`. The Admin API stays read-only:
 its documented endpoints are reads. The writes run only from a plan's apply (see [Writes and plans](#writes-and-plans)).
 
+**The member writes of a distribution group** (task 061, a D-004 note of 2026-10-30). The allow-list also admits
+`Add-DistributionGroupMember` and `Remove-DistributionGroupMember`, each with `Identity`, `Member`,
+`BypassSecurityGroupManagerCheck` and `Confirm` only: `group members add|remove` on a distribution or mail-enabled
+security group, whose members Exchange manages and Graph refuses to change. The group is its primary address, the
+member a recipient's address; `-BypassSecurityGroupManagerCheck` lets an administrator who is not among the group's
+owners (`ManagedBy`) change it, which needs the Organization Management role group or the Security Group Creation and
+Membership role (https://learn.microsoft.com/powershell/module/exchangepowershell/add-distributiongroupmember).
+
 **The connect and the token.** `Exchange/Sidecar/ExchangeSession.cs` holds one sidecar: the command line one per
 run (started on the first cmdlet, ended with the command), the window one for its lifetime (it is safe to call
 from several tasks, and a sidecar that died is replaced on the next cmdlet). The sign-in comes first, so no pwsh
@@ -465,6 +473,8 @@ sidecar, the Admin API, Graph, and more sidecars on demand for `--method paralle
 | `mailbox access grant`, `revoke`: the plan's current state | as `mailbox access <mailbox>`, and each holder as a recipient through the sidecar |
 | `mailbox forwarding set`, `clear`: the plan's current state | sidecar (the mailbox's forwarding, the accepted domains) |
 | every mailbox write: the apply | sidecar (the write cmdlets; the Admin API has no documented write) |
+| `group members add`, `remove` on a distribution or mail-enabled security group: the plan's current state | Graph (the group and its type, the users to add), the Admin API's `Get-DistributionGroupMember` (Graph's list when the run has none or it cannot answer) |
+| `group members add`, `remove` on a distribution or mail-enabled security group: the apply | sidecar (`Add-`/`Remove-DistributionGroupMember`) |
 
 **Tests and measurements.** `M365AEGIS_EXO_MODULE_ROOT` makes the script look for the module in one folder only,
 which the tests point at the fake module under `tests/sidecar/modules` (its made-up mailboxes are listed in
@@ -495,7 +505,8 @@ forwarding fields came back; `--mailbox-parameters '<JSON object>'` (with `--sel
 Every write is a plan first (D-006, tasks 051 to 054): the command reads the current state, compares it with what
 was asked for, and lists only what is not so already; nothing is sent until the plan is applied.
 
-**The flags and the exit codes.** Every write command takes `--dry-run` and `--yes`; there is no `--force`.
+**The flags and the exit codes.** Every write command takes `--dry-run` and `--yes`; there is no `--force`. The group
+and mailbox writes also take `--resume <record>` (see [A resume](#a-resume-from-a-plan-record) below).
 
 | asked | answer | exit code |
 | --- | --- | --- |
@@ -506,11 +517,17 @@ was asked for, and lists only what is not so already; nothing is sent until the 
 | `--yes`, every change applied | the plan with each result (`mode: applied`) | 0 |
 | `--yes`, some changes failed | the same, with the `partial` error | 6 |
 | `--yes`, no change applied, every one failing the same way | the same, with that failure (one change refused with 403 is 8) | its code |
+| `--resume` with arguments or `--from-csv`, of a raw call, of another write, of another profile, or of a record with every change applied | a usage error before anything starts | 2 |
+| `--resume` of a record that does not exist | the `not-found` error before anything starts | 4 |
 
 A plan that cannot be computed (a group, a mailbox, a user or a recipient that does not exist, a read that failed)
 is that failure, with nothing sent. The apply sends the changes one after another and keeps going past a change the
 service refused; it stops at a failure no later change could pass (the sign-in, exit code 3; the sidecar, 11; the
-allow-list, 12; an internal error, 70) and marks the rest `skipped`. `call` with a method other than GET is a plan of
+allow-list, 12; an internal error, 70) and marks the rest `skipped`. Changes that one request can carry together go
+together (task 058): the group writes' Graph `$ref` requests, twenty to a `$batch` call, each change's result read from
+its own part of the answer, so a part the service refused fails its own change (with the error a single request would
+have had, a 403 naming the permission) and the others stay applied; a batch call that fails as a whole fails each of
+its changes. A plan of a hundred member changes is five requests. `call` with a method other than GET is a plan of
 one change, the request as it is (`action: send`); under `--yes` its answer is the data, as for a GET.
 
 **The `Plan`** (`Core/Operations/Plan.cs`), the envelope's data of every write, and the shape the task card
@@ -519,7 +536,8 @@ sketch of task 018 made up, so the window's card reads it: `operation` (stable a
 (each with `action` — `add`, `remove`, `set`, `clear`, `send` —, `target`, `detail`, `current`, `desired`, the CSV
 `row` when it comes from a file, and after an apply `result`: `status` `applied`, `failed` with the envelope's
 `error`, or `skipped`), `unchanged` (`target`, `detail`, `state`, `row`), `warnings`, `mode` (`dry-run`, `refused`,
-`applying`, `applied`, `up-to-date`), and after an apply `record`, `started` and `finished`. The table is a row per
+`applying`, `applied`, `up-to-date`), after an apply `record`, `started` and `finished`, and under `--resume` the
+record it continues (`resumes`). The table is a row per
 change and per object already as asked (by the CSV line when the plan comes from a file): the action, the target,
 the change, the state now and after, the result (`planned`, `not sent`, `applied`, `failed: <code>`, `skipped`,
 `unchanged`); under it the title, the counts, the warnings, each failed change with the service's message, and what
@@ -530,16 +548,32 @@ so the names sort by time; a second apply in the same millisecond gets `-2`): on
 applying`, no results) and again when it ends (each change's result, the times), through a temporary file. A record
 left at `applying` is an apply that was cut short; a change whose step was running then is `failed` with the code
 `internal` or `cancelled`. The record holds `version` (1), `source` (`command line`), `profile`, `arguments` (as
-given) and the `plan`. A dry run, a refusal and a plan with nothing to change write nothing. `M365AEGIS_HOME` moves
-the folder with the rest of the home; the tests point it at a temporary one.
+given), the `plan`, and for a batch from a CSV file the file's full path and text (`input`: `file`, `content`), so a
+resume replays the lines the apply had (task 062). A dry run, a refusal and a plan with nothing to change write
+nothing. `M365AEGIS_HOME` moves the folder with the rest of the home; the tests point it at a temporary one.
+
+**The records read back** (task 060). `plan list` lists the records of the home folder, newest first: when the apply
+started (UTC), the operation, the mode (`applied`, or `cut short` for a record left at `applying`), and how many
+changes it had, applied, failed and skipped, with the record's file name; a file in the folder that is not a plan
+record is counted under the table and left out. `plan show <record>` prints one record (by the file name `plan list`
+shows, with or without `.json`, or by its path) as every write prints its plan, each change with its result, and
+under it who applied it, when, with which profile and arguments; its envelope's data is the record as the file holds
+it. Both read the local files only: no sign-in, no request, backend `local`. A record that does not exist is exit code
+4; a file that is not a plan record is a usage error (2).
 
 **In code.** A write operation of the core returns a `WritePlan` (`Core/Operations/WritePlan.cs`): the `Plan` and one
-step per change, built with `PlanBuilder`. `PlanGuard.RunAsync(plan, mode, store, …)` is the one place a step runs:
-it prints, refuses or applies, and writes the records through `PlanStore`. In the Cli, `WriteFlags` adds the two
+step per change, built with `PlanBuilder`. A step sends its change alone (`PlanStep.Alone`), or is an item of a
+`PlanBatch` (`PlanStep.Batched`), which sends the items of up to its size of neighboring changes in one request and
+answers one outcome per item (task 058; `GroupWrites.RefBatch` is the Graph `$batch` of the `$ref` writes).
+`PlanGuard.RunAsync(plan, mode, store, …)` is the one place a step runs:
+it prints, refuses or applies, and writes the records through `PlanStore`, which also reads them back
+(`PlanStore.List`, `PlanStore.Open`); `PlanResume` narrows a plan to the changes a record left to do. In the Cli, `WriteFlags` adds the two
 flags to a command and `WriteRunner` reads them, runs the plan over `GraphRunner` or `ExchangeRunner` (so the
 envelope's `meta.backend` names the layers the plan read and the apply wrote through) and renders the `Plan` with
-`PlanTableView`. A new write adds an operation to the core that returns a `WritePlan`, and a command whose action is
-one `WriteRunner` call.
+`PlanTableView`. `WriteFlags` also adds `--resume`, whose option action (`ResumeAction`) runs in place of the
+command's own: it reads the record, parses the record's arguments again with this run's flags and runs the command's
+own action under the resume, so a write gets `--resume` without code of its own (`call` opts out). A new write adds an
+operation to the core that returns a `WritePlan`, and a command whose action is one `WriteRunner` call.
 
 **The writes:**
 
@@ -549,9 +583,19 @@ one `WriteRunner` call.
   resolved twenty to a `$batch` call, and one that does not exist is exit code 4 before anything is sent; a user to
   remove who is not on the list is unchanged. A change is `POST /groups/{id}/members/$ref` with
   `{"@odata.id":"https://graph.microsoft.com/v1.0/directoryObjects/{id}"}`, or `DELETE /groups/{id}/members/{id}/$ref`,
-  the owners alike (https://learn.microsoft.com/graph/api/group-post-owners). The plan warns when a group would lose
-  its last owner, and when Graph cannot change the list: a distribution or mail-enabled security group (Exchange
-  manages its members), a group Graph keeps no owners for, a group synced from on-premises Active Directory.
+  the owners alike (https://learn.microsoft.com/graph/api/group-post-owners), twenty to a `$batch` call (task 058). The
+  plan warns when a group would lose its last owner, and when the service will refuse the change: a group Graph keeps
+  no owners for, a group synced from on-premises Active Directory. The members of a distribution or mail-enabled
+  security group (the group's type is Graph's, read with its name) go through Exchange instead (task 061): the current
+  members are the Admin API's `Get-DistributionGroupMember` (the hidden ones included; Graph's list when the run has no
+  Admin API or it cannot answer), a user is matched by any address, object id, alias or name Exchange gives the member,
+  and each change is `Add-DistributionGroupMember` or `Remove-DistributionGroupMember -Identity <the group's address>
+  -Member <the member's address> -BypassSecurityGroupManagerCheck -Confirm:$false` through the sidecar, so the envelope's
+  backend is `graph+admin-api` for the plan and `graph+admin-api+pwsh` after an apply. A Microsoft 365 or security
+  group's members and every group's owners stay on Graph (backend `graph`), and so does a group synced from
+  on-premises Active Directory, with the warning that the service will refuse the change: Exchange Online refuses a
+  member write on a synced group too, so the change belongs in the on-premises directory. The owners of a distribution group
+  (`ManagedBy`) and the members of a dynamic distribution group are not written.
 - `mailbox access grant|revoke <mailbox> --user <holder>… --right FullAccess|SendAs|SendOnBehalf…` (task 053):
   `--user` and `--right` repeat, a right also comma-separated, any case, with or without hyphens. The current holders
   are read as `mailbox access <mailbox>` reads them, each holder to change as a recipient (`Get-EXORecipient`, a
@@ -592,6 +636,23 @@ over every line (a group, a mailbox or a user is read once however many lines na
 earlier change is unchanged, and two lines setting one mailbox's forwarding are a usage error), each change and each unchanged object with its line (`row`, the table's `line`
 column); a line naming a missing object fails the plan with the line in the message. The apply goes past a failed
 line (exit code 6 with each line's result), and the record holds the whole batch.
+
+### A resume from a plan record
+
+`--resume <record>` on a group or mailbox write (task 062, `Core/Operations/PlanResume.cs`) continues an apply that
+ended partial, stopped at a failure no later change could pass, or was cut short: the record names the changes to
+continue, the ones it left `failed` or `skipped` (or without a result, for a record left at `applying`). The command
+line of the record is parsed again (its arguments; a CSV file from the text the record keeps, never from the file,
+which may have changed since) with this run's `--dry-run` or `--yes` and output flags, and the write plans its
+original changes against the current state; of that plan, only what continues a change the record left to do is kept
+(by its CSV line when the record has one, else by the action, the target and the change): a change still to make is
+planned again, one made in the meantime comes out unchanged, and one the record applied is left out whatever its state
+now. A change the record left to do that the new plan does not name becomes a warning. The guard is the usual one, and
+the new record names the one it continues (`resumes`) and keeps the original arguments and file, so a resume can be
+resumed. A record of two failed and three skipped changes resumes as a plan of at most five. The record is named as
+for `plan show`; it must be of the same write (the hint names the command that wrote it), of the same profile, and not
+of a raw `call`; a record with every change applied has nothing to resume. Arguments or `--from-csv` next to
+`--resume` are a usage error: the record names the changes.
 
 ## The front end
 

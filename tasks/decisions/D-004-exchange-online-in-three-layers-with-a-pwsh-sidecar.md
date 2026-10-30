@@ -77,6 +77,17 @@ code 12), by the core and again by the script. Every write passes `-Confirm:$fal
 (D-006, task 051). The Admin API stays read-only: its documented endpoints are reads, and `InvokeCommand` is still
 never called.
 
+## Note 2026-10-30 — the write layer grows by two member cmdlets (task 061)
+
+The members of a distribution group or a mail-enabled security group are Exchange's: Graph refuses the `$ref` write on
+them. The allow-list admits `Add-DistributionGroupMember` and `Remove-DistributionGroupMember`, each with the parameter
+allow-list `Identity`, `Member`, `BypassSecurityGroupManagerCheck` and `Confirm` (held equal in the core and the script
+by a test, refused otherwise with exit code 12), so the sidecar's write layer is seven cmdlets. `group members
+add|remove` reads the group's type from Graph and, for these two types, the current members from the Admin API's
+`Get-DistributionGroupMember` (task 042), the one read layer that lists the hidden members too, falling back to Graph's
+list; the apply goes through the sidecar. A Microsoft 365 or security group's members and every group's owners stay on
+Graph. The Admin API stays read-only.
+
 ## Not chosen
 
 - Graph only: it cannot cover the mailbox domain the tool exists for.

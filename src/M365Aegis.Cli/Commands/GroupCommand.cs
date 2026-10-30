@@ -72,7 +72,10 @@ internal static class GroupCommand
 
     /// <summary>
     /// <c>group members|owners add|remove &lt;group&gt; &lt;user…&gt;</c> or <c>--from-csv &lt;file&gt;</c> (tasks 052 and 054): a
-    /// plan of the users not so already, printed under <c>--dry-run</c>, applied under <c>--yes</c>.
+    /// plan of the users not so already, printed under <c>--dry-run</c>, applied under <c>--yes</c>, continued from a plan
+    /// record with <c>--resume</c> (task 062). The command runs over the Exchange layers too (task 061): a distribution or
+    /// mail-enabled security group's members are read through the Admin API and changed through the sidecar, every other
+    /// list over Graph alone, twenty changes to a <c>$batch</c> call (task 058).
     /// </summary>
     private static Command Write(string name, GroupRelation relation, bool add, Option<bool> json, Option<bool> table, Option<string?> profile)
     {
@@ -115,7 +118,7 @@ internal static class GroupCommand
                 return Task.FromResult(exitCode);
             }
 
-            return WriteRunner.GraphAsync(parsed, json, table, profile, flags, (graph, ct) => GroupWrites.PlanAsync(graph, relation, add, rows, ct), cancellationToken);
+            return WriteRunner.ExchangeAsync(parsed, json, table, profile, flags, (backends, ct) => GroupWrites.PlanAsync(backends, relation, add, rows, ct), cancellationToken);
         });
         return command;
     }

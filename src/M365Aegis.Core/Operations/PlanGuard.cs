@@ -20,7 +20,8 @@ public enum WriteMode
 /// The write guard (D-006, task 051): the one place a plan's steps run. A dry run is the plan (exit 0); a plan
 /// without <c>--yes</c> is the plan with the <see cref="FailureKind.RefusedWithoutYes"/> failure (exit 7); a plan with
 /// nothing to change is the plan (exit 0) whatever the flags, since nothing would be sent. An apply records the plan
-/// under the home folder first, sends the changes one after another, keeps going past a change the service refused,
+/// under the home folder first, sends the changes one after another (neighboring changes of one batch together, up to
+/// its size, each with the result of its own part; task 058), keeps going past a change the service refused,
 /// and stops at a failure no later change could pass (the sign-in, the sidecar, the allow-list), marking the rest
 /// skipped; then it records each change's result. Every change applied is exit 0; otherwise one change, or every
 /// change failing the same way, is that failure's own exit code, and anything else is
@@ -68,38 +69,34 @@ public static class PlanGuard
         string record = store.Begin(applying);
         applying = applying with { Record = record };
         var results = new ChangeResult?[total];
-        int inFlight = -1;
+        (int First, int Count) inFlight = (-1, 0);
         try
         {
-            for (int index = 0; index < total; index++)
+            for (int index = 0; index < total;)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                try
+                PlanStep step = write.Step(index);
+                int count = step.Batch is { } batch ? Neighbors(write, index, total, batch) : 1;
+                inFlight = (index, count);
+                bool stop = step.Batch is { } sending
+                    ? await SendBatchAsync(write, sending, index, count, results, cancellationToken).ConfigureAwait(false)
+                    : await SendAloneAsync(step, index, results, cancellationToken).ConfigureAwait(false);
+                inFlight = (-1, 0);
+                index += count;
+                if (stop)
                 {
-                    inFlight = index;
-                    await write.Step(index)(cancellationToken).ConfigureAwait(false);
-                    results[index] = new ChangeResult(ChangeStatus.Applied);
+                    break;
                 }
-                catch (AegisException exception)
-                {
-                    results[index] = new ChangeResult(ChangeStatus.Failed, exception.Failure.ToError());
-                    if (Stopping.Contains(exception.Failure.Kind))
-                    {
-                        break;
-                    }
-                }
-
-                inFlight = -1;
             }
         }
         catch (Exception exception) when (exception is not AegisException)
         {
-            // A bug or a cancellation in the middle of a change: whether it reached the service is unknown, which the
-            // record says; the exception goes on to the command runner.
-            if (inFlight >= 0 && results[inFlight] is null)
+            // A bug or a cancellation in the middle of a change (or a batch of them): whether it reached the service is
+            // unknown, which the record says; the exception goes on to the command runner.
+            string code = exception is OperationCanceledException ? "cancelled" : FailureKind.Internal.ToCode();
+            for (int index = inFlight.First; index >= 0 && index < inFlight.First + inFlight.Count; index++)
             {
-                string code = exception is OperationCanceledException ? "cancelled" : FailureKind.Internal.ToCode();
-                results[inFlight] = new ChangeResult(ChangeStatus.Failed, new EnvelopeError(code, "the apply stopped during this change; check the object before running the plan again"));
+                results[index] ??= new ChangeResult(ChangeStatus.Failed, new EnvelopeError(code, "the apply stopped during this change; check the object before running the plan again"));
             }
 
             store.Finish(record, Finish(applying, results, store));
@@ -109,6 +106,63 @@ public static class PlanGuard
         Plan applied = Finish(applying, results, store);
         store.Finish(record, applied);
         return Outcome(applied, record);
+    }
+
+    /// <summary>A change sent alone; true when its failure stops the apply.</summary>
+    private static async Task<bool> SendAloneAsync(PlanStep step, int index, ChangeResult?[] results, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await step.Apply!(cancellationToken).ConfigureAwait(false);
+            results[index] = new ChangeResult(ChangeStatus.Applied);
+            return false;
+        }
+        catch (AegisException exception)
+        {
+            results[index] = new ChangeResult(ChangeStatus.Failed, exception.Failure.ToError());
+            return Stopping.Contains(exception.Failure.Kind);
+        }
+    }
+
+    /// <summary>
+    /// The changes at <paramref name="first"/> and after sent as one request of their batch (task 058), each with the
+    /// outcome of its own part; a request that failed as a whole fails each of its changes the same way. True when a
+    /// failure stops the apply.
+    /// </summary>
+    private static async Task<bool> SendBatchAsync(WritePlan write, PlanBatch batch, int first, int count, ChangeResult?[] results, CancellationToken cancellationToken)
+    {
+        List<object> items = Enumerable.Range(first, count).Select(index => write.Step(index).Item!).ToList();
+        IReadOnlyList<AegisFailure?> outcomes;
+        try
+        {
+            outcomes = await batch.SendAsync(items, cancellationToken).ConfigureAwait(false);
+        }
+        catch (AegisException exception)
+        {
+            outcomes = Enumerable.Repeat<AegisFailure?>(exception.Failure, count).ToList();
+        }
+
+        bool stop = false;
+        for (int offset = 0; offset < count; offset++)
+        {
+            AegisFailure? failure = outcomes[offset];
+            results[first + offset] = failure is null ? new ChangeResult(ChangeStatus.Applied) : new ChangeResult(ChangeStatus.Failed, failure.ToError());
+            stop |= failure is not null && Stopping.Contains(failure.Kind);
+        }
+
+        return stop;
+    }
+
+    /// <summary>How many changes from <paramref name="first"/> on go in one request of <paramref name="batch"/>: its neighbors in the plan, at most its size.</summary>
+    private static int Neighbors(WritePlan write, int first, int total, PlanBatch batch)
+    {
+        int count = 1;
+        while (count < batch.Size && first + count < total && ReferenceEquals(write.Step(first + count).Batch, batch))
+        {
+            count++;
+        }
+
+        return count;
     }
 
     /// <summary>The applied plan: each change with its result, an unsent one skipped.</summary>

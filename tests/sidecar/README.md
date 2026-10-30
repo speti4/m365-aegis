@@ -53,6 +53,15 @@ Three identities fail on purpose: `broken` (a terminating error, exit code 13), 
 non-terminating error, exit code 4) and `busy` (throttled, exit code 5). `scripts/check-fixtures.py` holds this
 folder to the same rules as `tests/fixtures`.
 
+The member writes of task 061, `Add-DistributionGroupMember` and `Remove-DistributionGroupMember` (`-Identity`,
+`-Member`, `-BypassSecurityGroupManagerCheck`; the removal declares `ConfirmImpact = 'High'`), change two made-up
+groups the fake keeps by the members' addresses: the distribution group Sales (`sales@contoso.com`, object id `…036`:
+bob, the mail contact `dave@example.com` and alice) and the mail-enabled security group Finance Staff
+(`finance-staff@contoso.com`, `…035`: carol). A group is named by its name, alias, address or object id, a member by
+anything `Get-EXORecipient` knows; adding a member who is one already, removing one who is not, and a member no
+recipient matches fail as the service's do (non-terminating errors), and each call that changed a group is recorded in
+the `M365AEGIS_FAKE_EXO_WRITES` file like the other writes.
+
 ```powershell
 Invoke-Pester -Path tests/sidecar
 ```

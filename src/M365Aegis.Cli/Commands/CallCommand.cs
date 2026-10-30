@@ -57,7 +57,7 @@ internal static class CallCommand
         command.Options.Add(all);
         command.Options.Add(advanced);
         command.Options.Add(fixtureName);
-        WriteFlags flags = WriteFlags.On(command);
+        WriteFlags flags = WriteFlags.On(command, resume: false);
         command.SetAction((parsed, cancellationToken) =>
         {
             GraphCallOptions Options() => new(

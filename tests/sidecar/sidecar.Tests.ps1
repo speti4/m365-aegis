@@ -262,6 +262,55 @@ Describe 'invoke against the fake module' {
     }
 }
 
+Describe 'the member writes of a distribution group against the fake module (task 061)' {
+    BeforeEach {
+        $script:MemberWrites = Join-Path ([System.IO.Path]::GetTempPath()) "aegis-sidecar-member-writes-$([guid]::NewGuid().ToString('N')).jsonl"
+    }
+
+    AfterEach {
+        Remove-Item -LiteralPath $script:MemberWrites -ErrorAction SilentlyContinue
+    }
+
+    It 'adds a member and removes another, and the fake records both calls' {
+        $add = Get-InvokeLine -Id '3' -Cmdlet 'Add-DistributionGroupMember' -Parameters @{ Identity = 'sales@contoso.com'; Member = 'dave@contoso.com'; BypassSecurityGroupManagerCheck = $true; Confirm = $false }
+        $remove = Get-InvokeLine -Id '4' -Cmdlet 'Remove-DistributionGroupMember' -Parameters @{ Identity = 'sales@contoso.com'; Member = 'bob@contoso.com'; BypassSecurityGroupManagerCheck = $true; Confirm = $false }
+        $again = Get-InvokeLine -Id '5' -Cmdlet 'Add-DistributionGroupMember' -Parameters @{ Identity = 'sales@contoso.com'; Member = 'bob@contoso.com'; Confirm = $false }
+        $run = Invoke-Sidecar -Lines @($script:Connect, $add, $remove, $again) -Environment @{ M365AEGIS_FAKE_EXO_WRITES = $script:MemberWrites }
+        $run.Lines[1].type | Should -Be 'result'
+        $run.Lines[2].type | Should -Be 'result'
+        # Bob was removed a moment ago, so he can be added again.
+        $run.Lines[3].type | Should -Be 'result'
+        $logged = @(Get-Content -LiteralPath $script:MemberWrites | ForEach-Object { $_ | ConvertFrom-Json })
+        @($logged.cmdlet) | Should -Be @('Add-DistributionGroupMember', 'Remove-DistributionGroupMember', 'Add-DistributionGroupMember')
+        $logged[0].parameters.Identity | Should -Be 'sales@contoso.com'
+        $logged[0].parameters.Member | Should -Be 'dave@contoso.com'
+        $logged[0].parameters.PSObject.Properties.Name | Should -Contain 'BypassSecurityGroupManagerCheck'
+        $logged[0].parameters.PSObject.Properties.Name | Should -Not -Contain 'Confirm'
+    }
+
+    It 'fails a member already there, a member who is not, an unknown recipient and an identity that fails on purpose' -ForEach @(
+        @{ Cmdlet = 'Add-DistributionGroupMember'; Identity = 'sales@contoso.com'; Member = 'alice@contoso.com'; Pattern = 'already a member' }
+        @{ Cmdlet = 'Remove-DistributionGroupMember'; Identity = 'finance-staff@contoso.com'; Member = 'dave@contoso.com'; Pattern = "isn't a member" }
+        @{ Cmdlet = 'Add-DistributionGroupMember'; Identity = 'Sales'; Member = 'eve@contoso.com'; Pattern = "couldn't be found" }
+        @{ Cmdlet = 'Remove-DistributionGroupMember'; Identity = 'busy'; Member = 'bob@contoso.com'; Pattern = 'throttled' }
+    ) {
+        $invoke = Get-InvokeLine -Cmdlet $Cmdlet -Parameters @{ Identity = $Identity; Member = $Member; Confirm = $false }
+        $run = Invoke-Sidecar -Lines @($script:Connect, $invoke) -Environment @{ M365AEGIS_FAKE_EXO_WRITES = $script:MemberWrites }
+        $run.Lines[1].type | Should -Be 'error'
+        $run.Lines[1].data.message | Should -Match $Pattern
+        Test-Path -LiteralPath $script:MemberWrites | Should -BeFalse
+    }
+
+    It 'refuses a member write''s parameter off the allow-list before it runs' {
+        $invoke = Get-InvokeLine -Cmdlet 'Add-DistributionGroupMember' -Parameters @{ Identity = 'sales@contoso.com'; Member = 'dave@contoso.com'; DomainController = 'dc01' }
+        $run = Invoke-Sidecar -Lines @($script:Connect, $invoke) -Environment @{ M365AEGIS_FAKE_EXO_WRITES = $script:MemberWrites }
+        $run.Lines[1].type | Should -Be 'error'
+        $run.Lines[1].data.code | Should -Be 'cmdlet-not-allowed'
+        $run.Lines[1].data.message | Should -Match 'DomainController'
+        Test-Path -LiteralPath $script:MemberWrites | Should -BeFalse
+    }
+}
+
 Describe 'the write cmdlets against the fake module (task 053)' {
     BeforeEach {
         $script:Writes = Join-Path ([System.IO.Path]::GetTempPath()) "aegis-sidecar-writes-$([guid]::NewGuid().ToString('N')).jsonl"

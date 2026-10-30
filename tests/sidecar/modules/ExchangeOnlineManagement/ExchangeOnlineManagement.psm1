@@ -416,3 +416,71 @@ function Set-Mailbox {
     if ($PSBoundParameters.ContainsKey('ForwardingAddress')) { $mailbox.ForwardingAddress = if ($ForwardingAddress) { [string] $ForwardingAddress } else { $null } }
     if ($PSBoundParameters.ContainsKey('DeliverToMailboxAndForward')) { $mailbox.DeliverToMailboxAndForward = [bool] $DeliverToMailboxAndForward }
 }
+
+# The member writes of a distribution or mail-enabled security group (task 061): the distribution group Sales
+# (sales@contoso.com, object id ...036) and the mail-enabled security group Finance Staff (finance-staff@contoso.com,
+# ...035), their members by address, as the service names a member by its recipient. A member is any recipient
+# Get-EXORecipient knows; adding one who is a member already, or removing one who is not, fails as the service's does
+# (a non-terminating error), and the failing identities 'broken', 'nobody' and 'busy' fail the writes too.
+$script:Groups = @(
+    [pscustomobject]@{ Name = 'Sales'; Alias = 'sales'; PrimarySmtpAddress = 'sales@contoso.com'; ExternalDirectoryObjectId = '00000000-0000-0000-0000-000000000036'
+        Members = [System.Collections.Generic.List[string]]@('bob@contoso.com', 'dave@example.com', 'alice@contoso.com') }
+    [pscustomobject]@{ Name = 'Finance Staff'; Alias = 'finance-staff'; PrimarySmtpAddress = 'finance-staff@contoso.com'; ExternalDirectoryObjectId = '00000000-0000-0000-0000-000000000035'
+        Members = [System.Collections.Generic.List[string]]@('carol@contoso.com') }
+)
+
+function Find-FakeGroup {
+    [CmdletBinding()]
+    param([string] $Identity)
+    $found = @($script:Groups | Where-Object {
+            $_.Name -eq $Identity -or $_.Alias -eq $Identity -or $_.PrimarySmtpAddress -eq $Identity -or $_.ExternalDirectoryObjectId -eq $Identity })
+    if ($found.Count -eq 0) {
+        Write-Error -Message "fake: The operation couldn't be performed because object '$Identity' couldn't be found on 'contoso.onmicrosoft.com'." -Category ObjectNotFound -ErrorId 'ManagementObjectNotFoundException'
+        return
+    }
+    $found[0]
+}
+
+function Find-FakeMember {
+    # The recipient a member cmdlet names, by its address; $null after a non-terminating error.
+    [CmdletBinding()]
+    param([string] $Identity)
+    if (-not (Assert-FakeIdentity $Identity)) { return }
+    Get-EXORecipient -Identity $Identity
+}
+
+function Add-DistributionGroupMember {
+    [CmdletBinding(SupportsShouldProcess)]
+    param([string] $Identity, [string] $Member, [switch] $BypassSecurityGroupManagerCheck)
+    Assert-FakeConnected
+    if (-not (Assert-FakeIdentity $Identity)) { return }
+    $group = Find-FakeGroup -Identity $Identity
+    if (-not $group) { return }
+    $recipient = Find-FakeMember -Identity $Member
+    if (-not $recipient) { return }
+    if ($group.Members -contains $recipient.PrimarySmtpAddress) {
+        Write-Error -Message "fake: The recipient ""$($recipient.PrimarySmtpAddress)"" is already a member of the group ""$($group.Name)""." -Category InvalidArgument -ErrorId 'MemberAlreadyExistsException'
+        return
+    }
+    if (-not $PSCmdlet.ShouldProcess($group.Name, 'Add-DistributionGroupMember')) { return }
+    Write-FakeWrite 'Add-DistributionGroupMember' $PSBoundParameters
+    $group.Members.Add($recipient.PrimarySmtpAddress)
+}
+
+function Remove-DistributionGroupMember {
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
+    param([string] $Identity, [string] $Member, [switch] $BypassSecurityGroupManagerCheck)
+    Assert-FakeConnected
+    if (-not (Assert-FakeIdentity $Identity)) { return }
+    $group = Find-FakeGroup -Identity $Identity
+    if (-not $group) { return }
+    $recipient = Find-FakeMember -Identity $Member
+    if (-not $recipient) { return }
+    if ($group.Members -notcontains $recipient.PrimarySmtpAddress) {
+        Write-Error -Message "fake: The recipient ""$($recipient.PrimarySmtpAddress)"" isn't a member of the group ""$($group.Name)""." -Category InvalidArgument -ErrorId 'MemberNotFoundException'
+        return
+    }
+    if (-not $PSCmdlet.ShouldProcess($group.Name, 'Remove-DistributionGroupMember')) { return }
+    Write-FakeWrite 'Remove-DistributionGroupMember' $PSBoundParameters
+    [void] $group.Members.Remove($recipient.PrimarySmtpAddress)
+}

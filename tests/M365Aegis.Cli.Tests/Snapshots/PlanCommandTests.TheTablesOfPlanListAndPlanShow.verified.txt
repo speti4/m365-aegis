@@ -1,0 +1,40 @@
+﻿=== plan list ===
+started (UTC)        operation             mode     changes  applied  failed  skipped  record
+-------------------  --------------------  -------  -------  -------  ------  -------  ----------------------------------------------
+2026-10-30 11:00:00  group-members-add     applied  6        1        2       3        20261030T110000.000Z-group-members-add.json
+2026-10-29 10:00:00  mailbox-access-grant  applied  3        2        1       0        20261029T100000.000Z-mailbox-access-grant.json
+2026-10-28 09:00:00  group-owners-add      applied  1        1        0       0        20261028T090000.000Z-group-owners-add.json
+
+3 plan record(s) under <home>/plans, newest first
+`m365-aegis plan show <record>` shows one; `--resume <record>` on its write continues the failed and skipped changes
+=== plan show (stopped) ===
+action  target   change                                           now           after     result
+------  -------  -----------------------------------------------  ------------  --------  -----------------
+add     Finance  Alice Example (alice@contoso.com) as a member    not a member  a member  applied
+add     Finance  Bob Example (bob@contoso.com) as a member        not a member  a member  failed: throttled
+add     Finance  Dave Example (dave@contoso.com) as a member      not a member  a member  failed: auth
+add     Finance  Carol Example (carol@contoso.com) as a member    not a member  a member  skipped
+add     Finance  Eve Example (eve@contoso.com) as a member        not a member  a member  skipped
+add     Finance  Finance EU (finance-eu@contoso.com) as a member  not a member  a member  skipped
+
+plan: Add members to Finance (00000000-0000-0000-0000-000000000031)
+6 change(s), 0 already as asked
+failed (Finance, Bob Example (bob@contoso.com) as a member): Microsoft Graph answered 429 to POST /groups/00000000-0000-0000-0000-000000000031/members/$ref (throttled)
+failed (Finance, Dave Example (dave@contoso.com) as a member): Microsoft Graph answered 401 to POST /$batch (auth)
+applied 1 of 6 change(s); the plan record is <home>/plans/20261030T110000.000Z-group-members-add.json
+command line: started 2026-10-30 11:00:00, finished 2026-10-30 11:00:02, profile (the default one)
+arguments: --json group members add Finance alice@contoso.com bob@contoso.com dave@contoso.com carol@contoso.com eve@contoso.com 00000000-0000-0000-0000-000000000032 --yes
+=== plan show (a batch) ===
+line  action  target                             change                                                now                after                 result
+----  ------  ---------------------------------  ----------------------------------------------------  -----------------  --------------------  ---------------------
+2     add     Finance (finance@contoso.com)      FullAccess for Bob Example (bob@contoso.com)          no FullAccess      holds FullAccess      applied
+3     add     Finance (finance@contoso.com)      Send As for Dave Private (dave@example.com)           no Send As         holds Send As         failed: cmdlet-failed
+4     add     Reception (reception@contoso.com)  Send on Behalf for Carol Example (carol@contoso.com)  no Send on Behalf  holds Send on Behalf  applied
+
+plan: Grant mailbox rights on 2 mailboxes
+3 change(s), 0 already as asked
+failed (line 3, Finance (finance@contoso.com), Send As for Dave Private (dave@example.com)): The user 'Dave Private' isn't a valid security principal for a mailbox permission. (cmdlet-failed)
+applied 2 of 3 change(s); the plan record is <home>/plans/20261029T100000.000Z-mailbox-access-grant.json
+command line: started 2026-10-29 10:00:00, finished 2026-10-29 10:00:02, profile (the default one)
+arguments: mailbox access grant --from-csv mailbox-grants.csv --yes
+from the file mailbox-grants.csv (kept in the record)

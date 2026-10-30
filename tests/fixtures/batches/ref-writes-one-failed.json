@@ -1,0 +1,155 @@
+{
+  "responses": [
+    {
+      "id": "3",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "id": "1",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "id": "2",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "id": "5",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "id": "4",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "id": "8",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "id": "6",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "id": "7",
+      "status": 403,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "error": {
+          "code": "Authorization_RequestDenied",
+          "message": "Insufficient privileges to complete the operation.",
+          "innerError": {
+            "date": "2026-10-30T12:00:00",
+            "request-id": "00000000-0000-0000-0000-000000000029",
+            "client-request-id": "00000000-0000-0000-0000-000000000029"
+          }
+        }
+      }
+    },
+    {
+      "id": "10",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "id": "9",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "id": "12",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "id": "11",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "id": "14",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "id": "13",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "id": "16",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "id": "15",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "id": "18",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "id": "17",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "id": "20",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "id": "19",
+      "status": 204,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    }
+  ]
+}

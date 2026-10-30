@@ -112,6 +112,20 @@ request ids.
 Task 059. `csv/mailbox-grants-automapping.csv` grants carol FullAccess on Reception with `automapping` false, Send As
 on Finance with the cell empty, and bob FullAccess on Finance with `yes`.
 
+## The writes and plan records bundle: the batch answers and a distribution group
+
+Tasks 058 to 062. `batches/` holds two recorded `$batch` answers of twenty `$ref` writes, as Graph writes them (the
+parts out of order, a `204` part with `Cache-Control` only): `ref-writes-twenty.json` (every part applied) and
+`ref-writes-one-failed.json` (part 7 a 403 `Authorization_RequestDenied` with its error body). The Core test's
+`RecordedBatchTransport` answers a batch call's `n`-th item from part `n`, so a plan of a hundred member changes is
+five calls over them; a batch call without a recorded answer is answered item by item from `graph/` as before (the
+group writes' own POST and DELETE answers). On the Graph side, the distribution group Sales (`…036`, by its exact
+name, in the short form) and the mail-enabled security group Finance Staff by its id
+(`groups/…035@$select=id,displayName,mail,groupTypes,securityEnabled,onPremisesSyncEnabled`); on the Admin API's,
+`DistributionGroupMember@Identity=sales@contoso.com&ResultSize=Unlimited` (Bob Example, the contact Dave Private as
+`dave@example.com`, as the fake module knows him, and Alice Example hidden) and `…Identity=finance-staff@contoso.com…`
+(Carol Example), request ids `…038` and `…039`.
+
 ## The M3 writes bundle: the write answers and the CSV files
 
 Tasks 051 to 054. A write's answer is named like a read's, with one rule more: a `$ref` POST, whose URL is the same

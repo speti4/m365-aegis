@@ -49,6 +49,11 @@ internal sealed class PlanTableView : ITableView<Plan>
     {
         yield return $"plan: {data.Title}";
         yield return string.Format(CultureInfo.InvariantCulture, "{0} change(s), {1} already as asked", data.Changes.Count, data.Unchanged.Count);
+        if (data.Resumes is { } resumed)
+        {
+            yield return $"resumes: {Path.GetFileName(resumed)} (its failed and skipped changes, planned again)";
+        }
+
         foreach (string warning in data.Warnings)
         {
             yield return $"warning: {warning}";
@@ -107,7 +112,7 @@ internal sealed class PlanTableView : ITableView<Plan>
             ChangeStatus.Applied => "applied",
             ChangeStatus.Failed => $"failed: {change.Result.Error?.Code}",
             ChangeStatus.Skipped => "skipped",
-            _ => "?",
+            _ => "no result",
         },
     };
 }

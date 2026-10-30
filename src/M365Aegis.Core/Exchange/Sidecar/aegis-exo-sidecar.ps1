@@ -61,7 +61,9 @@ $script:AllowedCmdlets = @(
     'Get-EXOMailbox', 'Get-EXOMailboxPermission', 'Get-EXORecipientPermission', 'Get-EXOMailboxStatistics',
     'Get-EXORecipient', 'Get-AcceptedDomain', 'Get-EXOMailboxFolderStatistics',
     'Add-MailboxPermission', 'Remove-MailboxPermission', 'Add-RecipientPermission', 'Remove-RecipientPermission',
-    'Set-Mailbox'
+    'Set-Mailbox',
+    # The member writes of a distribution or mail-enabled security group, task 061.
+    'Add-DistributionGroupMember', 'Remove-DistributionGroupMember'
 )
 # The parameters each write cmdlet may be given (task 053), as ExoCmdlets.WriteParameters in the Core; a test compares
 # the two. Set-Mailbox can change anything on a mailbox: the list keeps it to what the plans send.
@@ -71,6 +73,9 @@ $script:WriteParameters = @{
     'Add-RecipientPermission' = @('Identity', 'Trustee', 'AccessRights', 'Confirm')
     'Remove-RecipientPermission' = @('Identity', 'Trustee', 'AccessRights', 'Confirm')
     'Set-Mailbox' = @('Identity', 'GrantSendOnBehalfTo', 'ForwardingSmtpAddress', 'ForwardingAddress', 'DeliverToMailboxAndForward', 'Confirm')
+    # The member writes of a distribution or mail-enabled security group, task 061.
+    'Add-DistributionGroupMember' = @('Identity', 'Member', 'BypassSecurityGroupManagerCheck', 'Confirm')
+    'Remove-DistributionGroupMember' = @('Identity', 'Member', 'BypassSecurityGroupManagerCheck', 'Confirm')
 }
 $script:Connected = $false
 # The tokens this process was handed, so an error message that quotes one is scrubbed before it is written.

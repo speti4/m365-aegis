@@ -27,6 +27,8 @@
     <Compile Include="..\shared\SidecarFixtures.cs" Link="shared\SidecarFixtures.cs" />
     <!-- The plans of the write tests: a store in a temporary home, a made-up plan, the sample CSV files (task 051). -->
     <Compile Include="..\shared\PlanSamples.cs" Link="shared\PlanSamples.cs" />
+    <!-- Three plan records in a temporary home, for plan list, plan show and the resume (tasks 060 and 062). -->
+    <Compile Include="..\shared\PlanRecordSamples.cs" Link="shared\PlanRecordSamples.cs" />
   </ItemGroup>
 
   <ItemGroup>

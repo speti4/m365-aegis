@@ -45,10 +45,12 @@ public sealed class GroupWritesTests
         CommandResult<Plan> result = await PlanGuard.RunAsync(write, WriteMode.Apply, PlanSamples.Store(home), Ct);
 
         Assert.Equal(ExitCode.Ok, result.ExitCode);
-        GraphHttpRequest post = Assert.Single(transport.Requests, request => request.Method == HttpMethod.Post && !request.Uri.AbsolutePath.EndsWith("/$batch", StringComparison.Ordinal));
+        // The write is an item of a $batch call (task 058): the plan's resolution was the first call, the apply the second.
+        Assert.Equal(2, transport.Requests.Count(request => request.Uri.AbsolutePath.EndsWith("/$batch", StringComparison.Ordinal)));
+        GraphHttpRequest post = Assert.Single(transport.BatchItems, request => request.Method == HttpMethod.Post);
         Assert.Equal("https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000031/members/$ref", post.Uri.ToString());
         Assert.Equal("""{"@odata.id":"https://graph.microsoft.com/v1.0/directoryObjects/00000000-0000-0000-0000-000000000005"}""", post.Body);
-        Assert.Contains("00000000-0000-0000-0000-0000000000ec", graph.RequestLog.Ids);
+        Assert.Contains("00000000-0000-0000-0000-0000000000fd", graph.RequestLog.Ids);
         Assert.Equal(ChangeStatus.Applied, PlanStore.Read(result.Data!.Record!)!.Plan.Changes[0].Result!.Status);
     }
 
@@ -78,7 +80,7 @@ public sealed class GroupWritesTests
         CommandResult<Plan> result = await PlanGuard.RunAsync(write, WriteMode.Apply, PlanSamples.Store(PlanSamples.TempHome()), Ct);
 
         Assert.True(result.Ok);
-        GraphHttpRequest delete = Assert.Single(transport.Requests, request => request.Method == HttpMethod.Delete);
+        GraphHttpRequest delete = Assert.Single(transport.BatchItems, request => request.Method == HttpMethod.Delete);
         Assert.Equal("https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000031/members/00000000-0000-0000-0000-000000000004/$ref", delete.Uri.ToString());
     }
 
@@ -97,7 +99,7 @@ public sealed class GroupWritesTests
         CommandResult<Plan> result = await PlanGuard.RunAsync(write, WriteMode.Apply, PlanSamples.Store(PlanSamples.TempHome()), Ct);
 
         Assert.True(result.Ok);
-        Assert.Equal("https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000031/owners/00000000-0000-0000-0000-000000000001/$ref", Assert.Single(transport.Requests, request => request.Method == HttpMethod.Delete).Uri.ToString());
+        Assert.Equal("https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000031/owners/00000000-0000-0000-0000-000000000001/$ref", Assert.Single(transport.BatchItems, request => request.Method == HttpMethod.Delete).Uri.ToString());
     }
 
     [Fact]
@@ -111,7 +113,7 @@ public sealed class GroupWritesTests
         Assert.Equal(("Bob Example (bob@contoso.com) as an owner", "not an owner", "an owner"), (write.Plan.Changes[0].Detail, write.Plan.Changes[0].Current, write.Plan.Changes[0].Desired));
         Assert.Equal("an owner already", Assert.Single(write.Plan.Unchanged).State);
         Assert.True(result.Ok);
-        Assert.Contains(transport.Requests, request => request.Uri.AbsolutePath.EndsWith("/owners/$ref", StringComparison.Ordinal) && request.Body!.Contains("000000000003", StringComparison.Ordinal));
+        Assert.Contains(transport.BatchItems, request => request.Uri.AbsolutePath.EndsWith("/owners/$ref", StringComparison.Ordinal) && request.Body!.Contains("000000000003", StringComparison.Ordinal));
     }
 
     [Fact]

@@ -223,6 +223,34 @@ The window's mailbox list comes from the Admin API too, with no sidecar start; t
 sidecar, and both share one Exchange Online token. A failure after the sign-in shows a hint written for the window
 ("ask the administrator", "Sign in again") instead of a command to type.
 
+## Batched group writes, distribution lists, plan records and resume
+
+A group write sends its changes to Graph twenty to a request, so a CSV of a hundred members is five requests; each
+change still has its own result. The members of a distribution group or a mail-enabled security group, which Graph
+cannot change, are read through the Exchange Online Admin API and changed through the Exchange Online module
+(`Add-DistributionGroupMember`, `Remove-DistributionGroupMember`), with the same plan, flags and exit codes as any
+other write:
+
+```powershell
+& $aegis group members add Sales dave@contoso.com --dry-run           # a distribution group, through Exchange
+& $aegis group members remove "Finance Staff" carol@contoso.com --yes
+```
+
+Every apply leaves a plan record; `plan list` shows them newest first, `plan show` one of them with each change's
+result, both without a sign-in. An apply that ended partial, or stopped at a sign-in or sidecar failure, continues
+with `--resume`: only its failed and skipped changes are planned again against the current state (one done in the
+meantime comes out unchanged), under the usual `--dry-run` or `--yes`, and the new record names the one it continues:
+
+```powershell
+& $aegis plan list
+& $aegis plan show 20261030T110000.000Z-group-members-add
+& $aegis group members add --resume 20261030T110000.000Z-group-members-add --dry-run
+```
+
+The distribution group writes need an Exchange Online role that changes group members (Organization Management, or
+Recipient Management with Security Group Creation and Membership). The details are in
+[docs/development.md](docs/development.md#writes-and-plans).
+
 ## Documentation
 
 - [Development](docs/development.md): layout, CI, releases and helper scripts

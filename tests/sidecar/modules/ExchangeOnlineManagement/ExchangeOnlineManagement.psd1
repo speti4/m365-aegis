@@ -10,5 +10,7 @@
     PowerShellVersion = '7.6'
     FunctionsToExport = @('Connect-ExchangeOnline', 'Disconnect-ExchangeOnline', 'Get-EXOMailbox', 'Get-EXORecipient', 'Get-EXOMailboxPermission',
         'Get-EXORecipientPermission', 'Get-EXOMailboxStatistics', 'Get-AcceptedDomain', 'Get-EXOMailboxFolderStatistics',
-        'Add-MailboxPermission', 'Remove-MailboxPermission', 'Add-RecipientPermission', 'Remove-RecipientPermission', 'Set-Mailbox')
+        'Add-MailboxPermission', 'Remove-MailboxPermission', 'Add-RecipientPermission', 'Remove-RecipientPermission', 'Set-Mailbox',
+        # The member writes of a distribution or mail-enabled security group (task 061).
+        'Add-DistributionGroupMember', 'Remove-DistributionGroupMember')
 }

@@ -88,7 +88,8 @@ public sealed class WriteCommandTests
         PlanRecord read = PlanStore.Read(record)!;
         Assert.Equal("command line", read.Source);
         Assert.Contains("--yes", read.Arguments);
-        Assert.Contains("00000000-0000-0000-0000-0000000000ec", document.RootElement.GetProperty("meta").GetProperty("requestIds").EnumerateArray().Select(id => id.GetString()));
+        // The write went out as an item of the second $batch call (task 058), whose request id the meta carries.
+        Assert.Contains("00000000-0000-0000-0000-0000000000fd", document.RootElement.GetProperty("meta").GetProperty("requestIds").EnumerateArray().Select(id => id.GetString()));
     }
 
     [Fact]

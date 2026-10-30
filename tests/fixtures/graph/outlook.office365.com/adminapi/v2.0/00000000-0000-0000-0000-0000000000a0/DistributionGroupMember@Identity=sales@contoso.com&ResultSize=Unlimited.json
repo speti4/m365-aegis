@@ -1,0 +1,46 @@
+{
+  "@odata.context": "https://outlook.office365.com/adminapi/v2.0/00000000-0000-0000-0000-0000000000a0/$metadata#DistributionGroupMember",
+  "@adminapi.warnings": [],
+  "value": [
+    {
+      "Identity": "bob",
+      "Alias": "bob",
+      "Name": "Bob Example",
+      "DisplayName": "Bob Example",
+      "PrimarySmtpAddress": "bob@contoso.com",
+      "EmailAddresses": [
+        "SMTP:bob@contoso.com",
+        "smtp:bob@contoso.onmicrosoft.com"
+      ],
+      "RecipientType": "UserMailbox",
+      "RecipientTypeDetails": "UserMailbox",
+      "HiddenFromAddressListsEnabled": false
+    },
+    {
+      "Identity": "dave-private",
+      "Alias": "dave-private",
+      "Name": "Dave Private",
+      "DisplayName": "Dave Private",
+      "PrimarySmtpAddress": "dave@example.com",
+      "EmailAddresses": [
+        "SMTP:dave@example.com"
+      ],
+      "RecipientType": "MailContact",
+      "RecipientTypeDetails": "MailContact",
+      "HiddenFromAddressListsEnabled": false
+    },
+    {
+      "Identity": "alice",
+      "Alias": "alice",
+      "Name": "Alice Example",
+      "DisplayName": "Alice Example",
+      "PrimarySmtpAddress": "alice@contoso.com",
+      "EmailAddresses": [
+        "SMTP:alice@contoso.com"
+      ],
+      "RecipientType": "UserMailbox",
+      "RecipientTypeDetails": "UserMailbox",
+      "HiddenFromAddressListsEnabled": true
+    }
+  ]
+}

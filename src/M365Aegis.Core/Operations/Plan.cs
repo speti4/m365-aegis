@@ -108,4 +108,10 @@ public sealed record Plan(string Operation, string Title, IReadOnlyList<PlanChan
 
     /// <summary>When the apply ended; null before.</summary>
     public DateTimeOffset? Finished { get; init; }
+
+    /// <summary>
+    /// The plan record this plan continues (<c>--resume</c>, task 062): its changes are the ones that record left
+    /// failed or skipped, planned again against the current state; null for a plan of its own.
+    /// </summary>
+    public string? Resumes { get; init; }
 }

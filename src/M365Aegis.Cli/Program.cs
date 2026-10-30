@@ -64,6 +64,7 @@ internal static class Program
         root.Subcommands.Add(AuditCommand.Build(json, table, profile));
         root.Subcommands.Add(MailboxCommand.Build(json, table, profile));
         root.Subcommands.Add(ProbeCommand.Build(json, table, profile));
+        root.Subcommands.Add(PlanCommand.Build(json, table));
 
         ParseResult parsed = root.Parse(args);
         if (parsed.Errors.Count > 0)

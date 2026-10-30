@@ -51,11 +51,20 @@ public static class ExoCmdlets
     /// <summary>Send on Behalf and the forwarding (task 053), with the parameters of <see cref="WriteParameters"/> only.</summary>
     public const string SetMailbox = "Set-Mailbox";
 
+    /// <summary>Adds a member to a distribution or mail-enabled security group (task 061).</summary>
+    public const string AddDistributionGroupMember = "Add-DistributionGroupMember";
+
+    /// <summary>Removes a member from a distribution or mail-enabled security group (task 061).</summary>
+    public const string RemoveDistributionGroupMember = "Remove-DistributionGroupMember";
+
     /// <summary>Every allowed cmdlet, in the order the script lists them.</summary>
     public static IReadOnlyList<string> Allowed { get; } =
     [
         GetMailbox, GetMailboxPermission, GetRecipientPermission, GetMailboxStatistics, GetRecipient, GetAcceptedDomain, GetMailboxFolderStatistics,
         AddMailboxPermission, RemoveMailboxPermission, AddRecipientPermission, RemoveRecipientPermission, SetMailbox,
+
+        // The member writes of a distribution or mail-enabled security group (task 061).
+        AddDistributionGroupMember, RemoveDistributionGroupMember,
     ];
 
     /// <summary>
@@ -69,6 +78,10 @@ public static class ExoCmdlets
         [AddRecipientPermission] = ["Identity", "Trustee", "AccessRights", "Confirm"],
         [RemoveRecipientPermission] = ["Identity", "Trustee", "AccessRights", "Confirm"],
         [SetMailbox] = ["Identity", "GrantSendOnBehalfTo", "ForwardingSmtpAddress", "ForwardingAddress", "DeliverToMailboxAndForward", "Confirm"],
+
+        // The member writes of a distribution or mail-enabled security group (task 061).
+        [AddDistributionGroupMember] = ["Identity", "Member", "BypassSecurityGroupManagerCheck", "Confirm"],
+        [RemoveDistributionGroupMember] = ["Identity", "Member", "BypassSecurityGroupManagerCheck", "Confirm"],
     };
 
     /// <summary>Whether the cmdlet is on the list (PowerShell names compare without case).</summary>
