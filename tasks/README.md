@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-10-30 — edit the files, not this section._
 
-**State:** 13 backlog (0 ready · 2 blocked · 0 waiting · 11 ideas) · 0 in progress · 75 done · 0 dropped · 10 decisions
+**State:** 14 backlog (0 ready · 2 blocked · 0 waiting · 12 ideas) · 0 in progress · 75 done · 0 dropped · 10 decisions
 
 ### Ready
 
@@ -46,6 +46,7 @@ _none_
 | # | Task | Size | Created |
 |---|---|---|---|
 | 076 | [group owners <group> reads a distribution group's owners from ManagedBy](backlog/076-group-owners-read-through-managedby-for-distribution-groups.md) | S | 2026-10-30 |
+| 089 | [group owners-missing --all-types judges a distribution group by its ManagedBy, …](backlog/089-group-owners-missing-judges-distribution-groups-by-managedby.md) | S | 2026-10-30 |
 
 #### M4 Window
 
