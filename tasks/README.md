@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-10-30 — edit the files, not this section._
 
-**State:** 9 backlog (0 ready · 2 blocked · 0 waiting · 7 ideas) · 0 in progress · 82 done · 0 dropped · 10 decisions
+**State:** 8 backlog (0 ready · 2 blocked · 0 waiting · 6 ideas) · 1 in progress · 82 done · 0 dropped · 11 decisions
 
 ### Ready
 
@@ -48,12 +48,6 @@ _none_
 | 090 | [The window's plan warnings in the window's own words, not the command line's fl…](backlog/090-window-plan-warnings-in-the-windows-own-words.md) | S | 2026-10-30 |
 | 091 | [The mailbox access card refreshes after a write card applies a change to the ma…](backlog/091-access-card-refreshes-after-a-write-card-applies.md) | S | 2026-10-30 |
 
-#### M5 Snapshot and views
-
-| # | Task | Size | Created |
-|---|---|---|---|
-| 083 | [Spike: the snapshot store's format and size, recorded as a decision](backlog/083-spike-snapshot-store-format-and-size.md) | S | 2026-10-30 |
-
 #### M6 Release and team
 
 | # | Task | Size | Created |
@@ -64,7 +58,11 @@ _none_
 
 ### In progress
 
-_none_
+#### M5 Snapshot and views
+
+| # | Task | Started | Plan |
+|---|---|---|---|
+| 083 | [Spike: the snapshot store's format and size, recorded as a decision](wip/083-spike-snapshot-store-format-and-size.md) | 2026-10-30 | `none` |
 
 ### Closed – do not reopen
 
@@ -91,6 +89,7 @@ _72 more in `done/`._
 
 | # | Decision | Status | Date |
 |---|---|---|---|
+| D-011 | [The snapshot store's format, place, query path and retention](decisions/D-011-snapshot-store-format.md) | proposed | 2026-10-30 |
 | D-010 | [A public repository with a rewritten history, under the same no-tenant-data rule](decisions/D-010-public-repository-with-a-rewritten-history.md) | decided | 2026-10-30 |
 | D-009 | [The window is a WinForms form with the WebView2 control; Photino.NET is removed](decisions/D-009-winforms-webview2-window-host.md) | decided | 2026-10-29 |
 | D-008 | [Stay on Verify 32.x under MIT; no Open Source Maintenance Fee declaration](decisions/D-008-stay-on-verify-32-under-mit.md) | decided | 2026-10-29 |
