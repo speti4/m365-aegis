@@ -18,6 +18,7 @@ public sealed class ExchangeBackends : IAsyncDisposable
     private readonly List<IExoCmdletRunner> _extra = [];
     private readonly List<string> _used = [];
     private readonly Lock _lock = new();
+    private int _started;
 
     /// <summary>The layers of a command.</summary>
     /// <param name="sidecar">The sidecar (one per command line run, started on its first cmdlet).</param>
@@ -95,10 +96,26 @@ public sealed class ExchangeBackends : IAsyncDisposable
         lock (_lock)
         {
             _extra.Add(sidecar);
+            _started++;
         }
 
         Use(Output.Backend.Pwsh);
         return sidecar;
+    }
+
+    /// <summary>
+    /// How many sidecars <see cref="StartSidecar"/> started for this object (a split read's, task 043), the command's
+    /// own <see cref="Sidecar"/> not counted; the count stays after the dispose ends them.
+    /// </summary>
+    public int SidecarsStarted
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _started;
+            }
+        }
     }
 
     /// <summary>The layers used so far, in the order first used, joined with <c>+</c> (<c>admin-api+pwsh</c>); <c>pwsh</c> before any.</summary>

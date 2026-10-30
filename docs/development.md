@@ -749,7 +749,8 @@ The messages (tasks 017, 040, 045 and 047; `BridgeMessageType` in C#, `MessageTy
   `mailbox-access` with `{"mailbox": "<address, name or id>"}` or `{"user": "<upn>"}` (one of the two), answered
   with `mailbox-holders` (`MailboxAccess`) or `user-grants` (`UserAccess`) (task 045). Since task 056 the list
   comes from the Admin API, as `mailbox list` does, a mailbox's access since task 063 from the Admin API beside the
-  window's sidecar session, and a user's from the session alone (below). A partial answer of the
+  window's sidecar session, and a user's since task 077 split across several sidecars as `mailbox access --user`
+  reads it (below). A partial answer of the
   reverse lookup (exit code 6 on the command line) is the `user-grants` reply, whose `failed` list the page shows as
   a warning, as the envelope carries the data with the error.
 
@@ -802,8 +803,12 @@ the session as the sidecar, an Admin API client and Graph, the session and the A
 `ExchangeTokenSource` for the window (task 049), so the connect, the keep-warm renewals and the Admin API's calls
 share one token and its renewal. `mailbox-list` answers from the Admin API's mailbox list with no sidecar start (the
 session when the Admin API cannot answer, or in the sidecar-only offline tests, which have no Admin API);
-`mailbox-access` keeps the warm session for a user's access and, since task 063, reads a mailbox's over both layers
-(below). `logout` drops the token source with the session.
+`mailbox-access` reads a mailbox's access over both layers (task 063) and a user's split across sidecars (task 077),
+both below. Since task 077 the request's `ExchangeBackends` can also start more sidecars, each a session made the way
+the holder makes its own, over the window's token source; they end with the request, and the warm session stays the
+window's one. `BridgeServices.ForWindow` makes one set of session options per token source, so the warm session and
+the extra sidecars ask for the organization once, as one command line run does. `logout` drops the token source with
+the session.
 Under `--verbose` each mailbox request writes one `window:` line to the log: the time, the layers the request used
 and what the session did, never a token (`mailbox-list answered in … ms through admin-api; exchange no sidecar,
 token acquisitions 1`, then `mailbox-access answered in … ms through pwsh; exchange session 1, sidecar starts 1,
@@ -823,9 +828,19 @@ request's `window:` line names what each layer read, by counts only: `mailbox-ac
 admin-api+pwsh (the mailbox and 1 Send on Behalf delegate(s) from admin-api, 2 FullAccess and Send As grant(s) from
 pwsh); exchange session 1, sidecar starts 1, …`, or `(the Admin API could not answer: the mailbox, … from pwsh)` or
 `(no Admin API in this window: …)`; a fallback also writes the core's own `admin-api:` line with the service's
-code. `{"user": …}`, the reverse lookup, stays on the session (`ExchangeBackends` of the window starts no extra
-sidecars, so its parallel read would be one sidecar anyway). The bridge sample `mailbox-holders.json` is the
-Admin API answer for Finance asked by its address, as the card's pick sends it.
+code. The bridge sample `mailbox-holders.json` is the Admin API answer for Finance asked by its address, as the
+card's pick sends it.
+
+**The window's user lookup over the split read** (task 077): `mailbox-access` with `{"user": …}`, the reverse
+lookup, runs the command line's `MailboxLookups.AccessForUserAsync(backends, …, new UserAccessOptions())`, the path
+`mailbox access --user` takes with its defaults: the FullAccess entries of every mailbox read `parallel` over four
+sidecars (task 043), the first share on the window's warm session and the others on sidecars started for the request
+over the window's one token, which end with the request. Before it, one bulk read on the warm session took 262 s over
+620 mailboxes in the window (2026-10-30) against the command line's 41 s. The `user-grants` reply carries
+`"method": "parallel"`, as the command line's `--json` does. Under `--verbose` the request's `window:` line names the
+sidecars by counts only: `mailbox-access answered in … ms through pwsh (FullAccess of 620 mailbox(es) read parallel
+over 4 sidecar(s): the window's session and 3 started for this request); exchange session 1, sidecar starts 1, …`;
+`exchange` still describes the warm session alone. A mailbox's access (above) starts no extra sidecar.
 
 The page (`src/App.tsx`, `src/components/`): the sign-in card (its state machine in
 `components/sign-in-state.ts`: `whoami` reads it, `login` waits with the device code when one comes, `logout`
@@ -1034,7 +1049,9 @@ named twice (lines 2 and 3)`); a malformed last line refuses the whole file with
 (`malformed-last-line.csv, line 4: 1 cell(s), the header has 2`), with the backend `local`, nothing sent.
 
 **Token hygiene** (task 072, `tests/M365Aegis.Cli.Tests/TokenHygieneTests.cs`, and one Pester case in
-`tests/sidecar/sidecar.Tests.ps1`). The marker convention: every token of a run carries a marker unique to it
+`tests/sidecar/sidecar.Tests.ps1`; the window's path since task 080,
+`tests/M365Aegis.Core.Tests/BridgeTokenHygieneTests.cs`; the marked broker of both is
+`tests/shared/MarkedTokenBroker.cs`). The marker convention: every token of a run carries a marker unique to it
 (`aegismarker` and a fresh GUID), the Graph token in a JWT's shape as the service issues it and the Exchange Online
 token opaque, so a sink passes only by never taking it, not by a pattern that happens to scrub it. The test runs in
 process through the product's own parts with the test's token source: `AuthService` over a broker that hands out the
@@ -1046,9 +1063,19 @@ error whose message carries the header, and the sidecar over the fake module (co
 refused with the token in the module's message). Each answer goes through `CommandRunner` in both renderings, and
 then every file under the temporary home (`config.json`, `logs\`, `plans\`) and both streams are searched for the
 marker: none may hold it, and a leak is named by its sink. The Pester case connects the sidecar with a marked token,
-reads, and connects again to a refused organization, and searches the protocol lines and stderr. A new sink of the
-product (a file under the home, a stream) is covered by the search as it is; a new place a token flows through joins
-the run with its own step.
+reads, and connects again to a refused organization, and searches the protocol lines and stderr.
+The window's run (task 080) goes through `BridgeDispatcher` the same way, under `--verbose` (the home's `LogSink` as
+the window's verbose sink): `whoami`, `login` with the account picker and with a device code (its `device-code`
+notification), a `group-members` whose request over `HttpGraphTransport` fails with the bearer header in the
+exception's message (the `internal` error reply, the stack trace in the log), `mailbox-list` from the Admin API,
+`mailbox-access` for a user (the split read: three sidecars connect with the marked token) and for a mailbox (both
+layers), all over a `WindowExchange` on `ExchangeTokenSource.ForProfile`, a `mailbox-list` on a window whose sidecar
+the fake module refuses with the token in its message (an `error` reply), and `logout`. Then every file under the
+temporary home (the `window:` lines and the internal error included), every reply and notification as the host
+writes it to the page, and the window's stderr (`Console.Error`, captured for the run) are searched for the marker.
+Putting the Exchange Online token into a reply's payload or into the `window:` line on purpose turned it red, naming
+the replies and the log file (2026-10-30). A new sink of the product (a file under the home, a stream, a bridge
+message) is covered by the search as it is; a new place a token flows through joins the run with its own step.
 
 **The home folder's access list** (task 075, `Config/AegisHome.cs`, `tests/M365Aegis.Core.Tests/Config/HomeFolderAclTests.cs`).
 The rule: every writer under the home creates it through `AegisHome.Create(home)` first (the profile store, the MSAL

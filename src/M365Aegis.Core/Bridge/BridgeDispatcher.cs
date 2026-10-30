@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using M365Aegis.Core.Auth;
 using M365Aegis.Core.Config;
@@ -60,6 +61,9 @@ public sealed record BridgeServices(
         ArgumentNullException.ThrowIfNull(onWindowThread);
         // The window's own hints (task 046): a failed sign-in names the card's buttons, never a command to type.
         var auth = new AuthService(home, tenantProfile => MsalTokenBroker.Create(tenantProfile, home, parentWindow, onWindowThread), SignInHints.Window);
+        // One set of session options per token source, as the command line's run has (task 077): the warm session and
+        // the extra sidecars of a split read connect with its token and ask for the organization once.
+        var sessionOptions = new ConditionalWeakTable<ExchangeTokenSource, ExchangeSessionOptions>();
         return new BridgeServices(
             auth,
             profile,
@@ -71,7 +75,7 @@ public sealed record BridgeServices(
             // API's calls log their request ids into logs of their own: the window shows no meta, so nothing reads them.
             Exchange = new WindowExchange(
                 () => ExchangeConnection.Tokens(profile, () => auth),
-                tokens => new ExchangeSession(ExchangeConnection.Options(profile, new RequestLog(), () => auth, tokens)),
+                tokens => new ExchangeSession(sessionOptions.GetValue(tokens, source => ExchangeConnection.Options(profile, new RequestLog(), () => auth, source))),
                 tokens => AdminApiConnection.Create(profile, new RequestLog(), () => auth, tokens)),
         };
     }
@@ -276,9 +280,16 @@ public sealed class BridgeDispatcher
 
         // A mailbox reads as `mailbox access <mailbox>` does (task 063): the mailbox and its Send on Behalf delegates by
         // name from the Admin API beside FullAccess and Send As from the warm session, the session alone when the
-        // window has no Admin API or it cannot answer. The reverse lookup is the session's bulk read (task 045).
+        // window has no Admin API or it cannot answer. A user reads as `mailbox access --user <upn>` does (task 077):
+        // the FullAccess entries of every mailbox split across sidecars (task 043), the first share on the warm
+        // session, the others on sidecars started for this request.
         return user is not null
-            ? ExchangeAsync(request, BridgeMessageType.UserGrants, (backends, ct) => MailboxLookups.AccessForUserAsync(backends.Sidecar, user, ct), cancellationToken)
+            ? ExchangeAsync(
+                request,
+                BridgeMessageType.UserGrants,
+                (backends, ct) => MailboxLookups.AccessForUserAsync(backends, user, new UserAccessOptions(), ct),
+                cancellationToken,
+                DescribeSidecars)
             : ExchangeAsync(
                 request,
                 BridgeMessageType.MailboxHolders,
@@ -310,6 +321,21 @@ public sealed class BridgeDispatcher
 
     private static string DescribeLayers(ExchangeBackends backends, MailboxAccess access) =>
         DescribeLayers(backends.HasAdminApi, access);
+
+    /// <summary>
+    /// How a user's reverse lookup read the FullAccess entries, for the window's <c>window:</c> log line (task 077): the
+    /// mailboxes, the method and the sidecars it ran on, the warm session counted with the
+    /// <paramref name="started"/> ones started for the request; counts only, never a name.
+    /// </summary>
+    internal static string DescribeSidecars(int started, UserAccess access)
+    {
+        ArgumentNullException.ThrowIfNull(access);
+        return string.Create(CultureInfo.InvariantCulture,
+            $"FullAccess of {access.MailboxesScanned} mailbox(es) read {access.Method} over {started + 1} sidecar(s): the window's session and {started} started for this request");
+    }
+
+    private static string DescribeSidecars(ExchangeBackends backends, UserAccess access) =>
+        DescribeSidecars(backends.SidecarsStarted, access);
 
     /// <summary>
     /// A mailbox lookup over the window's layers (task 056: the session, the Admin API over the same token, Graph): the

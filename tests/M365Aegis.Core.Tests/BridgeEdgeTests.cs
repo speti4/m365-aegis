@@ -167,6 +167,88 @@ public sealed class BridgeEdgeTests
         Assert.Equal(2, lines.Count(line => line.Contains("mailbox-access answered in", StringComparison.Ordinal)));
     }
 
+    [Fact]
+    public async Task AUsersAccessSplitsItsReadAcrossSidecarsWhileAMailboxsStaysOnTheWarmSession()
+    {
+        string home = ProfileStoreTests.TempHome();
+        var sessions = new List<ExchangeSession>();
+        await using var exchange = new WindowExchange(() =>
+        {
+            ExchangeSession session = SidecarFixtures.Session();
+            lock (sessions)
+            {
+                sessions.Add(session);
+            }
+
+            return session;
+        });
+        BridgeDispatcher dispatcher = Dispatcher(exchange);
+
+        using (LogSink.UseVerbose(LogSink.ForHome(home)))
+        {
+            BridgeMessage? holders = await dispatcher.DispatchAsync(new BridgeMessage(BridgeProtocol.Version, "2", "mailbox-access", JsonNode.Parse("""{"mailbox":"finance"}""")), Ct);
+            Assert.Equal("mailbox-holders", holders?.Type);
+            // The mailbox direction (task 063) runs on the warm session alone.
+            Assert.Single(sessions);
+            BridgeMessage? grants = await dispatcher.DispatchAsync(new BridgeMessage(BridgeProtocol.Version, "3", "mailbox-access", JsonNode.Parse("""{"user":"bob@contoso.com"}""")), Ct);
+            Assert.Equal("user-grants", grants?.Type);
+            Assert.Equal("parallel", grants?.Data?["method"]?.GetValue<string>());
+        }
+
+        // The user direction (task 077): the fake module's six mailboxes in three shares of two, the first on the warm
+        // session and two on sidecars started for the request, which ended with it; the warm session is still the one.
+        Assert.Equal(3, sessions.Count);
+        Assert.Same(exchange.Session, sessions[0]);
+        Assert.Equal(1, exchange.Sessions);
+        Assert.Equal(1, exchange.Session!.Starts);
+        Assert.False(exchange.Session.Client!.HasExited);
+        Assert.All(sessions.Skip(1), extra =>
+        {
+            Assert.Equal(1, extra.Starts);
+            Assert.Null(extra.Client);
+        });
+        string[] lines = File.ReadAllLines(Assert.Single(Directory.GetFiles(Path.Combine(home, LogSink.FolderName))));
+        string user = Assert.Single(lines, line => line.Contains("sidecar(s)", StringComparison.Ordinal));
+        Assert.Contains("mailbox-access answered in ", user, StringComparison.Ordinal);
+        Assert.Contains(
+            " ms through pwsh (FullAccess of 6 mailbox(es) read parallel over 3 sidecar(s): the window's session and 2 started for this request); exchange session 1, sidecar starts 1,",
+            user,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AUsersAccessOverTheWindowsLayersAsksTheWindowsTokenOnce()
+    {
+        int asked = 0;
+        await using var exchange = new WindowExchange(
+            () => new ExchangeTokenSource(_ =>
+            {
+                Interlocked.Increment(ref asked);
+                return Task.FromResult(SidecarFixtures.Token(DateTimeOffset.UtcNow.AddHours(1)));
+            }),
+            tokens => SidecarFixtures.Session(tokens.GetAsync),
+            _ => null);
+
+        BridgeMessage? reply = await Dispatcher(exchange).DispatchAsync(new BridgeMessage(BridgeProtocol.Version, "4", "mailbox-access", JsonNode.Parse("""{"user":"bob@contoso.com"}""")), Ct);
+
+        // The warm session and the two extra sidecars connect with the one token of the window's source.
+        Assert.Equal("user-grants", reply?.Type);
+        Assert.Equal(1, asked);
+        Assert.Equal(1, exchange.Tokens!.Acquisitions);
+    }
+
+    [Fact]
+    public void TheUserLookupsLogLineNamesItsSidecarsByCountsOnly()
+    {
+        var access = new UserAccess("bob@contoso.com", "Bob Example", [], 620, []) { Method = "parallel" };
+
+        string sidecars = BridgeDispatcher.DescribeSidecars(3, access);
+
+        Assert.Equal("FullAccess of 620 mailbox(es) read parallel over 4 sidecar(s): the window's session and 3 started for this request", sidecars);
+        Assert.DoesNotContain("contoso", sidecars, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Bob", sidecars, StringComparison.Ordinal);
+    }
+
     private static async Task WaitUntil(Func<bool> condition)
     {
         for (int attempt = 0; attempt < 200 && !condition(); attempt++)
