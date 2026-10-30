@@ -82,7 +82,7 @@ public sealed class PlanGuardTests
         Assert.Equal("20261030T120000.000Z-group-members-add.json", Path.GetFileName(file));
         Assert.Equal(file, applied.Record);
         PlanRecord record = PlanStore.Read(file)!;
-        Assert.Equal(1, record.Version);
+        Assert.Equal(PlanStore.RecordVersion, record.Version);
         Assert.Equal("tests", record.Source);
         Assert.Equal(["group", "members", "add"], record.Arguments);
         Assert.Equal(PlanMode.Applied, record.Plan.Mode);

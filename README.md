@@ -251,6 +251,29 @@ The distribution group writes need an Exchange Online role that changes group me
 Recipient Management with Security Group Creation and Membership). The details are in
 [docs/development.md](docs/development.md#writes-and-plans).
 
+## Distribution list owners, a narrower resume and plan prune
+
+The owners of a distribution group or a mail-enabled security group (Exchange's `ManagedBy`) are read and changed
+through the Exchange Online module too (`Get-DistributionGroup`, `Set-DistributionGroup -ManagedBy`), with the same
+plan, flags and exit codes; a Microsoft 365 group's owners stay on Graph, and a group synced from on-premises Active
+Directory keeps its warning:
+
+```powershell
+& $aegis group owners add Sales dave@contoso.com --dry-run            # a distribution group, through Exchange
+```
+
+A plan record now numbers each change's line and keys it by object ids, so `--resume` plans only the lines its record
+left to do (60 pending lines of 100 read 60 objects) and still finds a change whose group or user was renamed since;
+a record written before this keeps the old resume. `plan list` says how many records there are and how much they
+take, and `plan prune` removes the older ones behind the usual guard:
+
+```powershell
+& $aegis plan prune --older-than 90 --dry-run                          # lists the records it would remove
+& $aegis plan prune --older-than 90 --yes
+```
+
+The details are in [docs/development.md](docs/development.md#the-writes-follow-ups-owners-resume-and-prune).
+
 ## The window's mailbox access over the Admin API
 
 The window's access card reads a mailbox the way `mailbox access` does: the mailbox and its Send on Behalf

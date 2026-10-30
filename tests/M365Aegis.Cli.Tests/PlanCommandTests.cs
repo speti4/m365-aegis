@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using M365Aegis.Cli.Commands;
 using M365Aegis.Cli.Output;
 using M365Aegis.Core.Graph;
@@ -14,7 +15,7 @@ namespace M365Aegis.Cli.Tests;
 /// recorded Graph answers and on a mailbox grant over the fake module; and a distribution group's members through
 /// Exchange (task 061).
 /// </summary>
-public sealed class PlanCommandTests
+public sealed partial class PlanCommandTests
 {
     private static Dictionary<string, string> Home(string home) => new() { ["M365AEGIS_HOME"] = home };
 
@@ -115,7 +116,9 @@ public sealed class PlanCommandTests
         string show = Render(PlanStore.Open(home, PlanRecordSamples.Stopped).Record, PlanRecordTableView.Instance);
         string grants = Render(PlanStore.Open(home, PlanRecordSamples.Grants).Record, PlanRecordTableView.Instance);
 
-        await Verify(Scrub($"=== plan list ===\n{list}=== plan show (stopped) ===\n{show}=== plan show (a batch) ===\n{grants}", home));
+        // The records hold the temporary home's path, whose length differs from one machine to another, and so does their size.
+        string sized = SizeOnDisk().Replace(list, "<size> on disk");
+        await Verify(Scrub($"=== plan list ===\n{sized}=== plan show (stopped) ===\n{show}=== plan show (a batch) ===\n{grants}", home));
     }
 
     [Fact]
@@ -211,6 +214,132 @@ public sealed class PlanCommandTests
         Assert.Equal("dave@contoso.com", write.RootElement.GetProperty("parameters").GetProperty("Member").GetString());
     }
 
+    [Fact]
+    public void ADistributionGroupsOwnersArePlannedAndAppliedThroughTheSidecar()
+    {
+        string home = PlanSamples.TempHome();
+        string writes = Path.Combine(Path.GetTempPath(), $"m365-aegis-tests-{Guid.NewGuid():N}.jsonl");
+
+        (int dryExit, string dryOut, _) = CliTests.RunWith(Layers(home, writes), "--json", "group", "owners", "add", "Sales", "dave@contoso.com", "alice@contoso.com", "--dry-run");
+        (int tableExit, string table, _) = CliTests.RunWith(Layers(home, writes), "--table", "group", "owners", "add", "Sales", "dave@contoso.com", "--dry-run");
+        (int exitCode, string stdout, _) = CliTests.RunWith(Layers(home, writes), "--json", "group", "owners", "add", "Sales", "dave@contoso.com", "--yes");
+
+        Assert.Equal(0, dryExit);
+        using JsonDocument dry = JsonDocument.Parse(dryOut);
+        JsonElement plan = dry.RootElement.GetProperty("data");
+        Assert.Equal("Dave Example (dave@contoso.com) as an owner", Assert.Single(plan.GetProperty("changes").EnumerateArray()).GetProperty("detail").GetString());
+        Assert.Equal(1, plan.GetProperty("unchanged").GetArrayLength());
+        Assert.Equal(0, plan.GetProperty("warnings").GetArrayLength());
+        Assert.Equal("graph+pwsh", dry.RootElement.GetProperty("meta").GetProperty("backend").GetString());
+        Assert.Equal(0, tableExit);
+        Assert.Contains("Dave Example (dave@contoso.com) as an owner", table, StringComparison.Ordinal);
+        Assert.Equal(0, exitCode);
+        using JsonDocument applied = JsonDocument.Parse(stdout);
+        Assert.Equal("graph+pwsh", applied.RootElement.GetProperty("meta").GetProperty("backend").GetString());
+        using JsonDocument write = JsonDocument.Parse(Assert.Single(File.ReadAllLines(writes)));
+        Assert.Equal("Set-DistributionGroup", write.RootElement.GetProperty("cmdlet").GetString());
+        Assert.Equal("dave@contoso.com", write.RootElement.GetProperty("parameters").GetProperty("ManagedBy").GetProperty("Add")[0].GetString());
+    }
+
+    [Fact]
+    public void AResumeOfAVersionTwoBatchPlansOnlyItsPendingLines()
+    {
+        string home = PlanSamples.TempHome();
+        string record = PlanRecordSamples.WriteBatch(home);
+
+        (int exitCode, string stdout, _) = CliTests.RunWith(Graph(home), "--json", "group", "members", "add", "--resume", record, "--dry-run");
+
+        // The line of nobody, applied and deleted since, is not read again: only Dave's line is planned.
+        Assert.Equal(0, exitCode);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement change = Assert.Single(document.RootElement.GetProperty("data").GetProperty("changes").EnumerateArray());
+        Assert.Equal(3, change.GetProperty("row").GetInt32());
+        Assert.Equal(2, change.GetProperty("index").GetInt32());
+        Assert.Equal("00000000-0000-0000-0000-000000000031/00000000-0000-0000-0000-000000000005", change.GetProperty("key").GetString());
+    }
+
+    [Fact]
+    public void AResumeOfAVersionOneBatchPlansEveryLineAgain()
+    {
+        string home = PlanSamples.TempHome();
+        string record = PlanRecordSamples.WriteBatch(home);
+        PlanRecordSamples.AsVersionOne(Path.Combine(home, "plans", record));
+
+        (int exitCode, string stdout, _) = CliTests.RunWith(Graph(home), "--json", "group", "members", "add", "--resume", record, "--dry-run");
+
+        // As before task 065, the whole batch is planned, and the deleted user fails the plan.
+        Assert.Equal(4, exitCode);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        Assert.Contains("nobody@contoso.com", document.RootElement.GetProperty("error").GetProperty("message").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PlanListCountsTheRecordsAndTheirSize()
+    {
+        string home = HomeWithThreeRecords();
+
+        (int exitCode, string stdout, _) = CliTests.RunWith(Home(home), "--json", "plan", "list");
+
+        Assert.Equal(0, exitCode);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement data = document.RootElement.GetProperty("data");
+        Assert.Equal(3, data.GetProperty("count").GetInt32());
+        Assert.Equal(Records(home).Sum(file => new FileInfo(file).Length), data.GetProperty("bytes").GetInt64());
+    }
+
+    [Fact]
+    public void PlanPruneIsAWriteOverTheLocalRecords()
+    {
+        string home = HomeWithThreeRecords();
+        // The samples started on 2026-10-28, 29 and 30; the ones older than a day go, counted against today.
+        DateTimeOffset cutoff = DateTimeOffset.UtcNow.AddDays(-1);
+        int older = new[] { new DateTimeOffset(2026, 10, 28, 9, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 10, 29, 10, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 10, 30, 11, 0, 0, TimeSpan.Zero) }
+            .Count(started => started < cutoff);
+
+        (int refusedExit, string refused, _) = CliTests.RunWith(Home(home), "--json", "plan", "prune", "--older-than", "1");
+        (int dryExit, string dry, _) = CliTests.RunWith(Home(home), "--json", "plan", "prune", "--older-than", "1", "--dry-run");
+        Assert.Equal(3, Records(home).Length);
+        (int exitCode, string stdout, _) = CliTests.RunWith(Home(home), "--json", "plan", "prune", "--older-than", "1", "--yes");
+
+        using JsonDocument dryRun = JsonDocument.Parse(dry);
+        Assert.Equal("local", dryRun.RootElement.GetProperty("meta").GetProperty("backend").GetString());
+        Assert.Equal("plan-prune", dryRun.RootElement.GetProperty("data").GetProperty("operation").GetString());
+        Assert.Equal(older, dryRun.RootElement.GetProperty("data").GetProperty("changes").GetArrayLength());
+        using JsonDocument applied = JsonDocument.Parse(stdout);
+        if (older == 0)
+        {
+            Assert.Equal((0, 0, 0), (refusedExit, dryExit, exitCode));
+            Assert.Equal("up-to-date", applied.RootElement.GetProperty("data").GetProperty("mode").GetString());
+            Assert.Equal(3, Records(home).Length);
+        }
+        else
+        {
+            Assert.Equal((7, 0, 0), (refusedExit, dryExit, exitCode));
+            using JsonDocument refusal = JsonDocument.Parse(refused);
+            Assert.Equal("refused-without-yes", refusal.RootElement.GetProperty("error").GetProperty("code").GetString());
+            // The older records went; the prune's own record joined the newer ones.
+            Assert.Equal(3 - older + 1, Records(home).Length);
+            Assert.Contains(Records(home), file => file.EndsWith("-plan-prune.json", StringComparison.Ordinal));
+        }
+    }
+
+    [Theory]
+    [InlineData("plan", "prune", "--dry-run")]
+    [InlineData("plan", "prune", "--older-than", "0", "--dry-run")]
+    [InlineData("plan", "prune", "--older-than", "1", "--dry-run", "--yes")]
+    [InlineData("plan", "prune", "--older-than", "1", "--resume", PlanRecordSamples.Stopped)]
+    public void PlanPruneIsRefusedBeforeAnythingIsRemoved(params string[] arguments)
+    {
+        string home = HomeWithThreeRecords();
+
+        (int exitCode, string stdout, _) = CliTests.RunWith(Home(home), ["--json", .. arguments]);
+
+        Assert.Equal(2, exitCode);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        Assert.Equal("usage", document.RootElement.GetProperty("error").GetProperty("code").GetString());
+        Assert.Equal(3, Records(home).Length);
+    }
+
     private static string Render<T>(T data, ITableView<T> view)
     {
         var output = new StringWriter();
@@ -218,4 +347,7 @@ public sealed class PlanCommandTests
         Renderer.Render(CommandResult.Success(data), new EnvelopeMeta([], 3, Backend.Local), view, OutputMode.Table, output, error);
         return $"{output}{error}";
     }
+
+    [GeneratedRegex(@"[0-9.]+ (B|KB|MB) on disk", RegexOptions.CultureInvariant)]
+    private static partial Regex SizeOnDisk();
 }

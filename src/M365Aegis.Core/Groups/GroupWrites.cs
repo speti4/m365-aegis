@@ -24,7 +24,11 @@ public enum GroupRelation
 /// <param name="Group">The group as given: a display name, an address, an object id or a word of its name.</param>
 /// <param name="User">The user as given: a user principal name, or the object id of any directory object.</param>
 /// <param name="Row">The CSV line it comes from (task 054), or null for the arguments.</param>
-public sealed record GroupChangeRow(string Group, string User, int? Row = null);
+public sealed record GroupChangeRow(string Group, string User, int? Row = null) : IPlanRow
+{
+    /// <summary>The row's place among the write's rows, from 1 (task 065); 0 for a row that was not numbered.</summary>
+    public int Index { get; init; }
+}
 
 /// <summary>
 /// The writes of the groups domain (task 052): <c>group members add|remove</c> and <c>group owners add|remove</c>, each
@@ -38,8 +42,12 @@ public sealed record GroupChangeRow(string Group, string User, int? Row = null);
 /// which Exchange manages and Graph refuses to change, go through Exchange when the run has its layers (task 061): the
 /// current members from the Admin API's <c>Get-DistributionGroupMember</c> (Graph's list when the run has no Admin API
 /// or it cannot answer), and each change through the sidecar's <c>Add-DistributionGroupMember</c> or
-/// <c>Remove-DistributionGroupMember</c>. The plan warns when a group would lose its last owner, and when the service
-/// will refuse the change (a group synced from on-premises Active Directory, a group Graph keeps no owners for).
+/// <c>Remove-DistributionGroupMember</c>. Their owners go through Exchange too (task 064): the current owners are the
+/// group's <c>ManagedBy</c> (the sidecar's <c>Get-DistributionGroup</c>, the names resolved with one piped
+/// <c>Get-EXORecipient</c>; the Admin API documents no endpoint that reads it), and each change is the sidecar's
+/// <c>Set-DistributionGroup -ManagedBy @{Add=…}</c> or <c>@{Remove=…}</c>. The plan warns when a group would lose its
+/// last owner, and when the service will refuse the change (a group synced from on-premises Active Directory, a group
+/// Graph keeps no owners for when the run has no Exchange layers).
 /// </summary>
 public static class GroupWrites
 {
@@ -61,6 +69,10 @@ public static class GroupWrites
     private static readonly string[] ExchangeMemberNames =
         ["PrimarySmtpAddress", "ExternalDirectoryObjectId", "Guid", "WindowsLiveID", "MicrosoftOnlineServicesID", "Identity", "Alias", "Name"];
 
+    /// <summary>The properties of an owner's recipient (task 064): its names, and its type and display name for the plan.</summary>
+    private static readonly string[] OwnerProperties =
+        [.. ExchangeMemberNames, "DisplayName", "RecipientTypeDetails", "EmailAddresses"];
+
     /// <summary>The rows of the arguments: one group and the users.</summary>
     /// <exception cref="AegisException">A usage error: no group or no user.</exception>
     public static IReadOnlyList<GroupChangeRow> FromArguments(string? group, IReadOnlyList<string>? users)
@@ -73,13 +85,13 @@ public static class GroupWrites
         List<string> named = (users ?? []).Where(user => !string.IsNullOrWhiteSpace(user)).Select(user => user.Trim()).ToList();
         return named.Count == 0
             ? throw new AegisException(FailureKind.Usage, "no user was named", "give one or more user principal names or object ids after the group")
-            : named.Select(user => new GroupChangeRow(group.Trim(), user)).ToList();
+            : named.Select((user, index) => new GroupChangeRow(group.Trim(), user) { Index = index + 1 }).ToList();
     }
 
     /// <summary>The rows of a CSV file with the columns <c>group,user</c>, one change per line (task 054).</summary>
     /// <exception cref="AegisException">A usage error naming the file and the line.</exception>
     public static IReadOnlyList<GroupChangeRow> FromCsv(string path) =>
-        CsvRows.Read(path, CsvColumns, []).Select(row => new GroupChangeRow(row["group"]!, row["user"]!, row.Line)).ToList();
+        CsvRows.Read(path, CsvColumns, []).Select((row, index) => new GroupChangeRow(row["group"]!, row["user"]!, row.Line) { Index = index + 1 }).ToList();
 
     /// <summary>
     /// The plan of a member or owner write over the rows, over Graph alone: a distribution or mail-enabled security
@@ -98,8 +110,8 @@ public static class GroupWrites
     }
 
     /// <summary>
-    /// The plan of a member or owner write over the rows, over the layers of the run (task 061): Graph for every group
-    /// and for the owners, Exchange for the members of a distribution or mail-enabled security group.
+    /// The plan of a member or owner write over the rows, over the layers of the run (task 061): Graph for every group,
+    /// Exchange for the members (task 061) and the owners (task 064) of a distribution or mail-enabled security group.
     /// </summary>
     /// <param name="backends">The layers: Graph, the Admin API and the sidecar.</param>
     /// <param name="relation">The members or the owners.</param>
@@ -132,9 +144,11 @@ public static class GroupWrites
         var current = new Dictionary<string, IReadOnlyList<Listed>>(StringComparer.OrdinalIgnoreCase);
         foreach (GroupInfo group in groups.Values.DistinctBy(group => group.Id, StringComparer.OrdinalIgnoreCase))
         {
-            current[group.Id] = exchange is not null && ThroughExchange(relation, group)
-                ? await ExchangeMembersAsync(graph, exchange, group, cancellationToken).ConfigureAwait(false)
-                : (await GroupLookups.ListAsync(graph, group.Id, list, cancellationToken).ConfigureAwait(false)).Select(Listed.FromGraph).ToList();
+            current[group.Id] = exchange is null || !ThroughExchange(group)
+                ? (await GroupLookups.ListAsync(graph, group.Id, list, cancellationToken).ConfigureAwait(false)).Select(Listed.FromGraph).ToList()
+                : relation == GroupRelation.Members
+                    ? await ExchangeMembersAsync(graph, exchange, group, cancellationToken).ConfigureAwait(false)
+                    : await ExchangeOwnersAsync(exchange, group, cancellationToken).ConfigureAwait(false);
         }
 
         IReadOnlyDictionary<string, GroupMember> resolved = add
@@ -157,13 +171,18 @@ public static class GroupWrites
             Listed? found = Match(members, row.User) ?? (known is null ? null : Match(members, known.Id) ?? Match(members, known.Mail) ?? Match(members, known.UserPrincipalName));
             if (add && found is not null)
             {
-                builder.Unchanged(new PlanUnchanged(group.DisplayName, $"{Describe(found.Member)} as {role}", $"{role} already") { Row = row.Row });
+                builder.Unchanged(new PlanUnchanged(group.DisplayName, $"{Describe(found.Member)} as {role}", $"{role} already")
+                {
+                    Row = row.Row,
+                    Index = PlanRows.IndexOf(row),
+                    Key = PlanRows.Key(group.Id, found.Member.Id),
+                });
                 continue;
             }
 
             if (!add && found is null)
             {
-                builder.Unchanged(new PlanUnchanged(group.DisplayName, $"{row.User} as {role}", not) { Row = row.Row });
+                builder.Unchanged(new PlanUnchanged(group.DisplayName, $"{row.User} as {role}", not) { Row = row.Row, Index = PlanRows.IndexOf(row) });
                 continue;
             }
 
@@ -171,14 +190,20 @@ public static class GroupWrites
             string detail = $"{Describe(subject)} as {role}";
             if (!planned.Add((group.Id.ToUpperInvariant(), subject.Id.ToUpperInvariant())))
             {
-                builder.Unchanged(new PlanUnchanged(group.DisplayName, detail, "named twice: the change is planned once") { Row = row.Row });
+                builder.Unchanged(new PlanUnchanged(group.DisplayName, detail, "named twice: the change is planned once") { Row = row.Row, Index = PlanRows.IndexOf(row) });
                 continue;
             }
 
-            var change = new PlanChange(add ? PlanAction.Add : PlanAction.Remove, group.DisplayName, detail, add ? not : role, add ? role : not) { Row = row.Row };
-            if (exchange is not null && ThroughExchange(relation, group))
+            var change = new PlanChange(add ? PlanAction.Add : PlanAction.Remove, group.DisplayName, detail, add ? not : role, add ? role : not)
             {
-                ExoCommand command = MemberCommand(add, group, found?.ExchangeIdentity ?? subject.Mail ?? subject.UserPrincipalName ?? subject.Id);
+                Row = row.Row,
+                Index = PlanRows.IndexOf(row),
+                Key = PlanRows.Key(group.Id, subject.Id),
+            };
+            if (exchange is not null && ThroughExchange(group))
+            {
+                string identity = found?.ExchangeIdentity ?? subject.Mail ?? subject.UserPrincipalName ?? subject.Id;
+                ExoCommand command = relation == GroupRelation.Members ? MemberCommand(add, group, identity) : OwnerCommand(add, group, identity);
                 builder.Change(change, PlanStep.Alone(async ct => await exchange.Sidecar.InvokeAsync(command, ct).ConfigureAwait(false)));
             }
             else
@@ -243,9 +268,12 @@ public static class GroupWrites
         }
     }
 
-    /// <summary>Whether Exchange manages the list: the members of a distribution or mail-enabled security group that is not synced.</summary>
-    private static bool ThroughExchange(GroupRelation relation, GroupInfo group) =>
-        relation == GroupRelation.Members && !group.Synced && group.Kind is GroupKind.Distribution or GroupKind.MailEnabledSecurity;
+    /// <summary>
+    /// Whether Exchange manages the lists: a distribution or mail-enabled security group that is not synced, whose
+    /// members (task 061) and owners (task 064) Graph cannot change.
+    /// </summary>
+    private static bool ThroughExchange(GroupInfo group) =>
+        !group.Synced && group.Kind is GroupKind.Distribution or GroupKind.MailEnabledSecurity;
 
     /// <summary>
     /// A distribution or mail-enabled security group's members as Exchange keeps them (task 061): the Admin API's
@@ -275,6 +303,47 @@ public static class GroupWrites
         return (await GroupLookups.ListAsync(graph, group.Id, "members", cancellationToken).ConfigureAwait(false)).Select(Listed.FromGraph).ToList();
     }
 
+    /// <summary>
+    /// A distribution or mail-enabled security group's owners as Exchange keeps them (task 064): the sidecar's
+    /// <c>Get-DistributionGroup</c> names them in <c>ManagedBy</c>, by each recipient's name, and one piped
+    /// <c>Get-EXORecipient</c> resolves the names to the recipients' addresses and object ids; a name no recipient
+    /// answers to (a role group) is listed as it is.
+    /// </summary>
+    private static async Task<IReadOnlyList<Listed>> ExchangeOwnersAsync(ExchangeBackends exchange, GroupInfo group, CancellationToken cancellationToken)
+    {
+        ExoResult found = await exchange.Sidecar.InvokeAsync(
+            new ExoCommand(ExoCmdlets.GetDistributionGroup)
+            {
+                Parameters = new Dictionary<string, object?> { ["Identity"] = ExchangeIdentity(group) },
+                Properties = ["ManagedBy"],
+            },
+            cancellationToken).ConfigureAwait(false);
+        List<string> names = found.Items.SelectMany(item => item.Texts("ManagedBy")).Where(name => !string.IsNullOrWhiteSpace(name)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (names.Count == 0)
+        {
+            return [];
+        }
+
+        IReadOnlyList<ExoObject> recipients;
+        try
+        {
+            recipients = (await exchange.Sidecar.InvokeAsync(new ExoCommand(ExoCmdlets.GetRecipient) { Input = names, Properties = OwnerProperties }, cancellationToken).ConfigureAwait(false)).Items;
+        }
+        catch (AegisException exception) when (exception.Failure.Kind is FailureKind.NotFound or FailureKind.CmdletFailed)
+        {
+            // No name resolved: the owners are still listed as ManagedBy names them.
+            recipients = [];
+        }
+
+        List<Listed> owners = recipients.Select(Listed.FromExchange).ToList();
+        foreach (string name in names.Where(name => !owners.Any(owner => owner.Names.Contains(name))))
+        {
+            owners.Add(new Listed(new GroupMember("recipient", name, null, null, name), [name], name));
+        }
+
+        return owners;
+    }
+
     /// <summary>The group as Exchange takes it: its primary address, else its object id.</summary>
     private static string ExchangeIdentity(GroupInfo group) => group.Mail ?? group.Id;
 
@@ -288,6 +357,24 @@ public static class GroupWrites
                 ["Member"] = member,
                 // An administrator who is not among the group's owners (ManagedBy) needs it; the Organization Management
                 // role group has the role it asks for.
+                ["BypassSecurityGroupManagerCheck"] = true,
+                ["Confirm"] = false,
+            },
+        };
+
+    /// <summary>
+    /// The owner change of a distribution or mail-enabled security group (task 064): <c>Set-DistributionGroup
+    /// -ManagedBy @{Add=…}</c> or <c>@{Remove=…}</c>, the multi-valued property's change, without a prompt; no other
+    /// setting of the group is sent (the allow-list holds it to these parameters).
+    /// </summary>
+    private static ExoCommand OwnerCommand(bool add, GroupInfo group, string owner) =>
+        new(ExoCmdlets.SetDistributionGroup)
+        {
+            Parameters = new Dictionary<string, object?>
+            {
+                ["Identity"] = ExchangeIdentity(group),
+                ["ManagedBy"] = new Dictionary<string, object?> { [add ? "Add" : "Remove"] = new[] { owner } },
+                // An administrator who is not among the group's owners needs it, as for the members.
                 ["BypassSecurityGroupManagerCheck"] = true,
                 ["Confirm"] = false,
             },
@@ -309,7 +396,7 @@ public static class GroupWrites
         {
             builder.Warn($"{group.DisplayName} is {kind}: Exchange manages its members and Graph cannot change them, so the service will refuse the change");
         }
-        else if (relation == GroupRelation.Owners && !group.OwnersInGraph)
+        else if (relation == GroupRelation.Owners && !group.OwnersInGraph && !(exchange && ThroughExchange(group)))
         {
             builder.Warn($"{group.DisplayName} is {kind}: Graph keeps no owners for it, so the service will refuse the change");
         }

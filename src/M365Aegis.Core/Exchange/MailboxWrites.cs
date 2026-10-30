@@ -14,14 +14,22 @@ namespace M365Aegis.Core.Exchange;
 /// For a FullAccess grant, whether Outlook adds the mailbox for the holder on its own (task 059: false is
 /// <c>Add-MailboxPermission -AutoMapping:$false</c>); true, the service's default, for every other right.
 /// </param>
-public sealed record AccessChangeRow(string Mailbox, string User, MailboxRight Right, int? Row = null, bool AutoMapping = true);
+public sealed record AccessChangeRow(string Mailbox, string User, MailboxRight Right, int? Row = null, bool AutoMapping = true) : IPlanRow
+{
+    /// <summary>The row's place among the write's rows, from 1 (task 065); 0 for a row that was not numbered.</summary>
+    public int Index { get; init; }
+}
 
 /// <summary>One mailbox's forwarding a write was asked to set or clear.</summary>
 /// <param name="Mailbox">The mailbox as given.</param>
 /// <param name="To">The address to forward to; null clears the forwarding.</param>
 /// <param name="KeepCopy">Whether the mailbox keeps a copy (<c>DeliverToMailboxAndForward</c>); ignored when clearing.</param>
 /// <param name="Row">The CSV line it comes from, or null for the arguments.</param>
-public sealed record ForwardingRow(string Mailbox, string? To, bool KeepCopy, int? Row = null);
+public sealed record ForwardingRow(string Mailbox, string? To, bool KeepCopy, int? Row = null) : IPlanRow
+{
+    /// <summary>The row's place among the write's rows, from 1 (task 065); 0 for a row that was not numbered.</summary>
+    public int Index { get; init; }
+}
 
 /// <summary>
 /// The mailbox writes (task 053), beside the lookups whose reads give their current state: <c>mailbox access
@@ -103,7 +111,9 @@ public static partial class MailboxLookups
                 "automapping is how Outlook adds a mailbox its FullAccess holder can open; drop --no-automapping, or grant FullAccess");
         }
 
-        return holders.SelectMany(user => parsed.Select(right => new AccessChangeRow(identity, user, right, AutoMapping: autoMapping || right != MailboxRight.FullAccess))).ToList();
+        return holders.SelectMany(user => parsed.Select(right => new AccessChangeRow(identity, user, right, AutoMapping: autoMapping || right != MailboxRight.FullAccess)))
+            .Select((row, index) => row with { Index = index + 1 })
+            .ToList();
     }
 
     /// <summary>
@@ -132,7 +142,7 @@ public static partial class MailboxLookups
                     "automapping is a FullAccess setting; leave the cell empty on the other lines; nothing was sent");
             }
 
-            rows.Add(new AccessChangeRow(row["mailbox"]!, row["user"]!, right, row.Line, autoMapping));
+            rows.Add(new AccessChangeRow(row["mailbox"]!, row["user"]!, right, row.Line, autoMapping) { Index = rows.Count + 1 });
         }
 
         return rows;
@@ -150,13 +160,13 @@ public static partial class MailboxLookups
             string where = string.Format(CultureInfo.InvariantCulture, "{0}, line {1}", name, row.Line);
             if (!set)
             {
-                result.Add(new ForwardingRow(row["mailbox"]!, null, false, row.Line));
+                result.Add(new ForwardingRow(row["mailbox"]!, null, false, row.Line) { Index = result.Count + 1 });
                 continue;
             }
 
             string to = RequireAddress(row["to"], where);
             bool keep = row.Flag(KeepCopyColumn, where, whenEmpty: false);
-            result.Add(new ForwardingRow(row["mailbox"]!, to, keep, row.Line));
+            result.Add(new ForwardingRow(row["mailbox"]!, to, keep, row.Line) { Index = result.Count + 1 });
         }
 
         return Distinct(result, name);
@@ -167,7 +177,7 @@ public static partial class MailboxLookups
     public static IReadOnlyList<ForwardingRow> ForwardingRows(string? mailbox, string? to, bool keepCopy, bool set)
     {
         string identity = RequireName(mailbox, "the mailbox");
-        return set ? [new ForwardingRow(identity, RequireAddress(to, "--to"), keepCopy)] : [new ForwardingRow(identity, null, false)];
+        return set ? [new ForwardingRow(identity, RequireAddress(to, "--to"), keepCopy) { Index = 1 }] : [new ForwardingRow(identity, null, false) { Index = 1 }];
     }
 
     /// <summary>The plan of <c>mailbox access grant|revoke</c> over the rows.</summary>
@@ -219,27 +229,36 @@ public static partial class MailboxLookups
             bool withoutAutoMapping = grant && row.Right == MailboxRight.FullAccess && !row.AutoMapping;
             string detail = withoutAutoMapping ? $"{right} for {who}, without automapping" : $"{right} for {who}";
             bool held = access.Holders.Any(entry => entry.Right == row.Right && (names.Contains(entry.Holder) || (entry.Address is not null && names.Contains(entry.Address))));
+            string ids = PlanRows.Key(
+                access.Mailbox.ObjectId ?? access.Mailbox.PrimarySmtpAddress,
+                row.Right.ToString(),
+                holder.Text("ExternalDirectoryObjectId") ?? holder.Text("Guid") ?? holder.Text("PrimarySmtpAddress") ?? row.User);
             string holds = $"holds {right}";
             string lacks = $"no {right}";
             if (held == grant)
             {
                 // Automapping is set by the grant: a holder's own stays as it is (task 059).
                 string already = withoutAutoMapping ? $"{holds} already; its automapping is left as it is" : $"{holds} already";
-                builder.Unchanged(new PlanUnchanged(target, detail, grant ? already : lacks) { Row = row.Row });
+                builder.Unchanged(new PlanUnchanged(target, detail, grant ? already : lacks) { Row = row.Row, Index = PlanRows.IndexOf(row), Key = ids });
                 continue;
             }
 
             string key = holder.Text("PrimarySmtpAddress") ?? holder.Text("ExternalDirectoryObjectId") ?? row.User;
             if (!planned.Add((access.Mailbox.PrimarySmtpAddress.ToUpperInvariant(), key.ToUpperInvariant(), row.Right)))
             {
-                builder.Unchanged(new PlanUnchanged(target, detail, "named twice: the change is planned once") { Row = row.Row });
+                builder.Unchanged(new PlanUnchanged(target, detail, "named twice: the change is planned once") { Row = row.Row, Index = PlanRows.IndexOf(row) });
                 continue;
             }
 
             ExoCommand command = AccessCommand(grant, row.Right, access.Mailbox.PrimarySmtpAddress, key, autoMapping: !withoutAutoMapping);
             IExoCmdletRunner sidecar = backends.Sidecar;
             builder.Change(
-                new PlanChange(grant ? PlanAction.Add : PlanAction.Remove, target, detail, grant ? lacks : holds, grant ? holds : lacks) { Row = row.Row },
+                new PlanChange(grant ? PlanAction.Add : PlanAction.Remove, target, detail, grant ? lacks : holds, grant ? holds : lacks)
+                {
+                    Row = row.Row,
+                    Index = PlanRows.IndexOf(row),
+                    Key = ids,
+                },
                 async ct => await sidecar.InvokeAsync(command, ct).ConfigureAwait(false));
             if (grant)
             {
@@ -315,6 +334,7 @@ public static partial class MailboxLookups
             seen[mailbox.PrimarySmtpAddress] = row.Row;
             mailboxes.Add(mailbox);
             string target = $"{mailbox.DisplayName} ({mailbox.PrimarySmtpAddress})";
+            string ids = PlanRows.Key(mailbox.ObjectId ?? mailbox.PrimarySmtpAddress);
             string? smtp = found.Text("ForwardingSmtpAddress") is { } address ? WithoutPrefix(address) : null;
             string? recipient = found.Text("ForwardingAddress");
             bool keeps = found.Flag("DeliverToMailboxAndForward") ?? false;
@@ -323,7 +343,7 @@ public static partial class MailboxLookups
             {
                 if (smtp is null && recipient is null)
                 {
-                    builder.Unchanged(new PlanUnchanged(target, "the forwarding", "no forwarding") { Row = row.Row });
+                    builder.Unchanged(new PlanUnchanged(target, "the forwarding", "no forwarding") { Row = row.Row, Index = PlanRows.IndexOf(row), Key = ids });
                     continue;
                 }
 
@@ -335,14 +355,14 @@ public static partial class MailboxLookups
                     ["DeliverToMailboxAndForward"] = false,
                     ["Confirm"] = false,
                 };
-                AddStep(builder, sidecar, new PlanChange(PlanAction.Clear, target, "the forwarding", current, "no forwarding") { Row = row.Row }, parameters);
+                AddStep(builder, sidecar, new PlanChange(PlanAction.Clear, target, "the forwarding", current, "no forwarding") { Row = row.Row, Index = PlanRows.IndexOf(row), Key = ids }, parameters);
                 continue;
             }
 
             string desired = Forwarding(row.To, null, row.KeepCopy);
             if (recipient is null && string.Equals(smtp, row.To, StringComparison.OrdinalIgnoreCase) && keeps == row.KeepCopy)
             {
-                builder.Unchanged(new PlanUnchanged(target, $"forwarding to {row.To}", $"{desired} already") { Row = row.Row });
+                builder.Unchanged(new PlanUnchanged(target, $"forwarding to {row.To}", $"{desired} already") { Row = row.Row, Index = PlanRows.IndexOf(row), Key = ids });
                 continue;
             }
 
@@ -359,7 +379,7 @@ public static partial class MailboxLookups
                 builder.Warn($"{mailbox.DisplayName} forwards to the recipient '{recipient}' (ForwardingAddress), which takes precedence over an SMTP address: the plan clears it");
             }
 
-            AddStep(builder, sidecar, new PlanChange(PlanAction.Set, target, $"forwarding to {row.To}", current, desired) { Row = row.Row }, setting);
+            AddStep(builder, sidecar, new PlanChange(PlanAction.Set, target, $"forwarding to {row.To}", current, desired) { Row = row.Row, Index = PlanRows.IndexOf(row), Key = ids }, setting);
             if (IsExternal(row.To, domains))
             {
                 builder.Warn($"{row.To} is outside the accepted domains: the mail leaves the organization, and the outbound spam filter policy blocks automatic forwarding to an external address unless the policy allows it");
