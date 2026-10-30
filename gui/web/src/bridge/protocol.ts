@@ -141,16 +141,25 @@ export interface MailboxList {
 
 export type MailboxRight = "full-access" | "send-as" | "send-on-behalf";
 
+/** The layer of Exchange Online that read a mailbox or a grant (task 063): the Admin API or the pwsh sidecar. */
+export type ExchangeLayer = "admin-api" | "pwsh";
+
 export interface MailboxHolder {
   right: MailboxRight;
   holder: string;
   address?: string;
+  /** The layer that read the grant: `admin-api` for a Send on Behalf delegate by name, `pwsh` for the rest. */
+  layer?: ExchangeLayer;
 }
 
-/** The result of `mailbox access <mailbox>`. */
+/**
+ * The result of `mailbox access <mailbox>`; `mailboxLayer` says which layer read the mailbox and its Send on Behalf
+ * list: `admin-api`, or `pwsh` when the Admin API could not answer or the window has none.
+ */
 export interface MailboxAccess {
   mailbox: MailboxInfo;
   holders: MailboxHolder[];
+  mailboxLayer?: ExchangeLayer;
 }
 
 export interface UserGrant {
@@ -355,6 +364,11 @@ function isSignOutInfo(value: unknown): value is SignOutInfo {
 }
 
 const rights: readonly string[] = ["full-access", "send-as", "send-on-behalf"];
+const layers: readonly string[] = ["admin-api", "pwsh"];
+
+function isOptionalLayer(value: unknown): boolean {
+  return value === undefined || (isString(value) && layers.includes(value));
+}
 
 function isMailboxInfo(value: unknown): value is MailboxInfo {
   return (
@@ -380,6 +394,7 @@ function isMailboxAccess(value: unknown): value is MailboxAccess {
   return (
     isRecord(value) &&
     isMailboxInfo(value.mailbox) &&
+    isOptionalLayer(value.mailboxLayer) &&
     Array.isArray(value.holders) &&
     value.holders.every(
       (holder) =>
@@ -387,7 +402,8 @@ function isMailboxAccess(value: unknown): value is MailboxAccess {
         isString(holder.right) &&
         rights.includes(holder.right) &&
         isString(holder.holder) &&
-        isOptionalString(holder.address),
+        isOptionalString(holder.address) &&
+        isOptionalLayer(holder.layer),
     )
   );
 }

@@ -746,7 +746,8 @@ The messages (tasks 017, 040, 045 and 047; `BridgeMessageType` in C#, `MessageTy
 - `mailbox-list` with `{"shared": true}` or no payload, answered with `mailboxes` (the core's `MailboxList`), and
   `mailbox-access` with `{"mailbox": "<address, name or id>"}` or `{"user": "<upn>"}` (one of the two), answered
   with `mailbox-holders` (`MailboxAccess`) or `user-grants` (`UserAccess`) (task 045). Since task 056 the list
-  comes from the Admin API, as `mailbox list` does, and the access from the window's sidecar session (below). A partial answer of the
+  comes from the Admin API, as `mailbox list` does, a mailbox's access since task 063 from the Admin API beside the
+  window's sidecar session, and a user's from the session alone (below). A partial answer of the
   reverse lookup (exit code 6 on the command line) is the `user-grants` reply, whose `failed` list the page shows as
   a warning, as the envelope carries the data with the error.
 
@@ -799,18 +800,38 @@ the session as the sidecar, an Admin API client and Graph, the session and the A
 `ExchangeTokenSource` for the window (task 049), so the connect, the keep-warm renewals and the Admin API's calls
 share one token and its renewal. `mailbox-list` answers from the Admin API's mailbox list with no sidecar start (the
 session when the Admin API cannot answer, or in the sidecar-only offline tests, which have no Admin API);
-`mailbox-access` keeps the warm session in both directions. `logout` drops the token source with the session.
+`mailbox-access` keeps the warm session for a user's access and, since task 063, reads a mailbox's over both layers
+(below). `logout` drops the token source with the session.
 Under `--verbose` each mailbox request writes one `window:` line to the log: the time, the layers the request used
 and what the session did, never a token (`mailbox-list answered in … ms through admin-api; exchange no sidecar,
 token acquisitions 1`, then `mailbox-access answered in … ms through pwsh; exchange session 1, sidecar starts 1,
 renewals 0, last connect … ms, token acquisitions 1`).
+
+**The window's mailbox access over the layers** (task 063): `mailbox-access` with `{"mailbox": …}` runs the command
+line's `MailboxLookups.AccessAsync(backends, …)` over the window's `ExchangeBackends`, so the card shows the rows
+`mailbox access <mailbox>` prints: the mailbox and its Send on Behalf delegates with their display names from the
+Admin API (`Get-Mailbox -IncludeGrantSendOnBehalfToWithDisplayNames`) while the warm session reads FullAccess and
+Send As, side by side over the window's one token; the session alone when the window has no Admin API or the Admin
+API cannot answer for that mailbox (a missing mailbox is the `not-found` error either way). The result names its
+layers: `mailboxLayer` (`admin-api`, or `pwsh` after the fallback) and each holder's `layer` (`admin-api` for a
+delegate the Admin API listed, `pwsh` for the rest), written by the layered read only, so the command line's
+`--json` carries them too and the sidecar-only lookup's envelope is unchanged. The card shows a "Read through"
+column (Admin API or PowerShell) and one line under the mailbox on what each layer read. Under `--verbose` the
+request's `window:` line names what each layer read, by counts only: `mailbox-access answered in … ms through
+admin-api+pwsh (the mailbox and 1 Send on Behalf delegate(s) from admin-api, 2 FullAccess and Send As grant(s) from
+pwsh); exchange session 1, sidecar starts 1, …`, or `(the Admin API could not answer: the mailbox, … from pwsh)` or
+`(no Admin API in this window: …)`; a fallback also writes the core's own `admin-api:` line with the service's
+code. `{"user": …}`, the reverse lookup, stays on the session (`ExchangeBackends` of the window starts no extra
+sidecars, so its parallel read would be one sidecar anyway). The bridge sample `mailbox-holders.json` is the
+Admin API answer for Finance asked by its address, as the card's pick sends it.
 
 The page (`src/App.tsx`, `src/components/`): the sign-in card (its state machine in
 `components/sign-in-state.ts`: `whoami` reads it, `login` waits with the device code when one comes, `logout`
 reads it again; "Sign in" and "Sign in with a code" when signed out with a profile, with the window's hint for the
 state, the device code with "Copy the code" and "Open in browser" while it waits, "Sign out" when signed in), the
 group members card with the table, the mailbox access card (a mailbox or a user, the shared mailboxes to pick
-from, the holders or the grants in a table, the partial warning, and the time of the answer under the table), and a
+from, the holders or the grants in a table, each holder with the layer that read it, the partial warning, and the
+time of the answer under the table), and a
 toast (sonner) for every `error` reply.
 
 **The task card design sketch** (task 018, `src/sketch/`): the card list (grant FullAccess on a shared mailbox, add

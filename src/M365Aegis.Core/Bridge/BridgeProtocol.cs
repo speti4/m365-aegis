@@ -159,7 +159,11 @@ public static class BridgeMessageType
     /// </summary>
     public const string MailboxAccess = "mailbox-access";
 
-    /// <summary>Who holds which right on a mailbox: an <see cref="Exchange.MailboxAccess"/> as the payload.</summary>
+    /// <summary>
+    /// Who holds which right on a mailbox: an <see cref="Exchange.MailboxAccess"/> as the payload, read over the window's
+    /// layers as <c>mailbox access &lt;mailbox&gt;</c> reads it, the mailbox and each grant with the layer that read it
+    /// (task 063).
+    /// </summary>
     public const string MailboxHolders = "mailbox-holders";
 
     /// <summary>

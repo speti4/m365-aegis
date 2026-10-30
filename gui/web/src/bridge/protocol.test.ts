@@ -205,16 +205,28 @@ describe("the bridge protocol", () => {
     expect(reply.data.mailboxes.map((mailbox) => mailbox.displayName)).toEqual(["Finance", "Reception"]);
   });
 
-  it("reads the mailbox-holders sample: a right per holder", () => {
+  it("reads the mailbox-holders sample: a right per holder, each with the layer that read it (task 063)", () => {
     const reply = readReply(parsed("mailbox-holders.json"));
     expect(reply?.type).toBe(MessageType.mailboxHolders);
     if (reply?.type !== MessageType.mailboxHolders) return;
     expect(reply.data.mailbox.primarySmtpAddress).toBe("finance@contoso.com");
-    expect(reply.data.holders.map((holder) => [holder.right, holder.address])).toEqual([
-      ["full-access", "alice@contoso.com"],
-      ["send-as", "alice@contoso.com"],
-      ["send-on-behalf", "bob@contoso.com"],
+    expect(reply.data.mailboxLayer).toBe("admin-api");
+    expect(reply.data.holders.map((holder) => [holder.right, holder.holder, holder.address, holder.layer])).toEqual([
+      ["full-access", "alice@contoso.com", "alice@contoso.com", "pwsh"],
+      ["send-as", "alice@contoso.com", "alice@contoso.com", "pwsh"],
+      ["send-on-behalf", "Bob Example", "bob@contoso.com", "admin-api"],
     ]);
+  });
+
+  it("reads a mailbox-holders reply without layers, as a host before task 063 sends it", () => {
+    const finance = { displayName: "Finance", primarySmtpAddress: "finance@contoso.com", type: "SharedMailbox" };
+    const reply = readReply({
+      aegis: PROTOCOL_VERSION,
+      id: "8",
+      type: "mailbox-holders",
+      data: { mailbox: finance, holders: [{ right: "full-access", holder: "alice@contoso.com" }] },
+    });
+    expect(reply?.type === MessageType.mailboxHolders && reply.data.mailboxLayer).toBeUndefined();
   });
 
   it("reads the user-grants sample: the mailboxes the user holds a right on, nothing failed", () => {
@@ -236,6 +248,10 @@ describe("the bridge protocol", () => {
     const finance = { displayName: "Finance", primarySmtpAddress: "finance@contoso.com", type: "SharedMailbox" };
     expect(reply("mailboxes", { mailboxes: [finance] })).toBeNull();
     expect(reply("mailbox-holders", { mailbox: finance, holders: [{ right: "owner", holder: "x" }] })).toBeNull();
+    expect(
+      reply("mailbox-holders", { mailbox: finance, holders: [{ right: "send-as", holder: "x", layer: "smtp" }] }),
+    ).toBeNull();
+    expect(reply("mailbox-holders", { mailbox: finance, holders: [], mailboxLayer: 42 })).toBeNull();
     expect(reply("user-grants", { user: "x", grants: [], mailboxesScanned: 1 })).toBeNull();
     expect(reply("logged-out", { profile: "work", account: "x" })).toBeNull();
   });
