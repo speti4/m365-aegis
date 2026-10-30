@@ -11,6 +11,7 @@
       { "right": "send-as", "mailbox": { "displayName": "Reception", "primarySmtpAddress": "reception@contoso.com", "type": "SharedMailbox", "userPrincipalName": "reception@contoso.com", "objectId": "00000000-0000-0000-0000-000000000016" } }
     ],
     "mailboxesScanned": 6,
-    "failed": []
+    "failed": [],
+    "method": "parallel"
   }
 }

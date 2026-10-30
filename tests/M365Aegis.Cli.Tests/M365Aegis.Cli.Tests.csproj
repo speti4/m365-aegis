@@ -31,6 +31,8 @@
     <Compile Include="..\shared\PlanSamples.cs" Link="shared\PlanSamples.cs" />
     <!-- Three plan records in a temporary home, for plan list, plan show and the resume (tasks 060 and 062). -->
     <Compile Include="..\shared\PlanRecordSamples.cs" Link="shared\PlanRecordSamples.cs" />
+    <!-- The marked tokens of the token-hygiene tests (tasks 072 and 080). -->
+    <Compile Include="..\shared\MarkedTokenBroker.cs" Link="shared\MarkedTokenBroker.cs" />
   </ItemGroup>
 
   <ItemGroup>

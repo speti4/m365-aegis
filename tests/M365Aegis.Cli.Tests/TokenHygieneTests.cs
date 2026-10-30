@@ -31,14 +31,14 @@ public sealed class TokenHygieneTests
 {
     private const string Tenant = "contoso.onmicrosoft.com";
     private const string ClientId = "00000000-0000-0000-0000-000000000010";
-    private const string Account = "alice@contoso.com";
+    private const string Account = MarkedTokenBroker.Account;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
     public async Task AMarkedTokenReachesNoFileOfTheHomeAndNoStream()
     {
-        string marker = $"aegismarker{Guid.NewGuid():N}";
+        string marker = MarkedTokenBroker.NewMarker();
         var broker = new MarkedTokenBroker(marker);
         string home = PlanSamples.TempHome();
         var auth = new AuthService(home, _ => broker);
@@ -128,42 +128,6 @@ public sealed class TokenHygieneTests
         Assert.Contains("(internal)", errors, StringComparison.Ordinal);
         // The fake module put the token into its refusal; the sidecar's Hide-Secret took it out.
         Assert.Contains("the service refused the token <token> (401) (auth)", errors, StringComparison.Ordinal);
-    }
-
-    /// <summary>A token source that signs everything in as Alice with tokens that carry the run's marker.</summary>
-    private sealed class MarkedTokenBroker(string marker) : ITokenBroker
-    {
-        private static readonly AccountInfo Alice = new(Account, "00000000-0000-0000-0000-000000000001.00000000-0000-0000-0000-000000000002", "00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002");
-
-        /// <summary>The token of a scope: JWT-shaped for Graph, opaque for Exchange Online; the marker in both.</summary>
-        internal string Token(string scope) =>
-            scope.Contains("graph.microsoft.com", StringComparison.Ordinal) ? $"eyJ{marker}Zw.eyJ{marker}cGF5.c2ln" : $"opaque-{marker}-exchange";
-
-        private TokenResult Result(string scope, TokenOrigin origin) => new(
-            Token(scope),
-            DateTimeOffset.UtcNow.AddHours(1),
-            scope.Contains("graph.microsoft.com", StringComparison.Ordinal) ? ["User.Read", "GroupMember.ReadWrite.All"] : ["https://outlook.office365.com/Exchange.Manage"],
-            Alice.TenantId,
-            Alice,
-            origin,
-            "Alice Example");
-
-        public Task<TokenResult> AcquireSilentWithOperatingSystemAccountAsync(string scope, CancellationToken cancellationToken) =>
-            Task.FromResult(Result(scope, TokenOrigin.Broker));
-
-        public Task<IReadOnlyList<AccountInfo>> GetAccountsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<AccountInfo>>([Alice]);
-
-        public Task<TokenResult> AcquireSilentAsync(string scope, AccountInfo account, CancellationToken cancellationToken) =>
-            Task.FromResult(Result(scope, TokenOrigin.Cache));
-
-        public Task<TokenResult> AcquireInteractiveAsync(string scope, string loginHint, CancellationToken cancellationToken) =>
-            Task.FromResult(Result(scope, TokenOrigin.IdentityProvider));
-
-        public Task<TokenResult> AcquireWithDeviceCodeAsync(string scope, Func<DeviceCodePrompt, Task> prompt, CancellationToken cancellationToken) =>
-            Task.FromResult(Result(scope, TokenOrigin.IdentityProvider));
-
-        public Task RemoveAsync(AccountInfo account, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     /// <summary>

@@ -18,7 +18,8 @@ namespace M365Aegis.Core.Bridge;
 /// layers (<see cref="Backends"/>): its session as the sidecar and an Admin API client, both over one
 /// <see cref="ExchangeTokenSource"/> for the window (task 049), so a read the Admin API answers starts no sidecar and
 /// the session's connect, its renewals and the Admin API's calls share one token. The sign-out drops the source with
-/// the session, so the next request asks the sign-in again.
+/// the session, so the next request asks the sign-in again. Since task 077 a request's layers can start more sidecars
+/// over the same source for a split bulk read; they live for that request only, the warm session stays the one.
 /// </summary>
 public sealed class WindowExchange : IExoCmdletRunner, IAsyncDisposable
 {
@@ -101,15 +102,18 @@ public sealed class WindowExchange : IExoCmdletRunner, IAsyncDisposable
 
     /// <summary>
     /// The layers of one request (task 056): this holder as the sidecar (its session, started on the first cmdlet and
-    /// kept warm), an Admin API client over the window's token source (none in a holder made without one), and Graph
-    /// when <paramref name="graph"/> is given. A lookup picks the layer per read as on the command line; the object's
-    /// <see cref="ExchangeBackends.Backend"/> names the layers the request used. Disposing it leaves the session alone.
+    /// kept warm), an Admin API client over the window's token source (none in a holder made without one), Graph
+    /// when <paramref name="graph"/> is given, and more sidecars on demand for a bulk read split across several
+    /// processes (task 077: the reverse lookup's FullAccess read, as on the command line), each a session made the way
+    /// the holder makes its own, over the same token source. A lookup picks the layer per read as on the command line;
+    /// the object's <see cref="ExchangeBackends.Backend"/> names the layers the request used. Disposing it ends the
+    /// extra sidecars and leaves the warm session alone.
     /// </summary>
     public ExchangeBackends Backends(Func<GraphClient>? graph = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         IExoCmdletRunner? adminApi = _adminApi is null ? null : _adminApi(CurrentTokens()!);
-        return new ExchangeBackends(this, adminApi, graph);
+        return new ExchangeBackends(this, adminApi, graph, () => _create(CurrentTokens()));
     }
 
     /// <inheritdoc/>
