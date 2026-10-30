@@ -1,9 +1,11 @@
-# The checks of every push to main and every pull request, in the matrix of D-005 kept by D-010: the Linux jobs
-# carry everything that does not need Windows (restore in locked mode, build with the analyzers,
-# the format check, the Core and Cli tests with the sidecar against a fake module under the runner's pwsh, the
-# package audit and license check, the front end's lint, type check, tests and build, the sidecar's Pester tests,
-# the changelog and fixture checks, the workflow lint), and the one Windows job (the published exes, the window's
-# smoke test, the Windows-only tests) runs on pull requests and tags only. The ruleset on `main` requires every
+# The checks of every push to main and every pull request: the Linux jobs carry everything that does not need
+# Windows (restore in locked mode, build with the analyzers, the format check, the Core and Cli tests with the
+# sidecar against a fake module under the runner's pwsh, the package audit and license check, the front end's lint,
+# type check, tests and build, the sidecar's Pester tests, the changelog and fixture checks, the workflow lint),
+# and the one Windows job (the published exes, the window's smoke test, the tests on Windows) runs on every push to
+# main, every pull request and every tag (task 068: the repository is public since D-010, so its standard runners
+# are free and D-005's pull-request-only rule fell). The three test jobs measure their coverage and fail below
+# 100% of the lines and the branches (the sidecar: of its commands), with the reports as run artifacts (task 070). The ruleset on `main` requires every
 # job, so no path filter on the trigger (a required check whose workflow never starts stays pending and blocks
 # the merge); instead the first job, `changes`, diffs the change, and the five build jobs are skipped, which
 # still passes their required checks, when only docs, tasks, memory, the changelog or a root markdown file
@@ -88,7 +90,9 @@ jobs:
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
   # The .NET side on the cheapest runner: locked restore, format, the analyzers in the build, the Core and Cli
-  # tests (the Cli ones start the built assembly as a child process; the doctor finds the runner's pwsh).
+  # tests (the Cli ones start the built assembly as a child process; the doctor finds the runner's pwsh) under
+  # coverlet, whose instrumented assemblies also count the hits of those child processes; the gate merges the two
+  # projects' reports and fails below 100% of the lines or the branches of the Core and the command line.
   dotnet:
     needs: [changes]
     # Skipped on a docs-only change (see `changes`); a skipped job still passes its required check.
@@ -106,7 +110,16 @@ jobs:
       - run: dotnet format --verify-no-changes --no-restore
       # The front end is built by its own job; the GUI project compiles here with an empty wwwroot.
       - run: dotnet build --no-restore -c Release -p:SkipFrontendBuild=true
-      - run: dotnet test --no-build -c Release
+      - run: dotnet test --no-build -c Release --coverlet --coverlet-output-format json --coverlet-output-format cobertura --results-directory "$GITHUB_WORKSPACE/TestResults/coverage"
+      - name: Coverage of the Core and the command line
+        run: python3 -I scripts/check-coverage.py TestResults/coverage --summary "$GITHUB_STEP_SUMMARY"
+      # The reports also when the gate failed: that is when they are read.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage-dotnet
+          path: TestResults/coverage
+          if-no-files-found: error
 
   # The dependency policy: a known vulnerability in any package (the restore's audit and the explicit script), a
   # license outside licenses/allowed.json (nuget-license over the shipped packages; the front end's packages from
@@ -141,7 +154,8 @@ jobs:
       - run: python3 -I scripts/npm-licenses.py
 
   # The front end: Biome (lint and format), the type check, the Vitest tests (they read the same bridge samples
-  # the C# tests read) and the Vite build.
+  # the C# tests read) under V8 coverage, whose thresholds in vite.config.ts fail the run below 100%, and the Vite
+  # build.
   frontend:
     needs: [changes]
     # Skipped on a docs-only change, as `dotnet`.
@@ -163,13 +177,19 @@ jobs:
         working-directory: gui/web
       - run: npm run typecheck
         working-directory: gui/web
-      - run: npm test
+      - run: npm run test:coverage
         working-directory: gui/web
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage-frontend
+          path: gui/web/coverage
+          if-no-files-found: error
       - run: npm run build
         working-directory: gui/web
 
   # The Exchange Online sidecar: PSScriptAnalyzer over the scripts and the Pester tests, which run the sidecar as a
-  # child pwsh against the fake module (tests/sidecar/modules), never against a tenant. The runner image carries
+  # child pwsh and in process against the fake module (tests/sidecar/modules), never against a tenant. The runner image carries
   # pwsh; Pester is installed in the version scripts/pester-version.txt names.
   sidecar:
     needs: [changes]
@@ -196,15 +216,18 @@ jobs:
           }
           $findings | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
           if (@($findings).Count -gt 0) { exit 1 }
-      - name: Pester
+      # The tests run each case as a child pwsh (the process contract) and in this process over the script's
+      # -In/-Out/-Log parameters, which is what the profiler-based coverage sees; the script fails below 100% of
+      # the sidecar's commands (Pester has no branch measure).
+      - name: Pester with the coverage of the sidecar script
         shell: pwsh
-        run: |
-          Import-Module Pester -RequiredVersion (Get-Content scripts/pester-version.txt -Raw).Trim()
-          $config = New-PesterConfiguration
-          $config.Run.Path = 'tests/sidecar'
-          $config.Run.Exit = $true
-          $config.Output.Verbosity = 'Detailed'
-          Invoke-Pester -Configuration $config
+        run: tests/sidecar/run-with-coverage.ps1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage-sidecar
+          path: TestResults/sidecar-coverage.xml
+          if-no-files-found: error
 
   # The repo's own rules: the changelog matches tasks/done/ (not on a tag, see docs/development.md), the fixtures
   # carry made-up data only, and the helper scripts pass their self-checks.
@@ -236,13 +259,14 @@ jobs:
         with:
           advanced-security: false
 
-  # The shipped platform, on pull requests and tags only (D-005, D-010): the release script's dry run publishes both exes
-  # with the front end, the command line answers, the window loads the page and the bridge works (--smoke), and
-  # the Windows-only tests run.
+  # The shipped platform, on every push to main, pull request and tag (task 068): the release script's dry run
+  # publishes both exes with the front end, the command line answers, the window loads the page and the bridge
+  # works (--smoke), and the tests run on Windows. No coverage here: the Windows-only code is excluded from the
+  # measure, so the `dotnet` job's gate on Linux holds the same 100% (docs/development.md, "Coverage").
   windows:
     needs: [changes]
-    # Skipped on a docs-only change, as `dotnet`, and outside pull requests and tags.
-    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' && (github.event_name == 'pull_request' || github.ref_type == 'tag') }}
+    # Skipped on a docs-only change, as `dotnet`, and on a manual run of another branch.
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' && (github.event_name == 'pull_request' || github.ref_type == 'tag' || github.ref == 'refs/heads/main') }}
     runs-on: windows-latest
     timeout-minutes: 30
     steps:

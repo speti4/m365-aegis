@@ -33,14 +33,20 @@ separate decision; the maintainer took it with this round's plan).
 
 ## Steps
 
-1. [ ] The `if:` of the `windows` job: pull requests, tags and pushes to `main`; the comments
-2. [ ] The docs sentence
+1. [x] The `if:` of the `windows` job: pull requests, tags and pushes to `main`; the comments
+2. [x] The docs sentence
 3. [ ] Verification: the pull request's run (the job runs as before); the `main` push after the merge shows the job
        running — the main session records it
 
 ## Log
 
 - 2026-10-30 — promoted by the main session into the coverage and CI bundle (070, 068)
+- 2026-10-30 — `.github/workflows/ci.yml`: the `windows` job's `if:` adds `github.ref == 'refs/heads/main'` beside the
+  pull request and the tag (still behind `changes`, so a docs-only push skips it; a manual run of another branch
+  skips it as before); the header comment and the job's comment say the new rule and why (D-010: a public
+  repository's standard runners are free). `docs/development.md`, "CI and releases": the job's trigger sentence and
+  the D-005 sentence (which said the widening was a separate decision) now name task 068; `CONTRIBUTING.md`: the
+  sentence that said the Windows job runs on pull requests only.
 
 ## Deviations from the plan
 
