@@ -251,6 +251,19 @@ The distribution group writes need an Exchange Online role that changes group me
 Recipient Management with Security Group Creation and Membership). The details are in
 [docs/development.md](docs/development.md#writes-and-plans).
 
+## Safety tests and the home folder's access list
+
+The promises of [SECURITY.md](SECURITY.md) are held by tests over the whole tool, not one command at a time: no write
+command sends anything without `--yes`, a CSV file is read the same way whether Excel or a script wrote it (and a
+malformed one is refused whole), no token reaches a log, a plan record, an answer or stderr, and the exit codes keep
+their numbers.
+
+The home folder (`%LOCALAPPDATA%\m365-aegis\`, or the folder `M365AEGIS_HOME` names) is now created with an access list
+of its own: the signed-in Windows user, SYSTEM and Administrators, and nothing inherited from the folder above it, so
+the MSAL cache, the profiles, the logs and the plan records stay readable by you alone even under a folder other users
+may read. A folder that exists already keeps its access list. The details are in
+[docs/development.md](docs/development.md#the-safety-tests).
+
 ## Documentation
 
 - [Development](docs/development.md): layout, CI, releases and helper scripts

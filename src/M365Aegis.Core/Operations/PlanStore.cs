@@ -104,6 +104,8 @@ public sealed class PlanStore
     /// <summary>Writes the record of a plan whose apply starts and returns its file; a name taken already gets a <c>-2</c>, <c>-3</c>, ….</summary>
     internal string Begin(Plan plan)
     {
+        // The home first, with its access list (task 075), then the plans folder under it.
+        AegisHome.Create(Path.GetDirectoryName(Folder) ?? Folder);
         Directory.CreateDirectory(Folder);
         DateTimeOffset started = plan.Started ?? Clock.GetUtcNow();
         string stem = string.Create(CultureInfo.InvariantCulture, $"{started.UtcDateTime:yyyyMMdd'T'HHmmss'.'fff'Z'}-{plan.Operation}");

@@ -966,6 +966,21 @@ reads, and connects again to a refused organization, and searches the protocol l
 product (a file under the home, a stream) is covered by the search as it is; a new place a token flows through joins
 the run with its own step.
 
+**The home folder's access list** (task 075, `Config/AegisHome.cs`, `tests/M365Aegis.Core.Tests/Config/HomeFolderAclTests.cs`).
+The rule: every writer under the home creates it through `AegisHome.Create(home)` first (the profile store, the MSAL
+cache through `MsalTokenBroker.CreateCacheAsync`, the log, the plan store, and the window before WebView2 makes its
+data folder), which creates a missing home on Windows with an explicit, protected access list: full control for the
+current user (also its owner), SYSTEM and Administrators, inherited by every folder and file below, and nothing
+inherited from the parent. `%LOCALAPPDATA%` has that list by default; a home `M365AEGIS_HOME` puts elsewhere (under a
+folder at a drive's root, where `Users` and `Authenticated Users` may read) would otherwise inherit its parent's. A home
+that exists already is left as it is: the folder is the user's. Off Windows the folder is created plainly (a Unix mode
+is not in scope). The test, Windows-only (skipped elsewhere with the reason, so the `dotnet` job skips it and the
+`windows` job runs it), creates a parent whose list lets `Users` and `Authenticated Users` read everything below it,
+writes the MSAL cache, `config.json`, a plan record and a log line through the product into a home under it, and holds
+the home and every entry in it to allow entries for the user, SYSTEM and Administrators only, owned by the user (or
+Administrators, elevated); the cache's bytes hold no token in clear (DPAPI) while the product's own reader gets it
+back. Without the protected list the same test fails on the inherited `Users` and `Authenticated Users` entries.
+
 ## CI and releases
 
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request, under a minutes budget (D-005).

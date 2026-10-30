@@ -291,15 +291,23 @@ public sealed class MsalTokenBroker : ITokenBroker
 
         // The broker holds the refresh token; the file holds the accounts and the id tokens, and the tokens of a
         // device-code sign-in. DPAPI on Windows; the plain file elsewhere, where the tool does not ship anyway.
-        Directory.CreateDirectory(_home);
-        var storage = new StorageCreationPropertiesBuilder(CacheFileName, _home);
+        MsalCacheHelper cache = await CreateCacheAsync(_home).ConfigureAwait(false);
+        cache.RegisterCache(application.UserTokenCache);
+        return application;
+    }
+
+    /// <summary>
+    /// The cache file of a home folder, <see cref="CacheFileName"/>: the home created with its access list first
+    /// (<see cref="Config.AegisHome.Create"/>, task 075), DPAPI on Windows, the plain file elsewhere.
+    /// </summary>
+    internal static Task<MsalCacheHelper> CreateCacheAsync(string home)
+    {
+        var storage = new StorageCreationPropertiesBuilder(CacheFileName, Config.AegisHome.Create(home));
         if (!OperatingSystem.IsWindows())
         {
             storage = storage.WithLinuxUnprotectedFile();
         }
 
-        MsalCacheHelper cache = await MsalCacheHelper.CreateAsync(storage.Build()).ConfigureAwait(false);
-        cache.RegisterCache(application.UserTokenCache);
-        return application;
+        return MsalCacheHelper.CreateAsync(storage.Build());
     }
 }

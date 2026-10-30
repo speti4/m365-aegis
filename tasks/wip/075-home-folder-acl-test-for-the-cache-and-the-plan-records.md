@@ -37,20 +37,56 @@ docs name the rule.
 
 ## Steps
 
-1. [ ] The Windows-only test in the Core tests (skipped on Linux with a reason), the home created through the
+1. [x] The Windows-only test in the Core tests (skipped on Linux with a reason), the home created through the
        product under a temp `M365AEGIS_HOME`, the three files written through the product's paths, the ACL read
        with `System.Security.AccessControl`
-2. [ ] The DPAPI assertion over the cache bytes with a marker token
-3. [ ] The red proof: a home created with an inherited `Users: read` entry fails the test (a Log line)
-4. [ ] The fix in `AegisHome` if the product does not set the ACL; the docs rule
+2. [x] The DPAPI assertion over the cache bytes with a marker token
+3. [x] The red proof: a home created with an inherited `Users: read` entry fails the test (a Log line)
+4. [x] The fix in `AegisHome` if the product does not set the ACL; the docs rule
 
 ## Log
 
 - 2026-10-30 — promoted by the main session into the safety tests bundle (071–075)
+- 2026-10-30 — the finding: `AegisHome` only resolved the path; each writer created its folder with
+  `Directory.CreateDirectory` (`ProfileStore`, `MsalTokenBroker` for the cache, `LogSink`, `PlanStore.Begin`), and the
+  window let WebView2 create its data folder, so nothing set an access list and a home under `M365AEGIS_HOME`
+  inherited its parent's. The fix is part of this task.
+- 2026-10-30 — the fix: `AegisHome.Create(home)` creates a missing home and returns its full path; on Windows through
+  `DirectoryInfo.Create(DirectorySecurity)` with `AegisHome.UserOnly()`: access rule protection on (nothing
+  inherited), full control for the current user, SYSTEM and Administrators with container and object inheritance,
+  the owner the current user. An existing folder is left as it is; off Windows a plain `CreateDirectory`. Called by
+  `ProfileStore.Write`, `LogSink.Write` and `PlanStore.Begin` (for the parent of `logs\` and `plans\`), by the cache's
+  new `MsalTokenBroker.CreateCacheAsync(home)` (the `StorageCreationPropertiesBuilder` part of the application's
+  build, split out so the test writes the cache through it), and by the window's `Program.Main` before the host starts.
+- 2026-10-30 — `tests/M365Aegis.Core.Tests/Config/HomeFolderAclTests.cs` (the class `[SupportedOSPlatform("windows")]`,
+  each test `Assert.SkipUnless(OperatingSystem.IsWindows(), …)` with the reason): a parent under the temp folder whose
+  list adds `Users` and `Authenticated Users` `ReadAndExecute` for everything below; a home under it written through
+  `MsalTokenBroker.CreateCacheAsync` + `SaveUnencryptedTokenCache` (a cache whose access token carries a marker),
+  `ProfileStore.Save`, `PlanStore.Begin` and `LogSink.Write`; the home and every entry below it (the cache, its lock
+  file while it exists, `config.json`, `plans\` and the record, `logs\` and the day's file) hold allow entries for the
+  user, SYSTEM and Administrators only and are owned by the user (or Administrators, for an elevated token); the cache
+  file's bytes hold the marker neither as UTF-8 nor as UTF-16 while `LoadUnencryptedTokenCache` returns it.
+  `TheParentOfTheTestLetsUsersRead` proves the parent would leak (a plain child folder inherits `Users`), and
+  `AnExistingHomeIsLeftAsItIs` pins the rule for a folder that is there already. 3 tests, 0.2 s.
+- 2026-10-30 — red proof (not committed): `AegisHome.Create` with a plain `Directory.CreateDirectory(full)` instead of
+  the protected list: `TheHomeAndEverythingTheProductWritesUnderItAreTheUsersOwn` failed with `…\home grants
+  NT AUTHORITY\Authenticated Users: ReadAndExecute, Synchronize (inherited), BUILTIN\Users: ReadAndExecute,
+  Synchronize (inherited)` (the names printed localized on this machine); restored, the 3 green.
+- 2026-10-30 — docs: `docs/development.md` "The safety tests", the home folder paragraph (the rule: what the product
+  sets, when, and what the test holds); `README.md`, the bundle's section "Safety tests and the home folder's access
+  list". `SECURITY.md`'s scope sentence ("a cache readable by another user") stands as it is.
 
 ## Deviations from the plan
 
-- none yet
+- The home folder's rule is in "The safety tests", not in the section on the home folder: the round's rule keeps each
+  parallel bundle's text under its own heading; the paragraph names the rule in full.
+- A home that exists already keeps its access list: it may be a folder the user chose and shares on purpose, and
+  changing an existing folder's list on every run would be a surprise; a home this rule created stays protected. A
+  doctor warning for an existing home that others may read is proposed as a follow-up.
+- The window's `Program.Main` creates the home before the host starts (one line), because WebView2 would otherwise be
+  the first to create it, without the list.
+- `MsalTokenBroker.CreateCacheAsync` was split out of the application's build so the test writes the cache through
+  the product's own storage settings (the file name, DPAPI) without a sign-in.
 
 ## Verification
 

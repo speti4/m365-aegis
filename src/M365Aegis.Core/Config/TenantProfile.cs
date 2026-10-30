@@ -199,7 +199,7 @@ public sealed class ProfileStore
 
     private void Write(ConfigFile file)
     {
-        Directory.CreateDirectory(_home);
+        AegisHome.Create(_home);
         File.WriteAllText(Path, JsonSerializer.Serialize(file, FileOptions) + "\n");
     }
 
