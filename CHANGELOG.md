@@ -94,6 +94,8 @@ The repository, the task standard and the empty solution: no product yet.
 - No reference documentation files in the publish ([031](https://github.com/speti4/m365-aegis/blob/main/tasks/done/031-no-reference-documentation-files-in-the-publish.md))
 - The doctor warns when an existing home folder is readable by other users ([078](https://github.com/speti4/m365-aegis/blob/main/tasks/done/078-doctor-warns-on-a-home-folder-readable-by-others.md))
 - Token hygiene through the window: the bridge's sign-in and the `window:` log lines ([080](https://github.com/speti4/m365-aegis/blob/main/tasks/done/080-token-hygiene-through-the-window.md))
+- Signed exes and the release zip through a tag-driven release workflow ([085](https://github.com/speti4/m365-aegis/blob/main/tasks/done/085-signed-exes-and-the-release-zip.md))
+- A usage guide for the command line and the window, shipped in the release zip ([086](https://github.com/speti4/m365-aegis/blob/main/tasks/done/086-usage-guide-for-the-command-line-and-the-window.md))
 
 ### Project housekeeping
 

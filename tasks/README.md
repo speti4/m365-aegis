@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-10-30 — edit the files, not this section._
 
-**State:** 9 backlog (0 ready · 2 blocked · 0 waiting · 7 ideas) · 0 in progress · 83 done · 0 dropped · 11 decisions
+**State:** 9 backlog (0 ready · 2 blocked · 0 waiting · 7 ideas) · 0 in progress · 85 done · 0 dropped · 12 decisions
 
 ### Ready
 
@@ -58,9 +58,9 @@ _none_
 
 | # | Task | Size | Created |
 |---|---|---|---|
-| 085 | [Signed exes and the release zip through a tag-driven release workflow](backlog/085-signed-exes-and-the-release-zip.md) | M | 2026-10-30 |
-| 086 | [A usage guide for the command line and the window, shipped in the release zip](backlog/086-usage-guide-for-the-command-line-and-the-window.md) | S | 2026-10-30 |
 | 088 | [The home-access doctor check judges every account that is not the user, SYSTEM …](backlog/088-home-access-check-judges-every-foreign-account.md) | S | 2026-10-30 |
+| 093 | [The doctor's signature row pins the release certificate's thumbprint](backlog/093-doctor-signature-row-pins-the-release-certificate.md) | S | 2026-10-30 |
+| 094 | [scripts/check-fixtures.py catches two-label domains too](backlog/094-check-fixtures-catches-two-label-domains.md) | S | 2026-10-30 |
 
 ### In progress
 
@@ -74,6 +74,8 @@ _none_
 
 | # | Task | Closed |
 |---|---|---|
+| 086 | [A usage guide for the command line and the window, shipped in the release zip](done/086-usage-guide-for-the-command-line-and-the-window.md) | 2026-10-30 |
+| 085 | [Signed exes and the release zip through a tag-driven release workflow](done/085-signed-exes-and-the-release-zip.md) | 2026-10-30 |
 | 083 | [Spike: the snapshot store's format and size, recorded as a decision](done/083-spike-snapshot-store-format-and-size.md) | 2026-10-30 |
 | 082 | [The window's mailbox write cards: access grant and revoke, forwarding set and c…](done/082-window-mailbox-write-cards-behind-a-plan-and-a-confirmation.md) | 2026-10-30 |
 | 081 | [A sidecar reply line whose id is not a string is skipped, not an internal error](done/081-sidecar-reply-with-a-non-string-id-is-skipped.md) | 2026-10-30 |
@@ -82,15 +84,14 @@ _none_
 | 078 | [The doctor warns when an existing home folder is readable by other users](done/078-doctor-warns-on-a-home-folder-readable-by-others.md) | 2026-10-30 |
 | 077 | [The window's user lookup over the split read of task 043](done/077-window-user-lookup-over-the-split-read.md) | 2026-10-30 |
 | 076 | [group owners <group> reads a distribution group's owners from ManagedBy](done/076-group-owners-read-through-managedby-for-distribution-groups.md) | 2026-10-30 |
-| 075 | [A home folder ACL test: the MSAL cache, the profiles and the plan records reada…](done/075-home-folder-acl-test-for-the-cache-and-the-plan-records.md) | 2026-10-30 |
-| 074 | [CSV edge cases for the bulk writes: BOM, CRLF, quoted fields, duplicates, a mal…](done/074-csv-edge-case-tests-for-the-bulk-writes.md) | 2026-10-30 |
 
-_73 more in `done/`._
+_75 more in `done/`._
 
 ### Decisions
 
 | # | Decision | Status | Date |
 |---|---|---|---|
+| D-012 | [The release is signed with a self-signed code-signing certificate the team's machines trust](decisions/D-012-self-signed-release-certificate.md) | decided | 2026-10-30 |
 | D-011 | [The snapshot store's format, place, query path and retention](decisions/D-011-snapshot-store-format.md) | proposed | 2026-10-30 |
 | D-010 | [A public repository with a rewritten history, under the same no-tenant-data rule](decisions/D-010-public-repository-with-a-rewritten-history.md) | decided | 2026-10-30 |
 | D-009 | [The window is a WinForms form with the WebView2 control; Photino.NET is removed](decisions/D-009-winforms-webview2-window-host.md) | decided | 2026-10-29 |

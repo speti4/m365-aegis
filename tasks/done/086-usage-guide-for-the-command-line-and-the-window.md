@@ -3,6 +3,7 @@ size: S
 origin: session 2026-10-30
 created: 2026-10-30
 started: 2026-10-30
+closed: 2026-10-30
 plan: none
 milestone: M6 Release and team
 ---
@@ -71,6 +72,8 @@ README); the task session owns the steps below and may reshape them.
 - 2026-10-30 — `release.ps1` copies `docs/usage.md` as `GUIDE.md`; the README has a "Using a release" section and a
   Documentation line for the guide; CONTRIBUTING.md says a new command, example or card changes the guide and the
   tests hold it; docs/development.md describes the guide's tests and names it in the layout and the release.
+- 2026-10-30 — merged in #114 (squash) with task 085; the follow-up it found (the fixture scan misses two-label
+  domains) approved and filed as task 094. Closed on `main` by the main session.
 
 ## Deviations from the plan
 
@@ -95,4 +98,4 @@ README); the task session owns the steps below and may reshape them.
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-10-30` by the main session after the merge

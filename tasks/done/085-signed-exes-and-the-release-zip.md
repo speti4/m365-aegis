@@ -3,6 +3,7 @@ size: M
 origin: session 2026-10-30
 created: 2026-10-30
 started: 2026-10-30
+closed: 2026-10-30
 plan: none
 milestone: M6 Release and team
 ---
@@ -128,6 +129,11 @@ as a `D-` record (task sessions create no ids), and the maintainer decides it.
     individual's, which Microsoft offers in a few countries only; the maintainer checks both before choosing it.
     No signature at all: the zip's checksum and attestation already prove the build, but the doctor and the team's
     machines could tell nothing about a changed exe.
+- 2026-10-30 — merged in #114 (squash). The certificate decision filed as D-012 and decided by the maintainer on
+  2026-10-30: the self-signed certificate. The follow-ups: the thumbprint pin approved and filed as task 093; the Azure
+  Trusted Signing path not filed (D-012 chose the self-signed certificate, the path returns only if D-012 is
+  superseded). Closed on `main` by the main session. The maintainer's part is still open: make the certificate, set
+  the `release` environment's two secrets, push the `v*` tag, and the clean-machine check of the signed zip.
 
 ## Deviations from the plan
 
@@ -178,4 +184,4 @@ as a `D-` record (task sessions create no ids), and the maintainer decides it.
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-10-30` by the main session after the merge
