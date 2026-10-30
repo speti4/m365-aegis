@@ -1390,9 +1390,11 @@ public text: decisions and results, no conversation, `plan: none`, no home folde
 ### The other scripts
 
 - `scripts/check-fixtures.py` — every file under `tests/fixtures`, `tests/sidecar` and `tests/contracts`, the
-  accepted snapshots and the usage guide `docs/usage.md` (task 086) carry made-up data only: the allowed domains, the
-  `00000000-…` ids, nothing that looks like a token; and no file path there is over 190 characters from the repo
-  root, which a worktree would push past git for Windows' 260.
+  accepted snapshots and every Markdown file at the root and under `docs/`, `tasks/` and `.github/` (task 094; the
+  usage guide since task 086) carry made-up data only: the made-up domains or a host on its allow-list, each with
+  its reason (a domain is any name of two or more labels), the `00000000-…` ids, nothing that looks like a token;
+  and no fixture path is over 190 characters from the repo root, which a worktree would push past git for
+  Windows' 260. `--self-test` runs the rules against known cases ([the fixtures' rules](../tests/fixtures/README.md#the-rules)).
 - `scripts/sign-release.ps1` — the release's signature, called by `release.ps1` ([The release](#the-release)).
 - `scripts/check-vulnerable.py` — `dotnet package list --vulnerable --include-transitive` as JSON, with a failing
   exit code when it finds anything (the command itself exits 0 either way).
