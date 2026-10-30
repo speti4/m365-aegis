@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-10-30 — edit the files, not this section._
 
-**State:** 8 backlog (0 ready · 2 blocked · 0 waiting · 6 ideas) · 1 in progress · 82 done · 0 dropped · 11 decisions
+**State:** 9 backlog (0 ready · 2 blocked · 0 waiting · 7 ideas) · 0 in progress · 83 done · 0 dropped · 11 decisions
 
 ### Ready
 
@@ -48,6 +48,12 @@ _none_
 | 090 | [The window's plan warnings in the window's own words, not the command line's fl…](backlog/090-window-plan-warnings-in-the-windows-own-words.md) | S | 2026-10-30 |
 | 091 | [The mailbox access card refreshes after a write card applies a change to the ma…](backlog/091-access-card-refreshes-after-a-write-card-applies.md) | S | 2026-10-30 |
 
+#### M5 Snapshot and views
+
+| # | Task | Size | Created |
+|---|---|---|---|
+| 092 | [Spike: the sharing-link read for the snapshot, its consent and its time over th…](backlog/092-spike-sharing-link-read-for-the-snapshot.md) | S | 2026-10-30 |
+
 #### M6 Release and team
 
 | # | Task | Size | Created |
@@ -58,11 +64,7 @@ _none_
 
 ### In progress
 
-#### M5 Snapshot and views
-
-| # | Task | Started | Plan |
-|---|---|---|---|
-| 083 | [Spike: the snapshot store's format and size, recorded as a decision](wip/083-spike-snapshot-store-format-and-size.md) | 2026-10-30 | `none` |
+_none_
 
 ### Closed – do not reopen
 
@@ -72,6 +74,7 @@ _none_
 
 | # | Task | Closed |
 |---|---|---|
+| 083 | [Spike: the snapshot store's format and size, recorded as a decision](done/083-spike-snapshot-store-format-and-size.md) | 2026-10-30 |
 | 082 | [The window's mailbox write cards: access grant and revoke, forwarding set and c…](done/082-window-mailbox-write-cards-behind-a-plan-and-a-confirmation.md) | 2026-10-30 |
 | 081 | [A sidecar reply line whose id is not a string is skipped, not an internal error](done/081-sidecar-reply-with-a-non-string-id-is-skipped.md) | 2026-10-30 |
 | 080 | [Token hygiene through the window: the bridge's sign-in and the window: log lines](done/080-token-hygiene-through-the-window.md) | 2026-10-30 |
@@ -81,9 +84,8 @@ _none_
 | 076 | [group owners <group> reads a distribution group's owners from ManagedBy](done/076-group-owners-read-through-managedby-for-distribution-groups.md) | 2026-10-30 |
 | 075 | [A home folder ACL test: the MSAL cache, the profiles and the plan records reada…](done/075-home-folder-acl-test-for-the-cache-and-the-plan-records.md) | 2026-10-30 |
 | 074 | [CSV edge cases for the bulk writes: BOM, CRLF, quoted fields, duplicates, a mal…](done/074-csv-edge-case-tests-for-the-bulk-writes.md) | 2026-10-30 |
-| 073 | [An exit code contract snapshot: the ExitCode enum's names and values, frozen](done/073-exit-code-contract-snapshot.md) | 2026-10-30 |
 
-_72 more in `done/`._
+_73 more in `done/`._
 
 ### Decisions
 

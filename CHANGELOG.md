@@ -84,6 +84,10 @@ The repository, the task standard and the empty solution: no product yet.
 - A write-guard test over the window's bridge writes ([079](https://github.com/speti4/m365-aegis/blob/main/tasks/done/079-write-guard-test-over-the-window-bridge-writes.md))
 - The window's mailbox write cards: access grant and revoke, forwarding set and clear, behind a plan and a confirmation ([082](https://github.com/speti4/m365-aegis/blob/main/tasks/done/082-window-mailbox-write-cards-behind-a-plan-and-a-confirmation.md))
 
+### M5 Snapshot and views
+
+- Spike: the snapshot store's format and size, recorded as a decision ([083](https://github.com/speti4/m365-aegis/blob/main/tasks/done/083-spike-snapshot-store-format-and-size.md))
+
 ### M6 Release and team
 
 - The doctor checks the .NET Desktop Runtime 10 for the window ([028](https://github.com/speti4/m365-aegis/blob/main/tasks/done/028-doctor-checks-the-dotnet-desktop-runtime.md))

@@ -3,6 +3,7 @@ size: S
 origin: session 2026-10-30
 created: 2026-10-30
 started: 2026-10-30
+closed: 2026-10-30
 plan: none
 milestone: M5 Snapshot and views
 ---
@@ -74,6 +75,10 @@ scales to 620 mailboxes, and names the live numbers as the maintainer's check in
 - 2026-10-30 — D-011 filled and left `proposed`: one SQLite file per snapshot with integer keys under
   `<home>\snapshots\<profile>\`, the closure stored at take time, a 2-day / 14 daily / 8 weekly retention pruned
   after a successful take, an interactive-logon Task Scheduler run on the silent sign-in, `Microsoft.Data.Sqlite`
+- 2026-10-30 — merged in #111 (squash); D-011 stays `proposed` until the maintainer has the tenant's live counts. The
+  follow-ups: the sharing-link read spike approved and filed as task 092; `snapshot diff` not filed (the maintainer's
+  call of 2026-10-30: a third M5 idea before the store and the view exist, it returns at task 084's close); the wrong
+  "task 039" pointer in task 087's text fixed to D-003 in the closing commit. Closed on `main` by the main session.
 
 ## Deviations from the plan
 
@@ -122,4 +127,4 @@ scales to 620 mailboxes, and names the live numbers as the maintainer's check in
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-10-30` by the main session after the merge
