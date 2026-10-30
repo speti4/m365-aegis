@@ -54,12 +54,14 @@ separate decision; the maintainer took it with this round's plan).
 
 ## Verification
 
-- (pending)
+- 2026-10-30 — `uvx zizmor .github` clean; the branch's manual run 41092363648 skipped `windows` as the `if:` says for
+  a manual run of a branch. The pull request's run and the first push to `main` after the merge (the job running)
+  are the main session's to record.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
 - [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
