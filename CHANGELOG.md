@@ -81,6 +81,8 @@ The repository, the task standard and the empty solution: no product yet.
 - The window's own hints for the failures after the sign-in ([057](https://github.com/speti4/m365-aegis/blob/main/tasks/done/057-window-hints-for-the-failures-after-the-sign-in.md))
 - The window's `mailbox-access` over the layers ([063](https://github.com/speti4/m365-aegis/blob/main/tasks/done/063-window-mailbox-access-over-the-layers.md))
 - The window's user lookup over the split read of task 043 ([077](https://github.com/speti4/m365-aegis/blob/main/tasks/done/077-window-user-lookup-over-the-split-read.md))
+- A write-guard test over the window's bridge writes ([079](https://github.com/speti4/m365-aegis/blob/main/tasks/done/079-write-guard-test-over-the-window-bridge-writes.md))
+- The window's mailbox write cards: access grant and revoke, forwarding set and clear, behind a plan and a confirmation ([082](https://github.com/speti4/m365-aegis/blob/main/tasks/done/082-window-mailbox-write-cards-behind-a-plan-and-a-confirmation.md))
 
 ### M6 Release and team
 

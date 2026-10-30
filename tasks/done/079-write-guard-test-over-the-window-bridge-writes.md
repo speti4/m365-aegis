@@ -3,6 +3,7 @@ size: S
 origin: done/071-write-guard-test-over-the-whole-command-tree.md
 created: 2026-10-30
 started: 2026-10-30
+closed: 2026-10-30
 plan: none
 milestone: M4 Window
 ---
@@ -70,6 +71,7 @@ Held back on 2026-10-30 while the bridge had no write request; promoted with tas
   confirmation: fake module {"cmdlet":"Add-MailboxPermission",…}` (and `Set-Mailbox` twice, `Remove-RecipientPermission`).
   Both restored from a copy; the class green again (7 tests).
 - 2026-10-30 — docs: `docs/development.md`, "The safety tests", the window's write guard after task 071's paragraph.
+- 2026-10-30 — merged in #108 (squash) with task 082; no follow-up of its own; closed on `main` by the main session.
 
 ## Deviations from the plan
 
@@ -92,4 +94,4 @@ Held back on 2026-10-30 while the bridge had no write request; promoted with tas
 - [x] every doc under *Docs that move* changed in this change (`SECURITY.md` names no test, see the deviation)
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-10-30` by the main session after the merge

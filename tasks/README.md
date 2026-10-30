@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-10-30 — edit the files, not this section._
 
-**State:** 7 backlog (0 ready · 2 blocked · 0 waiting · 5 ideas) · 2 in progress · 80 done · 0 dropped · 10 decisions
+**State:** 9 backlog (0 ready · 2 blocked · 0 waiting · 7 ideas) · 0 in progress · 82 done · 0 dropped · 10 decisions
 
 ### Ready
 
@@ -41,6 +41,13 @@ _none_
 |---|---|---|---|
 | 089 | [group owners-missing --all-types judges a distribution group by its ManagedBy, …](backlog/089-group-owners-missing-judges-distribution-groups-by-managedby.md) | S | 2026-10-30 |
 
+#### M4 Window
+
+| # | Task | Size | Created |
+|---|---|---|---|
+| 090 | [The window's plan warnings in the window's own words, not the command line's fl…](backlog/090-window-plan-warnings-in-the-windows-own-words.md) | S | 2026-10-30 |
+| 091 | [The mailbox access card refreshes after a write card applies a change to the ma…](backlog/091-access-card-refreshes-after-a-write-card-applies.md) | S | 2026-10-30 |
+
 #### M5 Snapshot and views
 
 | # | Task | Size | Created |
@@ -57,12 +64,7 @@ _none_
 
 ### In progress
 
-#### M4 Window
-
-| # | Task | Started | Plan |
-|---|---|---|---|
-| 079 | [A write-guard test over the window's bridge writes](wip/079-write-guard-test-over-the-window-bridge-writes.md) | 2026-10-30 | `none` |
-| 082 | [The window's mailbox write cards: access grant and revoke, forwarding set and c…](wip/082-window-mailbox-write-cards-behind-a-plan-and-a-confirmation.md) | 2026-10-30 | `none` |
+_none_
 
 ### Closed – do not reopen
 
@@ -72,18 +74,18 @@ _none_
 
 | # | Task | Closed |
 |---|---|---|
+| 082 | [The window's mailbox write cards: access grant and revoke, forwarding set and c…](done/082-window-mailbox-write-cards-behind-a-plan-and-a-confirmation.md) | 2026-10-30 |
 | 081 | [A sidecar reply line whose id is not a string is skipped, not an internal error](done/081-sidecar-reply-with-a-non-string-id-is-skipped.md) | 2026-10-30 |
 | 080 | [Token hygiene through the window: the bridge's sign-in and the window: log lines](done/080-token-hygiene-through-the-window.md) | 2026-10-30 |
+| 079 | [A write-guard test over the window's bridge writes](done/079-write-guard-test-over-the-window-bridge-writes.md) | 2026-10-30 |
 | 078 | [The doctor warns when an existing home folder is readable by other users](done/078-doctor-warns-on-a-home-folder-readable-by-others.md) | 2026-10-30 |
 | 077 | [The window's user lookup over the split read of task 043](done/077-window-user-lookup-over-the-split-read.md) | 2026-10-30 |
 | 076 | [group owners <group> reads a distribution group's owners from ManagedBy](done/076-group-owners-read-through-managedby-for-distribution-groups.md) | 2026-10-30 |
 | 075 | [A home folder ACL test: the MSAL cache, the profiles and the plan records reada…](done/075-home-folder-acl-test-for-the-cache-and-the-plan-records.md) | 2026-10-30 |
 | 074 | [CSV edge cases for the bulk writes: BOM, CRLF, quoted fields, duplicates, a mal…](done/074-csv-edge-case-tests-for-the-bulk-writes.md) | 2026-10-30 |
 | 073 | [An exit code contract snapshot: the ExitCode enum's names and values, frozen](done/073-exit-code-contract-snapshot.md) | 2026-10-30 |
-| 072 | [A token-hygiene test: a marked fake token never reaches a log, a plan record, a…](done/072-token-hygiene-test-across-logs-plans-and-output.md) | 2026-10-30 |
-| 071 | [A write-guard test over the whole command tree: without --yes, nothing is sent](done/071-write-guard-test-over-the-whole-command-tree.md) | 2026-10-30 |
 
-_70 more in `done/`._
+_72 more in `done/`._
 
 ### Decisions
 

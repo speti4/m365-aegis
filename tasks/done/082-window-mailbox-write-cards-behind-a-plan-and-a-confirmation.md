@@ -3,6 +3,7 @@ size: L
 origin: session 2026-10-30
 created: 2026-10-30
 started: 2026-10-30
+closed: 2026-10-30
 plan: none
 milestone: M4 Window
 ---
@@ -109,6 +110,9 @@ them. The live run over the tenant (a grant and a revoke on a test mailbox from 
   writes"; "The front end": the write requests among the messages and "The write cards"; the sketch's paragraph; "The
   safety tests": task 080's run with the write, task 079's test), `README.md` (the window's section, the safety tests'
   line), `SECURITY.md` (the bridge messages among the token sinks, the window's confirmation in the write rule).
+- 2026-10-30 — merged in #108 (squash); both follow-ups approved and filed: task 090 (the plan warnings in the window's
+  own words) and task 091 (the access card refreshes after an apply); closed on `main` by the main session. The live
+  grant and revoke from the window over the tenant are still the main session's signed-in round.
 
 ## Deviations from the plan
 
@@ -146,4 +150,4 @@ them. The live run over the tenant (a grant and a revoke on a test mailbox from 
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-10-30` by the main session after the merge
