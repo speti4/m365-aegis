@@ -957,7 +957,7 @@ message, and the branch is deleted on merge; Dependabot alerts and security upda
 vulnerability reporting (the link in SECURITY.md), secret scanning and its push protection are on (task 019),
 behind the fixture check in CI and the pre-commit checks. The repository is public since task 067 (D-010): its
 history was rewritten once, in a fresh clone, before the publication, and pushed to a new repository, so a pull
-request number below 27 in a commit subject refers to the private repository the history was carried from, kept
+request number up to 27 in a commit subject refers to the private repository the history was carried from, kept
 as the maintainer's archive. The CI matrix of D-005 (the Linux jobs on every push, the `windows` job on pull
 requests and tags) stays although a public repository's standard runners are free; widening it is a separate
 decision.

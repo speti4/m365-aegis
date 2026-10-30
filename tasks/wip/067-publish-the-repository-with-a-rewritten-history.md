@@ -43,8 +43,8 @@ the main checkout points at it.
 
 ## Steps
 
-1. [ ] Task files: 067 and 019 promoted, D-010 filed, D-005 superseded; the index; committed to `main`
-2. [ ] Branch `task/067-publish-the-repository`: the three name files, `docs/development.md`, `ci.yml`, `README.md`;
+1. [x] Task files: 067 and 019 promoted, D-010 filed, D-005 superseded; the index; committed to `main`
+2. [x] Branch `task/067-publish-the-repository`: the three name files, `docs/development.md`, `ci.yml`, `README.md`;
        pull request, CI green, squash merge, `git pull`
 3. [ ] Fresh clone `E:\projects\m365-aegis-rewrite`; `git filter-repo --invert-paths --path .claude/memory/
        --mailmap … --replace-text …`; reflog expire and gc
@@ -69,10 +69,16 @@ the main checkout points at it.
   The 26 pull request bodies and every issue and review comment scanned clean. Decided: a new repository, the name
   replaced by `speti4` everywhere, the old repository kept private as an archive.
 - 2026-10-30 — promoted in the main session with 019, without a worktree (a settings task); D-010 filed `proposed`
+  (`2cd5694` on `main`)
+- 2026-10-30 — the tree changes through pull request #27 (`91e654d`): the name files, the docs, the workflow
+  comments; the commit-rules self-test (38 cases), the changelog and fixture checks, zizmor, restore, format,
+  build and 808 tests green locally, every CI job green on the pull request; the clone's `user.name` is `speti4`
+  from here on, since the hook knows only that name
 
 ## Deviations from the plan
 
-- none yet
+- The archive rule in `docs/development.md` first said "below 27"; the squash commit of the tree changes is
+  itself `(#27)`, so the sentence says "up to 27" since the docs-only commit that followed the merge
 
 ## Verification
 
