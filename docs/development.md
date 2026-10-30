@@ -941,8 +941,10 @@ with the front end, the tests,
 (`scripts/check-commit.sh` over every pushed commit and the pull request text) on the same pushes and pull
 requests. `.github/workflows/advisories.yml` restores and audits the lock files every Monday and by hand (`gh
 workflow run advisories.yml`), so an advisory for a package already in a lock file shows up between pull
-requests; it is not a required check. The workflows run with a read-only token by default; only the release job
-may write contents. Every restore runs in locked mode (`RestoreLockedMode` under `CI`), so a lock file out of
+requests; it is not a required check. `.github/workflows/sync-issues.yml` mirrors the task files into GitHub
+issues on every push to `main` that touches `tasks/` or the script (task 069, see [The issue mirror](#the-issue-mirror));
+it is not a required check either. The workflows run with a read-only token by default; only the release job
+may write contents and only the mirror job may write issues. Every restore runs in locked mode (`RestoreLockedMode` under `CI`), so a lock file out of
 step with its project fails instead of being rewritten.
 
 Some of the setup lives in the repository settings, not in a file (task 012, applied 2026-10-29): a ruleset
@@ -1014,8 +1016,8 @@ written by hand and kept by every run; the lists are never edited by hand. A tas
 than the product (the repo, CI, the process) carries `changelog: housekeeping` in its frontmatter and is listed
 last, under *Project housekeeping*. The release notes are one section of the changelog without that group (one
 line counts it and links the changelog), with a footer on the checksum, the attestation and the notices file. The
-script reads the task files through the parser of `scripts/sync-issues.py`, which is why that script is in the
-repo although the issue mirror is not set up. A release goes like this:
+script reads the task files through the parser of `scripts/sync-issues.py`, the issue mirror's script. A release
+goes like this:
 
 1. In a pull request: bump `<Version>` in `Directory.Build.props`, write the summary under *Unreleased* in
    `CHANGELOG.md`, run `python -I scripts/changelog.py` and merge.
@@ -1034,6 +1036,27 @@ python -I scripts/changelog.py --notes 0.1.0   # one release's notes (a version 
 Between releases the committed *Unreleased* list matches `tasks/done/` exactly: the lint job's `--check` fails
 on any difference, so the change that closes a task also runs `python -I scripts/changelog.py` and commits the
 regenerated `CHANGELOG.md`.
+
+### The issue mirror
+
+Every numbered task and decision under `tasks/` is one GitHub issue, mirrored one way by `scripts/sync-issues.py`
+(the project-pal task standard's script, template version 3, copied unchanged: a change goes into the template and
+comes back through `/tasks mirror`): the id and the H1 as the title, a metadata line and the Context as the body,
+labels for the stage, the status and the size, the milestone from the frontmatter (every `## ` heading of
+`tasks/roadmap.md` is a milestone; a release closes one, the script never does), open or closed by the folder. The
+file is the only truth: an issue is never edited by hand and nothing flows back. `.github/workflows/sync-issues.yml`
+runs the script on every push to `main` that touches `tasks/` or the script, and by hand (`gh workflow run
+sync-issues.yml`); an issue is found again by a hidden marker in its body, so a run patches only what differs, and
+a second run reports `created 0, updated 0`. By hand, from a clone with `gh` signed in:
+
+```powershell
+python -I scripts/sync-issues.py --dry-run     # print what would change
+python -I scripts/sync-issues.py               # apply
+python -I scripts/sync-issues.py --check       # exit 1 when anything would change
+```
+
+The backfill ran once on 2026-10-30 (task 069). Since the repository is public, a task file's H1 and Context are
+public text: decisions and results, no conversation, `plan: none`, no home folder path.
 
 ### The other scripts
 
