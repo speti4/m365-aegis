@@ -1,6 +1,7 @@
 <!-- The command line end to end: the tests start the built m365-aegis assembly as a child process and check its
-     output and exit code, the way a shell or a Claude Code session sees it; the snapshot tests (Verify) render
-     the result types in process and keep their files under Snapshots/. -->
+     output and exit code, the way a shell or a Claude Code session sees it; the snapshot tests (Verify) and the
+     table view tests render the result types in process and keep their files under Snapshots/. Under coverlet
+     the child processes load the instrumented assembly next to the tests and their hits count too (task 070). -->
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
@@ -14,6 +15,7 @@
     <ProjectReference Include="..\..\src\M365Aegis.Cli\M365Aegis.Cli.csproj" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Verify.XunitV3" />
+    <PackageReference Include="coverlet.MTP" />
     <Using Include="Xunit" />
   </ItemGroup>
 

@@ -219,8 +219,11 @@ internal sealed class CallTableView : ITableView<JsonElement?>
             : null;
     }
 
-    private static string[] Columns(IReadOnlyList<JsonElement> items) =>
-        items.Count == 0 ? ["value"] : PlainFields(items[0]).Take(MaxColumns).ToArray() is { Length: > 0 } names ? names : ["value"];
+    private static string[] Columns(IReadOnlyList<JsonElement> items)
+    {
+        string[] names = items.Count == 0 ? [] : [.. PlainFields(items[0]).Take(MaxColumns)];
+        return names.Length > 0 ? names : ["value"];
+    }
 
     private static IEnumerable<string> PlainFields(JsonElement item) => item.ValueKind != JsonValueKind.Object
         ? []
@@ -233,7 +236,8 @@ internal sealed class CallTableView : ITableView<JsonElement?>
     {
         string text = value.ValueKind switch
         {
-            JsonValueKind.String => value.GetString() ?? "",
+            // A string element always has a string.
+            JsonValueKind.String => value.GetString()!,
             JsonValueKind.Null => "-",
             _ => value.GetRawText(),
         };

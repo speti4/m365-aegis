@@ -22,5 +22,19 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    // `npm run test:coverage` (task 070): every source file under src/, held at 100% by the thresholds; the
+    // report is the text table in the log and coverage/ (lcov, json-summary), CI's artifact.
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        // The tests themselves, and their helpers (the DOM steps, the scripted transport).
+        "src/**/*.test.{ts,tsx}",
+        "src/test/**",
+      ],
+      reporter: ["text", "text-summary", "lcov", "json-summary"],
+      reportsDirectory: "coverage",
+      thresholds: { lines: 100, branches: 100, functions: 100, statements: 100 },
+    },
   },
 });

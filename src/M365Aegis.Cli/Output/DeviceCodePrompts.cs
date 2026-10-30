@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using M365Aegis.Core.Auth;
 
 namespace M365Aegis.Cli.Output;
@@ -9,11 +10,16 @@ namespace M365Aegis.Cli.Output;
 internal static class DeviceCodePrompts
 {
     /// <summary>Prints the service's sentence on stderr.</summary>
-    internal static Task OnStderr(DeviceCodePrompt prompt)
+    [ExcludeFromCodeCoverage(Justification = "the console of a device-code sign-in, which needs the real sign-in service; Write is tested (docs/development.md, Coverage)")]
+    internal static Task OnStderr(DeviceCodePrompt prompt) => Write(Console.Error, prompt);
+
+    /// <summary>Prints the service's sentence and a line end on <paramref name="writer"/>.</summary>
+    internal static Task Write(TextWriter writer, DeviceCodePrompt prompt)
     {
+        ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(prompt);
-        Console.Error.Write(prompt.Message);
-        Console.Error.Write('\n');
+        writer.Write(prompt.Message);
+        writer.Write('\n');
         return Task.CompletedTask;
     }
 }

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using M365Aegis.Core.Auth;
@@ -131,15 +132,20 @@ public static class Doctor
     }
 
     /// <summary>The pwsh executable on PATH, or null.</summary>
-    public static string? FindPwsh()
+    public static string? FindPwsh() => FindPwsh(Environment.GetEnvironmentVariable("PATH"), PwshFileName());
+
+    /// <summary>The file name of pwsh on this operating system.</summary>
+    [ExcludeFromCodeCoverage(Justification = "one side per operating system (docs/development.md, Coverage)")]
+    internal static string PwshFileName() => OperatingSystem.IsWindows() ? "pwsh.exe" : "pwsh";
+
+    /// <summary>The first folder of a PATH value that holds <paramref name="fileName"/>, as a full file name, or null.</summary>
+    internal static string? FindPwsh(string? pathVariable, string fileName)
     {
-        string? pathVariable = Environment.GetEnvironmentVariable("PATH");
         if (string.IsNullOrEmpty(pathVariable))
         {
             return null;
         }
 
-        string fileName = OperatingSystem.IsWindows() ? "pwsh.exe" : "pwsh";
         foreach (string folder in pathVariable.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
         {
             string candidate = Path.Combine(folder.Trim(), fileName);
@@ -419,7 +425,7 @@ public static class Doctor
             : new(name, CheckStatus.Pass, answered, Required: true);
     }
 
-    private static string ResourceName(Resource resource) => resource switch
+    internal static string ResourceName(Resource resource) => resource switch
     {
         Resource.Graph => "graph",
         Resource.Exchange => "exchange",

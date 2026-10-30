@@ -102,3 +102,12 @@ describe("the mailbox access card's wording", () => {
     expect(describeElapsed(2412)).toBe("2.4 s");
   });
 });
+
+describe("the sign-in card's state at its edges (task 070)", () => {
+  it("does not sign out what is not signed in, and keeps the state on a reply of another kind", () => {
+    const checking: SignInState = { status: "checking" };
+    expect(signInReducer(checking, { type: "logout" })).toBe(checking);
+    const pong: Reply = { type: "pong", data: { product: "m365-aegis", version: "0.1.0" } };
+    expect(signInReducer(checking, { type: "reply", reply: pong })).toBe(checking);
+  });
+});

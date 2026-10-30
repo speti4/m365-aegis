@@ -107,7 +107,8 @@ public sealed class AuthService
         return SignInFlow.RunAsync(_brokerFactory(profile), profile, resource, SignInMode.SilentOnly, NoPrompt, Hints, cancellationToken);
     }
 
-    private static Task NoPrompt(DeviceCodePrompt prompt) => Task.CompletedTask;
+    /// <summary>The prompt of a silent call, which never shows one.</summary>
+    internal static Task NoPrompt(DeviceCodePrompt prompt) => Task.CompletedTask;
 
     /// <summary>Removes every account record of the profile's user; a broker failure is an auth failure of the contract.</summary>
     private async Task<int> SignOutAsync(TenantProfile profile, CancellationToken cancellationToken)

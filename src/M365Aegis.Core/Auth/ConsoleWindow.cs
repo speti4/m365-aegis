@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
@@ -15,6 +16,7 @@ public static partial class ConsoleWindow
     private const uint RootOwnerFlag = 3;
 
     /// <summary>The root owner of the console window, the console window itself, or zero.</summary>
+    [ExcludeFromCodeCoverage(Justification = "Win32 calls on the console window of a desktop session, which CI's runners do not have (docs/development.md, Coverage)")]
     public static IntPtr RootOwner()
     {
         if (!OperatingSystem.IsWindows())

@@ -285,11 +285,12 @@ function CardBody({
               <legend className="text-sm font-medium">{field.label}</legend>
               <div className="flex flex-wrap gap-2">
                 {field.options.map((option) => {
-                  const chosen = state.picks[field.name]?.includes(option.value) ?? false;
+                  const picked = state.picks[field.name] ?? [];
+                  const chosen = picked.includes(option.value);
                   const values = field.multiple
                     ? chosen
-                      ? (state.picks[field.name] ?? []).filter((value) => value !== option.value)
-                      : [...(state.picks[field.name] ?? []), option.value]
+                      ? picked.filter((value) => value !== option.value)
+                      : [...picked, option.value]
                     : [option.value];
                   return (
                     <Button

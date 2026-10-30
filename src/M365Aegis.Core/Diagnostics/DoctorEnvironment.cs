@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Versioning;
 using M365Aegis.Core.Auth;
 using M365Aegis.Core.Exchange;
@@ -60,12 +61,18 @@ public sealed record DoctorEnvironment
         (profile, cancellationToken) => AuthService.Create().WhoAmIAsync(profile, cancellationToken);
 
     /// <summary>Asks an endpoint for any HTTP answer.</summary>
-    public Func<Uri, CancellationToken, Task<EndpointAnswer>> Probe { get; init; } = ProbeAsync;
+    public Func<Uri, CancellationToken, Task<EndpointAnswer>> Probe { get; init; } = Network.ProbeAsync;
 
     /// <summary>The real machine, over the given home folder and profile.</summary>
     public static DoctorEnvironment ForThisMachine(string home, string? profile) => new() { Home = home, Profile = profile };
 
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(10) };
+    /// <summary>
+    /// Why the readers of the real machine below are excluded from the coverage (task 070): each one asks this
+    /// machine (dsregcmd, the registry, the .NET installation's folders, the network), which a test cannot set up and
+    /// which answers differently on Windows and on CI's Linux runner; the checks over their answers are tested
+    /// through the seams above.
+    /// </summary>
+    private const string ThisMachine = "reads the real machine, differently per operating system (docs/development.md, Coverage)";
 
     /// <summary>The WebView2 runtime's client id under the EdgeUpdate keys (Microsoft's distribution guide).</summary>
     private const string WebView2ClientKey = @"Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
@@ -73,21 +80,22 @@ public sealed record DoctorEnvironment
     private static string? RunPwshScript(string pwshPath, string script) =>
         RunProcess(pwshPath, ["-NoProfile", "-NonInteractive", "-Command", script], TimeSpan.FromSeconds(30));
 
+    [ExcludeFromCodeCoverage(Justification = ThisMachine)]
     private static string? RunDsregcmd() =>
         OperatingSystem.IsWindows()
             ? RunProcess(Path.Combine(Environment.SystemDirectory, "dsregcmd.exe"), ["/status"], TimeSpan.FromSeconds(15))
             : null;
 
-    private static byte[]? ReadInstalledSidecarScript()
-    {
-        string path = SidecarScript.InstalledPath;
-        return File.Exists(path) ? File.ReadAllBytes(path) : null;
-    }
+    private static byte[]? ReadInstalledSidecarScript() => ReadIfExists(SidecarScript.InstalledPath);
+
+    /// <summary>The bytes of a file, or null when it is missing.</summary>
+    internal static byte[]? ReadIfExists(string path) => File.Exists(path) ? File.ReadAllBytes(path) : null;
 
     /// <summary>
     /// The folder names under <c>shared\Microsoft.WindowsDesktop.App</c> of the .NET installation whose
     /// <c>Microsoft.NETCore.App</c> runs this process: the same installation the window's apphost resolves.
     /// </summary>
+    [ExcludeFromCodeCoverage(Justification = ThisMachine)]
     private static IReadOnlyList<string> ReadDesktopRuntimeVersionsFromDisk()
     {
         try
@@ -105,6 +113,7 @@ public sealed record DoctorEnvironment
         }
     }
 
+    [ExcludeFromCodeCoverage(Justification = ThisMachine)]
     private static IReadOnlyList<string?> ReadWebView2VersionsFromRegistry()
     {
         if (!OperatingSystem.IsWindows())
@@ -117,6 +126,7 @@ public sealed record DoctorEnvironment
     }
 
     [SupportedOSPlatform("windows")]
+    [ExcludeFromCodeCoverage(Justification = ThisMachine)]
     private static string? ReadPv(RegistryHive hive, RegistryView view)
     {
         try
@@ -131,27 +141,8 @@ public sealed record DoctorEnvironment
         }
     }
 
-    private static async Task<EndpointAnswer> ProbeAsync(Uri endpoint, CancellationToken cancellationToken)
-    {
-        var stopwatch = Stopwatch.StartNew();
-        try
-        {
-            using var request = new HttpRequestMessage(HttpMethod.Head, endpoint);
-            using HttpResponseMessage response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-            return new EndpointAnswer((int)response.StatusCode, stopwatch.Elapsed, null);
-        }
-        catch (HttpRequestException exception)
-        {
-            return new EndpointAnswer(null, stopwatch.Elapsed, exception.Message);
-        }
-        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return new EndpointAnswer(null, stopwatch.Elapsed, $"no answer within {Http.Timeout.TotalSeconds:0} s");
-        }
-    }
-
     /// <summary>Runs a process and returns its standard output, or null when it did not start, failed or timed out.</summary>
-    private static string? RunProcess(string fileName, IEnumerable<string> arguments, TimeSpan timeout)
+    internal static string? RunProcess(string fileName, IEnumerable<string> arguments, TimeSpan timeout)
     {
         try
         {
@@ -167,11 +158,8 @@ public sealed record DoctorEnvironment
                 startInfo.ArgumentList.Add(argument);
             }
 
-            using Process? process = Process.Start(startInfo);
-            if (process is null)
-            {
-                return null;
-            }
+            // Null only for a shell-executed start that reused a process, which UseShellExecute = false rules out.
+            using Process process = Process.Start(startInfo)!;
 
             Task<string> output = process.StandardOutput.ReadToEndAsync();
             Task<string> error = process.StandardError.ReadToEndAsync();
@@ -187,6 +175,32 @@ public sealed record DoctorEnvironment
         catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
         {
             return null;
+        }
+    }
+
+    /// <summary>The endpoint probe and its client: a real HTTP request to Microsoft's endpoints.</summary>
+    [ExcludeFromCodeCoverage(Justification = ThisMachine)]
+    private static class Network
+    {
+        private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(10) };
+
+        internal static async Task<EndpointAnswer> ProbeAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Head, endpoint);
+                using HttpResponseMessage response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                return new EndpointAnswer((int)response.StatusCode, stopwatch.Elapsed, null);
+            }
+            catch (HttpRequestException exception)
+            {
+                return new EndpointAnswer(null, stopwatch.Elapsed, exception.Message);
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                return new EndpointAnswer(null, stopwatch.Elapsed, $"no answer within {Http.Timeout.TotalSeconds:0} s");
+            }
         }
     }
 }

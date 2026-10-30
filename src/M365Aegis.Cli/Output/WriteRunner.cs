@@ -3,7 +3,6 @@ using System.CommandLine.Invocation;
 using System.CommandLine.Parsing;
 using M365Aegis.Core.Config;
 using M365Aegis.Core.Exchange;
-using M365Aegis.Core.Graph;
 using M365Aegis.Core.Operations;
 using M365Aegis.Core.Output;
 
@@ -80,31 +79,6 @@ internal static class WriteRunner
     /// <summary>The resume the command runs under, set by <see cref="ResumeAction"/> around the command's own action.</summary>
     private static readonly AsyncLocal<ResumeContext?> Resuming = new();
 
-    /// <summary>A write over Graph: <paramref name="plan"/> reads the current state and returns the plan.</summary>
-    internal static Task<int> GraphAsync(
-        ParseResult parsed,
-        Option<bool> json,
-        Option<bool> table,
-        Option<string?> profile,
-        WriteFlags flags,
-        Func<GraphClient, CancellationToken, Task<WritePlan>> plan,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(flags);
-        ArgumentNullException.ThrowIfNull(plan);
-        if (flags.Resolve(parsed, out AegisFailure? failure) is not { } mode)
-        {
-            return Task.FromResult(CommandRunner.Fail(Program.ResolveMode(parsed, json, table), failure!));
-        }
-
-        PlanStore store = Store(parsed, profile);
-        return GraphRunner.RunAsync(
-            parsed, json, table, profile,
-            async (graph, ct) => await PlanGuard.RunAsync(Narrow(await plan(graph, ct).ConfigureAwait(false)), mode, store, ct).ConfigureAwait(false),
-            PlanTableView.Instance,
-            cancellationToken);
-    }
-
     /// <summary>A write over the Exchange Online layers (and Graph): the plan reads through them, the apply goes through the layer of each change.</summary>
     internal static Task<int> ExchangeAsync(
         ParseResult parsed,
@@ -156,9 +130,15 @@ internal static class WriteRunner
             return null;
         }
 
+        return ReadInput(csv.Tokens[0].Value);
+    }
+
+    /// <summary>A CSV file with its full path and text, or null when it cannot be read.</summary>
+    internal static PlanRecordInput? ReadInput(string file)
+    {
         try
         {
-            string path = Path.GetFullPath(csv.Tokens[0].Value);
+            string path = Path.GetFullPath(file);
             return new PlanRecordInput(path, File.ReadAllText(path));
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
@@ -263,7 +243,7 @@ internal sealed class ResumeAction(WriteFlags flags) : AsynchronousCommandLineAc
                     "the record names the changes to continue; nothing was sent"));
             }
 
-            PlanResume resume = PlanResume.Open(AegisHome.Resolve(), parseResult.GetValue<string?>(WriteFlags.ResumeName) ?? "");
+            PlanResume resume = PlanResume.Open(AegisHome.Resolve(), parseResult.GetValue<string?>(WriteFlags.ResumeName)!);
             resume.EnsureOperation(Operation(parseResult.CommandResult.Command));
             string? profile = parseResult.GetValue<string?>("--profile");
             if (!string.Equals(resume.Original.Profile, profile, StringComparison.Ordinal))
@@ -308,15 +288,21 @@ internal sealed class ResumeAction(WriteFlags flags) : AsynchronousCommandLineAc
         {
             if (temporary is not null)
             {
-                try
-                {
-                    Directory.Delete(Path.GetDirectoryName(temporary)!, recursive: true);
-                }
-                catch (IOException)
-                {
-                    // A temporary copy left behind is the system's to clean.
-                }
+                DeleteQuietly(Path.GetDirectoryName(temporary)!);
             }
+        }
+    }
+
+    /// <summary>Removes a temporary folder; one that cannot be removed is the system's to clean.</summary>
+    internal static void DeleteQuietly(string folder)
+    {
+        try
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+        catch (IOException)
+        {
+            // A temporary copy left behind is the system's to clean.
         }
     }
 
@@ -324,7 +310,8 @@ internal sealed class ResumeAction(WriteFlags flags) : AsynchronousCommandLineAc
     private static string Operation(Command command)
     {
         var names = new List<string>();
-        for (Command? current = command; current is not null and not RootCommand; current = current.Parents.OfType<Command>().FirstOrDefault())
+        // Every command of the tree has the root above it, so the walk ends there.
+        for (Command current = command; current is not RootCommand; current = current.Parents.OfType<Command>().First())
         {
             names.Insert(0, current.Name);
         }
@@ -341,7 +328,5 @@ internal sealed class ResumeAction(WriteFlags flags) : AsynchronousCommandLineAc
 
     /// <summary>The output mode from the root's options, by name: the action has no handle on them.</summary>
     private static OutputMode Mode(ParseResult parsed) =>
-        parsed.GetValue<bool>("--json") ? OutputMode.Json
-        : parsed.GetValue<bool>("--table") ? OutputMode.Table
-        : Console.IsOutputRedirected ? OutputMode.Json : OutputMode.Table;
+        Program.PickMode(parsed.GetValue<bool>("--json"), parsed.GetValue<bool>("--table"), Console.IsOutputRedirected);
 }

@@ -15,8 +15,6 @@ namespace M365Aegis.Cli.Commands;
 /// </summary>
 internal static class ProbeCommand
 {
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(60) };
-
     internal static Command Build(Option<bool> json, Option<bool> table, Option<string?> profile)
     {
         Command probe = new("probe", "Live probes of the Exchange Online sign-in (maintainer only).") { Hidden = true };
@@ -73,7 +71,8 @@ internal static class ProbeCommand
                     parsed.GetValue(probeForwarding),
                     parsed.GetValue(probeMailboxParameters),
                     parsed.GetValue(probeSelect));
-                AdminApiProbeReport report = await ExchangeProbes.AdminApiAsync(Http, ExchangeConnection.ToExchangeToken(token), targets, cancellationToken).ConfigureAwait(false);
+                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+                AdminApiProbeReport report = await ExchangeProbes.AdminApiAsync(http, ExchangeConnection.ToExchangeToken(token), targets, cancellationToken).ConfigureAwait(false);
                 return CommandResult.Success(report);
             },
             AdminApiProbeTableView.Instance));

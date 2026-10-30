@@ -94,6 +94,20 @@ public sealed class HttpGraphTransportTests
     }
 
     [Fact]
+    public async Task ATimeoutIsAServiceError()
+    {
+        var handler = new Handler(_ => throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout."));
+        var transport = new HttpGraphTransport(_ => Task.FromResult("token"), handler);
+
+        AegisException exception = await Assert.ThrowsAsync<AegisException>(() => transport.SendAsync(
+            new GraphHttpRequest(HttpMethod.Get, new Uri("https://graph.microsoft.com/v1.0/me"), new Dictionary<string, string>(), null),
+            CancellationToken.None));
+
+        Assert.Equal(ExitCode.ServiceError, exception.Failure.ExitCode);
+        Assert.Contains("did not answer within", exception.Failure.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task NoSignInPassesThroughAsAnAuthFailure()
     {
         var transport = new HttpGraphTransport(

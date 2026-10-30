@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -23,6 +24,9 @@ public sealed record SidecarStartInfo(string PwshPath, string ScriptPath)
 
     /// <summary>How long one cmdlet run may take (a bulk run over every mailbox of a tenant included).</summary>
     public TimeSpan InvokeTimeout { get; init; } = TimeSpan.FromMinutes(30);
+
+    /// <summary>How long the child may take to end after <c>exit</c> before it is killed (the tests shorten it).</summary>
+    internal TimeSpan ExitTimeout { get; init; } = TimeSpan.FromSeconds(10);
 }
 
 /// <summary>The sidecar's answer to <c>hello</c>, and how long the start took.</summary>
@@ -150,7 +154,8 @@ public sealed class SidecarClient : IAsyncDisposable
         Process process;
         try
         {
-            process = Process.Start(startInfo) ?? throw new InvalidOperationException("the process did not start");
+            // Without the shell, Process.Start starts a process or throws; it returns null only for a shell reuse.
+            process = Process.Start(startInfo)!;
         }
         catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
         {
@@ -260,9 +265,7 @@ public sealed class SidecarClient : IAsyncDisposable
             timeoutSource.CancelAfter(timeout);
             try
             {
-                await _process.StandardInput.WriteAsync(JsonSerializer.Serialize(message).AsMemory(), timeoutSource.Token).ConfigureAwait(false);
-                await _process.StandardInput.WriteAsync("\n".AsMemory(), timeoutSource.Token).ConfigureAwait(false);
-                await _process.StandardInput.FlushAsync(timeoutSource.Token).ConfigureAwait(false);
+                await WriteQuietlyAsync(_process.StandardInput, JsonSerializer.Serialize(message) + "\n", timeoutSource.Token).ConfigureAwait(false);
                 while (true)
                 {
                     string? line = await _process.StandardOutput.ReadLineAsync(timeoutSource.Token).ConfigureAwait(false);
@@ -280,10 +283,6 @@ public sealed class SidecarClient : IAsyncDisposable
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 throw Unavailable($"the Exchange Online sidecar did not answer '{type}' within {timeout.TotalSeconds:0} s");
-            }
-            catch (IOException exception)
-            {
-                throw Unavailable($"the Exchange Online sidecar stopped while answering '{type}' ({exception.Message})");
             }
         }
         finally
@@ -308,33 +307,65 @@ public sealed class SidecarClient : IAsyncDisposable
                 await _process.StandardInput.WriteAsync("{\"aegis\":1,\"type\":\"exit\"}\n").ConfigureAwait(false);
                 await _process.StandardInput.FlushAsync().ConfigureAwait(false);
                 _process.StandardInput.Close();
-                using var wait = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                using var wait = new CancellationTokenSource(_start.ExitTimeout);
                 await _process.WaitForExitAsync(wait.Token).ConfigureAwait(false);
             }
         }
         catch (Exception exception) when (exception is IOException or OperationCanceledException or InvalidOperationException)
         {
-            try
-            {
-                _process.Kill(entireProcessTree: true);
-            }
-            catch (Exception killException) when (killException is InvalidOperationException or System.ComponentModel.Win32Exception)
-            {
-                // Already gone.
-            }
+            KillQuietly(_process);
         }
 
+        await AwaitQuietly(_stderrPump).ConfigureAwait(false);
+        _process.Dispose();
+        _gate.Dispose();
+    }
+
+    /// <summary>Kills the child and its tree; a child already gone, or one the system will not let go, is left as it is.</summary>
+    [ExcludeFromCodeCoverage(Justification = "The catch runs only when the operating system refuses the kill or the child ends between the check and the call, a race no test can stage.")]
+    private static void KillQuietly(Process process)
+    {
         try
         {
-            await _stderrPump.ConfigureAwait(false);
+            process.Kill(entireProcessTree: true);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            // Already gone.
+        }
+    }
+
+    /// <summary>
+    /// Writes a message line to the child. A child that has ended breaks the pipe, and whether the write fails depends
+    /// on what else holds the pipe's read end at that moment; either way the read that follows meets the end of the
+    /// stream and says the sidecar stopped, so a failed write is left to it.
+    /// </summary>
+    [ExcludeFromCodeCoverage(Justification = "The catch runs only when the write reaches a pipe whose read end has closed, which depends on what else holds that end at the moment; the read after it reports the stop either way.")]
+    private static async Task WriteQuietlyAsync(StreamWriter input, string line, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await input.WriteAsync(line.AsMemory(), cancellationToken).ConfigureAwait(false);
+            await input.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (IOException)
+        {
+            // The child ended; its end of the stream answers below.
+        }
+    }
+
+    /// <summary>Waits for the stderr pump; a stream that broke with the process is not a failure of the dispose.</summary>
+    [ExcludeFromCodeCoverage(Justification = "The catch runs only when the pipe breaks under the read, which .NET reports as the end of the stream on every runner; no test can stage it.")]
+    private static async Task AwaitQuietly(Task pump)
+    {
+        try
+        {
+            await pump.ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or ObjectDisposedException)
         {
             // The stream closed with the process.
         }
-
-        _process.Dispose();
-        _gate.Dispose();
     }
 
     /// <summary>Ends the child at once, as a crash would (the tests' dead sidecar).</summary>
@@ -392,10 +423,12 @@ public sealed class SidecarClient : IAsyncDisposable
         JsonElement data = reply.TryGetProperty("data", out JsonElement value) ? value : default;
         if (replyType != "error")
         {
-            if (data.ValueKind != JsonValueKind.Undefined)
+            if (data.ValueKind == JsonValueKind.Object)
             {
                 return data;
             }
+
+            // No data, or data that is no object: the answer is empty, so a reader of it finds no value instead of failing.
 
             using JsonDocument empty = JsonDocument.Parse("{}");
             return empty.RootElement.Clone();
@@ -429,8 +462,9 @@ public sealed class SidecarClient : IAsyncDisposable
             ? value.GetString()
             : null;
 
+    /// <summary>A whole number of an answer's data, which <see cref="Answer"/> always makes an object; 0 when missing.</summary>
     private static long Number(JsonElement element, string name) =>
-        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.Number
+        element.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.Number
             ? value.GetInt64()
             : 0;
 }

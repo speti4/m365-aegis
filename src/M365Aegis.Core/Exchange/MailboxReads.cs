@@ -501,7 +501,8 @@ public static partial class MailboxLookups
     {
         string name = RequireName(user, "--user");
         RequireSidecars(options.Sidecars);
-        if (options.ExpandGroups && backends?.HasGraph != true)
+        // Only the overload over the layers expands the groups, so a run that asks for it always has its backends.
+        if (options.ExpandGroups && !backends!.HasGraph)
         {
             throw new InvalidOperationException("--expand-groups needs the Graph client");
         }
@@ -665,7 +666,8 @@ public static partial class MailboxLookups
     /// </summary>
     private static async Task<ExoResult> SplitAsync(IExoCmdletRunner exo, ExchangeBackends? backends, ExoCommand command, int sidecars, CancellationToken cancellationToken)
     {
-        IReadOnlyList<string> input = command.Input ?? [];
+        // Every command split here pipes its input (the mailboxes' identities).
+        IReadOnlyList<string> input = command.Input!;
         if (backends is null || !backends.CanStartSidecars || input.Count < 2 || sidecars < 2)
         {
             return await exo.InvokeAsync(command, cancellationToken).ConfigureAwait(false);
@@ -1029,16 +1031,9 @@ public static partial class MailboxLookups
         ? new(FailureKind.NotFound, $"mailbox '{identity}' not found", SidecarFailures.NotFoundHint)
         : new(FailureKind.NotFound, $"mailbox '{identity}' not found", SidecarFailures.NotFoundHint, inner);
 
-    /// <summary>A faulted read's failure; anything but the contract's failure (a bug) is thrown again as it was.</summary>
-    private static AegisException Unwrap(Task task)
-    {
-        Exception inner = task.Exception?.InnerException ?? new InvalidOperationException("a mailbox read failed without an exception");
-        if (inner is AegisException failure)
-        {
-            return failure;
-        }
-
-        ExceptionDispatchInfo.Capture(inner).Throw();
-        return null!;
-    }
+    /// <summary>
+    /// A faulted read's failure. Only the contract's failure gets here: the side-by-side read above catches an
+    /// <see cref="AegisException"/> only, so any other exception (a bug) has already left the method as it was.
+    /// </summary>
+    private static AegisException Unwrap(Task task) => (AegisException)task.Exception!.InnerException!;
 }

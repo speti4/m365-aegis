@@ -73,6 +73,16 @@ python -I scripts/changelog.py --check
 python -I scripts/check-fixtures.py
 ```
 
+The coverage gate of the Core and the command line, as the `dotnet` job runs it: every line and every branch is
+covered, by the Core tests and the Cli tests together ([docs/development.md](docs/development.md#coverage) has
+the exclusions). Delete the folder first, so no report of an earlier run is merged in:
+
+```powershell
+Remove-Item -Recurse -Force TestResults/coverage -ErrorAction Ignore
+dotnet test --no-build -c Release --coverlet --coverlet-output-format json --results-directory TestResults/coverage
+python -I scripts/check-coverage.py TestResults/coverage
+```
+
 `--locked-mode` fails when a `packages.lock.json` is out of step with its project instead of rewriting it (a
 package change runs `dotnet restore` once without it and commits the lock files). The changelog check wants
 `CHANGELOG.md` to match `tasks/done/` exactly, so a change that closes a task runs `python -I
@@ -88,7 +98,7 @@ When `gui/web/` changes, also:
 npm ci --prefix gui/web
 npm run lint --prefix gui/web          # Biome: lint and format
 npm run typecheck --prefix gui/web
-npm test --prefix gui/web              # Vitest, the bridge contract samples included
+npm run test:coverage --prefix gui/web # Vitest, the bridge contract samples included, below 100% coverage it fails
 npm run build --prefix gui/web
 ```
 
@@ -98,8 +108,10 @@ The Core and Cli tests start the Exchange Online sidecar as a child pwsh against
 and never touch a tenant:
 
 ```powershell
-Invoke-Pester -Path tests/sidecar
+pwsh -File tests/sidecar/run-with-coverage.ps1                         # every test, and every command of the script run
 ```
+
+`Invoke-Pester -Path tests/sidecar` runs the same tests without the coverage.
 
 When `Directory.Packages.props`, a lock file, `gui/web/package.json`, `.config/dotnet-tools.json` or `.github/`
 change, also:
@@ -114,8 +126,9 @@ uvx zizmor .github
 ```
 
 CI (`.github/workflows/ci.yml` and `commit-rules.yml`) runs all of them on every push to `main` and every pull
-request; the one Windows job runs on pull requests only. A change in behavior comes with a test: C# tests under
-`tests/M365Aegis.Core.Tests` and `tests/M365Aegis.Cli.Tests` (the latter run the built exe as a child process),
+request, the one Windows job included (task 068). A change in behavior comes with a test: C# tests under
+`tests/M365Aegis.Core.Tests` and `tests/M365Aegis.Cli.Tests` (the latter run the built exe as a child process, whose lines count for the coverage
+too),
 front-end tests next to the module they test, sidecar tests under `tests/sidecar`. Tests never touch the network
 or a tenant: Graph is tested against the fixtures through the client's transport seam, Exchange Online against
 the fake module.

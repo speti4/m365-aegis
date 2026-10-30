@@ -178,13 +178,16 @@ public static class ExchangeConnection
     }
 
     /// <summary>Starts the sidecar of this install: pwsh from PATH, the script next to the exe once its hash matches the build's.</summary>
-    internal static Task<SidecarClient> StartAsync(CancellationToken cancellationToken)
+    internal static Task<SidecarClient> StartAsync(CancellationToken cancellationToken) =>
+        StartAsync(SidecarScript.InstalledPath, cancellationToken);
+
+    /// <summary>Starts the sidecar from the script at <paramref name="script"/> once its hash matches the build's (the tests name another copy).</summary>
+    internal static Task<SidecarClient> StartAsync(string script, CancellationToken cancellationToken)
     {
         string pwsh = Doctor.FindPwsh() ?? throw new AegisException(
             FailureKind.SidecarUnavailable,
             "pwsh was not found on PATH; the Exchange Online commands need PowerShell 7.6 or later",
             "winget install Microsoft.PowerShell");
-        string script = SidecarScript.InstalledPath;
         byte[]? installed = File.Exists(script) ? File.ReadAllBytes(script) : null;
         DoctorCheck check = Doctor.CheckSidecarScript(installed, SidecarScript.ReadBuildCopy());
         if (check.Status == CheckStatus.Fail)

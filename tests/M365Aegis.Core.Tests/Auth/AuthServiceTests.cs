@@ -221,6 +221,51 @@ public sealed class AuthServiceTests
         Assert.Empty(broker.Calls);
     }
 
+    [Theory]
+    [InlineData(" ", "00000000-0000-0000-0000-000000000010", "alice@contoso.com")]
+    [InlineData("contoso.onmicrosoft.com", null, "alice@contoso.com")]
+    [InlineData("contoso.onmicrosoft.com", "00000000-0000-0000-0000-000000000010", "")]
+    public async Task EveryMissingFlagOfTheThreeIsAUsageFailure(string? tenant, string? clientId, string? account)
+    {
+        (AuthService service, string home) = Service(new FakeTokenBroker());
+
+        AegisException exception = await Assert.ThrowsAsync<AegisException>(() =>
+            service.LoginAsync(WithFlags with { Tenant = tenant, ClientId = clientId, Account = account }, _ => Task.CompletedTask, CancellationToken.None));
+
+        Assert.Equal(FailureKind.Usage, exception.Failure.Kind);
+        Assert.False(File.Exists(Path.Combine(home, "config.json")));
+    }
+
+    [Fact]
+    public async Task LoginWithTheFlagsAndANameWritesThatProfileAndTheAccountsTenantStandsInForTheTokens()
+    {
+        // A token without a tenant (a device-code answer of some clouds) leaves the account's tenant to the result.
+        var broker = new FakeTokenBroker
+        {
+            Interactive = (scope, hint) => FakeTokenBroker.Token(scope, FakeTokenBroker.Alice, TokenOrigin.Broker) with { TenantId = null },
+            Silent = (scope, account) => FakeTokenBroker.Token(scope, account, TokenOrigin.Broker),
+        };
+        (AuthService service, _) = Service(broker);
+
+        SignInInfo info = await service.LoginAsync(WithFlags with { ProfileName = "lab" }, _ => Task.CompletedTask, CancellationToken.None);
+
+        Assert.Equal("lab", info.Profile);
+        Assert.Equal(FakeTokenBroker.Alice.TenantId, info.TenantId);
+        Assert.Equal("lab", service.Profiles.Resolve("lab").Name);
+    }
+
+    [Fact]
+    public async Task TheSilentCallsPromptNothing() =>
+        await AuthService.NoPrompt(new DeviceCodePrompt(new Uri("https://login.microsoftonline.com/common/oauth2/deviceauth"), "ABCD", "go there", DateTimeOffset.UnixEpoch));
+
+    [Fact]
+    public void EveryResourceHasItsScopeAndAnUnknownOneHasNone()
+    {
+        Assert.Equal(Scopes.Graph, Scopes.For(Resource.Graph));
+        Assert.Equal(Scopes.Exchange, Scopes.For(Resource.Exchange));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Scopes.For((Resource)99));
+    }
+
     private static (AuthService Service, string Home) Service(FakeTokenBroker broker, bool saveProfile = false)
     {
         string home = ProfileStoreTests.TempHome();

@@ -133,8 +133,15 @@ public sealed class PlanResume
             .ToList();
 
         var warnings = fresh.Plan.Warnings.ToList();
-        foreach (PlanChange change in Pending.Where(change => !Continued(change, fresh.Plan, kept, unchanged)))
+        // A plain loop, not a Where over a lambda: the lambda would capture the locals, and its cached delegate is a
+        // branch no call can take twice.
+        foreach (PlanChange change in Pending)
         {
+            if (Continued(change, fresh.Plan, kept, unchanged))
+            {
+                continue;
+            }
+
             string where = change.Row is { } line ? string.Format(CultureInfo.InvariantCulture, "line {0}, ", line) : "";
             warnings.Add($"{where}{change.Target}, {change.Detail}: {Name} left it {Status(change)}, and the new plan does not name it; check it with a lookup");
         }
@@ -150,7 +157,7 @@ public sealed class PlanResume
     }
 
     /// <summary>Whether the new plan names a pending change of the record, as a change or as an object already as asked.</summary>
-    private static bool Continued(PlanChange pending, Plan fresh, List<int> kept, List<PlanUnchanged> unchanged)
+    internal static bool Continued(PlanChange pending, Plan fresh, List<int> kept, List<PlanUnchanged> unchanged)
     {
         if (pending.Key is { } ids
             && (kept.Any(index => fresh.Changes[index].Action == pending.Action && string.Equals(fresh.Changes[index].Key, ids, StringComparison.OrdinalIgnoreCase))

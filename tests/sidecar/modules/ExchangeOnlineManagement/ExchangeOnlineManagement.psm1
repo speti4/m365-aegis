@@ -25,6 +25,8 @@
 param()
 
 $script:FakeConnected = $false
+# Set by a connect with the token 'disconnect-fails-token': the disconnect at the sidecar's exit then fails (task 070).
+$script:FakeDisconnectFails = $false
 
 function ConvertTo-FakeMailbox {
     param([string] $Name, [string] $DisplayName, [string] $Type, [int] $Number, [string] $ForwardingSmtpAddress, [string] $ForwardingAddress,
@@ -124,11 +126,13 @@ function Connect-ExchangeOnline {
     [Console]::Out.WriteLine("fake connect: SkipLoadingFormatData=$($SkipLoadingFormatData.IsPresent) CommandName=$($CommandName -join ',')")
     [Console]::Out.WriteLine('fake ExchangeOnlineManagement: a stray console line')
     $script:FakeConnected = $true
+    $script:FakeDisconnectFails = $AccessToken -eq 'disconnect-fails-token'
 }
 
 function Disconnect-ExchangeOnline {
     [CmdletBinding(SupportsShouldProcess)]
     param()
+    if ($script:FakeDisconnectFails) { throw 'fake: the disconnect failed on purpose' }
     if ($PSCmdlet.ShouldProcess('the session', 'disconnect')) { $script:FakeConnected = $false }
 }
 
