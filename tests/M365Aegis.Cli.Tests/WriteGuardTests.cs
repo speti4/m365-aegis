@@ -54,44 +54,50 @@ public sealed class WriteGuardTests
 
     [Theory]
     [MemberData(nameof(WriteCommandPaths))]
-    public void AWriteWithoutYesSendsNothing(string path)
+    public async Task AWriteWithoutYesSendsNothing(string path)
     {
         Command command = WriteCommands()[path];
         Assert.True(Inputs.TryGetValue(path, out WriteInputs? inputs), $"the write command '{path}' has no inputs in WriteGuardTests.Inputs");
         string[] words = path.Split(' ');
         var run = new GuardRun();
 
-        JsonElement plan = run.Expect([.. words, .. inputs.Arguments], dryRun: false, plan => Assert.NotEqual(0, plan.GetProperty("changes").GetArrayLength()));
-        run.Expect([.. words, .. inputs.Arguments], dryRun: true);
+        // The runs of one phase are independent, so they run at once; the sinks are read when all of them are done.
+        List<Task<JsonElement>> runs =
+        [
+            Task.Run(() => run.Expect([.. words, .. inputs.Arguments], dryRun: false, plan => Assert.NotEqual(0, plan.GetProperty("changes").GetArrayLength()))),
+            Task.Run(() => run.Expect([.. words, .. inputs.Arguments], dryRun: true)),
+        ];
         if (inputs.Csv is { } csv)
         {
-            run.Expect([.. words, "--from-csv", PlanSamples.Csv(csv)], dryRun: false);
-            run.Expect([.. words, "--from-csv", PlanSamples.Csv(csv)], dryRun: true);
+            runs.Add(Task.Run(() => run.Expect([.. words, "--from-csv", PlanSamples.Csv(csv)], dryRun: false)));
+            runs.Add(Task.Run(() => run.Expect([.. words, "--from-csv", PlanSamples.Csv(csv)], dryRun: true)));
         }
 
+        JsonElement[] plans = await Task.WhenAll(runs);
+        run.AssertNothingSent(0);
         if (Has(command, "--resume"))
         {
             // A record cut short while applying the plan the arguments make: every change is left to do.
-            string record = run.CutShort(plan, ["--json", .. words, .. inputs.Arguments, "--yes"]);
-            run.Expect([.. words, "--resume", record], dryRun: false, records: 1);
-            run.Expect([.. words, "--resume", record], dryRun: true, records: 1);
+            string record = run.CutShort(plans[0], ["--json", .. words, .. inputs.Arguments, "--yes"]);
+            await Task.WhenAll(
+                Task.Run(() => run.Expect([.. words, "--resume", record], dryRun: false)),
+                Task.Run(() => run.Expect([.. words, "--resume", record], dryRun: true)));
+            run.AssertNothingSent(1);
         }
     }
 
     [Theory]
     [MemberData(nameof(WriteCommandPaths))]
-    public void AWriteWithoutArgumentsSendsNothing(string path)
+    public async Task AWriteWithoutArgumentsSendsNothing(string path)
     {
         // The part a new write command gets without an edit: whatever it answers without its inputs, nothing is sent.
         var run = new GuardRun();
 
-        foreach (string[] flags in new[] { Array.Empty<string>(), ["--dry-run"] })
-        {
-            (int exitCode, _, _) = run.Run([.. path.Split(' '), .. flags]);
+        int[] exitCodes = await Task.WhenAll(
+            new[] { Array.Empty<string>(), ["--dry-run"] }.Select(flags => Task.Run(() => run.Run([.. path.Split(' '), .. flags]).ExitCode)));
 
-            Assert.True(exitCode is 0 or 2 or 7, $"{path} {string.Join(' ', flags)}: exit {exitCode}");
-            run.AssertNothingSent(0);
-        }
+        Assert.All(exitCodes, exitCode => Assert.True(exitCode is 0 or 2 or 7, $"{path}: exit {exitCode}"));
+        run.AssertNothingSent(0);
     }
 
     [Theory]
@@ -99,13 +105,15 @@ public sealed class WriteGuardTests
     [InlineData("PATCH", "/groups/00000000-0000-0000-0000-000000000031", "{\"description\":\"made up\"}")]
     [InlineData("PUT", "/groups/00000000-0000-0000-0000-000000000031/team", "{}")]
     [InlineData("delete", "/groups/00000000-0000-0000-0000-000000000031", null)]
-    public void ARawCallOfEveryWriteMethodSendsNothing(string method, string path, string? body)
+    public async Task ARawCallOfEveryWriteMethodSendsNothing(string method, string path, string? body)
     {
         var run = new GuardRun();
         string[] arguments = body is null ? ["call", method, path] : ["call", method, path, "--body", body];
 
-        run.Expect(arguments, dryRun: false, plan => Assert.Equal("send", plan.GetProperty("changes")[0].GetProperty("action").GetString()));
-        run.Expect(arguments, dryRun: true);
+        await Task.WhenAll(
+            Task.Run(() => run.Expect(arguments, dryRun: false, plan => Assert.Equal("send", plan.GetProperty("changes")[0].GetProperty("action").GetString()))),
+            Task.Run(() => run.Expect(arguments, dryRun: true)));
+        run.AssertNothingSent(0);
     }
 
     /// <summary>The commands of the tree that carry both guard flags, by their path under the root.</summary>
@@ -136,29 +144,25 @@ public sealed class WriteGuardTests
     /// <param name="Csv">The sample file under <c>tests/fixtures/csv</c> for <c>--from-csv</c>, or null when the command has none.</param>
     private sealed record WriteInputs(string[] Arguments, string? Csv);
 
-    /// <summary>The runs of one test: a temporary home, the request log and the fake module's write file.</summary>
+    /// <summary>
+    /// The runs of one test: a temporary home, and a folder of sinks where each run gets its own request log and fake
+    /// module's write file (two processes appending to one file at once would collide).
+    /// </summary>
     internal sealed class GuardRun
     {
         private readonly string _home = PlanSamples.TempHome();
-        private readonly string _requests;
-        private readonly string _exchangeWrites;
+        private readonly string _sinks = Path.Combine(Path.GetTempPath(), "m365-aegis-tests", $"sinks-{Guid.NewGuid():N}");
 
-        internal GuardRun()
-        {
-            string folder = Path.Combine(Path.GetTempPath(), "m365-aegis-tests");
-            Directory.CreateDirectory(folder);
-            string id = Guid.NewGuid().ToString("N");
-            _requests = Path.Combine(folder, $"{id}-requests.jsonl");
-            _exchangeWrites = Path.Combine(folder, $"{id}-exchange-writes.jsonl");
-        }
+        internal GuardRun() => Directory.CreateDirectory(_sinks);
 
         /// <summary>Runs the command line over every layer at once, as JSON.</summary>
         internal (int ExitCode, string Stdout, string Stderr) Run(string[] arguments)
         {
+            string id = Guid.NewGuid().ToString("N");
             Dictionary<string, string> environment = MailboxCommandTests.FakeExchange;
             environment[GraphConnection.FixturesEnvironmentVariable] = GraphFixtures.Root;
-            environment[FixtureGraphTransport.RequestLogVariable] = _requests;
-            environment["M365AEGIS_FAKE_EXO_WRITES"] = _exchangeWrites;
+            environment[FixtureGraphTransport.RequestLogVariable] = Path.Combine(_sinks, $"{id}-requests.jsonl");
+            environment["M365AEGIS_FAKE_EXO_WRITES"] = Path.Combine(_sinks, $"{id}-exchange-writes.jsonl");
             environment["M365AEGIS_HOME"] = _home;
             return CliTests.RunWith(environment, ["--json", .. arguments]);
         }
@@ -166,9 +170,10 @@ public sealed class WriteGuardTests
         /// <summary>
         /// Runs a write without <c>--yes</c> and holds the answer to the guard: the plan as the data, exit 7 and
         /// <c>refused</c> without a flag, exit 0 and <c>dry-run</c> under <c>--dry-run</c> (or 0 and <c>up-to-date</c>
-        /// either way), no new record, nothing but reads sent. Returns the plan.
+        /// either way). Returns the plan. The sinks are read by <see cref="AssertNothingSent"/> once the runs of a phase
+        /// are done, since runs of one phase go at once.
         /// </summary>
-        internal JsonElement Expect(string[] arguments, bool dryRun, Action<JsonElement>? also = null, int records = 0)
+        internal JsonElement Expect(string[] arguments, bool dryRun, Action<JsonElement>? also = null)
         {
             (int exitCode, string stdout, string stderr) = Run(dryRun ? [.. arguments, "--dry-run"] : arguments);
             string what = $"m365-aegis --json {string.Join(' ', arguments)}{(dryRun ? " --dry-run" : "")}";
@@ -193,7 +198,6 @@ public sealed class WriteGuardTests
             }
 
             also?.Invoke(plan);
-            AssertNothingSent(records);
             return plan.Clone();
         }
 
@@ -201,7 +205,8 @@ public sealed class WriteGuardTests
         internal void AssertNothingSent(int records)
         {
             Assert.Empty(Writes());
-            Assert.False(File.Exists(_exchangeWrites) && File.ReadAllText(_exchangeWrites).Trim().Length > 0, $"the fake module recorded a write: {(File.Exists(_exchangeWrites) ? File.ReadAllText(_exchangeWrites) : "")}");
+            string exchangeWrites = string.Concat(Directory.GetFiles(_sinks, "*-exchange-writes.jsonl").Select(File.ReadAllText)).Trim();
+            Assert.True(exchangeWrites.Length == 0, $"the fake module recorded a write: {exchangeWrites}");
             string plans = Path.Combine(_home, "plans");
             Assert.Equal(records, Directory.Exists(plans) ? Directory.GetFiles(plans).Length : 0);
         }
@@ -218,12 +223,7 @@ public sealed class WriteGuardTests
         private List<string> Writes()
         {
             var writes = new List<string>();
-            if (!File.Exists(_requests))
-            {
-                return writes;
-            }
-
-            foreach (string line in File.ReadAllLines(_requests).Where(line => line.Length > 0))
+            foreach (string line in Directory.GetFiles(_sinks, "*-requests.jsonl").SelectMany(File.ReadAllLines).Where(line => line.Length > 0))
             {
                 using JsonDocument document = JsonDocument.Parse(line);
                 string method = document.RootElement.GetProperty("method").GetString()!;

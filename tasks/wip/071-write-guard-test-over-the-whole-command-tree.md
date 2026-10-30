@@ -76,6 +76,13 @@ this bundle merges, so a new test here uses the harness of today (`CliTests.RunW
   the sinks alone, the Graph writes with `Assert.Empty() Failure: ["$batch item POST /groups/00000000-…`, the mailbox
   writes with `the fake module recorded a write: {"cmdlet":"Add-MailboxPermission",…}` (and `Remove-MailboxPermission`,
   `Set-Mailbox`). Both reverted with `git checkout`; the class green again.
+- 2026-10-30 — the time: the first full run of the bundle took the Cli tests from 15 s to 47 s, the guard's theory
+  running its child processes one after another. The runs of one command now go at once in two phases (the arguments
+  and the CSV sample both ways, then the resume both ways), each run with its own request log and fake module's file
+  in a folder of the test (two processes appending to one file collided: `IOException … cannot access the file`), and
+  the sinks are read once a phase is done; the bare runs and the raw calls likewise. The guard and the CSV classes
+  together: 10 s. The hidden-write proof repeated on the new shape: 13 of 23 red again, now with the raw calls'
+  `POST`, `PATCH`, `PUT` and `DELETE` named by the request log; reverted.
 - 2026-10-30 — docs: `docs/development.md` "The safety tests", the write guard paragraph (the enumeration, the runs, the
   request log variable, how a new write joins); `tests/fixtures/README.md`, the bundle's section (the new sample).
   `SECURITY.md` names no tests, so it does not change.
