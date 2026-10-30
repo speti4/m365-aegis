@@ -76,7 +76,15 @@ public sealed record GroupMembers(GroupInfo Group, IReadOnlyList<GroupMember> Me
 /// <summary>The result of <c>group owners</c>.</summary>
 /// <param name="Group">The group the name resolved to.</param>
 /// <param name="Owners">The owners, by name; empty when there is none.</param>
-public sealed record GroupOwners(GroupInfo Group, IReadOnlyList<GroupMember> Owners);
+public sealed record GroupOwners(GroupInfo Group, IReadOnlyList<GroupMember> Owners)
+{
+    /// <summary>
+    /// True when the owners are the group's <c>ManagedBy</c> in Exchange Online (a distribution or mail-enabled
+    /// security group, task 076), each resolved to its recipient or, when none answers to the name (a role group), as
+    /// <c>ManagedBy</c> names it; null when Graph answered, so the envelope of a Graph list is unchanged.
+    /// </summary>
+    public bool? FromExchange { get; init; }
+}
 
 /// <summary>The result of <c>group owners-missing</c>.</summary>
 /// <param name="Groups">The groups without an owner, by name.</param>

@@ -190,6 +190,8 @@ public sealed class TableViewTests
         Assert.Contains("1 owner(s) of Finance", table, StringComparison.Ordinal);
         Assert.DoesNotContain("Graph keeps no owners", table, StringComparison.Ordinal);
         Assert.Contains("Graph keeps no owners", Show(GroupOwnersTableView.Instance, new GroupOwners(Finance, [])), StringComparison.Ordinal);
+        // The ManagedBy of task 076 answered: no footer about Graph.
+        Assert.DoesNotContain("Graph keeps no owners", Show(GroupOwnersTableView.Instance, new GroupOwners(Finance, [Bob]) { FromExchange = true }), StringComparison.Ordinal);
     }
 
     [Fact]

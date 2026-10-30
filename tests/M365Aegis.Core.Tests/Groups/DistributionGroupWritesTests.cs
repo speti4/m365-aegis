@@ -212,6 +212,28 @@ public sealed class DistributionGroupWritesTests
     }
 
     [Fact]
+    public async Task TheOwnersReadOfADistributionGroupIsItsManagedByAndAMicrosoft365GroupsIsGraphs()
+    {
+        await using ExchangeSession session = Session(WritesFile());
+        await using var exchange = new ExchangeBackends(session, AdminApiConnection.Fixtures(GraphFixtures.Root), () => GraphFixtures.Client().Client);
+        await using var graph = new ExchangeBackends(session, AdminApiConnection.Fixtures(GraphFixtures.Root), () => GraphFixtures.Client().Client);
+
+        // The read of task 076 is the owner writes' read (task 064): Finance Staff's ManagedBy, Carol resolved and the
+        // role group by its name.
+        CommandResult<GroupOwners> staff = await GroupLookups.OwnersAsync(exchange, "00000000-0000-0000-0000-000000000035", Ct);
+        CommandResult<GroupOwners> finance = await GroupLookups.OwnersAsync(graph, "Finance", Ct);
+
+        Assert.True(staff.Data!.FromExchange);
+        Assert.Equal(["Carol Example", "Organization Management"], staff.Data.Owners.Select(owner => owner.DisplayName));
+        Assert.Equal(("recipient", "Organization Management"), (staff.Data.Owners[1].Type, staff.Data.Owners[1].Id));
+        Assert.Equal("graph+pwsh", exchange.Backend);
+        Assert.Null(finance.Data!.FromExchange);
+        Assert.NotEmpty(finance.Data.Owners);
+        Assert.Equal("graph", graph.Backend);
+        await Assert.ThrowsAsync<ArgumentNullException>(() => GroupLookups.OwnersAsync((ExchangeBackends)null!, "Finance", Ct));
+    }
+
+    [Fact]
     public async Task AMicrosoft365GroupsOwnersStillGoThroughGraph()
     {
         string writes = WritesFile();

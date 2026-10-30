@@ -72,6 +72,65 @@ public sealed class LookupCommandTests
         Assert.Contains("Finance EU (00000000-0000-0000-0000-000000000032)", stderr, StringComparison.Ordinal);
     }
 
+    /// <summary>Graph's recorded answers and the fake module for the sidecar (the owners of task 076).</summary>
+    private static Dictionary<string, string> Layers()
+    {
+        Dictionary<string, string> environment = MailboxCommandTests.FakeExchange;
+        environment[GraphConnection.FixturesEnvironmentVariable] = GraphFixtures.Root;
+        return environment;
+    }
+
+    [Fact]
+    public void ADistributionGroupsOwnersAreItsManagedByThroughTheSidecar()
+    {
+        (int exitCode, string stdout, string stderr) = CliTests.RunWith(Layers(), "--json", "group", "owners", "Sales");
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("", stderr);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement data = document.RootElement.GetProperty("data");
+        Assert.Equal("distribution", data.GetProperty("group").GetProperty("kind").GetString());
+        Assert.True(data.GetProperty("fromExchange").GetBoolean());
+        JsonElement alice = Assert.Single(data.GetProperty("owners").EnumerateArray());
+        Assert.Equal(("user", "Alice Example"), (alice.GetProperty("type").GetString(), alice.GetProperty("displayName").GetString()));
+        Assert.Equal("graph+pwsh", document.RootElement.GetProperty("meta").GetProperty("backend").GetString());
+    }
+
+    [Fact]
+    public void AMailEnabledSecurityGroupsOwnersTableHasNoGraphFooter()
+    {
+        (int exitCode, string stdout, _) = CliTests.RunWith(Layers(), "--table", "group", "owners", "00000000-0000-0000-0000-000000000035");
+
+        Assert.Equal(0, exitCode);
+        Assert.Matches(@"user +Carol Example +carol@contoso\.com +", stdout);
+        Assert.Matches("recipient +Organization Management +- +Organization Management", stdout);
+        Assert.Contains("2 owner(s) of Finance Staff (mail-enabled security, 00000000-0000-0000-0000-000000000035)", stdout, StringComparison.Ordinal);
+        Assert.DoesNotContain("Graph keeps no owners", stdout, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AMicrosoft365GroupsOwnersStillComeFromGraph()
+    {
+        (int exitCode, string stdout, _) = CliTests.RunWith(Layers(), "--json", "group", "owners", "Finance");
+
+        Assert.Equal(0, exitCode);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement data = document.RootElement.GetProperty("data");
+        Assert.False(data.TryGetProperty("fromExchange", out _));
+        Assert.NotEqual(0, data.GetProperty("owners").GetArrayLength());
+        Assert.Equal("graph", document.RootElement.GetProperty("meta").GetProperty("backend").GetString());
+    }
+
+    [Fact]
+    public void ASyncedGroupsOwnersKeepTheGraphFooter()
+    {
+        (int exitCode, string stdout, _) = CliTests.RunWith(Layers(), "--table", "group", "owners", "00000000-0000-0000-0000-00000000003a");
+
+        Assert.Equal(0, exitCode);
+        Assert.Contains("Sales Synced (distribution, synced, 00000000-0000-0000-0000-00000000003a)", stdout, StringComparison.Ordinal);
+        Assert.Contains("Graph keeps no owners for this kind of group", stdout, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void GroupsWithoutAnOwnerAtATerminalIsATable()
     {

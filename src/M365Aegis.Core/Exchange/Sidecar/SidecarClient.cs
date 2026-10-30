@@ -87,6 +87,8 @@ public sealed class SidecarClient : IAsyncDisposable
 {
     private const int ProtocolVersion = 1;
     private const int StderrLines = 20;
+    private const int SkippedPreview = 200;
+    private const int SkippedValue = 40;
 
     private static readonly UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false);
 
@@ -393,29 +395,72 @@ public sealed class SidecarClient : IAsyncDisposable
             "run `m365-aegis doctor`: it checks pwsh, the module and the sidecar script");
     }
 
+    /// <summary>
+    /// Reads <paramref name="line"/> as the reply to request <paramref name="id"/>. Any other line is skipped, never
+    /// thrown on (a bad line must not take the command down): one that is no JSON object, has no protocol version 1,
+    /// no string id, or answers another request (one that timed out before). Under <c>--verbose</c> the log names
+    /// each skipped line with its reason: a JSON object by its <c>id</c> and <c>type</c>, never its data; any other
+    /// line by its first characters; scrubbed like every log line.
+    /// </summary>
     private static bool TryReadReply(string line, string id, out JsonElement reply)
+    {
+        string? skipped = ReadReply(line, id, out reply);
+        if (skipped is null)
+        {
+            return true;
+        }
+
+        LogSink.Verbose?.Write("exchange-online", $"a sidecar line skipped while waiting for the reply to request {id} ({skipped})");
+        return false;
+    }
+
+    /// <summary>The reply in <paramref name="reply"/> and null, or why the line is not the reply and what it was.</summary>
+    private static string? ReadReply(string line, string id, out JsonElement reply)
     {
         reply = default;
         try
         {
             using JsonDocument document = JsonDocument.Parse(line);
             JsonElement root = document.RootElement;
-            if (root.ValueKind != JsonValueKind.Object
-                || !root.TryGetProperty("aegis", out JsonElement version) || version.ValueKind != JsonValueKind.Number || version.GetInt32() != ProtocolVersion
-                || !root.TryGetProperty("id", out JsonElement replyId) || replyId.GetString() != id)
+            if (root.ValueKind != JsonValueKind.Object)
             {
-                // A reply to a request that timed out before, or a line that is not ours: not this answer.
-                return false;
+                return $"no JSON object: {Preview(line, SkippedPreview)}";
+            }
+
+            if (!root.TryGetProperty("aegis", out JsonElement version) || version.ValueKind != JsonValueKind.Number
+                || !version.TryGetInt32(out int number) || number != ProtocolVersion)
+            {
+                return $"no protocol version 1: {Named(root)}";
+            }
+
+            if (!root.TryGetProperty("id", out JsonElement replyId) || replyId.ValueKind != JsonValueKind.String)
+            {
+                return $"no string id: {Named(root)}";
+            }
+
+            if (replyId.GetString() != id)
+            {
+                return $"the reply to another request: {Named(root)}";
             }
 
             reply = root.Clone();
-            return true;
+            return null;
         }
         catch (JsonException)
         {
-            return false;
+            return $"no JSON: {Preview(line, SkippedPreview)}";
         }
     }
+
+    /// <summary>A skipped object as the log names it: its <c>id</c> and <c>type</c> as JSON, short, without its data.</summary>
+    private static string Named(JsonElement root) =>
+        $"id {Raw(root, "id")}, type {Raw(root, "type")}";
+
+    private static string Raw(JsonElement root, string name) =>
+        root.TryGetProperty(name, out JsonElement value) ? Preview(value.GetRawText(), SkippedValue) : "none";
+
+    private static string Preview(string text, int length) =>
+        text.Length > length ? string.Concat(text.AsSpan(0, length), "…") : text;
 
     private JsonElement Answer(string type, JsonElement reply)
     {
