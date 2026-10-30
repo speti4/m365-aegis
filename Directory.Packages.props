@@ -29,6 +29,12 @@
          the scaffold's host, was dormant upstream and lost the spike of task 014. -->
     <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
 
+    <!-- The snapshot store of M5 (D-011, task 087): one SQLite file per snapshot under the home folder, which the
+         access view of task 084 queries in a few milliseconds instead of loading every domain the way a JSON file
+         would; MIT, and it brings SQLitePCLRaw's bundle with the native e_sqlite3 library (Apache-2.0, about 2 MB
+         in the release folder). .NET has no embedded database of its own, and no package here reads one. -->
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.14" />
+
     <!-- The test framework of the Core and Cli tests, on Microsoft.Testing.Platform (global.json names the
          runner). -->
     <PackageVersion Include="xunit.v3" Version="4.0.2" />
