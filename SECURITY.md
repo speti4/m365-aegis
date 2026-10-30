@@ -10,6 +10,23 @@ Only the latest release on the [Releases page](https://github.com/speti4/m365-ae
 ships as a new release; there are no backports. There is no release yet: until the first one, reports against
 `main` are welcome and the fix lands there.
 
+## Verifying a release
+
+A release is `m365-aegis-<version>.zip` on the Releases page, with `SHA256SUMS.txt` and its notes. Check it three
+ways before you run it:
+
+- **The checksum.** `(Get-FileHash .\m365-aegis-<version>.zip).Hash` prints the value of `SHA256SUMS.txt` in capitals.
+- **The build provenance.** `gh attestation verify .\m365-aegis-<version>.zip --repo speti4/m365-aegis` shows that
+  the zip was built by this repository's release workflow from a tag on `main`.
+- **The signature.** The exes and the tool's own assemblies (`m365-aegis*.exe`, `m365-aegis*.dll`,
+  `M365Aegis.*.dll`) are Authenticode-signed and timestamped, and the release notes name the signer and the
+  certificate's thumbprint. In the unzipped folder `Get-AuthenticodeSignature .\m365-aegis.exe` (or `signtool verify
+  /pa`) shows the signer, and `m365-aegis doctor` checks every signed file in its `signature` row. The signing
+  certificate is a secret of the release workflow, never in the repository.
+
+A file of a release zip whose signature does not hold, a release zip that fails its attestation, or a way to make the
+release workflow sign something other than the build of the tag, is in scope.
+
 ## Reporting a vulnerability
 
 Use GitHub's private vulnerability reporting:
@@ -50,7 +67,8 @@ The places where m365-aegis handles credentials, untrusted input or writes:
 
 ## Out of scope
 
-- The exes are not code-signed yet, so SmartScreen warns on the first start (signing is a milestone of its own).
+- SmartScreen's warning on the first start of a release whose signature has no reputation yet (that is Microsoft's
+  to build), and a signing certificate that a machine does not trust until its administrator trusts it.
 - What an administrator with the signed-in roles may do in the tenant anyway: the tool acts with the user's own
   permissions and adds none.
 - Anything that needs an attacker who can already run code as the signed-in user on the same machine.

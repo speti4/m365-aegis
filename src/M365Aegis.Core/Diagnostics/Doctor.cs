@@ -54,7 +54,7 @@ public sealed record DoctorReport(string Home, IReadOnlyList<DoctorCheck> Checks
 /// <summary>
 /// The prerequisites of the tool, checked one by one (task 008): the home folder and its access list, the .NET runtime, PowerShell 7.6
 /// and the ExchangeOnlineManagement module for the Exchange Online sidecar, the sidecar script against the copy
-/// compiled into the Core, the WebView2 runtime of the window, the tenant profiles, the device's join state, the
+/// compiled into the Core, the signatures of the exes and the product's assemblies, the WebView2 runtime of the window, the tenant profiles, the device's join state, the
 /// sign-in, and the three endpoints. Everything the checks read comes through <see cref="DoctorEnvironment"/>;
 /// <c>--offline</c> skips the two checks that need the network (the sign-in and the endpoints).
 /// </summary>
@@ -111,6 +111,7 @@ public static class Doctor
             CheckPwsh(pwshPath, pwsh),
             CheckExchangeModule(pwshPath, pwsh),
             CheckSidecarScript(environment.ReadInstalledSidecar(), environment.ReadBuildSidecar()),
+            CheckSignature(environment),
             CheckWebView2(environment),
             CheckConfig(environment.Home),
             CheckDevice(environment),
@@ -306,6 +307,64 @@ public static class Doctor
             ? new(name, CheckStatus.Warn, $"sha256 {Short(actual)} differs from the build ({Short(expected)}) in the line endings only", Required: true, reinstall)
             : new(name, CheckStatus.Fail, $"sha256 {Short(actual)} differs from the build ({Short(expected)}): the script was changed after the build", Required: true, reinstall);
     }
+
+    /// <summary>
+    /// The Authenticode signatures of the exes and the product's assemblies in the running exe's folder (task 085):
+    /// a pass when every one is signed by a certificate this machine trusts, a warning when one is not signed (a build
+    /// from source, or an unsigned zip) or its certificate is not trusted here, a failure when a signature does not
+    /// hold (the file changed after it was signed). The worst state names its files. Not required: an unsigned build
+    /// runs the same.
+    /// </summary>
+    internal static DoctorCheck CheckSignature(DoctorEnvironment environment)
+    {
+        const string name = "signature";
+        if (!environment.IsWindows)
+        {
+            return new(name, CheckStatus.Skipped, "not Windows; Authenticode is a Windows rule", Required: false);
+        }
+
+        IReadOnlyList<FileSignature> files = environment.ReadSignatures();
+        if (files.Count == 0)
+        {
+            return new(name, CheckStatus.Skipped, "no m365-aegis exe or assembly next to the running one", Required: false);
+        }
+
+        if (Named(files, SignatureState.Broken) is { } broken)
+        {
+            return new(name, CheckStatus.Fail, $"{broken}: the signature does not hold, the file changed after it was signed", Required: false,
+                "reinstall the release zip (SHA256SUMS.txt checks it)");
+        }
+
+        if (Named(files, SignatureState.NotSigned) is { } unsigned)
+        {
+            return new(name, CheckStatus.Warn, $"{unsigned}: not signed (a build from source, or an unsigned zip)", Required: false,
+                "the zip of the releases page is signed; a build from source is not");
+        }
+
+        if (Named(files, SignatureState.Untrusted) is { } untrusted)
+        {
+            return new(name, CheckStatus.Warn, $"{untrusted}: signed by {Signers(files, SignatureState.Untrusted)}, which this machine does not trust", Required: false,
+                "an administrator trusts the release's signing certificate on this machine (the usage guide, \"Check the download\")");
+        }
+
+        string count = string.Format(CultureInfo.InvariantCulture, "{0} file(s)", files.Count);
+        return new(name, CheckStatus.Pass, $"{count} signed by {Signers(files, SignatureState.Valid)}", Required: false);
+    }
+
+    /// <summary>
+    /// The files in a state, or null when none is in it; a broken or untrusted one with its <c>WinVerifyTrust</c> answer,
+    /// which tells the reasons apart (an unsigned file has one reason).
+    /// </summary>
+    private static string? Named(IReadOnlyList<FileSignature> files, SignatureState state)
+    {
+        List<string> named = [.. files.Where(file => file.State == state)
+            .Select(file => state == SignatureState.NotSigned ? file.File : string.Format(CultureInfo.InvariantCulture, "{0} (0x{1:X8})", file.File, file.Code))];
+        return named.Count == 0 ? null : string.Join(", ", named);
+    }
+
+    /// <summary>The distinct signers of the files in a state; "an unreadable certificate" where none was read.</summary>
+    private static string Signers(IReadOnlyList<FileSignature> files, SignatureState state) =>
+        string.Join("; ", files.Where(file => file.State == state).Select(file => file.Signer ?? "an unreadable certificate").Distinct(StringComparer.Ordinal));
 
     /// <summary>
     /// The .NET Desktop Runtime the window needs (a WinForms form, D-009), in the major version of the .NET Runtime:

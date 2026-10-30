@@ -8,16 +8,24 @@ The version is the one in Directory.Build.props, the only place it is written. T
 dependent, ReadyToRun win-x64 publish of M365Aegis.Cli (m365-aegis.exe) and M365Aegis.Gui (m365-aegis-gui.exe
 with wwwroot\, the built front end) in one folder (D-007), the Exchange Online sidecar script under sidecar\,
 THIRD-PARTY-NOTICES.md (nuget-license over the shipped packages, plus the front end's packages from the lock
-file) and GUIDE.md. Next to the zip go SHA256SUMS.txt (the zip's SHA-256 in `sha256sum -c` format) and
-release-notes-<version>.md (scripts\changelog.py --notes, the body of the GitHub release). CI runs this script on
-a v<version> tag with -Tag set, which must match the version; by hand the tag check is skipped. -DryRun
-publishes and packs into a temporary folder and prints the sizes without writing dist\ (the `windows` CI job).
-Needs the .NET SDK of global.json, Node (the front end build), Python 3, git with the release tags, and the
-nuget-license tool of .config/dotnet-tools.json (`dotnet tool restore`).
+file) and GUIDE.md (docs\usage.md, the guide for the support team; task 086). Next to the zip go SHA256SUMS.txt
+(the zip's SHA-256 in `sha256sum -c` format) and release-notes-<version>.md (scripts\changelog.py --notes, the body
+of the GitHub release, with a line on the signature). CI runs this script on a v<version> tag with -Tag set, which
+must match the version; by hand the tag check is skipped. -DryRun publishes and packs into a temporary folder and
+prints the sizes without writing dist\ (the `windows` CI job).
+
+With -CertificatePath (a PFX file, its password in M365AEGIS_SIGNING_PASSWORD) the product's exes and assemblies
+are signed, timestamped and verified by scripts\sign-release.ps1 before they are zipped (task 085); without it the
+zip is unsigned and the output says so. -RequireSignature (the release job) fails before anything is built when no
+certificate or no timestamp server is given.
+
+Needs the .NET SDK of global.json, Node (the front end build), Python 3, git with the release tags, the
+nuget-license tool of .config/dotnet-tools.json (`dotnet tool restore`), and signtool (the Windows SDK) to sign.
 
 .EXAMPLE
 scripts\release.ps1
 scripts\release.ps1 -DryRun
+scripts\release.ps1 -DryRun -CertificatePath test-signing.pfx -TimestampUrl ''
 #>
 [CmdletBinding()]
 param(
@@ -26,7 +34,13 @@ param(
     # The git tag being released (CI); must equal "v<version>".
     [string] $Tag = "",
     # Publish and pack into a temporary folder, print the sizes, write nothing under -Out.
-    [switch] $DryRun
+    [switch] $DryRun,
+    # The PFX file of the signing certificate; empty for an unsigned zip. Its password is in M365AEGIS_SIGNING_PASSWORD.
+    [string] $CertificatePath = "",
+    # The RFC 3161 timestamp server of the signatures; empty for none (a throwaway certificate, offline).
+    [string] $TimestampUrl = "http://timestamp.digicert.com",
+    # Fail without a certificate or a timestamp server (the release job: a release is signed).
+    [switch] $RequireSignature
 )
 
 $ErrorActionPreference = "Stop"
@@ -39,6 +53,11 @@ $version = $Matches[1].Trim()
 if ($Tag -and $Tag -ne "v$version") {
     throw "tag '$Tag' does not match the Directory.Build.props version 'v$version'"
 }
+if ($RequireSignature -and -not $CertificatePath) {
+    throw "-RequireSignature without -CertificatePath: a release is signed (the release job reads the SIGNING_CERTIFICATE secret; docs/development.md, The release)"
+}
+if ($RequireSignature -and -not $TimestampUrl) { throw "-RequireSignature without -TimestampUrl: the signatures of a release are timestamped" }
+if ($CertificatePath -and -not (Test-Path -LiteralPath $CertificatePath -PathType Leaf)) { throw "no certificate file at '$CertificatePath'" }
 
 # Python as `python`, else through the `py` launcher, which is all some Windows installs put on PATH.
 $python = (Get-Command python -ErrorAction SilentlyContinue).Source
@@ -83,6 +102,22 @@ if ($stamped -ne $version) {
     throw "m365-aegis.exe carries version '$stamped', Directory.Build.props says '$version'"
 }
 
+# The signature (task 085): the product's own exes and assemblies, before the zip and its checksum are made.
+if ($CertificatePath) {
+    $signed = & (Join-Path $root "scripts\sign-release.ps1") -Folder $publish -CertificatePath $CertificatePath -TimestampUrl $TimestampUrl
+    $trust = if ($signed.Trusted) { "trusted here" } else { "self-signed and not trusted here, verified against itself" }
+    $stamp = if ($signed.Timestamped) { "timestamped" } else { "no timestamp" }
+    $signing = "$($signed.Signer) ($($signed.Thumbprint)), $stamp, $trust; $($signed.Files -join ', ')"
+    $timestampNote = if ($signed.Timestamped) { ", with a timestamp" } else { "" }
+    $notesLine = "The exes and the product's assemblies are signed by ``$($signed.Signer)`` (certificate thumbprint " +
+        "``$($signed.Thumbprint)``)$timestampNote. In the unzipped folder ``Get-AuthenticodeSignature .\m365-aegis.exe`` " +
+        "names the signer, and ``m365-aegis doctor`` checks every signed file (its ``signature`` row)."
+} else {
+    $signing = "none: no -CertificatePath, so the zip is unsigned"
+    $notesLine = "The exes in this zip are not signed."
+}
+Add-Content -LiteralPath $notes -Value @("", $notesLine) -Encoding utf8NoBOM
+
 # The notices: the NuGet packages shipped with the exes (nuget-license, the allowlist of licenses/allowed.json, the
 # license texts of licenses/license-texts.json for a package that ships its license as a file), then the front
 # end's packages from the lock file (scripts\npm-licenses.py, the same allowlist).
@@ -91,7 +126,8 @@ $notices = Join-Path $publish "THIRD-PARTY-NOTICES.md"
 if ($LASTEXITCODE -ne 0) { throw "nuget-license failed ($LASTEXITCODE)" }
 & $python @pythonArgs -I (Join-Path $root "scripts\npm-licenses.py") --notices $notices
 if ($LASTEXITCODE -ne 0) { throw "npm-licenses failed ($LASTEXITCODE)" }
-Copy-Item (Join-Path $root "README.md") (Join-Path $publish "GUIDE.md")
+# The guide is the support team's (docs\usage.md, task 086), who have the zip and no repo; the README is a contributor's.
+Copy-Item (Join-Path $root "docs\usage.md") (Join-Path $publish "GUIDE.md")
 
 $zip = Join-Path $outDir "m365-aegis-$version.zip"
 if (Test-Path $zip) { Remove-Item -Force $zip }
@@ -105,6 +141,7 @@ $sums = Join-Path $outDir "SHA256SUMS.txt"
 $publishMb = [math]::Round(((Get-ChildItem $publish -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB, 1)
 $zipMb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
 Write-Output "version:  $version (exe properties: $stamped)"
+Write-Output "signing:  $signing"
 Write-Output "publish:  $publish ($publishMb MB unpacked)"
 Write-Output "zip:      $zip ($zipMb MB)"
 Write-Output "sha256:   $hash ($sums)"
