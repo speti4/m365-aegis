@@ -48,6 +48,7 @@ The repository, the task standard and the empty solution: no product yet.
 - `mailbox list` through the Admin API, and the usage report timed apart from the mailbox list ([048](https://github.com/speti4/m365-aegis/blob/main/tasks/done/048-mailbox-list-through-the-admin-api.md))
 - One Exchange token source for the sidecar and the Admin API ([049](https://github.com/speti4/m365-aegis/blob/main/tasks/done/049-one-exchange-token-source-for-the-sidecar-and-the-admin-api.md))
 - The sidecar tests never fall back to the machine's real Exchange Online module ([050](https://github.com/speti4/m365-aegis/blob/main/tasks/done/050-fake-module-never-falls-back-to-the-real-one.md))
+- `mailbox forwarders` through the Admin API ([055](https://github.com/speti4/m365-aegis/blob/main/tasks/done/055-mailbox-forwarders-through-the-admin-api.md))
 
 ### M3 Writes with safety
 
@@ -55,6 +56,11 @@ The repository, the task standard and the empty solution: no product yet.
 - Group membership and owner writes behind a plan ([052](https://github.com/speti4/m365-aegis/blob/main/tasks/done/052-group-membership-and-owner-writes.md))
 - Mailbox permission and forwarding writes through the sidecar ([053](https://github.com/speti4/m365-aegis/blob/main/tasks/done/053-mailbox-permission-and-forwarding-writes.md))
 - Bulk changes from a CSV: one plan over every row ([054](https://github.com/speti4/m365-aegis/blob/main/tasks/done/054-bulk-changes-from-a-csv.md))
+- The Graph `$ref` writes twenty to a `$batch` call ([058](https://github.com/speti4/m365-aegis/blob/main/tasks/done/058-graph-ref-writes-in-batches-of-twenty.md))
+- `--no-automapping` on a FullAccess grant ([059](https://github.com/speti4/m365-aegis/blob/main/tasks/done/059-no-automapping-on-a-fullaccess-grant.md))
+- `plan list` and `plan show` over the plan records ([060](https://github.com/speti4/m365-aegis/blob/main/tasks/done/060-plan-list-and-plan-show-over-the-records.md))
+- Members of a distribution or mail-enabled security group through Exchange ([061](https://github.com/speti4/m365-aegis/blob/main/tasks/done/061-distribution-group-members-through-exchange.md))
+- Resume a half-applied batch from its plan record ([062](https://github.com/speti4/m365-aegis/blob/main/tasks/done/062-resume-a-half-applied-batch-from-its-record.md))
 
 ### M4 Window
 
@@ -66,6 +72,8 @@ The repository, the task standard and the empty solution: no product yet.
 - The window holds one `ExchangeSession` through the bridge ([045](https://github.com/speti4/m365-aegis/blob/main/tasks/done/045-window-holds-one-exchange-session.md))
 - The window's sign-in failures get their own hints ([046](https://github.com/speti4/m365-aegis/blob/main/tasks/done/046-window-specific-sign-in-hints.md))
 - An "Open in browser" button for the device-code sign-in address ([047](https://github.com/speti4/m365-aegis/blob/main/tasks/done/047-open-the-device-code-address-in-the-browser.md))
+- The window's `mailbox-list` through the Admin API over the shared token source ([056](https://github.com/speti4/m365-aegis/blob/main/tasks/done/056-window-mailbox-list-through-the-admin-api.md))
+- The window's own hints for the failures after the sign-in ([057](https://github.com/speti4/m365-aegis/blob/main/tasks/done/057-window-hints-for-the-failures-after-the-sign-in.md))
 
 ### M6 Release and team
 

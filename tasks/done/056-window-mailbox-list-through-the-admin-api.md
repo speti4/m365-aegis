@@ -4,6 +4,7 @@ origin: done/049-one-exchange-token-source-for-the-sidecar-and-the-admin-api.md
 created: 2026-10-30
 started: 2026-10-30
 plan: none
+closed: 2026-10-30
 milestone: M4 Window
 ---
 
@@ -62,6 +63,8 @@ the picker. The parallel writes bundle does not touch the window or the bridge.
   sign-out drops the token source and the next list makes a new one; a holder without an Admin API lists on its
   session. The bridge samples and the front end's payloads are unchanged.
 
+- 2026-10-30 — closed by the main session on `main` after #25; the follow-up (the window's `mailbox-access` over the layers) is filed as backlog item 063
+
 ## Deviations from the plan
 
 - none
@@ -90,8 +93,8 @@ the picker. The parallel writes bundle does not touch the window or the bridge.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)

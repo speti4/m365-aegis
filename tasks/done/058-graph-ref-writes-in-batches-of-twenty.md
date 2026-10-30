@@ -4,6 +4,7 @@ origin: done/052-group-membership-and-owner-writes.md
 created: 2026-10-30
 started: 2026-10-30
 plan: none
+closed: 2026-10-30
 milestone: M3 Writes with safety
 ---
 
@@ -71,6 +72,8 @@ Exchange and window bundle (055, 059, 056, 057) does not touch `GroupWrites` or 
   writes' bullet); `README.md` "Batched group writes, distribution lists, plan records and resume";
   `tests/fixtures/README.md` "The writes and plan records bundle".
 
+- 2026-10-30 — closed by the main session on `main` after #26; no follow-up
+
 ## Deviations from the plan
 
 - The batching is a guard concern (`PlanStep`, `PlanBatch`) rather than a loop inside `GroupWrites`: the guard keeps
@@ -100,8 +103,8 @@ Exchange and window bundle (055, 059, 056, 057) does not touch `GroupWrites` or 
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)

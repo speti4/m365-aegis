@@ -4,6 +4,7 @@ origin: done/052-group-membership-and-owner-writes.md
 created: 2026-10-30
 started: 2026-10-30
 plan: none
+closed: 2026-10-30
 milestone: M3 Writes with safety
 ---
 
@@ -88,6 +89,8 @@ under a comment of its own, so the two merge without a conflict.
   15 cloud-only, and 6 mail-enabled security groups, 2 cloud-only) and saw exactly this; the docs say so in the group
   writes' bullet.
 
+- 2026-10-30 — closed by the main session on `main` after #26; the follow-up (distribution group owners through Exchange) is filed as backlog item 064
+
 ## Deviations from the plan
 
 - The plan falls back to Graph's member list when the run has no Admin API or it cannot answer (a refused permission,
@@ -119,8 +122,8 @@ under a comment of its own, so the two merge without a conflict.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)

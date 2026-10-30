@@ -4,6 +4,7 @@ origin: done/051-plan-type-plan-records-and-the-write-guard.md
 created: 2026-10-30
 started: 2026-10-30
 plan: none
+closed: 2026-10-30
 milestone: M3 Writes with safety
 ---
 
@@ -65,6 +66,8 @@ the `plan` command.
 - 2026-10-30 — docs: `docs/development.md` "Writes and plans" ("The records read back", the record's `input`),
   `README.md` (the bundle's heading).
 
+- 2026-10-30 — closed by the main session on `main` after #26; the follow-up (`plan prune` or a size limit on the plans folder) is filed as backlog item 066
+
 ## Deviations from the plan
 
 - A file in the plans folder that is not a plan record is left out of `plan list` (counted under the table), and
@@ -87,8 +90,8 @@ the `plan` command.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)

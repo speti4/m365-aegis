@@ -4,6 +4,7 @@ origin: done/053-mailbox-permission-and-forwarding-writes.md
 created: 2026-10-30
 started: 2026-10-30
 plan: none
+closed: 2026-10-30
 milestone: M3 Writes with safety
 ---
 
@@ -66,6 +67,8 @@ columns table there and nothing else in that section.
   `AutoMapping` false; `AutoMapping` on a revoke and `-Owner` on a grant refused). Sample
   `tests/fixtures/csv/mailbox-grants-automapping.csv`.
 
+- 2026-10-30 — closed by the main session on `main` after #25; the follow-up "change the automapping of an existing FullAccess grant behind one plan" is not filed: a rare request that `mailbox access revoke` then `grant --no-automapping` covers today; to be re-proposed if the support team asks for it
+
 ## Deviations from the plan
 
 - the flag is refused when the rights hold no FullAccess, not whenever another right is named: `--right
@@ -92,8 +95,8 @@ columns table there and nothing else in that section.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)

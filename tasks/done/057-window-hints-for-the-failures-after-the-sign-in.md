@@ -4,6 +4,7 @@ origin: done/046-window-specific-sign-in-hints.md
 created: 2026-10-30
 started: 2026-10-30
 plan: none
+closed: 2026-10-30
 milestone: M4 Window
 ---
 
@@ -60,6 +61,8 @@ bundle does not touch the window, the bridge or the hints.
   the predicate; a failure without a hint), and two bridge tests now hold the hint the window shows (a mailbox not
   found, no Exchange session).
 
+- 2026-10-30 — closed by the main session on `main` after #25; no follow-up
+
 ## Deviations from the plan
 
 - the rule is a hint that names a command, not every hint: a hint the core wrote for a person (a group lookup's
@@ -82,8 +85,8 @@ bundle does not touch the window, the bridge or the hints.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)

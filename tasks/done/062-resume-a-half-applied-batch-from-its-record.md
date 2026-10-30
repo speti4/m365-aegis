@@ -4,6 +4,7 @@ origin: done/054-bulk-changes-from-a-csv.md
 created: 2026-10-30
 started: 2026-10-30
 plan: none
+closed: 2026-10-30
 milestone: M3 Writes with safety
 ---
 
@@ -83,6 +84,8 @@ task reads the plan change's shape and does not edit those two files beyond what
   it" warnings; with `[Console]::OutputEncoding` set to UTF-8 the second run matched. Matching by object id is a
   follow-up if a rename between the apply and the resume turns out to matter.
 
+- 2026-10-30 — closed by the main session on `main` after #26; the two resume follow-ups (plan only the pending lines; match by object id) are filed together as backlog item 065
+
 ## Deviations from the plan
 
 - The resume plans the record's original rows again in full and narrows the plan, rather than planning only the rows
@@ -111,8 +114,8 @@ task reads the plan change's shape and does not edit those two files beyond what
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)

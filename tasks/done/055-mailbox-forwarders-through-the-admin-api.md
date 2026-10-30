@@ -4,6 +4,7 @@ origin: done/048-mailbox-list-through-the-admin-api.md
 created: 2026-10-30
 started: 2026-10-30
 plan: none
+closed: 2026-10-30
 milestone: M2 Exchange
 ---
 
@@ -70,6 +71,8 @@ session's signed-in round, `--dry-run` and reads only. The parallel writes bundl
   nothing), the layered read, its fallback, its fixtures and its tests are taken out, and the probe's options stay as
   the maintainer's tool with their 3 Core tests.
 
+- 2026-10-30 — closed by the main session on `main` after #25; the follow-up "forwarders through the Admin API if a later version of the `Mailbox` endpoint carries the forwarding fields" is not filed: nothing to do until Microsoft extends the endpoint, and this file and `docs/development.md` keep `probe admin-api --forwarding` as the re-check
+
 ## Deviations from the plan
 
 - the task's done-when cannot be met on the documented Admin API: its `Mailbox` endpoint does not carry the forwarding
@@ -92,8 +95,8 @@ session's signed-in round, `--dry-run` and reads only. The parallel writes bundl
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` (the main session, on `main` after the merge)
+- [x] `tasks_check` green, README index regenerated (the main session, on `main` after the merge)
+- [x] moved to `done/` with `closed: 2026-10-30` (the main session, on `main` after the merge)
