@@ -38,6 +38,13 @@ lookups:
 - **A window for the team.** Task cards for the daily Exchange and group work the admin centers make slow, each
   ending in a confirmation.
 
+## Using a release
+
+Using the tool, not building it? The [usage guide](docs/usage.md) is written for you: checking the download and
+its signature, the sign-in and the profiles, the daily lookups with an example each, the writes and their plans, the
+window's cards, and what each row of `m365-aegis doctor` means. The release zip ships it as `GUIDE.md`, next to the
+signed exes. The rest of this page is for contributors.
+
 ## Requirements
 
 Windows 11 with the .NET 10 runtime: the command line (`m365-aegis.exe`) needs the .NET Runtime 10, the window
@@ -78,7 +85,7 @@ and `profile remove <name>` signs one out and deletes it.
 
 When something does not work, `doctor` checks the prerequisites (the home folder and who can read it, the .NET
 Desktop Runtime of the window, pwsh and the Exchange Online module, the sidecar script, WebView2, the device's join
-state, the sign-in, the endpoints) and says what to install or do for each warning and failure. A sign-in that fails is diagnosed with `--verbose login`: the sign-in library's log, without
+state, the sign-in, the endpoints, and the signatures of the exes) and says what to install or do for each warning and failure. A sign-in that fails is diagnosed with `--verbose login`: the sign-in library's log, without
 tokens or personal data, goes to `%LOCALAPPDATA%\m365-aegis\logs\`.
 
 Any Graph request goes through `call`, its answer unchanged inside the envelope; a method other than GET is a
@@ -316,7 +323,8 @@ reason, in [docs/development.md](docs/development.md#coverage).
 
 ## Documentation
 
-- [Development](docs/development.md): layout, CI, releases and helper scripts
+- [Usage guide](docs/usage.md): the command line and the window for the support team, shipped in the zip as `GUIDE.md`
+- [Development](docs/development.md): layout, CI, releases (the signing included) and helper scripts
 - [Changelog](CHANGELOG.md): every release and the tasks it closed, with the zips and checksums on the
   [releases page](https://github.com/speti4/m365-aegis/releases) once there is a release
 - [Contributing](CONTRIBUTING.md) and the [security policy](SECURITY.md)

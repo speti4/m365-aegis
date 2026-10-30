@@ -3,8 +3,9 @@
 A recorded Graph or Exchange answer is scrubbed before it is committed (CONTRIBUTING.md, "Tenant data never
 enters the repo"): every domain is contoso.com, fabrikam.com, example.com or their .onmicrosoft.com and
 .sharepoint.com forms, every GUID is of the form 00000000-0000-0000-0000-0000000000NN, and nothing looks like a JWT. This script walks
-tests/fixtures, tests/sidecar, tests/contracts and the snapshot folders of the test projects and fails on anything
-else, so a real value cannot slip in with a recording or with an accepted snapshot. It also refuses a file whose
+tests/fixtures, tests/sidecar, tests/contracts and the snapshot folders of the test projects, and reads the usage guide
+(docs/usage.md, whose examples run over the fixtures and which the release zip ships), and fails on anything else, so a
+real value cannot slip in with a recording, an accepted snapshot or an example. It also refuses a file whose
 path from the repo root is longer than MAX_PATH_LENGTH characters: git for Windows cannot add a path over 260
 characters without core.longpaths, and a worktree under .claude/worktrees puts about 70 characters in front of the
 repo's own path (`m365-aegis call GET <path> --fixture-name` prints the name a Graph fixture is stored under).
@@ -26,6 +27,8 @@ FOLDERS = [
     # The accepted snapshots of the Verify tests render the fixtures, so they are held to the same rules.
     *sorted((ROOT / "tests").glob("M365Aegis.*.Tests/Snapshots")),
 ]
+# Single files held to the same rules: the usage guide's examples are written over the fixtures' names (task 086).
+FILES = [ROOT / "docs" / "usage.md"]
 TEXT_SUFFIXES = {".json", ".headers", ".txt", ".md", ".ps1", ".psm1", ".psd1", ".csv"}
 
 # The made-up tenants' SharePoint hosts (contoso.sharepoint.com, contoso-my.sharepoint.com) are theirs too.
@@ -91,6 +94,10 @@ def main() -> int:
             if path.suffix.lower() in TEXT_SUFFIXES:
                 files += 1
                 problems += findings(path)
+    for path in FILES:
+        if path.is_file():
+            files += 1
+            problems += findings(path)
     for problem in problems:
         print(problem)
     print(f"check-fixtures: {files} files, {len(problems)} findings")

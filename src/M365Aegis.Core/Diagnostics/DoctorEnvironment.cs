@@ -29,8 +29,8 @@ public sealed record AccessEntry(string Sid, bool Allow, int Rights, bool Inheri
 
 /// <summary>
 /// What the doctor reads from the machine, each behind a seam the tests replace (task 008): the home folder's access
-/// list, the pwsh call, the registry, <c>dsregcmd</c>, the sidecar script's two copies, the sign-in and the endpoint
-/// probe. <see cref="ForThisMachine"/> wires the real ones.
+/// list, the pwsh call, the registry, <c>dsregcmd</c>, the sidecar script's two copies, the signatures of the product's
+/// files, the sign-in and the endpoint probe. <see cref="ForThisMachine"/> wires the real ones.
 /// </summary>
 public sealed record DoctorEnvironment
 {
@@ -72,6 +72,12 @@ public sealed record DoctorEnvironment
 
     /// <summary>The sidecar script compiled into the Core, or null when the resource is missing.</summary>
     public Func<byte[]?> ReadBuildSidecar { get; init; } = SidecarScript.ReadBuildCopy;
+
+    /// <summary>
+    /// The product's own exes and assemblies next to the running one (the files the release signs), each with its
+    /// Authenticode signature (task 085); empty off Windows.
+    /// </summary>
+    public Func<IReadOnlyList<FileSignature>> ReadSignatures { get; init; } = Authenticode.ReadProductFiles;
 
     /// <summary>The silent sign-in of <c>whoami</c> for a profile (the profile name, or null for the default).</summary>
     public Func<string?, CancellationToken, Task<SignInInfo>> SignIn { get; init; } =

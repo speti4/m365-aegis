@@ -113,6 +113,16 @@ pwsh -File tests/sidecar/run-with-coverage.ps1                         # every t
 
 `Invoke-Pester -Path tests/sidecar` runs the same tests without the coverage.
 
+When the release script, its signing or their tests change (`scripts/release.ps1`, `scripts/sign-release.ps1`,
+`tests/release/`), also the signing tests and a signed dry run, on Windows with the Windows SDK's `signtool`, after
+the build above:
+
+```powershell
+Invoke-Pester -Path tests/release                                       # signing with a throwaway certificate
+tests/release/new-test-certificate.ps1 -Path $env:TEMP/test-signing.pfx
+scripts/release.ps1 -DryRun -CertificatePath $env:TEMP/test-signing.pfx -TimestampUrl ''
+```
+
 When `Directory.Packages.props`, a lock file, `gui/web/package.json`, `.config/dotnet-tools.json` or `.github/`
 change, also:
 
@@ -129,7 +139,10 @@ CI (`.github/workflows/ci.yml` and `commit-rules.yml`) runs all of them on every
 request, the one Windows job included (task 068). A change in behavior comes with a test: C# tests under
 `tests/M365Aegis.Core.Tests` and `tests/M365Aegis.Cli.Tests` (the latter run the built exe as a child process, whose lines count for the coverage
 too),
-front-end tests next to the module they test, sidecar tests under `tests/sidecar`. Tests never touch the network
+front-end tests next to the module they test, sidecar tests under `tests/sidecar`. A new command, a changed
+example or a new card of the window also changes the usage guide, `docs/usage.md`, which the release zip ships for
+the support team: `UsageGuideTests` fail until every command and card is in it and every example runs over the
+fixtures. Tests never touch the network
 or a tenant: Graph is tested against the fixtures through the client's transport seam, Exchange Online against
 the fake module.
 

@@ -31,7 +31,7 @@ public sealed class DoctorTests
         Assert.True(report.Healthy);
         Assert.All(report.Checks, check => Assert.Equal(CheckStatus.Pass, check.Status));
         Assert.Equal(
-            ["home", "home-access", "dotnet-runtime", "dotnet-desktop-runtime", "pwsh", "exchange-online-module", "sidecar-script", "webview2-runtime", "config", "device", "sign-in", "endpoint-login", "endpoint-graph", "endpoint-exchange"],
+            ["home", "home-access", "dotnet-runtime", "dotnet-desktop-runtime", "pwsh", "exchange-online-module", "sidecar-script", "signature", "webview2-runtime", "config", "device", "sign-in", "endpoint-login", "endpoint-graph", "endpoint-exchange"],
             report.Checks.Select(check => check.Name));
         Assert.All(report.Checks, check => Assert.Null(check.Hint));
         Assert.Equal(ExitCode.Ok, report.ToResult().ExitCode);
@@ -235,6 +235,81 @@ public sealed class DoctorTests
     }
 
     [Fact]
+    public void ExesSignedByATrustedCertificatePass()
+    {
+        DoctorCheck check = Doctor.CheckSignature(Fake(ProfileStoreTests.TempHome()));
+
+        Assert.Equal(new DoctorCheck("signature", CheckStatus.Pass, "3 file(s) signed by CN=Contoso Release Signing", Required: false), check);
+    }
+
+    [Fact]
+    public void AnUnsignedFileWarnsAndNamesIt()
+    {
+        DoctorEnvironment environment = Fake(ProfileStoreTests.TempHome()) with
+        {
+            ReadSignatures = () => [.. Signed(SignatureState.Valid).Take(2), new("m365-aegis.dll", SignatureState.NotSigned, null, Authenticode.NoSignature)],
+        };
+
+        DoctorCheck check = Doctor.CheckSignature(environment);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.Equal("m365-aegis.dll: not signed (a build from source, or an unsigned zip)", check.Detail);
+        Assert.Contains("releases page", check.Hint, StringComparison.Ordinal);
+        Assert.False(check.Required);
+    }
+
+    [Fact]
+    public void ACertificateThisMachineDoesNotTrustWarnsWithTheSignerAndTheReason()
+    {
+        DoctorEnvironment environment = Fake(ProfileStoreTests.TempHome()) with
+        {
+            ReadSignatures = () =>
+            [
+                new("m365-aegis.exe", SignatureState.Untrusted, "CN=Contoso Release Signing", Authenticode.UntrustedRoot),
+                new("m365-aegis.dll", SignatureState.Untrusted, null, Authenticode.UntrustedRoot),
+            ],
+        };
+
+        DoctorCheck check = Doctor.CheckSignature(environment);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.Equal(
+            "m365-aegis.exe (0x800B0109), m365-aegis.dll (0x800B0109): signed by CN=Contoso Release Signing; an unreadable certificate, which this machine does not trust",
+            check.Detail);
+        Assert.Contains("Check the download", check.Hint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ASignatureThatDoesNotHoldFailsAndComesBeforeTheWarnings()
+    {
+        DoctorEnvironment environment = Fake(ProfileStoreTests.TempHome()) with
+        {
+            ReadSignatures = () =>
+            [
+                new("m365-aegis.exe", SignatureState.Broken, "CN=Contoso Release Signing", Authenticode.BadDigest),
+                new("m365-aegis.dll", SignatureState.NotSigned, null, Authenticode.NoSignature),
+            ],
+        };
+
+        DoctorCheck check = Doctor.CheckSignature(environment);
+
+        Assert.Equal(CheckStatus.Fail, check.Status);
+        Assert.Equal("m365-aegis.exe (0x80096010): the signature does not hold, the file changed after it was signed", check.Detail);
+        Assert.Contains("reinstall", check.Hint, StringComparison.Ordinal);
+        Assert.False(check.Required);
+    }
+
+    [Fact]
+    public void TheSignatureIsSkippedOffWindowsAndWithoutAProductFile()
+    {
+        Assert.Equal(CheckStatus.Skipped, Doctor.CheckSignature(Fake(ProfileStoreTests.TempHome()) with { IsWindows = false }).Status);
+
+        DoctorCheck none = Doctor.CheckSignature(Fake(ProfileStoreTests.TempHome()) with { ReadSignatures = () => [] });
+        Assert.Equal(CheckStatus.Skipped, none.Status);
+        Assert.Contains("no m365-aegis exe", none.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WebView2AndTheDeviceAreSkippedOffWindows()
     {
         DoctorEnvironment environment = Fake(ProfileStoreTests.TempHome()) with { IsWindows = false };
@@ -408,7 +483,7 @@ public sealed class DoctorTests
         // No assumption about the machine: the checks run and each has an outcome; nothing touches the network.
         DoctorReport report = await Doctor.RunAsync(ProfileStoreTests.TempHome(), null, offline: true, CancellationToken.None);
 
-        Assert.Equal(14, report.Checks.Count);
+        Assert.Equal(15, report.Checks.Count);
         Assert.Equal(CheckStatus.Skipped, Assert.Single(report.Checks, check => check.Name == "home-access").Status);
         DoctorCheck pwsh = Assert.Single(report.Checks, check => check.Name == "pwsh");
         string? found = Doctor.FindPwsh();
@@ -540,6 +615,14 @@ public sealed class DoctorTests
             .. added,
         ]);
 
+    /// <summary>The three files of a command line folder, each in the given state, signed by the made-up publisher.</summary>
+    private static FileSignature[] Signed(SignatureState state) =>
+    [
+        new("m365-aegis.exe", state, "CN=Contoso Release Signing", 0),
+        new("m365-aegis.dll", state, "CN=Contoso Release Signing", 0),
+        new("M365Aegis.Core.dll", state, "CN=Contoso Release Signing", 0),
+    ];
+
     private static string Fixture(string fileName) =>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "doctor", fileName));
 
@@ -561,6 +644,7 @@ public sealed class DoctorTests
             ReadDeviceState = () => deviceState == "" ? Fixture("dsregcmd-entra-joined.txt") : deviceState,
             ReadInstalledSidecar = () => Script,
             ReadBuildSidecar = () => Script,
+            ReadSignatures = () => Signed(SignatureState.Valid),
             SignIn = signIn ?? ((_, _) => Task.FromResult(AuthSamples.SignedIn)),
             Probe = (_, _) => Task.FromResult(new EndpointAnswer(200, TimeSpan.FromMilliseconds(80), null)),
         };

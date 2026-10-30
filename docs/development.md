@@ -23,12 +23,14 @@ checks before a commit and the project rules are in [CONTRIBUTING.md](../CONTRIB
 - `tests/` — `M365Aegis.Core.Tests` and `M365Aegis.Cli.Tests` (xUnit v3 on Microsoft.Testing.Platform; the Cli
   tests start the built assembly as a child process; each project keeps its Verify snapshots under
   `Snapshots/`), `shared/` (the source files both C# test projects link), `sidecar/` (Pester, with the fake
-  module under `sidecar/modules/ExchangeOnlineManagement`), `contracts/bridge/` (the message samples the C# and
+  module under `sidecar/modules/ExchangeOnlineManagement`), `release/` (Pester: the release's signature, task 085),
+  `contracts/bridge/` (the message samples the C# and
   TypeScript tests share), `fixtures/` (recorded, scrubbed answers; `fixtures/README.md`; the Graph
   answers are read from the source tree through `shared/GraphFixtures.cs`).
-- `scripts/` — the helper scripts: the release, the changelog, the commit rules, the fixture check, the
+- `scripts/` — the helper scripts: the release and its signature, the changelog, the commit rules, the fixture check, the
   vulnerability check, the front end's license check, the Pester version pin.
-- `docs/` — this page, the git workflow, the maintainer sessions, origin and research.
+- `docs/` — this page, the usage guide for the support team (`usage.md`, shipped in the zip as `GUIDE.md`), the git
+  workflow, the maintainer sessions, origin and research.
 - `tasks/` — the backlog, the work in flight, the history and the decisions (the task standard).
 - `.github/workflows/` — CI, the commit rules, the tagged release and the weekly advisory check;
   `.github/dependabot.yml` — the weekly dependency updates.
@@ -1056,6 +1058,7 @@ that need the network.
 | `pwsh` | yes | 7.6 or later on PATH | the version is unreadable | missing (`winget install Microsoft.PowerShell`) or older |
 | `exchange-online-module` | no | 3.10 or later | older (`Update-Module`) | not installed (`Install-Module … -Scope CurrentUser`); skipped without pwsh |
 | `sidecar-script` | yes | the SHA-256 of `sidecar\aegis-exo-sidecar.ps1` matches the copy compiled into the Core | differs in its line endings only | missing or changed (reinstall the release zip) |
+| `signature` | no | every product file next to the running exe (`m365-aegis*.exe`, `m365-aegis*.dll`, `M365Aegis.*.dll`) is signed by a certificate this machine trusts, with the signer | one is not signed (a build from source, an unsigned zip), or its certificate is not trusted here (an untrusted or distrusted root, expired without a timestamp), each with its `WinVerifyTrust` code | a signature does not hold: the file changed after it was signed (reinstall the release zip); skipped off Windows and without a product file |
 | `webview2-runtime` | no | the `pv` of the EdgeUpdate client key, 120 or later | older (Edge Update is blocked) | not installed (`winget install Microsoft.EdgeWebView2Runtime`); skipped off Windows |
 | `config` | no | the profiles and the default | no file (the login command), no profile, or no default (`profile use`) | the file does not parse, or a profile lacks a value |
 | `device` | no | Entra-joined with a primary refresh token | registered only, or joined without a primary refresh token (task 013: the silent sign-in as the Windows account fails, the profile's account signs in instead), or `dsregcmd` unreadable | neither joined nor registered (Settings > Accounts > Access work or school) |
@@ -1066,7 +1069,16 @@ The pwsh and module checks are one pwsh call; the device check reads `AzureAdJoi
 `AzureAdPrt` of `dsregcmd /status` and nothing that names the tenant. Everything a check reads comes through
 `DoctorEnvironment` (`Diagnostics/DoctorEnvironment.cs`), which the tests replace part by part: the home folder's
 access list, the pwsh call, the registry, `dsregcmd` (the made-up outputs under `tests/fixtures/doctor/dsregcmd-*.txt`),
-the installed Desktop Runtime versions, the two copies of the script, the sign-in and the endpoint probe.
+the installed Desktop Runtime versions, the two copies of the script, the signatures, the sign-in and the endpoint probe.
+
+The `signature` check (task 085) asks `WinVerifyTrust` (the Authenticode policy, `Diagnostics/Authenticode.cs`)
+about each product file in `AppContext.BaseDirectory`, the same names `scripts/sign-release.ps1` signs, with no
+revocation check and only the local caches (no download), so `--offline` stays offline, and reads the signer's subject
+from the state it leaves. A signature that holds over an untrusted root is a warning with the signer named, since
+the team's machines may trust a self-signed certificate by hand; the expected publisher is not pinned yet (it waits
+for the certificate decision). The interop is the one part excluded from the coverage ([Coverage](#coverage)); the
+names and the verdict of each `WinVerifyTrust` code are tested, and `tests/release/sign-release.Tests.ps1` runs the
+doctor of a signed and of a changed folder in the `windows` job.
 
 The `home-access` check (task 078) reads the home folder's access list by SID, so the names do not depend on the
 Windows display language: an allow entry for `Everyone` (`S-1-1-0`), `Users` (`S-1-5-32-545`) or `Authenticated Users`
@@ -1212,7 +1224,8 @@ one Windows job, `windows`, runs on every push to `main`, every pull request and
 docs-only change: the full build
 with the front end, the tests,
 `m365-aegis --version` and `doctor --offline`, the window's `--smoke` run (the page loads and the bridge sends
-`ready`), and the release script's dry run. `.github/workflows/commit-rules.yml` runs `commit-rules`
+`ready`), the signing tests (`tests/release`, Pester) and the release script's dry run, signed with a throwaway
+certificate the step makes (task 085; no secret, so a fork's pull request runs it too). `.github/workflows/commit-rules.yml` runs `commit-rules`
 (`scripts/check-commit.sh` over every pushed commit and the pull request text) on the same pushes and pull
 requests. `.github/workflows/advisories.yml` restores and audits the lock files every Monday and by hand (`gh
 workflow run advisories.yml`), so an advisory for a package already in a lock file shows up between pull
@@ -1261,26 +1274,66 @@ nuget-license, restored with `dotnet tool restore`.
 ReadyToRun into one folder (D-007: the .NET 10 runtime is Windows Update's to patch, so a runtime fix needs no
 release of ours), checks that `m365-aegis.exe` carries the version of `Directory.Build.props` (the only place it
 is written), writes `THIRD-PARTY-NOTICES.md` (nuget-license over the shipped packages in Markdown, then the
-front end's packages from the lock file by `scripts/npm-licenses.py`), copies the README as `GUIDE.md`, and
-packs everything into `dist\m365-aegis-<version>.zip`: the two exes, their assemblies, `wwwroot\`,
-`sidecar\aegis-exo-sidecar.ps1`, the notices and the guide. No XML documentation file ships, neither ours nor the
+front end's packages from the lock file by `scripts/npm-licenses.py`), signs the product's files when it is given a
+certificate (below), copies the usage guide `docs/usage.md` as `GUIDE.md` (task 086: the guide is the support
+team's, who have the zip and no repo; the README is a contributor's), and packs everything into
+`dist\m365-aegis-<version>.zip`: the two exes, their assemblies, `wwwroot\`, `sidecar\aegis-exo-sidecar.ps1`, the
+notices and the guide. No XML documentation file ships, neither ours nor the
 packages' (`PublishDocumentationFile` and `PublishReferencesDocumentationFiles` off, task 031; the script fails
-when one is left in the folder): they were 919 KB, the WebView2 SDK's 639 KB of it. The publish of 2026-10-29
-with the window's first page is 9.8 MB unpacked and 4 MB zipped. Next to the zip it writes `SHA256SUMS.txt` (the
-zip's SHA-256 in the `sha256sum -c` format) and `release-notes-<version>.md`. `-DryRun` does all of it in a
-temporary folder and prints the sizes, which is what the `windows` job runs on every pull request.
+when one is left in the folder): they were 919 KB, the WebView2 SDK's 639 KB of it. The publish of 2026-10-30
+is 11.6 MB unpacked and 4.7 MB zipped. Next to the zip it writes `SHA256SUMS.txt` (the
+zip's SHA-256 in the `sha256sum -c` format) and `release-notes-<version>.md`, whose last line names the signer and
+the certificate's thumbprint (or says the exes are not signed). `-DryRun` does all of it in a temporary folder and
+prints the sizes, which is what the `windows` job runs on every pull request, signed with a throwaway certificate.
 
 ```powershell
 dotnet tool restore                      # once per clone
-scripts\release.ps1                      # dist\: the zip, SHA256SUMS.txt, release-notes-<version>.md
+scripts\release.ps1                      # dist\: the zip, SHA256SUMS.txt, release-notes-<version>.md (unsigned)
 scripts\release.ps1 -DryRun
+scripts\release.ps1 -DryRun -CertificatePath test-signing.pfx -TimestampUrl ''   # as the windows job runs it
+```
+
+**The signature** (task 085). With `-CertificatePath <pfx>`, whose password is the `M365AEGIS_SIGNING_PASSWORD`
+environment variable (no password when it is unset; never a parameter, never printed), `scripts/sign-release.ps1`
+signs the product's own files at the top of the publish folder (`m365-aegis.exe`, `m365-aegis-gui.exe`,
+`m365-aegis.dll`, `m365-aegis-gui.dll`, `M365Aegis.Core.dll`: the names `m365-aegis*.exe`, `m365-aegis*.dll` and
+`M365Aegis.*.dll`, which the doctor's `signature` row reads too) with `signtool sign /fd SHA256` and, with
+`-TimestampUrl` (`http://timestamp.digicert.com` by default), an RFC 3161 timestamp, so a signature stays valid after
+its certificate expires; a busy timestamp server is tried three times. The packages' assemblies keep their
+publishers' signatures, and the sidecar script stays unsigned: the doctor compares its hash with the copy in the
+Core, and a signature block would change it. Then each signed file is verified before the zip is made: its signer
+is the given certificate, its hash holds, it carries the timestamp that was asked for, and `signtool verify /pa`
+passes, which needs a certificate that chains to a root the machine trusts. A self-signed certificate the machine
+does not trust (the CI runner, a contributor's machine) is checked against itself instead: its chain is built with
+the certificate as the only trusted root, for code signing. The certificate must hold its private key, the code
+signing usage and a date that has not passed. Without `-CertificatePath` the zip is unsigned and the output's
+`signing:` line says so; `-RequireSignature`, which the release job passes, fails before anything is built when no
+certificate or no timestamp server is given. `signtool` comes from the Windows SDK (on `PATH`, or the newest
+`Windows Kits\10\bin\<version>\x64`), which the `windows-latest` runner has. `tests/release/sign-release.Tests.ps1`
+(Pester, in the `windows` job) signs copies of the built files with a throwaway certificate that
+`tests/release/new-test-certificate.ps1` makes in memory and no store holds, checks that a package's assembly and the
+sidecar script are left alone, that a wrong password and a missing file are refused, runs the doctor of a signed
+folder (`signature` names the signer and warns that it is not trusted) and of one with a byte changed after the
+signing (`signature` fails), and that `release.ps1 -RequireSignature` refuses to start without a certificate.
+
+The certificate lives in the repository's `release` environment, never in the repo: the secret
+`SIGNING_CERTIFICATE` holds the PFX file in base64 and `SIGNING_CERTIFICATE_PASSWORD` its password. The release job
+writes the file into the runner's temporary folder for the run and removes it afterwards; a tag without the secret
+fails the release. Which certificate it is (a self-signed one the team's machines trust, a bought one, or Azure
+Trusted Signing) is the decision task 085 drafted; whichever it is, it goes in as a PFX file:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("signing.pfx")) | gh secret set SIGNING_CERTIFICATE --env release
+gh secret set SIGNING_CERTIFICATE_PASSWORD --env release     # asks for the value
 ```
 
 Pushing a tag `v<version>` runs every job; when they pass, the `release` job checks that the tag is on `main`,
-runs `release.ps1`, attests the build provenance of the zip and publishes it with the checksum file as a GitHub
-release titled `m365-aegis <version>`, with the notes file as its text, through the runner's `gh` CLI. A
-downloaded zip is checked against its attestation with `gh attestation verify <zip> --repo speti4/m365-aegis`.
-Signed exes are M6.
+runs `release.ps1 -RequireSignature` with the certificate, attests the build provenance of the zip and publishes it
+with the checksum file as a GitHub release titled `m365-aegis <version>`, with the notes file as its text, through
+the runner's `gh` CLI. A downloaded zip is checked three ways, as `SECURITY.md` and the guide's "Check the download"
+tell a reader: its SHA-256 against `SHA256SUMS.txt`, its attestation with `gh attestation verify <zip> --repo
+speti4/m365-aegis`, and, unzipped, the signature of each exe (`Get-AuthenticodeSignature .\m365-aegis.exe`, or
+`signtool verify /pa` on a machine with the SDK, or the doctor's `signature` row).
 
 ### The changelog
 
@@ -1336,15 +1389,27 @@ public text: decisions and results, no conversation, `plan: none`, no home folde
 
 ### The other scripts
 
-- `scripts/check-fixtures.py` — every file under `tests/fixtures`, `tests/sidecar` and `tests/contracts` carries
-  made-up data only: the allowed domains, the `00000000-…` ids, nothing that looks like a token; and no file path
-  there is over 190 characters from the repo root, which a worktree would push past git for Windows' 260.
+- `scripts/check-fixtures.py` — every file under `tests/fixtures`, `tests/sidecar` and `tests/contracts`, the
+  accepted snapshots and the usage guide `docs/usage.md` (task 086) carry made-up data only: the allowed domains, the
+  `00000000-…` ids, nothing that looks like a token; and no file path there is over 190 characters from the repo
+  root, which a worktree would push past git for Windows' 260.
+- `scripts/sign-release.ps1` — the release's signature, called by `release.ps1` ([The release](#the-release)).
 - `scripts/check-vulnerable.py` — `dotnet package list --vulnerable --include-transitive` as JSON, with a failing
   exit code when it finds anything (the command itself exits 0 either way).
 - `scripts/npm-licenses.py` — the front end's shipped packages against `licenses/allowed.json`, from the lock
   file; `--notices` appends them to the notices file.
 - `scripts/check-commit.sh` — the commit rules of [git-workflow.md](git-workflow.md), with a `--self-test`.
-- `scripts/pester-version.txt` — the Pester version the `sidecar` job installs.
+- `scripts/pester-version.txt` — the Pester version the `sidecar` job and the `windows` job's signing tests install.
+
+**The usage guide** (`docs/usage.md`, task 086) is the support team's manual and ships in the zip as `GUIDE.md`.
+`UsageGuideTests` in the Cli tests hold it to the product: every command of the help tree (the hidden `probe` aside)
+is named in it as `m365-aegis <path>`, every card of the window (a `CardTitle` or a `WriteCard` title under
+`gui/web/src/components`) has its `### <title>` section, and every example line of its `powershell` blocks runs as a
+child process over the recorded answers, the fake Exchange Online module and a home with the sample plan records,
+and answers 0 (or 7 for a write without a flag); `--yes` runs as `--dry-run` there, a `--from-csv` file is the sample
+of `tests/fixtures/csv` with that name, and the examples that need the real sign-in or the network (`login`,
+`logout`, `whoami`, `profile remove`, `doctor` without `--offline`) are only named. A new command or card fails the
+tests until the guide has it.
 
 ## Coverage
 
@@ -1400,6 +1465,7 @@ listed here, and a new one is added to this list in the change that adds it:
 | `BridgeServices.ForWindow` (Core, `Bridge`) | Wires the window's real layers: MSAL over the window, Graph, and an Exchange Online session that a first cmdlet would start against the tenant. The `windows` job's `--smoke` run starts the window with it; each layer it wires is measured on its own. |
 | `Doctor.PwshFileName` (Core, `Diagnostics`) | `pwsh.exe` or `pwsh`: one side per operating system. The search over `PATH` is tested with a made-up file name. |
 | `DoctorEnvironment`: `ReadHomeAccessFromDisk`, `RunDsregcmd`, `ReadDesktopRuntimeVersionsFromDisk`, `ReadWebView2VersionsFromRegistry`, `ReadPv`, the nested `Network` (the endpoint probe and its `HttpClient`) (Core, `Diagnostics`) | They read the real machine (the home folder's access list, `dsregcmd`, the registry, the .NET installation's folders, Microsoft's endpoints), differently on Windows and on Linux. The checks over their answers are tested through the `DoctorEnvironment` seams; the access list reader also runs in the home folder's access list tests of the `windows` job. |
+| `Authenticode`: `ReadProductFiles`, `Verify`, `Signer` (Core, `Diagnostics`) | `WinVerifyTrust` and its state over the files next to the running assembly, Windows only. The names of the product's files and the verdict of each `WinVerifyTrust` code are tested, the check over the answers through the `DoctorEnvironment.ReadSignatures` seam; the interop itself runs in the `windows` job's signing tests, over a signed folder and a changed one. |
 | `SidecarClient.KillQuietly` (Core, `Exchange/Sidecar`) | Its catch runs only when the operating system refuses the kill, or the child ends between the check and the call: a race no test can stage. |
 | `SidecarClient.WriteQuietlyAsync` (Core, `Exchange/Sidecar`) | Its catch runs only when a message reaches a child that has ended and nothing else holds the pipe's read end at that moment; whether the write fails or not, the read after it meets the end of the stream and says the sidecar stopped, which is tested. |
 | `SidecarClient.AwaitQuietly` (Core, `Exchange/Sidecar`) | Its catch runs only when the pipe breaks under the read, which .NET reports as the end of the stream on every runner. |

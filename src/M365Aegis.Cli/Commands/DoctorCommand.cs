@@ -21,7 +21,7 @@ internal static class DoctorCommand
         {
             Description = "Skip the checks that need the network (the sign-in and the endpoints).",
         };
-        Command command = new("doctor", "Check the prerequisites: pwsh and the Exchange Online module, the sidecar script, WebView2, the device, the sign-in, the endpoints.");
+        Command command = new("doctor", "Check the prerequisites: pwsh and the Exchange Online module, the sidecar script, the exes' signatures, WebView2, the device, the sign-in, the endpoints.");
         command.Options.Add(offline);
         command.SetAction((parsed, cancellationToken) => CommandRunner.RunAsync(
             Program.ResolveMode(parsed, json, table),
