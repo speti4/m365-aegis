@@ -21,7 +21,8 @@ prints the sizes without writing dist\ (the `windows` CI job).
 With -CertificatePath (a PFX file, its password in M365AEGIS_SIGNING_PASSWORD) the product's exes and assemblies
 are signed, timestamped and verified by scripts\sign-release.ps1 before they are zipped (task 085); without it the
 zip is unsigned and the output says so. -RequireSignature (the release job) fails before anything is built when no
-certificate or no timestamp server is given.
+certificate or no timestamp server is given, or when the certificate's thumbprint is not the one the doctor pins
+(Authenticode.ReleaseThumbprint in the Core; task 095), with both thumbprints named.
 
 Needs the .NET SDK of global.json, Node (the front end build), Python 3, git with the release tags, the
 nuget-license tool of .config/dotnet-tools.json (`dotnet tool restore`), and signtool (the Windows SDK) to sign.
@@ -43,7 +44,8 @@ param(
     [string] $CertificatePath = "",
     # The RFC 3161 timestamp server of the signatures; empty for none (a throwaway certificate, offline).
     [string] $TimestampUrl = "http://timestamp.digicert.com",
-    # Fail without a certificate or a timestamp server (the release job: a release is signed).
+    # Fail without a certificate, with one that is not the pinned one, or without a timestamp server (the release job:
+    # a release is signed by the pinned certificate).
     [switch] $RequireSignature
 )
 
@@ -60,8 +62,38 @@ if ($Tag -and $Tag -ne "v$version") {
 if ($RequireSignature -and -not $CertificatePath) {
     throw "-RequireSignature without -CertificatePath: a release is signed (the release job reads the SIGNING_CERTIFICATE secret; docs/development.md, The release)"
 }
-if ($RequireSignature -and -not $TimestampUrl) { throw "-RequireSignature without -TimestampUrl: the signatures of a release are timestamped" }
 if ($CertificatePath -and -not (Test-Path -LiteralPath $CertificatePath -PathType Leaf)) { throw "no certificate file at '$CertificatePath'" }
+# The pin (task 095): a release is signed by the certificate the doctor's `signature` row pins
+# (Authenticode.ReleaseThumbprint, D-012, task 093), so a rotated certificate reaches a release only together with its
+# new pin, and a team machine never sees its doctor warn about the release it just unzipped. The pin is read from the
+# Core's source, the file the publish below compiles, before anything is built. M365AEGIS_TEST_RELEASE_THUMBPRINT, the
+# doctor's test seam, replaces it for the tests, never for a tagged release.
+if ($RequireSignature) {
+    $pinSource = Join-Path $root "src\M365Aegis.Core\Diagnostics\Authenticode.cs"
+    if ((Get-Content -LiteralPath $pinSource -Raw) -notmatch 'const string ReleaseThumbprint = "([0-9A-Fa-f]{40})"') {
+        throw "no ReleaseThumbprint pin in $pinSource"
+    }
+    $pin = $Matches[1].ToUpperInvariant()
+    $pinnedBy = "the one the Core pins (Authenticode.ReleaseThumbprint)"
+    if ($env:M365AEGIS_TEST_RELEASE_THUMBPRINT) {
+        if ($Tag) { throw "M365AEGIS_TEST_RELEASE_THUMBPRINT is set: the doctor's test seam never pins the certificate of a tagged release" }
+        $pin = ($env:M365AEGIS_TEST_RELEASE_THUMBPRINT -replace '\s', '').ToUpperInvariant()
+        $pinnedBy = "the one M365AEGIS_TEST_RELEASE_THUMBPRINT pins"
+    }
+    try {
+        $pfx = [System.Security.Cryptography.X509Certificates.X509CertificateLoader]::LoadPkcs12FromFile(
+            (Resolve-Path -LiteralPath $CertificatePath).Path, $env:M365AEGIS_SIGNING_PASSWORD,
+            [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet)
+    } catch [System.Security.Cryptography.CryptographicException] {
+        throw "the certificate file does not open with the password of M365AEGIS_SIGNING_PASSWORD: $($_.Exception.Message)"
+    }
+    try { $thumbprint = $pfx.Thumbprint } finally { $pfx.Dispose() }
+    if ($thumbprint -ne $pin) {
+        throw ("the signing certificate's thumbprint $thumbprint is not $pinnedBy, $($pin): a new certificate is pinned in " +
+            "the Core first, in a change of its own, and released after it (docs/development.md, The release)")
+    }
+}
+if ($RequireSignature -and -not $TimestampUrl) { throw "-RequireSignature without -TimestampUrl: the signatures of a release are timestamped" }
 
 # The guides and the license the zip ships: the repo's file and its name in the zip (tasks 086, 106, 107). A missing
 # one fails here, before anything is built.

@@ -2,7 +2,7 @@
 <#
 The signing of the release (task 085): scripts/sign-release.ps1 over copies of the built command line's files, with a
 throwaway self-signed certificate that new-test-certificate.ps1 makes and nothing on the machine trusts, and the
-release script's refusal to build a release without a certificate. Windows only (signtool and Authenticode); the
+release script's refusal to build a release without a certificate or with one the Core does not pin (task 095). Windows only (signtool and Authenticode); the
 `windows` job runs these after its build, which makes the files copied here. No timestamp: the tests never touch the
 network.
 #>
@@ -189,13 +189,51 @@ Describe 'the doctor pins the release certificate' -Skip:(-not $elevated) {
 }
 
 Describe 'release.ps1 -RequireSignature' -Skip:$skip {
-    # The checks run before the release notes and the publish, so these return in a moment.
-    It 'fails without a certificate, as the release job does without its secret' {
-        { & (Join-Path $script:repo 'scripts' 'release.ps1') -DryRun -RequireSignature } | Should -Throw '*-RequireSignature without -CertificatePath*'
+    # The checks run before the release notes and the publish, so these return in a moment. In their order: the
+    # certificate, the pin of the doctor (task 095), the timestamp server.
+    BeforeAll {
+        $script:release = Join-Path $script:repo 'scripts' 'release.ps1'
+        $source = Get-Content (Join-Path $script:repo 'src' 'M365Aegis.Core' 'Diagnostics' 'Authenticode.cs') -Raw
+        $script:pin = [regex]::Match($source, 'const string ReleaseThumbprint = "([0-9A-F]{40})"').Groups[1].Value
+        $props = Get-Content (Join-Path $script:repo 'Directory.Build.props') -Raw
+        $script:version = [regex]::Match($props, '<Version>([^<]+)</Version>').Groups[1].Value.Trim()
     }
 
-    It 'fails without a timestamp server' {
-        { & (Join-Path $script:repo 'scripts' 'release.ps1') -DryRun -RequireSignature -CertificatePath $script:pfx -TimestampUrl '' } |
-            Should -Throw '*without -TimestampUrl*'
+    AfterEach {
+        Remove-Item Env:\M365AEGIS_TEST_RELEASE_THUMBPRINT -ErrorAction Ignore
+    }
+
+    It 'fails without a certificate, as the release job does without its secret' {
+        { & $script:release -DryRun -RequireSignature } | Should -Throw '*-RequireSignature without -CertificatePath*'
+    }
+
+    It 'refuses a certificate that is not the pinned one and names both thumbprints' {
+        $script:pin | Should -Match '^[0-9A-F]{40}$'
+
+        { & $script:release -DryRun -RequireSignature -CertificatePath $script:pfx } |
+            Should -Throw ("the signing certificate's thumbprint $($script:certificate.Thumbprint) is not the one the Core pins " +
+                "(Authenticode.ReleaseThumbprint), $($script:pin): a new certificate is pinned in the Core first*")
+    }
+
+    It 'takes the certificate the test seam pins and goes on to the next check' {
+        # The seam as the doctor reads it: spaces and the case do not matter.
+        $env:M365AEGIS_TEST_RELEASE_THUMBPRINT = " $($script:certificate.Thumbprint.ToLowerInvariant()) "
+
+        # Past the pin, the missing timestamp server is the next refusal.
+        { & $script:release -DryRun -RequireSignature -CertificatePath $script:pfx -TimestampUrl '' } | Should -Throw '*without -TimestampUrl*'
+    }
+
+    It 'refuses another certificate than the one the test seam pins' {
+        $env:M365AEGIS_TEST_RELEASE_THUMBPRINT = '00000000000000000000000000000000000000AB'
+
+        { & $script:release -DryRun -RequireSignature -CertificatePath $script:pfx } |
+            Should -Throw "*is not the one M365AEGIS_TEST_RELEASE_THUMBPRINT pins, 00000000000000000000000000000000000000AB:*"
+    }
+
+    It 'never takes the test seam for a tagged release' {
+        $env:M365AEGIS_TEST_RELEASE_THUMBPRINT = $script:certificate.Thumbprint
+
+        { & $script:release -Tag "v$($script:version)" -RequireSignature -CertificatePath $script:pfx } |
+            Should -Throw '*never pins the certificate of a tagged release*'
     }
 }

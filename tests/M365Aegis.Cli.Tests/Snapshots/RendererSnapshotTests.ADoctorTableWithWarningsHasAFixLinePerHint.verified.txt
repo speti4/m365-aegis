@@ -12,6 +12,7 @@ webview2-runtime        fail    the WebView2 runtime is not installed: the windo
 config                  pass    D:\aegis-home\config.json: 2 profile(s), default 'work'
 device                  warn    registered, not Entra-joined: no primary refresh token, so the silent sign-in as the Windows account fails (normal here); the profile's account signs in through the broker
 sign-in                 warn    alice@contoso.com: graph token until 2026-10-29 15:00 +01:00, no exchange token (consent_required: AADSTS65001: the administrator has not consented to Exchange.Manage)
+consent                 warn    no exchange token, so its permissions are not read (the sign-in row says why); not consented: signin list, audit list (AuditLog.Read.All)
 endpoint-login          pass    login.microsoftonline.com: HTTP 200 in 85 ms
 endpoint-graph          warn    graph.microsoft.com: HTTP 405 in 4210 ms, slow
 endpoint-exchange       pass    outlook.office365.com: HTTP 417 in 98 ms
@@ -22,6 +23,7 @@ fix dotnet-desktop-runtime: winget upgrade Microsoft.DotNet.DesktopRuntime.10
 fix exchange-online-module: Update-Module ExchangeOnlineManagement
 fix webview2-runtime: winget install Microsoft.EdgeWebView2Runtime
 fix sign-in: an administrator consents to the missing permissions in the portal, then `m365-aegis login`
+fix consent: an administrator consents to AuditLog.Read.All (Microsoft Graph) in the portal (the setup guide's Permissions table), then `m365-aegis login`
 fix endpoint-graph: check the network path to https://graph.microsoft.com
 ok
 --- stderr ---
