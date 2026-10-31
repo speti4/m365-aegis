@@ -85,6 +85,7 @@ ALLOWED_HOSTS = {
     "msal.net": "the name of the .NET authentication library (MSAL.NET), not a host",
     "photino.net": "the name of the window library the stack research weighed (Photino.NET), not a host",
     "*.contributor-covenant.org": "the code of conduct's source",
+    "img.shields.io": "the README's release and license badges",
     # The research's sources (docs/research): the tools and articles the product was compared with.
     "michev.info": "Vasil Michev's blog, an Exchange Online and Graph reference",
     "admindroid.com": "a Microsoft 365 reporting product, compared in the research",
@@ -104,6 +105,8 @@ MADE_UP_GUID = re.compile(r"^00000000-0000-0000-0000-0000000000[0-9a-f]{2}$", re
 ALLOWED_GUIDS = {
     "0f2a7c3e-6b1d-4b2e-9d4a-000000000001": "the fake module's manifest GUID, which PowerShell requires",
     "8bd644d1-64a1-4d4b-ae52-2e0cbf64e373": "Microsoft's message trace application, the same id in every tenant",
+    "00000003-0000-0000-c000-000000000000": "Microsoft Graph's application, the same id in every tenant (docs/setup.md)",
+    "00000002-0000-0ff1-ce00-000000000000": "Office 365 Exchange Online's application, the same id in every tenant",
 }
 JWT = re.compile(r"\beyJ[A-Za-z0-9_-]{10,}")
 # The longest path from the repo root a fixture may have; FixtureGraphTransport.MaxRepoPathLength is the same.

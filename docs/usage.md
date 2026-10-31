@@ -1,14 +1,18 @@
 # m365-aegis — the usage guide
 
-m365-aegis is a small Microsoft 365 operations tool for the support team: one sign-in serves Microsoft Graph and
-Exchange Online, the lookups answer the daily questions (who is in a group, who can open a mailbox, where a message
-went, who signed in), and every change goes through a plan you read before anything is sent. It comes as one zip
-with two programs in one folder:
+m365-aegis is a small Microsoft 365 operations tool for an administrator and the support team they hand tasks to:
+one sign-in serves Microsoft Graph and Exchange Online, the lookups answer the daily questions (who is in a group, who
+can open a mailbox, where a message went, who signed in), and every change goes through a plan you read before
+anything is sent. It comes as one zip with two programs in one folder:
 
 - `m365-aegis.exe`, the command line, for a PowerShell window or a script;
 - `m365-aegis-gui.exe`, the window, with cards for the most common tasks.
 
-This guide is for a colleague who has the zip and no copy of the source. It is shipped in the zip as `GUIDE.md`.
+This is the user's guide: for anyone who has the zip and the three values of a tenant where m365-aegis is set up,
+with no copy of the source needed. It is shipped in the zip as `GUIDE.md`. Setting the tool up in a tenant (the app
+registration, the permissions and the consent) is the administrator's part, once per tenant, in the
+[setup guide](https://github.com/speti4/m365-aegis/blob/main/docs/setup.md).
+
 Every example below uses made-up names (`contoso.com`, `alice@contoso.com`, the group Finance, the shared mailboxes
 finance and reception); put your own in their place. The commands are written as `m365-aegis …`: run them from the
 unzipped folder as `.\m365-aegis.exe …`, or put the folder on your `PATH`.
@@ -45,20 +49,30 @@ releases page (https://github.com/speti4/m365-aegis/releases). Before you unzip 
    exes do not each ask on their first start; then extract the zip into a folder of your own, such as
    `%LOCALAPPDATA%\Programs\m365-aegis`.
 
-The exes and the tool's own assemblies are signed. In the unzipped folder,
-`Get-AuthenticodeSignature .\m365-aegis.exe` names the signer, which the release notes name too, and
-`m365-aegis doctor` checks every signed file in its `signature` row. `Valid` means the file is unchanged and its
-certificate is trusted on this machine; the row passes only when that certificate is the release's, whose thumbprint
-the tool knows and the release notes print. If the row says the certificate is not trusted, an administrator trusts
-the release's signing certificate on the machine (the maintainer hands it out), unless the row's fix line says the
-signer is not the release's certificate: then the files did not come from the release, so delete the folder and
-unzip the release again. If it says a signature does not hold, the file changed after it was signed: delete the
-folder and unzip the release again.
+The checksum and the attestation are what tell you the download is the release: check both on every machine.
+
+The exes and the tool's own assemblies are also signed, with a self-signed certificate that the maintainer's own team
+trusts on its machines; the certificate is not published, so on any other machine the signature reads as not trusted.
+In the unzipped folder, `Get-AuthenticodeSignature .\m365-aegis.exe` names the signer, which the release notes name
+too, and `m365-aegis doctor` checks every signed file in its `signature` row:
+
+- The row passes only on a machine that trusts the release's certificate, whose thumbprint the tool knows and the
+  release notes print.
+- It warns that the certificate is not trusted on any other machine. That is expected: the signature still shows that
+  each file is unchanged since it was signed, and the checksum and the attestation above stand for the rest.
+- It warns that the signer is not the release's certificate when another certificate signed the files: they did not
+  come from the release, so delete the folder and unzip the release again.
+- It fails when a signature does not hold: the file changed after it was signed. Delete the folder and unzip the
+  release again.
+
+SmartScreen may stop the first start of an exe that still carries the download mark ("Windows protected your PC"):
+`Unblock-File` above avoids it, or **More info** > **Run anyway** once. Where Smart App Control is on, Windows blocks
+the exes and has no exception per program, so the tool does not start on such a machine.
 
 ## Sign in
 
-The administrator gives you three values: the tenant (`contoso.onmicrosoft.com` or its id), the application id
-of the tool's app registration, and your admin account. The first sign-in writes them into a tenant profile:
+The administrator who set the tool up in your tenant gives you three values: the tenant (`contoso.onmicrosoft.com`
+or its id), the application id of the tool's app registration, and your admin account. The first sign-in writes them into a tenant profile:
 
 ```powershell
 m365-aegis login --tenant contoso.onmicrosoft.com --client-id <application id> --account alice@contoso.com
@@ -171,9 +185,9 @@ m365-aegis trace details 00000000-0000-0000-0000-000000000051
 
 `trace` lists the messages a sender sent (`--sender`) or a recipient received (`--recipient`) over the last two days,
 or `--days` up to 10, ending now or at `--until` (at most 90 days back); `--status` and `--subject` narrow it.
-`trace details` takes the trace id of a row and lists the delivery steps of that message for each recipient. The
-message trace needs a one-time setup by the administrator; until it is done, `trace` answers with exit code 8 and
-names the step.
+`trace details` takes the trace id of a row, or the message's Message-ID in quotes (`"<message-id@contoso.com>"`),
+and lists the delivery steps of that message for each recipient; `--recipient` keeps one of them. The message trace
+needs a one-time setup by the administrator; until it is done, `trace` answers with exit code 8 and names the step.
 
 ### Sign-ins, audit and app credentials
 
@@ -187,8 +201,9 @@ m365-aegis secrets expiring 30                    # app secrets and certificates
 interactive sign-ins; `--days` (up to 30) or `--since` and `--until` set the window, `--kind` picks the
 non-interactive, service principal or managed identity sign-ins, and `--limit` caps the count. The log needs a
 Microsoft Entra ID P1 or P2 license; without one the command says so with exit code 8. `audit list` reads the
-directory audit log the same way, `--activity` by the start of the activity's name and `--user` by who did it.
-`secrets expiring` lists the secrets and certificates of the app registrations and service principals, the soonest
+directory audit log the same way, `--activity` by the start of the activity's name and `--user` by who did it. A
+list that stops at `--limit` (1000 by default) names the oldest entry it reached, and the line under the table gives
+the `--since … --until …` that lists the ones before it. `secrets expiring` lists the secrets and certificates of the app registrations and service principals, the soonest
 first; `--include-expired` adds the ones that have already expired.
 
 ### Any Microsoft Graph request
@@ -240,8 +255,9 @@ m365-aegis mailbox forwarding clear bob --dry-run
 (`--right` takes `FullAccess`, `SendAs` and `SendOnBehalf`, also comma-separated); `--no-automapping` grants
 FullAccess without Outlook adding the mailbox for the user on its own. `mailbox forwarding set` forwards to the
 address only, unless `--keep-copy` keeps a copy in the mailbox; the plan warns when the address is outside the
-organization. A synced group's members and owners belong to the on-premises directory: the plan warns that the
-service will refuse the change.
+organization. The members and owners of a distribution group or a mail-enabled security group, which Microsoft Graph
+cannot change, are changed through Exchange Online, with the same plan, flags and exit codes. A synced group's members
+and owners belong to the on-premises directory: the plan warns that the service will refuse the change.
 
 ### A batch from a CSV file
 
@@ -418,7 +434,7 @@ three endpoints, the checks that need the network.
 | `pwsh` (required) | PowerShell's version could not be read | missing or older than 7.6: `winget install Microsoft.PowerShell` |
 | `exchange-online-module` | older than 3.10: `Update-Module ExchangeOnlineManagement` | not installed, the mailbox commands cannot run: `Install-Module ExchangeOnlineManagement -Scope CurrentUser` |
 | `sidecar-script` (required) | the Exchange Online script differs in its line endings only | the script is missing or was changed: unzip the release again |
-| `signature` | a file is not signed (a build from source, or an unsigned zip), its certificate is not trusted on this machine (an administrator trusts it, if it is the release's), or a certificate that is not the release's signed it (unzip the release again) | a signature does not hold, the file changed after it was signed: unzip the release again |
+| `signature` | a file is not signed (a build from source, or an unsigned zip), its certificate is not trusted on this machine (expected outside the maintainer's team: [Check the download](#check-the-download)), or a certificate that is not the release's signed it (unzip the release again) | a signature does not hold, the file changed after it was signed: unzip the release again |
 | `webview2-runtime` | it is old, so Edge Update is blocked here | not installed, the window cannot start: `winget install Microsoft.EdgeWebView2Runtime` |
 | `config` | no profile yet (`m365-aegis login`), or no default (`m365-aegis profile use <name>`) | `config.json` does not read, or a profile lacks a value |
 | `device` | the machine is registered, not joined, or has no primary refresh token: the profile's account signs in instead of the Windows account, which is normal on a registered machine | neither joined nor registered: Settings > Accounts > Access work or school > Connect |

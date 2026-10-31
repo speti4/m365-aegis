@@ -1,14 +1,14 @@
 # Security policy
 
-m365-aegis signs in as a Microsoft 365 administrator and reads and, later, changes a tenant's groups, mailboxes
-and settings. A flaw in how it handles tokens, confirmations or the data it prints matters, and a report is
+m365-aegis signs in as a Microsoft 365 administrator and reads and changes a tenant's groups, mailboxes and
+settings. A flaw in how it handles tokens, confirmations or the data it prints matters, and a report is
 welcome.
 
 ## Supported versions
 
 Only the latest release on the [Releases page](https://github.com/speti4/m365-aegis/releases) gets fixes. A fix
-ships as a new release; there are no backports. There is no release yet: until the first one, reports against
-`main` are welcome and the fix lands there.
+ships as a new release; there are no backports. A report against `main` is welcome too; its fix lands there and
+ships with the next release.
 
 ## Verifying a release
 
