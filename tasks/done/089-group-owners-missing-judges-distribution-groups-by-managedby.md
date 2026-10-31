@@ -99,11 +99,11 @@ the exact commands and the expected outcomes in its report.
   677 to 704 ms with the sidecar's start: 4 groups (All Staff listed, Sales Managers left out), the two lines under
   the table, backend `graph+pwsh`. The live line over the tenant is the main session's.
 - 2026-10-31 — live, by the main session from this branch's Release build (cached token, warm process):
-  - `group owners-missing --json`: backend `graph`, 178 groups, `leftOut` 1939, no `managedInExchange`, 1.8 s.
-  - `--all-types --json`: backend `graph+pwsh`, 2100 groups (178 + 1939 − 17), `managedInExchange` 17, 6.86 s,
-    0 warnings. By kind: 120 synced distribution groups, 4 synced mail-enabled security groups, 128 Microsoft 365
-    groups, 50 cloud security groups, 1798 synced security groups. The table ended with "2100 group(s) without an
-    owner", the line for the 17 groups left out by `ManagedBy`, and "1922 synced group(s) as Graph lists them".
+  - `group owners-missing --json`: backend `graph`, a couple of hundred groups, `leftOut` some 1,900, no `managedInExchange`, 1.8 s.
+  - `--all-types --json`: backend `graph+pwsh`, most of the tenant's groups (the Graph list plus the left-out ones less the Exchange-managed), `managedInExchange` 17, 6.86 s,
+    0 warnings. By kind: a hundred-odd synced distribution groups, a few synced mail-enabled security groups, a hundred-odd Microsoft 365
+    groups, a few dozen cloud security groups, the rest synced security groups. The table ended with "N group(s) without
+    an owner", the line for the 17 groups left out by `ManagedBy`, and "N synced group(s) as Graph lists them".
   - Every cloud distribution and mail-enabled security group in the tenant has a `ManagedBy` (15 cloud distribution
     groups of 135), so the case of a cloud distribution group that stays listed is covered by the fake module only.
   - Two of the left-out cloud distribution groups, checked with `group owners <id>`: 1 owner each, `fromExchange`

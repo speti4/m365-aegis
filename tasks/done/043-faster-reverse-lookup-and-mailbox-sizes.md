@@ -13,7 +13,7 @@ milestone: M2 Exchange
 ## Context
 
 The live round of 2026-10-29 measured `mailbox access --user <upn>` at 138 s and `mailbox size --top 5` at
-80 s over 620 mailboxes, about 0.2 s and 0.12 s per mailbox, one request each through the piped `Get-EXO*`
+80 s over some 600 mailboxes, about 0.2 s and 0.12 s per mailbox, one request each through the piped `Get-EXO*`
 cmdlets. Try, in this order: `Get-EXOMailboxPermission` without an identity (`-ResultSize Unlimited`, if it lists
 every mailbox's entries in paged calls), the piped mailboxes split across several sidecars at once, and Graph's
 mailbox usage report (one call, about a day old) for the sizes; measure each live.
@@ -40,7 +40,7 @@ token, never with the module's own sign-in per process.
 1. [x] The candidates built behind switches or as the default, each measurable on its own: the identity-less
    permission read, several sidecars at once, the Graph usage report for the sizes
 2. [x] Tests against the fake module and the fixtures for each path
-3. [x] Live measurement (main session): the three candidates against the 620-mailbox tenant, timings into the Log
+3. [x] Live measurement (main session): the three candidates against the tenant's some 600 mailboxes, timings into the Log
 4. [x] The winner becomes the default, the hint names the floor where no candidate wins; docs
 
 ## Log
@@ -64,7 +64,7 @@ token, never with the module's own sign-in per process.
   it; a concealed report is exit code 9 with the setting in the hint). The envelope carries `method` (and
   `reportDate`, `notInReport`). The fake module lists every mailbox's entries without an identity; the Core tests
   hold each method's answer equal to the piped one's
-- 2026-10-30 — measured live by the main session (620 mailboxes; the worktree's Release build; a fresh sign-in whose
+- 2026-10-30 — measured live by the main session (some 600 mailboxes; the worktree's Release build; a fresh sign-in whose
   Graph token carries Reports.Read.All; each run alone, from a cold process). `mailbox access --user` for an account
   with 8 grants: piped 122 s, `identityless` exit 13 in 6 s ("Identity is a mandatory value to provide for running
   Get-ExoMailboxPermission"), 4 sidecars 41 s, 8 sidecars 37 s, the same 8 grants each time. `mailbox size --top 5`:
@@ -104,10 +104,10 @@ token, never with the module's own sign-in per process.
   `graph+admin-api`, 5 rows, the report's day 2026-10-27
 - 2026-10-30 — re-checked live with the new defaults on the rebuilt Release build (00:52–00:54, the cached token):
   `mailbox size --top 5` without `--method` exit 0 in 16852 ms, backend `graph+admin-api`, method `report`, 5 rows,
-  the footer "sizes from the mailbox usage report of 2026-10-27; 30 mailbox(es) not in the report yet" (30 of 620:
-  the 18 room and 2 scheduling mailboxes are likely among them, which the usage report does not list, and mailboxes
+  the footer "sizes from the mailbox usage report of 2026-10-27; 30 mailbox(es) not in the report yet" (30 of some 600:
+  the room and scheduling mailboxes are likely among them, which the usage report does not list, and mailboxes
   younger than the report); `mailbox access --user <upn>` without `--method` exit 0 in 50432 ms, backend `pwsh`, 4
-  request ids, method `parallel`, 8 grants, 0 failed, 620 mailboxes scanned (41 s in the measurement; the service's
+  request ids, method `parallel`, 8 grants, 0 failed, every mailbox scanned (41 s in the measurement; the service's
   time varies). Both answer the tenant under a minute; no sidecar left behind
 
 ## Closing checklist

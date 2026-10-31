@@ -227,7 +227,7 @@ with its table view in the Cli (task 005, task 007):
   `ManagedBy` names anyone is left out (the envelope's `managedInExchange` counts them, a line under the table says
   so), one Exchange does not list stays as Graph lists it, and a synced group stays Graph's judgment with a line under
   the table. The backend is `graph+pwsh`, or `graph` when Graph listed no group Exchange owns (the sidecar is not
-  started); no cmdlet joined the allow-list. Measured on a tenant of 2445 groups, 2117 of them without an owner in Graph (2026-10-29): the wide
+  started); no cmdlet joined the allow-list. Measured on a tenant of some 2,500 groups, most of them without an owner in Graph (2026-10-29): the wide
   query is three pages in about 1.35 s, the narrowed Microsoft 365 query one page in about 0.65 s, which is the
   floor of the default; the command answered in 1.25 s warm and 2.1 s cold (four requests: the security query
   took two pages), against 7.9 s for the one wide query of task 005, the rest being the process start and the
@@ -386,7 +386,7 @@ saves:
   `-RecipientTypeDetails` (https://learn.microsoft.com/exchange/reference/admin-api-endpoints-mailbox), so `--shared`
   keeps the shared mailboxes of the whole list. When the run has no Admin API, or the Admin API cannot answer for a
   reason other than the sign-in (not enabled, a refused permission, a service error), the sidecar answers with
-  `Get-EXOMailbox -ResultSize Unlimited` (`-RecipientTypeDetails SharedMailbox`). Measured live on 2026-10-30: 621
+  `Get-EXOMailbox -ResultSize Unlimited` (`-RecipientTypeDetails SharedMailbox`). Measured live on 2026-10-30: some 600
   mailboxes in 7.5 s, no pwsh started.
 - `mailbox access <mailbox>`: FullAccess (`Get-EXOMailboxPermission`), Send As (`Get-EXORecipientPermission
   -AccessRights SendAs`) and Send on Behalf; the direct, allowed grants only, without `NT AUTHORITY\…` entries.
@@ -408,10 +408,10 @@ saves:
   the organization's Send As entries. A mailbox whose permissions could not be read makes the answer partial (exit
   code 6). The throttling budget is the module's: the `Get-EXO*` cmdlets back off and retry a throttled request
   themselves, and a request that still fails is exit code 5. The module sends one request per piped mailbox, about
-  0.2 s each: over 620 mailboxes the lookup took 138 s, unthrottled (task 016, measured 2026-10-29). So the
+  0.2 s each: over some 600 mailboxes the lookup took 138 s, unthrottled (task 016, measured 2026-10-29). So the
   FullAccess entries are read in parallel by default (task 043): the piped mailboxes split into `--sidecars N`
   shares, 2 to 8, 4 by default, each on its own sidecar connected with the same token at once. Measured 2026-10-30
-  over 620 mailboxes for an account with 8 grants: piped 122 s, 4 sidecars 41 s, 8 sidecars 37 s, so the floor is
+  over some 600 mailboxes for an account with 8 grants: piped 122 s, 4 sidecars 41 s, 8 sidecars 37 s, so the floor is
   the service's time per mailbox, about 0.2 s, spread over the sidecars, and 8 buy almost nothing over 4.
   `--method piped` keeps the one sidecar. `Get-EXOMailboxPermission` without an identity, the cmdlet's documented
   default parameter set, would be one listing call, but the module refuses it ("Identity is a mandatory value",
@@ -429,7 +429,7 @@ saves:
   (https://learn.microsoft.com/exchange/reference/admin-api-endpoints-mailbox). Measured 2026-10-30 with
   `probe admin-api --forwarding`: a `$select` of the three forwarding fields is honored but drops them (the answer
   carries `Identity` alone), and `Properties` or `PropertySets` in the body is a 400 ("Invalid parameter(s) for
-  cmdlet 'Get-Mailbox'"); the sidecar's read took 11.5 s over 620 mailboxes (38 forwarders, 15 external).
+  cmdlet 'Get-Mailbox'"); the sidecar's read took 11.5 s over some 600 mailboxes (a few dozen forwarders, a third of them external).
 - `mailbox size [<mailbox>] [--top N]`: the largest first. Every mailbox's size comes by default from Graph's
   mailbox usage report (task 043: `/reports/getMailboxUsageDetail(period='D7')`, a CSV behind a redirect, a few days
   old, three days on 2026-10-30; `Reports.Read.All` and a reports reader role), joined by user principal name to the
@@ -440,10 +440,10 @@ saves:
   9 with the setting in the hint, and without the permission it is exit code 8 naming it. One mailbox, and
   `--method piped`, read the live size: `Get-EXOMailboxStatistics`, the size read from the service's text (`1.2 GB
   (1,288,490,188 bytes)`), a request per mailbox, about 0.1 s each; `--method parallel` splits the piped mailboxes
-  across `--sidecars N`. Measured 2026-10-30 over 620 mailboxes, `--top 5`: report 16 s, piped 56 s, 4 sidecars
+  across `--sidecars N`. Measured 2026-10-30 over some 600 mailboxes, `--top 5`: report 16 s, piped 56 s, 4 sidecars
   35 s, 8 sidecars 37 s. Under `--verbose` the report method writes when each of its two reads answered, timed from
   their common start (task 048): `mailbox size, report method: Graph's usage report answered after … ms` and the same
-  line for the Admin API's mailbox list. Measured live on 2026-10-30 over 621 mailboxes: the usage report answered
+  line for the Admin API's mailbox list. Measured live on 2026-10-30 over some 600 mailboxes: the usage report answered
   after 1.9 s, the Admin API's mailbox list after 6.5 s, the command in 6.5 s with no sidecar, so the list is the
   slow half.
 - `mailbox folder-permissions <mailbox> [--folder <path>]` (task 042): `Get-MailboxFolderPermission -Identity
@@ -993,9 +993,9 @@ lookup, runs the command line's `MailboxLookups.AccessForUserAsync(backends, …
 `mailbox access --user` takes with its defaults: the FullAccess entries of every mailbox read `parallel` over four
 sidecars (task 043), the first share on the window's warm session and the others on sidecars started for the request
 over the window's one token, which end with the request. Before it, one bulk read on the warm session took 262 s over
-620 mailboxes in the window (2026-10-30) against the command line's 41 s. The `user-grants` reply carries
+some 600 mailboxes in the window (2026-10-30) against the command line's 41 s. The `user-grants` reply carries
 `"method": "parallel"`, as the command line's `--json` does. Under `--verbose` the request's `window:` line names the
-sidecars by counts only: `mailbox-access answered in … ms through pwsh (FullAccess of 620 mailbox(es) read parallel
+sidecars by counts only: `mailbox-access answered in … ms through pwsh (FullAccess of N mailbox(es) read parallel
 over 4 sidecar(s): the window's session and 3 started for this request); exchange session 1, sidecar starts 1, …`;
 `exchange` still describes the warm session alone. A mailbox's access (above) starts no extra sidecar.
 

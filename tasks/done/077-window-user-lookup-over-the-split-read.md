@@ -16,7 +16,7 @@ The window's `mailbox-access` request for a user (which mailboxes a user can ope
 lookup the way the command line does since task 043, the FullAccess read split across several sidecars, instead of one
 bulk read on the window's single warm session.
 Why: a live user lookup in the window took 262 s on 2026-10-30 (one sidecar over every mailbox), while the command
-line's split read takes 41 s over 620 mailboxes; four minutes is unusable for the support team.
+line's split read takes 41 s over some 600 mailboxes; four minutes is unusable for the support team.
 Done when: the window's user lookup answers in the command line's time over the same tenant, the `window:` log line
 names the number of sidecars, and the warm session for the mailbox direction is kept.
 Part of the window follow-ups bundle (077, 080) of the seventh round of 2026-10-30; the task session owns the steps
@@ -58,7 +58,7 @@ the task session verifies over the fixtures and the fake module.
   after the dispose), and `BridgeDispatcher.DescribeSidecars` writes it into the request's `window:` line by counts
   only: `mailbox-access answered in … ms through pwsh (FullAccess of 6 mailbox(es) read parallel over 3 sidecar(s): the
   window's session and 2 started for this request); exchange session 1, sidecar starts 1, …` over the fake module's
-  six mailboxes (shares of `ceil(6/4) = 2`, so three sidecars; over 620 mailboxes it is four).
+  six mailboxes (shares of `ceil(6/4) = 2`, so three sidecars; over some 600 mailboxes it is four).
 - 2026-10-30 — `BridgeServices.ForWindow` keeps one `ExchangeSessionOptions` per token source (a
   `ConditionalWeakTable`), as the command line's `ExchangeRunner` shares one options object between its session and the
   extra ones: the options memoize the target, so the extra sidecars ask Graph for the organization's name once per
@@ -91,11 +91,11 @@ the task session verifies over the fixtures and the fake module.
   findings); the front end because of the sample: `npm ci`, `npm run lint`, `npm run typecheck`, `npm run
   test:coverage` (117 tests, 100% statements, branches, functions and lines), `npm run build`.
 - Not verified here: the live timing of a user lookup in the window over the tenant (the target: the command line's
-  41 s over 620 mailboxes, against 262 s before) and the live `window:` line with `over 4 sidecar(s)`. Both are the main
+  41 s over some 600 mailboxes, against 262 s before) and the live `window:` line with `over 4 sidecar(s)`. Both are the main
   session's, in its signed-in round after the merge.
-- 2026-10-31 — live, after the merge, over the tenant's 620 mailboxes: the window's user lookup answered in 54.0 s
+- 2026-10-31 — live, after the merge, over the tenant's some 600 mailboxes: the window's user lookup answered in 54.0 s
   (53 793 ms; 262 s on 2026-10-30 before this task, the command line's split read 41 s), and the `window:` line read
-  `FullAccess of 620 mailbox(es) read parallel over 4 sidecar(s): the window's session and 3 started for this
+  `FullAccess of N mailbox(es) read parallel over 4 sidecar(s): the window's session and 3 started for this
   request`. A mailbox lookup right after answered in 1.4 s through `admin-api+pwsh` with `sidecar starts 1`
   unchanged, so the warm session served it and no sidecar was started. The 13 s over the command line is the three
   cold sidecar starts, the measure the warm-pool follow-up was waiting for.

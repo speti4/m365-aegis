@@ -83,7 +83,7 @@ Tenth round of 2026-10-31, on one branch with task 090; the task session owns th
   `refused-without-yes`, the card's "Stopped: check the mailbox before you try again") refreshes too, since some
   changes may have been made.
 - A card that shows a user's grants (the reverse lookup) is not read again: that lookup reads every mailbox over
-  several sidecars (41 s over 620 mailboxes on the command line), too heavy to repeat on its own; a follow-up.
+  several sidecars (41 s over some 600 mailboxes on the command line), too heavy to repeat on its own; a follow-up.
 - "Over the fake module": the core side, a grant applied over the fake module and visible to the next
   `mailbox-access`, is held by task 082's `BridgeWriteTests`; this task's request side is held over the browser mock
   and a scripted host in Vitest. The real window was not opened in this session.

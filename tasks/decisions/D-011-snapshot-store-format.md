@@ -10,7 +10,7 @@ sources: [wip/083-spike-snapshot-store-format-and-size.md]
 ## Context
 
 M5's views answer "who can reach what" from a snapshot instead of live reads: live, the reverse mailbox lookup alone
-takes 41 s over 620 mailboxes (task 043), while the access view of task 084 has to answer in under a second. Task 087
+takes 41 s over some 600 mailboxes (task 043), while the access view of task 084 has to answer in under a second. Task 087
 builds the store and `snapshot take`; this decision gives it the shape. The constraints: the data lives under the
 home folder and never in the repo (D-005), a snapshot holds no token or secret, and its source is the Core's existing
 reads plus the one read it lacks (sharing).
@@ -29,13 +29,16 @@ consent the app registration does not have yet.
 
 **The counts.** The fixtures are too small to scale by ratio (7 users, 9 groups, 6 mailboxes, 7 mailbox grants, 3
 forwarders, 5 folder permission entries over 2 calendars, 3 sites, 2 teams, no sharing link), so the spike's model
-takes the tenant counts already measured, 621 mailboxes (task 048), 2445 groups (task 032) and 38 forwarders (task
-055), and estimates the rest: 850 users (520 with a mailbox, 100 shared mailbox accounts, 150 guests, 80 without a
-mailbox), 2445 groups (280 Microsoft 365, 1100 security, 900 distribution, 165 mail-enabled security), 51,600 direct
-member edges (most groups 1 to 12 members, 14% 20 to 120, 1% all-staff; 10% hold one to three groups), 60,100 user to
-group rows of the transitive closure, 1,660 owners, 400 sites (280 behind a group), 220 teams, 9,900 shared items with
-12,400 grantees (25 a site), 1,240 mailbox grants, 2,290 calendar permission entries and 38 forwarders: 143,000 rows.
-A stress model doubles the groups and puts 250 shared items on a site: 616,000 rows, 170,000 shared items. The live
+takes the tenant counts already measured, some 600 mailboxes (task 048), some 2,500 groups (task 032) and a few dozen
+forwarders (task 055), and estimates the rest: under a thousand users (most with a mailbox, some shared mailbox
+accounts, a hundred-odd guests, a few dozen without a mailbox), the groups split into a few hundred Microsoft 365,
+about a thousand security, several hundred distribution and under two hundred mail-enabled security, some fifty
+thousand direct member edges (most groups 1 to 12 members, 14% 20 to 120, 1% all-staff; 10% hold one to three
+groups), some sixty thousand user to group rows of the transitive closure, under two thousand owners, a few hundred
+sites (most behind a group), a couple of hundred teams, some ten thousand shared items with a little over ten
+thousand grantees (25 a site), over a thousand mailbox grants, over two thousand calendar permission entries and a
+few dozen forwarders: about 150,000 rows. A stress model doubles the groups and puts 250 shared items on a site:
+about 600,000 rows, 170,000 shared items. The live
 counts are the maintainer's check before deciding (below).
 
 **The measurements** (task 083, 2026-10-30, the maintainer's machine, a warm file cache; the write and the in-process
@@ -111,30 +114,31 @@ shared items of a few sites (a drive's `delta` with `Prefer: hierarchicalsharing
 The decision holds if the shared items stay within the stress model (170,000); the JSON shapes stay viable only well
 under it.
 
-Decided by the maintainer on 2026-10-31 after the live counts of that day, read through the command line: 1021 users
-(guests not readable under the current scopes), 2446 groups (434 Microsoft 365, 135 distribution, 13 mail-enabled
-security, 1871 security), about 8,400 direct member edges (a 41-group sample, 3.4 members a group, against the model's
-51,600), 111 sites from `/sites?search=*` with no OneDrive among them, 620 mailboxes and 39 forwarders; every measured
-count is within or under the model. The shared items were not counted (the raw `call` sends no `Prefer` header), and
+Decided by the maintainer on 2026-10-31 after the live counts of that day, read through the command line: about a thousand
+users (guests not readable under the current scopes), some 2,500 groups (a few hundred Microsoft 365, a hundred-odd
+distribution, a dozen mail-enabled security, the rest security), under ten thousand direct member edges (a small
+sample, three to four members a group, a sixth of the model's estimate), a hundred-odd sites from `/sites?search=*`
+with no OneDrive among them, some 600 mailboxes and a few dozen forwarders; every measured count is within or under
+the model. The shared items were not counted (the raw `call` sends no `Prefer` header), and
 the maintainer declined `Sites.FullControl.All` as too strong a consent for this tool: the sharing-link read of task
 092 measures what `Sites.Read.All` gives, which may narrow the store's sharing scope but not its shape.
 
 **The sharing read, measured on 2026-10-31 (task 092)** under the delegated `Sites.Read.All` the app has, over six
-of the tenant's 106 site drives with the cached token. The route task 087 builds: the sites from `/sites?search=*`
-(111, one page); the drive and the group behind each site from `/sites/{id}/drive?$select=id,owner,quota,driveType`
-in `$batch` of 20 (`owner.group` names the Microsoft 365 group for 93 of the 106 drives; 3 sites have no drive, 2 are
+of the tenant's hundred-odd site drives with the cached token. The route task 087 builds: the sites from `/sites?search=*`
+(a hundred-odd, one page); the drive and the group behind each site from `/sites/{id}/drive?$select=id,owner,quota,driveType`
+in `$batch` of 20 (`owner.group` names the Microsoft 365 group for most of the drives; a few sites have no drive, two are
 `accessDenied` for the administrator and are recorded as failed in the manifest; `/groups/{id}/sites/root` is not the
 route, 1 of 5 answered); the shared items from the drive's `delta` with `Prefer: hierarchicalsharing` (an item with a
-`shared` facet is one whose sharing differs from its parent's: 372 of 13,701 items on the largest drive against 1,006
-of 1,007 without the header, so the preference is honored although no `Preference-Applied` header is returned; about
-2 s a 1000-item page, 33,042 items in 74 s); the grantees from each marked item's `permissions` (274 calls, every one
+`shared` facet is one whose sharing differs from its parent's: a few hundred of the largest drive's over ten thousand items, against all
+but one of them without the header, so the preference is honored although no `Preference-Applied` header is returned; about
+2 s a 1000-item page, some thirty thousand items in 74 s); the grantees from each marked item's `permissions` (274 calls, every one
 200, 354 ms a call, 7.5 entries an item). The store keeps the link entries (scope, type, roles, expiry, password flag;
 never the URL) with the users of a `users` link from `grantedToIdentitiesV2`, and the direct grants to a user or an
-Entra group from `grantedToV2`; it drops the site's own SharePoint groups (`siteGroup`, 822 of 2,042 entries, which the
+Entra group from `grantedToV2`; it drops the site's own SharePoint groups (`siteGroup`, two fifths of the sampled entries, which the
 group behind the site already covers) and the entries inherited from a parent in the snapshot (203). The sample
 carried 459 organization links, 26 `users` links and no anonymous link. The gap of the read-only consent: other users'
 OneDrives answer 403 (`/me/drive` 200), so the sharing domain is the SharePoint sites' document libraries and the
-manifest records OneDrive as skipped. The estimate for the tenant: about 4,400 marked items and 20,000 grantee rows,
+manifest records OneDrive as skipped. The estimate for the tenant: a few thousand marked items and some twenty thousand grantee rows,
 within the model; sequentially about 26 minutes of permission calls, so the take batches them and reads a few drives
 in parallel, and keeps each drive's `deltaLink` in the manifest for a later incremental take.
 

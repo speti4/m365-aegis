@@ -58,11 +58,11 @@ signed-in round.
   `Get-AcceptedDomain`, external first. `mailbox size [<mailbox>] [--top N]`: `Get-EXOMailboxStatistics`, piped
   for every mailbox, the bytes read from the service's text. The fake module has six made-up mailboxes with
   permissions, forwarding and sizes (`tests/sidecar/README.md`); envelope and table snapshots accepted
-- 2026-10-29 — the cost of the bulk calls, read from the live round (620 mailboxes): every command pays about
+- 2026-10-29 — the cost of the bulk calls, read from the live round (some 600 mailboxes): every command pays about
   2.8 s before its first cmdlet (pwsh 0.5 s, the import 1.1 s, the connect 1.3 s); listing every mailbox costs
   about 2.5 s (`mailbox list` 5.4 s in all). `mailbox access --user` took 138 s: the recipient, the mailbox list
   and the organization's Send As list are a few seconds together, so about 125 s, some 0.2 s a mailbox, is
-  `Get-EXOMailboxPermission` over the 620 piped mailboxes: the module sends one REST request per piped identity
+  `Get-EXOMailboxPermission` over every mailbox piped in (some 600): the module sends one REST request per piped identity
   and does not batch them, so that call is the floor of this shape. `mailbox size --top 5` took 80 s, about 0.12
   s a mailbox for `Get-EXOMailboxStatistics`. A `-ResultSize` or a property trim would not cut it: the cost is
   the round trip per mailbox, not the payload. What could: `Get-EXOMailboxPermission` without an identity (the
@@ -88,12 +88,12 @@ signed-in round.
   findings); with an empty `M365AEGIS_HOME` `doctor --offline` exited 0 (`sidecar-script` passes on the changed
   script), `whoami` 3, `mailbox list` 3; the window's `--smoke` 0; `release.ps1 -DryRun` green. The new test data
   went through the anonymizer scan, which flagged only the made-up contoso, fabrikam and example addresses
-- 2026-10-29 — against the tenant (620 mailboxes), in the main session's signed-in round (evening, UTC+1) from
+- 2026-10-29 — against the tenant (some 600 mailboxes), in the main session's signed-in round (evening, UTC+1) from
   this branch's Release build, every command exit 0 unless named: `mailbox access <a shared mailbox>` 5494 ms,
-  10 holders (FullAccess 6, Send As 4); `mailbox access --user <the admin>` 138427 ms, 620 mailboxes scanned, 0
-  grants (the admin account holds no mailbox rights), 0 failed; `mailbox forwarders` 9653 ms, 38 forwarders, 15
-  external; `mailbox size <the shared mailbox>` 4214 ms; `mailbox size --top 5` 80448 ms, 5 rows, the table's
-  footer "5 of 620 mailbox(es), 268.6 GB in all"; `mailbox access <no such address>` exit 4 `not-found` with the
+  10 holders (FullAccess 6, Send As 4); `mailbox access --user <the admin>` 138427 ms, every mailbox scanned, 0
+  grants (the admin account holds no mailbox rights), 0 failed; `mailbox forwarders` 9653 ms, a few dozen forwarders, a
+  third of them external; `mailbox size <the shared mailbox>` 4214 ms; `mailbox size --top 5` 80448 ms, 5 rows, the table's
+  footer naming 5 of the tenant's mailboxes and their size in all; `mailbox access <no such address>` exit 4 `not-found` with the
   right hint, its message then the service's raw REST error, cut to one sentence afterwards (task 015's Log). The
   reverse lookup finished without throttling; its cost is in the Log
 

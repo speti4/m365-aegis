@@ -13,7 +13,7 @@ milestone: M5 Snapshot and views
 ## Context
 
 A measured spike over the fixtures and one live read: what a nightly snapshot of groups, sites, sharing and
-mailbox permissions holds for this tenant (620 mailboxes), how large it is as JSON files versus one SQLite file under
+mailbox permissions holds for this tenant (some 600 mailboxes), how large it is as JSON files versus one SQLite file under
 the home folder, how the access view of task 084 would query it in under a second, and how a day's snapshot is kept
 or pruned; the answer is a decision record (D-011) with the store's shape, not code.
 Why: M5 has no task yet and every M5 item depends on the store; a format chosen in the first implementation is a
@@ -24,7 +24,7 @@ Ninth round of 2026-10-30, on its own branch; the task session owns the steps be
 session created `tasks/decisions/D-011-snapshot-store-format.md` as a `proposed` skeleton in the promote commit (task
 sessions create no ids); the task session fills it and leaves it `proposed`. The one live read (the tenant's counts of
 groups, sites, sharing links and mailbox permissions) is the main session's; the spike measures over the fixtures and
-scales to 620 mailboxes, and names the live numbers as the maintainer's check in the decision.
+scales to some 600 mailboxes, and names the live numbers as the maintainer's check in the decision.
 
 ## Docs that move
 
@@ -41,7 +41,7 @@ scales to 620 mailboxes, and names the live numbers as the maintainer's check in
 ## Steps
 
 1. [x] The inventory: which reads the Core already has for groups (members, owners, transitive), sites and sharing,
-       mailbox permissions in both directions, and what each record holds; the fixture counts and a scale to 620
+       mailbox permissions in both directions, and what each record holds; the fixture counts and a scale to some 600
        mailboxes and this tenant's group count (estimated, the live count is the maintainer's)
 2. [x] The size measured: the scaled snapshot as JSON files (one per domain, gzip and plain), one JSON document,
        JSON Lines and one SQLite file (text keys and integer keys), in a throwaway script under the scratchpad; the
@@ -62,8 +62,8 @@ scales to 620 mailboxes, and names the live numbers as the maintainer's check in
   Send on Behalf both ways, forwarding and calendar permissions. Missing for the snapshot: sharing links and direct
   grants on files, and the group behind a site. The fixtures hold 7 users, 9 groups, 6 mailboxes, 7 mailbox grants,
   3 forwarders, 5 calendar entries, 3 sites, 2 teams and no sharing link, too few to scale by ratio; the model takes
-  the measured tenant counts already in the docs (621 mailboxes, 2445 groups, 38 forwarders) and estimates the rest
-  (D-011, "The counts"): 143,000 rows; a stress model of 616,000 rows (twice the groups, 250 shared items a site)
+  the measured tenant counts already in the docs (some 600 mailboxes, some 2,500 groups, a few dozen forwarders) and estimates the rest
+  (D-011, "The counts"): about 150,000 rows; a stress model of about 600,000 rows (twice the groups, 250 shared items a site)
 - 2026-10-30 — measured with a throwaway Python script (standard library) and two throwaway .NET 10 consoles in the
   scratchpad, outside the repo: System.Text.Json for the JSON shapes, Microsoft.Data.Sqlite 10.0.14 for SQLite (its
   restore there gave the licenses from the nuspecs: MIT, and Apache-2.0 for the four SQLitePCLRaw 2.1.13 packages;
@@ -92,7 +92,7 @@ scales to 620 mailboxes, and names the live numbers as the maintainer's check in
 
 ## Verification
 
-- 2026-10-30 — the estimated model (143,000 rows; Python 3.13 for the write and the in-process query, median of 3
+- 2026-10-30 — the estimated model (about 150,000 rows; Python 3.13 for the write and the in-process query, median of 3
   writes and 7 queries; the cold .NET 10 process is the wall time of the whole run, median of 3, warm file cache):
 
   | shape | size | write | one-user query, in process | one-user query, cold .NET process |
@@ -105,7 +105,7 @@ scales to 620 mailboxes, and names the live numbers as the maintainer's check in
   | SQLite, text ids as keys | 24.7 MB (5.8 MB gzip) | 306 ms | 4.4 ms (5.1 ms recursive) | 111 ms |
   | SQLite, integer keys | 5.1 MB | 114 ms | 1.9 ms | 110 ms |
 
-- 2026-10-30 — the stress model (616,000 rows):
+- 2026-10-30 — the stress model (about 600,000 rows):
 
   | shape | size | write | one-user query, in process | one-user query, cold .NET process |
   | --- | --- | --- | --- | --- |
