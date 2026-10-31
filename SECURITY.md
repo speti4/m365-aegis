@@ -12,8 +12,10 @@ ships with the next release.
 
 ## Verifying a release
 
-A release is `m365-aegis-<version>.zip` on the Releases page, with `SHA256SUMS.txt` and its notes. Check it three
-ways before you run it:
+A release is `m365-aegis-<version>.zip` on the Releases page, with `SHA256SUMS.txt` and its notes. Next to the
+exes the zip holds `README.txt` (what the folder holds and these checks in short), `SETUP.md` and `GUIDE.md` (the
+administrator's setup and the usage guide, the same files as `docs/setup.md` and `docs/usage.md`), `LICENSE.txt`
+and `THIRD-PARTY-NOTICES.md`. Check it three ways before you run it:
 
 - **The checksum.** `(Get-FileHash .\m365-aegis-<version>.zip).Hash` prints the value of `SHA256SUMS.txt` in capitals.
 - **The build provenance.** `gh attestation verify .\m365-aegis-<version>.zip --repo speti4/m365-aegis` shows that

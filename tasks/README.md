@@ -14,15 +14,11 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-10-31 — edit the files, not this section._
 
-**State:** 11 backlog (1 ready · 0 blocked · 0 waiting · 10 ideas) · 1 in progress · 95 done · 0 dropped · 12 decisions
+**State:** 10 backlog (0 ready · 0 blocked · 0 waiting · 10 ideas) · 2 in progress · 95 done · 0 dropped · 12 decisions
 
 ### Ready
 
-#### M6 Release and team
-
-| # | Task | Size | Created |
-|---|---|---|---|
-| 107 | [The setup and usage guides, the license and a readme in the release zip](backlog/107-guides-license-and-readme-in-the-release-zip.md) | S | 2026-10-31 |
+_none_
 
 ### Needs decision
 
@@ -71,6 +67,7 @@ _none_
 | # | Task | Started | Plan |
 |---|---|---|---|
 | 106 | [A user-facing README and a setup guide for another tenant's administrator](wip/106-user-facing-readme-and-setup-guide.md) | 2026-10-31 | `none` |
+| 107 | [The setup and usage guides, the license and a readme in the release zip](wip/107-guides-license-and-readme-in-the-release-zip.md) | 2026-10-31 | `none` |
 
 ### Closed – do not reopen
 

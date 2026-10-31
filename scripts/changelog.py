@@ -22,7 +22,7 @@ Between a tag push and the commit that stamps its section, `--check` reads a new
 `## <version>` heading for as not there yet, so its tasks are still checked under Unreleased and a pull request
 opened in that window stays green; a run without `--check` stamps it.
 
-`--notes` prints (or writes) one section as release notes, with a footer on the checksum and the license file;
+`--notes` prints (or writes) one section as release notes, with a footer on the checksum and the zip's files;
 scripts/release.ps1 calls it and the release job publishes the result. A version without a tag yet gets the
 Unreleased section (a dry run before the tag). Needs git with the tags (CI: a full-depth checkout) and nothing
 beyond the standard library; the frontmatter reader and the roadmap are the ones of scripts/sync-issues.py.
@@ -278,8 +278,15 @@ def render_notes(sections: list[Section], version: str, url: str) -> str:
         f"`{zip_name}` holds the Windows exes. `SHA256SUMS.txt` holds the zip's SHA-256; in PowerShell,",
         f"`(Get-FileHash {zip_name}).Hash` prints the same value in capitals. The zip also has a build provenance",
         f"attestation: `gh attestation verify {zip_name} --repo speti4/m365-aegis` shows that this repository's release",
-        "workflow built it. The zip holds `THIRD-PARTY-NOTICES.md`, the open-source packages shipped with the exes",
-        f"and their licenses. The full history is in [CHANGELOG.md]({url}/blob/main/CHANGELOG.md).",
+        "workflow built it.",
+        "",
+        "### In the zip",
+        "",
+        "Next to the exes: `SETUP.md`, the administrator's setup, and `GUIDE.md`, the usage guide, the same files as",
+        f"[docs/setup.md]({url}/blob/main/docs/setup.md) and [docs/usage.md]({url}/blob/main/docs/usage.md) on GitHub;",
+        "`README.txt`, what the folder holds and how to check it; `LICENSE.txt`; and `THIRD-PARTY-NOTICES.md`, the",
+        "open-source packages shipped with the exes and their licenses. The full history is in",
+        f"[CHANGELOG.md]({url}/blob/main/CHANGELOG.md).",
     ]
     return sync_issues._trim(lines) + "\n"
 

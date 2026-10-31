@@ -31,10 +31,10 @@ checks before a commit and the project rules are in [CONTRIBUTING.md](../CONTRIB
 - `scripts/` — the helper scripts: the release and its signature, the changelog, the commit rules, the fixture check, the
   vulnerability check, the front end's license check, the Pester version pin.
 - `docs/` — this page, the user's guide (`usage.md`, shipped in the zip as `GUIDE.md`; `UsageGuideTests` and
-  `scripts/release.ps1` read it by that name), the administrator's setup guide for a tenant (`setup.md`: the app
-  registration, the permissions table, the consent), the git workflow, the maintainer sessions, origin and research;
-  `docs/images/` holds the README's window picture, taken from the front end's browser mock (`npm run dev --prefix
-  gui/web`, made-up data only).
+  `scripts/release.ps1` read it by that name), the administrator's setup guide for a tenant (`setup.md`, shipped as
+  `SETUP.md`: the app registration, the permissions table, the consent), the git workflow, the maintainer sessions,
+  origin and research; `docs/images/` holds the README's window picture, taken from the front end's browser mock
+  (`npm run dev --prefix gui/web`, made-up data only) and is copied into the zip as `images/`.
 - `tasks/` — the backlog, the work in flight, the history and the decisions (the task standard).
 - `.github/workflows/` — CI, the commit rules, the tagged release and the weekly advisory check;
   `.github/dependabot.yml` — the weekly dependency updates.
@@ -1409,10 +1409,25 @@ ReadyToRun into one folder (D-007: the .NET 10 runtime is Windows Update's to pa
 release of ours), checks that `m365-aegis.exe` carries the version of `Directory.Build.props` (the only place it
 is written), writes `THIRD-PARTY-NOTICES.md` (nuget-license over the shipped packages in Markdown, then the
 front end's packages from the lock file by `scripts/npm-licenses.py`), signs the product's files when it is given a
-certificate (below), copies the usage guide `docs/usage.md` as `GUIDE.md` (task 086: the guide is the support
-team's, who have the zip and no repo; the README is a contributor's), and packs everything into
-`dist\m365-aegis-<version>.zip`: the two exes, their assemblies, `wwwroot\`, `sidecar\aegis-exo-sidecar.ps1`, the
-notices and the guide. No XML documentation file ships, neither ours nor the
+certificate (below), copies the guides and the license (task 107: the guides live in `docs/` on GitHub first, and
+the zip carries the same files for the support team and the administrator, who have the zip and no repo; the
+README is a contributor's), writes `README.txt`, and packs everything into `dist\m365-aegis-<version>.zip`:
+
+| In the zip | From | What it is |
+|---|---|---|
+| `m365-aegis.exe`, `m365-aegis-gui.exe`, their assemblies | the publish | the command line and the window |
+| `wwwroot\`, `sidecar\aegis-exo-sidecar.ps1` | the publish | the window's page, the Exchange Online sidecar |
+| `THIRD-PARTY-NOTICES.md` | nuget-license, `scripts/npm-licenses.py` | the shipped packages and their licenses |
+| `SETUP.md` | `docs/setup.md` (task 106) | the administrator's setup |
+| `GUIDE.md` | `docs/usage.md` (task 086) | the usage guide |
+| `LICENSE.txt` | `LICENSE` | the project's MIT license |
+| `README.txt` | written by the script | what the folder holds, the GitHub URL, how to check the download and the signature |
+| `images\` | `docs/images/`, when it exists | the guides' pictures, so their relative links `images/<file>` work unzipped |
+
+A checkout that lacks one of the guides or the license fails the run before anything is built. After packing, the
+script opens the zip and fails when one of the
+exes, the notices, `README.txt` or a guide is missing at its top level, so the `windows` job's dry run checks the
+file list on every pull request. No XML documentation file ships, neither ours nor the
 packages' (`PublishDocumentationFile` and `PublishReferencesDocumentationFiles` off, task 031; the script fails
 when one is left in the folder): they were 919 KB, the WebView2 SDK's 639 KB of it. The publish of 2026-10-30
 is 11.6 MB unpacked and 4.7 MB zipped. Next to the zip it writes `SHA256SUMS.txt` (the
@@ -1484,7 +1499,9 @@ it under `tasks/done/`, or under *Unreleased* when no tag holds it yet. The tag 
 written by hand and kept by every run; the lists are never edited by hand. A task that changed the project rather
 than the product (the repo, CI, the process) carries `changelog: housekeeping` in its frontmatter and is listed
 last, under *Project housekeeping*. The release notes are one section of the changelog without that group (one
-line counts it and links the changelog), with a footer on the checksum, the attestation and the notices file. The
+line counts it and links the changelog), with a footer on the checksum and the attestation, and one on the zip's
+files that names the guides in it (`SETUP.md`, `GUIDE.md`) next to their sources on GitHub (`docs/setup.md`,
+`docs/usage.md`), `README.txt`, `LICENSE.txt` and the notices file. The
 script reads the task files through the parser of `scripts/sync-issues.py`, the issue mirror's script. A release
 goes like this:
 

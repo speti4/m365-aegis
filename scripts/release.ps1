@@ -8,7 +8,11 @@ The version is the one in Directory.Build.props, the only place it is written. T
 dependent, ReadyToRun win-x64 publish of M365Aegis.Cli (m365-aegis.exe) and M365Aegis.Gui (m365-aegis-gui.exe
 with wwwroot\, the built front end) in one folder (D-007), the Exchange Online sidecar script under sidecar\,
 THIRD-PARTY-NOTICES.md (nuget-license over the shipped packages, plus the front end's packages from the lock
-file) and GUIDE.md (docs\usage.md, the guide for the support team; task 086). Next to the zip go SHA256SUMS.txt
+file), GUIDE.md (docs\usage.md, the guide for the support team; task 086), SETUP.md (docs\setup.md, the
+administrator's setup; task 106), LICENSE.txt (LICENSE), README.txt (written here: what the folder holds, where the
+project lives, how to check the download) and images\ (docs\images, when it exists; task 107); a missing guide or
+license fails the run before anything is built. The packed
+zip is opened and its top-level files checked before the checksum is written. Next to the zip go SHA256SUMS.txt
 (the zip's SHA-256 in `sha256sum -c` format) and release-notes-<version>.md (scripts\changelog.py --notes, the body
 of the GitHub release, with a line on the signature). CI runs this script on a v<version> tag with -Tag set, which
 must match the version; by hand the tag check is skipped. -DryRun publishes and packs into a temporary folder and
@@ -58,6 +62,13 @@ if ($RequireSignature -and -not $CertificatePath) {
 }
 if ($RequireSignature -and -not $TimestampUrl) { throw "-RequireSignature without -TimestampUrl: the signatures of a release are timestamped" }
 if ($CertificatePath -and -not (Test-Path -LiteralPath $CertificatePath -PathType Leaf)) { throw "no certificate file at '$CertificatePath'" }
+
+# The guides and the license the zip ships: the repo's file and its name in the zip (tasks 086, 106, 107). A missing
+# one fails here, before anything is built.
+$docs = [ordered]@{ "docs\usage.md" = "GUIDE.md"; "docs\setup.md" = "SETUP.md"; "LICENSE" = "LICENSE.txt" }
+foreach ($doc in $docs.Keys) {
+    if (-not (Test-Path -LiteralPath (Join-Path $root $doc) -PathType Leaf)) { throw "missing for the zip: $doc (its $($docs[$doc]))" }
+}
 
 # Python as `python`, else through the `py` launcher, which is all some Windows installs put on PATH.
 $python = (Get-Command python -ErrorAction SilentlyContinue).Source
@@ -132,12 +143,76 @@ $notices = Join-Path $publish "THIRD-PARTY-NOTICES.md"
 if ($LASTEXITCODE -ne 0) { throw "nuget-license failed ($LASTEXITCODE)" }
 & $python @pythonArgs -I (Join-Path $root "scripts\npm-licenses.py") --notices $notices
 if ($LASTEXITCODE -ne 0) { throw "npm-licenses failed ($LASTEXITCODE)" }
-# The guide is the support team's (docs\usage.md, task 086), who have the zip and no repo; the README is a contributor's.
-Copy-Item (Join-Path $root "docs\usage.md") (Join-Path $publish "GUIDE.md")
+# The guides are the support team's and the administrator's, who have the zip and no repo (tasks 086, 106, 107): the
+# same files as docs\ on GitHub, under the names above. docs\images\ goes along as images\, so a guide's relative
+# image links (images/<file>, next to the guide in docs\) work in the unzipped folder too.
+foreach ($doc in $docs.Keys) { Copy-Item -LiteralPath (Join-Path $root $doc) (Join-Path $publish $docs[$doc]) }
+$images = Join-Path $root "docs\images"
+if (Test-Path -LiteralPath $images -PathType Container) { Copy-Item -LiteralPath $images (Join-Path $publish "images") -Recurse }
+
+# README.txt: plain text for a reader with the zip alone (the repo's README.md is a contributor's), CRLF for Notepad.
+$readme = @(
+    "m365-aegis $version",
+    "",
+    "A thin Microsoft 365 operations layer for Windows 11: the m365-aegis command line and the m365-aegis-gui",
+    "window. The project, its documentation and its releases: https://github.com/speti4/m365-aegis",
+    "",
+    "What this folder holds",
+    "",
+    "  m365-aegis.exe           the command line",
+    "  m365-aegis-gui.exe       the window",
+    "  wwwroot\                 the window's page",
+    "  sidecar\                 the Exchange Online sidecar script the tool starts in pwsh",
+    "  the other files          the tool's assemblies, the packages it uses, their settings and debug symbols"
+)
+$readme += @(
+    "  SETUP.md                 the administrator's setup: what to install and register before the first sign-in",
+    "  GUIDE.md                 the usage guide: the commands, the window's cards, the doctor's checks",
+    "  LICENSE.txt              the MIT license of m365-aegis",
+    "  THIRD-PARTY-NOTICES.md   the open-source packages shipped with the exes and their licenses",
+    "  README.txt               this file"
+)
+if (Test-Path -LiteralPath (Join-Path $publish "images") -PathType Container) {
+    $readme += "  images\                  the pictures of the guides"
+}
+$readme += ""
+$readme += @(
+    "The guides are Markdown, readable in any text editor; on GitHub they are docs/setup.md and docs/usage.md.",
+    "Start with SETUP.md (an administrator, once per tenant), then GUIDE.md."
+)
+$readme += @(
+    "",
+    "Check the download",
+    "",
+    "  SHA256SUMS.txt, next to the zip on the Releases page, holds the zip's SHA-256. In PowerShell",
+    "  (Get-FileHash .\m365-aegis-$version.zip).Hash prints the same value in capitals.",
+    "  gh attestation verify .\m365-aegis-$version.zip --repo speti4/m365-aegis shows that the repository's",
+    "  release workflow built the zip from a tag on main.",
+    ""
+)
+if ($CertificatePath) {
+    $readme += @(
+        "  The exes and the tool's own assemblies are signed with the project's own certificate, not one of a public",
+        "  certificate authority, so Windows may warn on the first start until your administrator trusts it. The",
+        "  release notes name the signer and the certificate's thumbprint; Get-AuthenticodeSignature .\m365-aegis.exe",
+        "  shows the signer here, and m365-aegis doctor checks every signed file (its signature row)."
+    )
+} else {
+    $readme += "  The exes of this build are not signed."
+}
+[System.IO.File]::WriteAllText((Join-Path $publish "README.txt"), (($readme -join "`r`n") + "`r`n"), (New-Object System.Text.UTF8Encoding $false))
 
 $zip = Join-Path $outDir "m365-aegis-$version.zip"
 if (Test-Path $zip) { Remove-Item -Force $zip }
 Compress-Archive -Path (Join-Path $publish "*") -DestinationPath $zip -CompressionLevel Optimal
+
+# The packed zip's top level holds the exes and every file a reader of the download needs; a copy dropped above
+# shows here, in the windows job's dry run of every pull request too (task 107).
+$archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
+try { $entries = @($archive.Entries | ForEach-Object FullName) } finally { $archive.Dispose() }
+$expected = @("m365-aegis.exe", "m365-aegis-gui.exe", "THIRD-PARTY-NOTICES.md", "README.txt") + @($docs.Values)
+$absent = @($expected | Where-Object { $_ -notin $entries })
+if ($absent.Count -gt 0) { throw "missing in the zip: $($absent -join ', ')" }
 
 # "<sha256>  <file name>" and a LF, as sha256sum writes it, so `sha256sum -c SHA256SUMS.txt` checks the download.
 $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
@@ -150,6 +225,7 @@ Write-Output "version:  $version (exe properties: $stamped)"
 Write-Output "signing:  $signing"
 Write-Output "publish:  $publish ($publishMb MB unpacked)"
 Write-Output "zip:      $zip ($zipMb MB)"
+Write-Output "docs:     $((@($docs.Values) + "README.txt") -join ', ')"
 Write-Output "sha256:   $hash ($sums)"
 Write-Output "notes:    $notes"
 if ($DryRun) {
