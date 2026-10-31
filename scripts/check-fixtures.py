@@ -5,8 +5,9 @@ enters the repo"): every domain is contoso.com, fabrikam.com, example.com or the
 .sharepoint.com forms, every GUID is of the form 00000000-0000-0000-0000-0000000000NN, and nothing looks like a JWT.
 This script walks tests/fixtures, tests/sidecar, tests/contracts and the snapshot folders of the test projects, and
 reads the repo's prose (the docs with the usage guide, which the release zip ships, the task files, which the GitHub
-issues mirror, and the community files at the root and under .github), and fails on anything else, so a real value
-cannot slip in with a recording, an accepted snapshot, an example or a Verification line.
+issues mirror, and the community files at the root and under .github; a file git ignores, such as the maintainer's
+CLAUDE.local.md, is skipped because it never enters a commit), and fails on anything else, so a real value cannot
+slip in with a recording, an accepted snapshot, an example or a Verification line.
 
 A domain is any name of two or more labels that ends in one of TOP_LEVEL_DOMAINS (task 094: `realcompany.hu` is
 the common shape of a real tenant's domain). It passes only when it is one of the made-up tenants' (MADE_UP_TENANTS)
@@ -25,6 +26,7 @@ Graph fixture is stored under).
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -160,7 +162,31 @@ def prose_files() -> list[Path]:
     paths = sorted(ROOT.glob("*.md"))
     for folder in PROSE_FOLDERS:
         paths += sorted(path for path in folder.rglob("*.md") if path.is_file())
-    return paths
+    return without_git_ignored(paths)
+
+
+def without_git_ignored(paths: list[Path]) -> list[Path]:
+    """The paths git does not ignore: a gitignored file (`CLAUDE.local.md`, the maintainer's tenant notes) never
+    enters a commit, so it is not the scan's to judge; without git on the PATH every path is kept."""
+    if not paths:
+        return paths
+    relative = [path.relative_to(ROOT).as_posix() for path in paths]
+    try:
+        # NUL-separated both ways (-z) and bytes, not text: a text pipe on Windows turns "\n" into "\r\n" and git
+        # then looks for a path with a trailing carriage return, which is never ignored.
+        result = subprocess.run(
+            ["git", "-C", str(ROOT), "check-ignore", "--stdin", "-z"],
+            input=b"".join(name.encode("utf-8") + b"\0" for name in relative),
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return paths
+    # Exit code 0: some paths are ignored (listed on stdout); 1: none; anything else: git could not tell.
+    if result.returncode not in (0, 1):
+        return paths
+    ignored = {name.decode("utf-8") for name in result.stdout.split(b"\0") if name}
+    return [path for path, name in zip(paths, relative, strict=True) if name not in ignored]
 
 
 # Each case is a line and whether the rules flag it: the self-test fails when one of them is judged otherwise.
