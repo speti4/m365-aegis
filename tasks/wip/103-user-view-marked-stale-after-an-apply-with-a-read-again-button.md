@@ -32,28 +32,47 @@ reshape them.
 
 ## Steps
 
-1. [ ] The stale mark on the user view when a `plan-applied` names the shown user (`applied-writes.ts`,
+1. [x] The stale mark on the user view when a `plan-applied` names the shown user (`applied-writes.ts`,
        `mailbox-access-card.tsx`), the "Read again" button that sends one reverse lookup, no mark for another user
-2. [ ] Vitest holds both cases over the mock transport, 100% coverage held; Biome and the typecheck clean
-3. [ ] Docs under *Docs that move*; the Verification dated; `tasks_check` without `write` clean apart from the stale
+2. [x] Vitest holds both cases over the mock transport, 100% coverage held; Biome and the typecheck clean
+3. [x] Docs under *Docs that move*; the Verification dated; `tasks_check` without `write` clean apart from the stale
        index
 
 ## Log
 
 - 2026-10-31 — promoted on `task/102-access-card-and-window-words` by the main session
+- 2026-10-31 — `applied-writes.ts`: an `AppliedWrite` also carries `users`, the users the write card asked for and the
+  addresses in its changes' details (`detailAddresses`: "FullAccess for Bob Example (bob@contoso.com)"); `namesUser`
+  matches them to the shown user's principal name or display name in any case. `mailbox-write-cards.tsx` keeps the
+  request's users beside its mailbox and tells them with the apply
+- 2026-10-31 — `mailbox-access-card.tsx`: while the card shows a user's grants, a grant or a revoke that names the user
+  sets `stale` on the result: a notice "A change on the Mailbox rights card named this user since this list was read,
+  so it may be out of date. Reading it again goes over every mailbox and takes a while." with "Read again", which sends
+  one `mailbox-access` with `{"user": …}` and is disabled while a lookup runs; the new answer clears the mark. The
+  mailbox view's automatic refresh of task 091 is unchanged; a forwarding or an apply for another user marks nothing
+- 2026-10-31 — docs: `docs/usage.md` "Mailbox access" (a paragraph of its own), `docs/development.md` "The user view's
+  stale mark"
 
 ## Deviations from the plan
 
-- none yet
+- The channel's message gains `users` rather than a second channel: the card that listens already filters by the
+  operation, and the users come from the request and the plan, as the mailbox and the addresses do
+- `settle()` of the DOM tests waits a few more turns of the clock (task 102's Deviations): the chain apply, then the
+  access card's request, failed now and then on `main` already
 
 ## Verification
 
-- <dated, concrete: the two Vitest cases, the coverage line>
+- 2026-10-31 — Vitest `applied-writes.test.tsx`, "the mailbox access card's user view after an apply (task 103)": a grant
+  for bob marks bob's list and sends no request, a second apply sends none, "Read again" sends exactly one
+  `mailbox-access` `{"user": "bob@contoso.com"}` and shows the new FullAccess on Finance; a revoke for bob marks it; a
+  grant for alice and a forwarding to bob mark nothing and send nothing; a user named by the plan's detail address
+  alone marks it, and "Read again" is disabled while its lookup runs. `detailAddresses` and `namesUser` unit cases. The
+  task 091 cases of the file unchanged and green; the suite 194 tests, coverage 100% on all four measures
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green (the stale index is the main session's)
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
+- [x] `tasks_check` green (the stale index is the main session's)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
