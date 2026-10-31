@@ -34,21 +34,39 @@ session's, over the broker's cached token.
 
 ## Steps
 
-1. [ ] Measure first: how the take finds the calendar folder name today (which cmdlet, how many calls) and what the
+1. [x] Measure first: how the take finds the calendar folder name today (which cmdlet, how many calls) and what the
        baseline take's folderPermissions domain costs (the main session's numbers)
-2. [ ] The piped read over the sidecar (the allow-list, the C# allow-list in `ExoCmdlets.cs` and the Pester tests if a
+2. [x] The piped read over the sidecar (the allow-list, the C# allow-list in `ExoCmdlets.cs` and the Pester tests if a
        pipeline needs a new request shape), the domain's `read` label names the piped form
-3. [ ] The fake module and the take fixtures give the same calendar rows; the Core tests and the sidecar Pester tests hold it
+3. [x] The fake module and the take fixtures give the same calendar rows; the Core tests and the sidecar Pester tests hold it
 4. [ ] The live measurement of both reads in the Verification; docs under *Docs that move*; `tasks_check` without
        `write` clean apart from the stale index
 
 ## Log
 
 - 2026-10-31 — promoted on `task/097-snapshot-take-exchange-and-sharing` by the main session
+- 2026-10-31 — measure first: the take named each calendar through `MailboxLookups.FolderPermissionsAsync` without a
+  folder, so `CalendarPathAsync` sent one `Get-EXOMailboxFolderStatistics -Identity <mailbox> -FolderScope Calendar` per
+  mailbox before the Admin API's `Get-MailboxFolderPermission`: over the fixtures 6 sidecar and 6 Admin API calls for 6
+  mailboxes; the live baseline is in the Verification
+- 2026-10-31 — `MailboxLookups.CalendarPathsAsync`: `Get-EXOMailbox` (with `ExchangeGuid`), then the mailboxes' object
+  ids piped into one `Get-EXOMailboxFolderStatistics -FolderScope Calendar` over the sidecar's existing `input`
+  (`-Identity` takes pipeline input by value, as the cmdlet's docs say), so no new request shape and the allow-list is
+  unchanged (D-004). A folder is matched to its mailbox by `ContentMailboxGuid`/`MailboxGuid` (the mailbox's
+  `ExchangeGuid`), else by its `Identity` up to the first backslash, a name one mailbox alone answers to; the shortest
+  `Calendar`-type path wins, as before. A mailbox the piped read does not name is read one by one as before, and the
+  domain's note counts those, so the live take shows whether the matching held. Over the fixtures: 2 sidecar calls, the
+  same calendar rows. The fake module's folder statistics now carry `Identity` and `ContentMailboxGuid`; a Pester test
+  pipes three identities (one unknown) in one call; `CalendarPathsTests` hold the identity match, an ambiguous name, a
+  folder no mailbox owns, a mailbox without a calendar, no mailbox, a failed read (empty answer, logged) and a refused
+  sign-in
 
 ## Deviations from the plan
 
-- none yet
+- The piped read pipes the mailboxes' object ids through the sidecar's existing `input` instead of a new
+  `Get-EXOMailbox | ...` pipeline request: the same documented pipeline, no change to the allow-list or the protocol
+- One sidecar runs the piped read, not a split across sidecars as the grants read does; the live numbers decide whether
+  a split is worth a follow-up
 
 ## Verification
 

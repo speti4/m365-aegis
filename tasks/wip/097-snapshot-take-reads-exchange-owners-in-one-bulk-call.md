@@ -32,9 +32,9 @@ read); the task session owns the steps below and may reshape them. The live befo
 
 ## Steps
 
-1. [ ] The owners domain in `SnapshotTake.OwnersAsync`: one bulk `ManagedBy` read over the Exchange-owned groups
+1. [x] The owners domain in `SnapshotTake.OwnersAsync`: one bulk `ManagedBy` read over the Exchange-owned groups
        (the read of task 089), the rows matched to the take's groups, the `read` label names the bulk cmdlet
-2. [ ] The fake module and the take fixtures give the same owner rows as before; the Core tests hold it
+2. [x] The fake module and the take fixtures give the same owner rows as before; the Core tests hold it
 3. [ ] The live before/after of the owners domain (the main session's numbers) in the Verification
 4. [ ] Docs under *Docs that move*; the Verification dated; `tasks_check` without `write` clean apart from the stale
        index
@@ -42,10 +42,22 @@ read); the task session owns the steps below and may reshape them. The live befo
 ## Log
 
 - 2026-10-31 — promoted on `task/097-snapshot-take-exchange-and-sharing` by the main session
+- 2026-10-31 — measure first: every domain of the manifest now carries `elapsedMs`, `graphRequests`, `throttledMs`,
+  `adminApiCalls` and `sidecarCalls` (counted by `GraphClient.RequestsSent` and per layer by `ExchangeBackends`), shown
+  as the `time` and `requests` columns of `snapshot take` and `snapshot show`; no schema change (manifest keys only).
+  Over the fixtures the owners domain sent 4 sidecar calls for 2 Exchange-owned groups (2 per group:
+  `Get-DistributionGroup -Identity`, then a piped `Get-EXORecipient`)
+- 2026-10-31 — `GroupWrites.ExchangeOwnerListsAsync`: one `Get-DistributionGroup -ResultSize Unlimited`
+  (`ExternalDirectoryObjectId`, `ManagedBy`) and one piped `Get-EXORecipient` over every distinct owner name; each
+  group's owners are the recipients its names resolve to, a name no recipient answers to is listed as it is (the
+  per-group read's rule, now shared through `Unresolved`). The take matches by the group's object id; a group Exchange
+  does not list is a `not-found` item, a failed bulk read makes each Exchange-owned group an item that failed. Over the
+  fixtures: 2 sidecar calls, the same 5 owner rows (`SnapshotTakeTests`); `SnapshotEdgeTests` hold the missing group,
+  the empty `ManagedBy`, the unresolved role group and the failed bulk read
 
 ## Deviations from the plan
 
-- none yet
+- The per-domain timings and request counts (not in the steps) came first, as the round's measurement for 097 and 100
 
 ## Verification
 
