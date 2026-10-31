@@ -241,3 +241,11 @@ reads beyond the lookups' own:
 So dave reaches Finance and Finance Staff through Finance EU, the sites of Finance and Project Phoenix, `Reports`
 through Finance EU, `Roadmap.pptx` directly and through Finance Staff, Reception's FullAccess and carol's calendar
 through Finance Staff: the answer `SnapshotAccessTests` holds.
+
+Task 098's changed snapshot (`SnapshotSamples.SeedChangedAsync`) is the same file a day later,
+`2026-11-01T060000Z.sqlite`, changed with SQL in the test's home: the device left Finance EU and bob joined Project
+Phoenix, carol no longer owns Finance EU and dave owns Project Phoenix, the organization link on `Budget.xlsx` is gone
+and bob holds the users link on `Roadmap.pptx`, Finance Staff lost Reception's FullAccess and dave got Finance's,
+carol's `Default` calendar entry went from free/busy to Reviewer, bob's external forwarding is gone and alice forwards
+to carol, keeping a copy. The group Finance is renamed Finance Team and every integer key is moved by 100, which
+`snapshot diff` must not show as changes.

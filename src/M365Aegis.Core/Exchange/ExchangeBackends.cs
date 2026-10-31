@@ -130,6 +130,18 @@ public sealed class ExchangeBackends : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Drops a layer from <see cref="Backend"/>: one that was asked and refused, and whose part the answer does without
+    /// (task 096), so the backend names the layers the answer comes from.
+    /// </summary>
+    internal void Forget(string backend)
+    {
+        lock (_lock)
+        {
+            _used.Remove(backend);
+        }
+    }
+
     /// <summary>Ends the extra sidecars.</summary>
     public async ValueTask DisposeAsync()
     {

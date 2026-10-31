@@ -316,6 +316,30 @@ public sealed class GroupLookupsTests
     }
 
     [Fact]
+    public async Task AllTypesFallsBackToGraphOnlyWhenExchangeRefusesForAMissingRole()
+    {
+        // Task 096: a refusal for a missing role answers with Graph's list and a warning; any other failure stays the error.
+        var transport = new ScriptedTransport(_ => new GraphResponse(200, [], """
+            {"value":[{"id":"00000000-0000-0000-0000-000000000041","displayName":"Unlisted","mail":"unlisted@contoso.com","groupTypes":[],"securityEnabled":false}]}
+            """));
+        var refused = new CannedRunner(_ => throw new AegisException(FailureKind.Forbidden, "the Exchange Online cmdlet failed: access denied", "a role"));
+        var unavailable = new CannedRunner(_ => throw new AegisException(FailureKind.SidecarUnavailable, "the ExchangeOnlineManagement module is not installed", "install it"));
+        await using var fallback = new ExchangeBackends(refused, graph: () => new GraphClient(transport));
+        await using var failing = new ExchangeBackends(unavailable, graph: () => new GraphClient(transport));
+
+        CommandResult<OwnerlessGroups> result = await GroupLookups.OwnerlessAsync(fallback, allTypes: true, None);
+        AegisException error = await Assert.ThrowsAsync<AegisException>(() => GroupLookups.OwnerlessAsync(failing, allTypes: true, None));
+
+        Assert.Equal(["Unlisted"], result.Data!.Groups.Select(group => group.DisplayName));
+        Assert.Null(result.Data.ManagedInExchange);
+        Assert.Equal(
+            ["the distribution and mail-enabled security groups are judged by Graph's empty owner list: Exchange Online refused the ManagedBy read (the Exchange Online cmdlet failed: access denied); a role"],
+            result.Data.Warnings);
+        Assert.Equal("graph", fallback.Backend);
+        Assert.Equal(FailureKind.SidecarUnavailable, error.Failure.Kind);
+    }
+
+    [Fact]
     public async Task AllTypesWithoutAGroupExchangeOwnsAsksNothingOfTheSidecar()
     {
         var transport = new ScriptedTransport(_ => new GraphResponse(200, [], """

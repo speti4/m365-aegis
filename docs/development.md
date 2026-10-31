@@ -832,6 +832,21 @@ in part or whole. No snapshot, or no such user, is exit code 4 with the take as 
 cold process (D-011); over the fixture snapshot the whole process takes a few hundred milliseconds
 (`SnapshotCommandTests` holds it under three seconds on a CI runner), the queries a few milliseconds of it.
 
+**The diff.** `snapshot diff <a> [<b>]` (task 098, `SnapshotDiff.Compare`) is D-011's comparison: the first snapshot
+opened read-only, the second attached to it (`attach database … as other`, read-only like the connection), and one
+statement per domain, `members`, `owners`, `sharing` (a link or a direct grant with each grantee, a link without one
+as one row), `grants`, `folderPermissions` and `forwarding`, that turns each side's rows into a key and keeps the rows
+whose key the other side lacks (two `not in` over the two materialized sides). A key is made of the principals'
+identities, the builder's: the object id, else the user principal name, else the kind and the address or name, so
+neither the integer keys of a file nor a display name take part, and a changed right or calendar permission is one
+removed and one added row. A pick (`SnapshotDiff.Resolve`) is a snapshot's name, `latest`, or `yesterday` or a date,
+the newest readable snapshot taken on that UTC day or before it; a word that is none is a usage error (exit code 2),
+a pick that finds no snapshot exit code 4. A domain that either manifest records as failed or skipped, or lacks, is
+left out with a warning, and one that rests on a partial domain (`sharing` on `sites`) is compared with a warning;
+a manifest key the diff does not know is ignored. `SnapshotDiffTests` and `SnapshotCommandTests` hold it over the
+fixture snapshot and its changed copy (`SnapshotSamples.SeedChangedAsync`: one row removed and one added per domain,
+a group renamed, every integer key moved).
+
 **The schedule.** A Task Scheduler task with an interactive logon and `-StartWhenAvailable`, as the usage guide's
 "A snapshot every morning" gives it: the take uses the silent sign-in only (D-003), the MSAL cache is the user's DPAPI
 and the broker answers in the user's session, so it runs while that user is logged on, and a refused sign-in is the

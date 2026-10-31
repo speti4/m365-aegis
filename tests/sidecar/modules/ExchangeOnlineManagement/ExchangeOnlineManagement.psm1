@@ -522,6 +522,15 @@ function ConvertTo-FakeGroup {
     }
 }
 
+function Assert-FakeRole {
+    # An account without the Exchange Online role a cmdlet needs (task 096): the cmdlets M365AEGIS_FAKE_EXO_NO_ROLE names,
+    # comma-separated, are refused with an access denial, as the service refuses them.
+    param([string] $Cmdlet)
+    if ($env:M365AEGIS_FAKE_EXO_NO_ROLE -and ($env:M365AEGIS_FAKE_EXO_NO_ROLE -split ',') -contains $Cmdlet) {
+        throw "fake: Access denied. The account isn't assigned a management role that runs '$Cmdlet' (403)."
+    }
+}
+
 function Get-DistributionGroup {
     # A distribution or mail-enabled security group with its owners (task 064): ManagedBy lists them by name. Without an
     # identity, every group up to ResultSize, as the bulk read of owners-missing --all-types asks (task 089).
@@ -529,6 +538,7 @@ function Get-DistributionGroup {
     param([Parameter(ValueFromPipeline)] [string] $Identity, [object] $ResultSize = 1000)
     process {
         Assert-FakeConnected
+        Assert-FakeRole 'Get-DistributionGroup'
         if (-not $Identity) {
             $groups = @($script:Groups)
             if ("$ResultSize" -ne 'Unlimited') { $groups = @($groups | Select-Object -First ([int] $ResultSize)) }

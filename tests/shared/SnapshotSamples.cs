@@ -3,6 +3,7 @@ using M365Aegis.Core.Exchange;
 using M365Aegis.Core.Exchange.AdminApi;
 using M365Aegis.Core.Output;
 using M365Aegis.Core.Snapshots;
+using Microsoft.Data.Sqlite;
 
 namespace M365Aegis.Tests;
 
@@ -50,6 +51,55 @@ internal static class SnapshotSamples
         string file = Path.Combine(folder, SnapshotStore.NameFor(taken ?? Taken));
         await File.WriteAllBytesAsync(file, await Bytes.Value);
         return file;
+    }
+
+    /// <summary>When the changed snapshot of <see cref="SeedChangedAsync"/> is taken: a day after the fixture's.</summary>
+    internal static readonly DateTimeOffset ChangedTaken = Taken.AddDays(1);
+
+    /// <summary>
+    /// The fixture snapshot a day later (task 098), copied under the name of <see cref="ChangedTaken"/> and changed in
+    /// place: one row removed and one added in each domain <c>snapshot diff</c> compares, a group renamed, and every
+    /// integer key moved by 100, so a diff that matched rows by key or by display name would show changes it must not.
+    /// </summary>
+    internal static async Task<string> SeedChangedAsync(string home)
+    {
+        string file = await SeedAsync(home, ChangedTaken);
+        Execute(file, """
+            update objects set name = 'Finance Team' where objectId = '00000000-0000-0000-0000-000000000031';
+            delete from members where groupKey = 9 and memberKey = 14;
+            insert into members values (10, 2);
+            delete from owners where groupKey = 9 and ownerKey = 3;
+            insert into owners values (10, 4, 'graph');
+            delete from links where key = 1;
+            insert into linkGrantees values (6, 2);
+            delete from grants where mailboxKey = 7 and holderKey = 11;
+            insert into grants values (6, 'full-access', 4);
+            update folderPermissions set rights = 'Reviewer' where mailboxKey = 3 and principalName = 'Default';
+            delete from forwarding where mailboxKey = 2;
+            insert into forwarding values (1, 'recipient', 'Carol Example', 'carol@contoso.com', 3, 0, 1);
+            update objects set key = key + 100;
+            update members set groupKey = groupKey + 100, memberKey = memberKey + 100;
+            update userGroups set userKey = userKey + 100, groupKey = groupKey + 100, viaKey = viaKey + 100;
+            update owners set groupKey = groupKey + 100, ownerKey = ownerKey + 100;
+            update sites set key = key + 100, groupKey = groupKey + 100;
+            update teams set groupKey = groupKey + 100;
+            update links set key = key + 100, siteKey = siteKey + 100;
+            update linkGrantees set linkKey = linkKey + 100, principalKey = principalKey + 100;
+            update grants set mailboxKey = mailboxKey + 100, holderKey = holderKey + 100;
+            update folderPermissions set mailboxKey = mailboxKey + 100, principalKey = principalKey + 100;
+            update forwarding set mailboxKey = mailboxKey + 100, targetKey = targetKey + 100;
+            """);
+        return file;
+    }
+
+    /// <summary>Runs statements against a seeded snapshot file (a test's change of its rows or its manifest).</summary>
+    internal static void Execute(string file, string sql)
+    {
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = file, Pooling = false }.ToString());
+        connection.Open();
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.ExecuteNonQuery();
     }
 
     private static async Task<byte[]> BuildAsync()

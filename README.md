@@ -23,7 +23,8 @@ sign-ins and reports. Every write behind a plan and a confirmation.
 - **Writes behind a plan.** Group members and owners, mailbox rights and forwarding, one at a time or from a CSV file:
   `--dry-run` shows the plan, `--yes` applies it, and every apply leaves a record that `--resume` can continue.
 - **Snapshots.** Who can reach what (groups, sites, shared files, mailboxes, calendars) read into one local file, so
-  `access <user>` answers in under a second without signing in.
+  `access <user>` answers in under a second without signing in, and `snapshot diff` shows who gained or lost access
+  between two of them.
 - **A window for the team.** Task cards for the daily Exchange and group work the admin centers make slow, each write
   ending in a confirmation.
 
