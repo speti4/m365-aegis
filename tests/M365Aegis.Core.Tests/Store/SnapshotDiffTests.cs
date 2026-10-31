@@ -125,6 +125,7 @@ public sealed class SnapshotDiffTests
             update manifest set value = replace(value, '"status":"ok"', '"status":"failed"') where key = 'domain.grants';
             update manifest set value = replace(value, '"status":"ok"', '"status":"skipped"') where key = 'domain.forwarding';
             delete from manifest where key in ('domain.members', 'order.members');
+            update manifest set value = replace(value, '"status":"ok"', '"status":"partial"') where key = 'domain.owners';
             """);
 
         SnapshotDiffReport diff = SnapshotDiff.Compare(home, "contoso", "yesterday", "latest", Now);
@@ -136,6 +137,8 @@ public sealed class SnapshotDiffTests
         Assert.Contains($"members is left out: members was not read in {Second}", diff.Warnings);
         Assert.Contains($"grants is left out: grants was not read in {Second}", diff.Warnings);
         Assert.Contains($"forwarding is left out: forwarding was not read in {Second}", diff.Warnings);
+        // A manifest written before the take counted the unread items: the count is unknown, not 0.
+        Assert.Contains($"owners is partial in {Second} (items not read: unknown): the owners rows of those items may show as removed or added", diff.Warnings);
     }
 
     [Fact]

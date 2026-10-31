@@ -46,7 +46,7 @@ column, table or manifest field the take writes, and it does not change the acce
 3. [x] The `snapshot diff` command of the command line with its table rendering and envelope (the output contract's
        snapshot tests); two fixture snapshots with one added and one removed row per domain; a diff of a snapshot with
        itself is empty
-4. [ ] The live timing over two tenant snapshots (the main session's) in the Verification; docs under *Docs that
+4. [x] The live timing over two tenant snapshots (the main session's) in the Verification; docs under *Docs that
        move*; `tasks_check` without `write` clean apart from the stale index
 
 ## Log
@@ -80,6 +80,9 @@ column, table or manifest field the take writes, and it does not change the acce
   the built exe, the self-diff's "no change", exit codes 4 and 2, the table as a Verify snapshot, a cold process under
   three seconds), `TableViewTests` (a domain left out). Docs: the usage guide's "What changed between two snapshots",
   the development guide's "The diff" paragraph, the fixtures README's changed snapshot, the README's snapshot bullet.
+- 2026-10-31 — after the live check: a partial domain whose manifest has no count of its unread items (a take before
+  the per-item failure count, as the tenant's first snapshot) is warned as "items not read: unknown" instead of "0
+  item(s) not read"; `SnapshotDiffTests` holds the wording.
 
 ## Deviations from the plan
 
@@ -102,13 +105,21 @@ column, table or manifest field the take writes, and it does not change the acce
   cases, 0 misses) and the scan (503 files, 0 findings), `m365-aegis.exe doctor --offline` exit 0, `whoami` exit 3 on
   an empty home, the window's `--smoke` ready in 583 ms, `scripts/release.ps1 -DryRun` with a throwaway certificate
   exit 0.
-- The live timing over two tenant snapshots: the main session's, pending.
+- 2026-10-31 — live, by the main session with this branch's build, over the two tenant snapshots of the day (6.8 MB
+  and 2.9 MB; the older one the first take, its sharing domain partial under throttling), whole cold processes after
+  a warm-up: `snapshot diff <older> latest --json` exit 0 in 748 ms (`elapsedMs` 522), both snapshots named with their
+  picks and ages (22.3 and 21.9 hours), six domains compared, no change in members, owners, grants, folderPermissions
+  and forwarding, about twenty thousand sharing rows added, which the older snapshot's partial sharing read explains;
+  `snapshot diff latest latest --json` exit 0 in 990 ms (`elapsedMs` 856), every domain 0/0; the table of the first
+  exit 0 in 1.57 s with its rows, the two snapshots, the counts and three partial warnings. Within the budget of a
+  second for the envelope. The warnings showed "0 item(s) not read" for the older manifest, which has no count: the
+  wording is fixed (Log).
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change (D-011 needs no note: the comparison attaches the second
       file as it describes)
-- [ ] Verification written, dated
-- [ ] `tasks_check` green (the stale index is the main session's)
+- [x] Verification written, dated
+- [x] `tasks_check` green (the stale index is the main session's)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge

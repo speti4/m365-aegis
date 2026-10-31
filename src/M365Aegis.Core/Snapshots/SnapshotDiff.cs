@@ -253,13 +253,16 @@ public static class SnapshotDiff
             .Where(pair => pair.Domain is null || pair.Domain.Status is SnapshotDomainStatus.Failed or SnapshotDomainStatus.Skipped)
             .Select(pair => $"{pair.Name} was not read in {detail.Snapshot.Name}");
 
-    /// <summary>A domain read in part: a change among the items it could not read shows as removed or added.</summary>
+    /// <summary>
+    /// A domain read in part: a change among the items it could not read shows as removed or added. A manifest written
+    /// before the take counted the unread items has none to give, so the warning says the count is unknown.
+    /// </summary>
     private static IEnumerable<string> Partial(SnapshotDetail detail, string[] restsOn, string domain) =>
         detail.Domains
             .Where(read => read.Status == SnapshotDomainStatus.Partial && restsOn.Contains(read.Name))
             .Select(read => string.Create(
                 CultureInfo.InvariantCulture,
-                $"{read.Name} is partial in {detail.Snapshot.Name} ({read.ItemsFailed} item(s) not read): the {domain} rows of those items may show as removed or added"));
+                $"{read.Name} is partial in {detail.Snapshot.Name} ({(read.ItemsFailed > 0 ? $"{read.ItemsFailed} item(s) not read" : "items not read: unknown")}): the {domain} rows of those items may show as removed or added"));
 
     private static SnapshotDiffSide Side(SnapshotDetail detail, string pick, DateTimeOffset now) =>
         new(detail.Snapshot.Name, detail.Snapshot.Taken, Math.Round((now - detail.Snapshot.Taken).TotalHours, 1), pick.Trim());
