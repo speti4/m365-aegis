@@ -309,7 +309,8 @@ jobs:
           Get-Content (Join-Path $env:RUNNER_TEMP 'smoke-stderr.txt') -ErrorAction SilentlyContinue
           if ($process.ExitCode -ne 0) { throw "smoke exited $($process.ExitCode)" }
       # scripts/sign-release.ps1 over copies of the built files, the doctor's signature row over a signed folder, and
-      # the release script's refusal without a certificate; Pester in the version scripts/pester-version.txt names.
+      # the release script's refusal without a certificate or with one whose thumbprint is not the pinned one; Pester in
+      # the version scripts/pester-version.txt names.
       - name: The signing tests
         shell: pwsh
         run: |

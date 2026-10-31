@@ -16,3 +16,5 @@ Why: the guide is the administrator's path into the tool for every other tenant,
 the ones a stranger cannot check against anything else.
 Done when: the CLI block has run end to end once (the registration deleted afterwards), the table names the trace
 role, and both carry the date of the round in the task's Log.
+Open (2026-11-01, from the close of 096): see how a session without an Exchange role refuses `Get-DistributionGroup`;
+a hidden cmdlet ("is not recognized", exit 13) is a shape the fallback of 096 does not catch yet.
