@@ -234,7 +234,7 @@ public static class SnapshotStore
         HashSet<DateTimeOffset> keep = Keep(snapshots.Select(snapshot => snapshot.Item2).ToList(), now, retention);
         var pruned = new List<string>();
         var refused = new List<string>();
-        foreach ((string file, DateTimeOffset taken) in snapshots.Where(snapshot => !keep.Contains(snapshot.Item2)))
+        foreach (string file in snapshots.Where(snapshot => !keep.Contains(snapshot.Item2)).Select(snapshot => snapshot.File))
         {
             string name = Path.GetFileName(file);
             try

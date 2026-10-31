@@ -90,6 +90,8 @@ internal static class Program
         root.Subcommands.Add(MailboxCommand.Build(json, table, profile));
         root.Subcommands.Add(ProbeCommand.Build(json, table, profile));
         root.Subcommands.Add(PlanCommand.Build(json, table));
+        root.Subcommands.Add(SnapshotCommand.Build(json, table, profile));
+        root.Subcommands.Add(AccessCommand.Build(json, table, profile));
         return (root, json, table, verbose);
     }
 

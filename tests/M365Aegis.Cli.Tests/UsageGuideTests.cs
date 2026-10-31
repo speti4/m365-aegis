@@ -116,7 +116,7 @@ public sealed partial class UsageGuideTests
 
     [Theory]
     [MemberData(nameof(Examples))]
-    public void EveryExampleRunsOverTheFixtures(string example)
+    public async Task EveryExampleRunsOverTheFixtures(string example)
     {
         string[] words = Split(example);
         Assert.Equal("m365-aegis", words[0]);
@@ -135,7 +135,7 @@ public sealed partial class UsageGuideTests
             run[csv + 1] = PlanSamples.Csv(run[csv + 1]);
         }
 
-        (int exitCode, string stdout, string stderr) = CliTests.RunWith(Layers(profiles: args[0] == "profile"), ["--json", .. run]);
+        (int exitCode, string stdout, string stderr) = CliTests.RunWith(await LayersAsync(args[0]), ["--json", .. run]);
 
         Assert.True(stdout.StartsWith('{'), $"{example}: exit {exitCode}, no envelope: {stdout}{stderr}");
         Assert.True(exitCode == 0 || (exitCode == 7 && !write), $"{example}: exit {exitCode}: {stdout}{stderr}");
@@ -147,13 +147,19 @@ public sealed partial class UsageGuideTests
     /// <summary>
     /// The recorded Graph and Admin API answers, the fake Exchange Online module, and a home with the three sample plan
     /// records (the resume and <c>plan show</c> examples name them); the profile examples get a home with the profiles
-    /// <c>work</c> and <c>lab</c> instead.
+    /// <c>work</c> and <c>lab</c> instead, and the snapshot and access examples a home with the samples' profile and the
+    /// fixture snapshot (task 087).
     /// </summary>
-    private static Dictionary<string, string> Layers(bool profiles)
+    private static async Task<Dictionary<string, string>> LayersAsync(string command)
     {
         string home = PlanSamples.TempHome();
         Directory.CreateDirectory(home);
-        if (profiles)
+        if (command is "snapshot" or "access")
+        {
+            SnapshotSamples.WriteProfile(home);
+            await SnapshotSamples.SeedAsync(home);
+        }
+        else if (command == "profile")
         {
             File.WriteAllText(Path.Combine(home, "config.json"), """
                 {"default":"work","profiles":{

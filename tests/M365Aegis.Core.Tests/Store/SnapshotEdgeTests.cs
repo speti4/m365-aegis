@@ -179,9 +179,12 @@ public sealed class SnapshotEdgeTests
         store.Save(SnapshotSamples.Profile with { Account = "bob@contoso.com" });
         TenantProfile kept = store.Resolve("contoso");
         store.Save(SnapshotSamples.Profile with { KeepDaily = 7 });
+        TenantProfile daily = store.Resolve(null);
+        store.Save(SnapshotSamples.Profile with { KeepWeekly = 5 });
 
         Assert.Equal(("bob@contoso.com", 3, 2), (kept.Account, kept.KeepDaily, kept.KeepWeekly));
-        Assert.Equal((7, 2), (store.Resolve(null).KeepDaily, store.Resolve(null).KeepWeekly));
+        Assert.Equal((7, 2), (daily.KeepDaily, daily.KeepWeekly));
+        Assert.Equal((7, 5), (store.Resolve(null).KeepDaily, store.Resolve(null).KeepWeekly));
     }
 
     [Theory]
@@ -233,12 +236,14 @@ public sealed class SnapshotEdgeTests
         }
 
         (IReadOnlyList<string> pruned, IReadOnlyList<string> refused) = SnapshotStore.Prune(
-            folder, new SnapshotRetention(1, 1), Now.AddYears(1), file => throw new IOException($"{Path.GetFileName(file)} is in use"));
+            folder, new SnapshotRetention(1, 1), Now.AddYears(1), file => throw (file.EndsWith("01T000000Z.sqlite", StringComparison.Ordinal)
+                ? new IOException($"{Path.GetFileName(file)} is in use")
+                : new UnauthorizedAccessException("access denied")));
 
         Assert.Empty(pruned);
         Assert.Equal(
             ["2026-01-01T000000Z.sqlite could not be pruned (2026-01-01T000000Z.sqlite is in use); the next take tries again",
-             "2026-01-02T000000Z.sqlite could not be pruned (2026-01-02T000000Z.sqlite is in use); the next take tries again"],
+             "2026-01-02T000000Z.sqlite could not be pruned (access denied); the next take tries again"],
             refused);
     }
 
@@ -265,9 +270,19 @@ public sealed class SnapshotEdgeTests
         graph.Answer("/drives/d3/root/delta", 403, Error("accessDenied"));
         graph.Answer("/drives/d5/root/delta", 200, new { value = Array.Empty<object>() });
         graph.Answer("/drives/d2/items/i2/permissions", 404, Error("itemNotFound"));
-        var sidecar = new CannedRunner(command => command.Cmdlet == ExoCmdlets.GetDistributionGroup
-            ? throw new AegisException(FailureKind.CmdletFailed, "the group is gone")
-            : new ExoResult([], []));
+        // One mailbox, whose FullAccess holder is a security identifier no recipient answers to and whose forwarding
+        // target no recipient answers to either.
+        var sidecar = new CannedRunner(command => command.Cmdlet switch
+        {
+            ExoCmdlets.GetDistributionGroup => throw new AegisException(FailureKind.CmdletFailed, "the group is gone"),
+            ExoCmdlets.GetMailbox => MailboxEdgeTests.Items("""
+                {"DisplayName":"Ghost","PrimarySmtpAddress":"ghost@contoso.com","RecipientTypeDetails":"SharedMailbox","ForwardingAddress":"Nobody","GrantSendOnBehalfTo":[]}
+                """),
+            ExoCmdlets.GetMailboxPermission => MailboxEdgeTests.Items("""
+                {"Identity":"ghost@contoso.com","User":"S-1-5-21-1","AccessRights":["FullAccess"],"IsInherited":false,"Deny":false}
+                """),
+            _ => new ExoResult([], []),
+        });
         var backends = new ExchangeBackends(sidecar, null, () => graph.Client);
 
         SnapshotTakeResult take = (await SnapshotSamples.TakeAsync(home, Now, backends: backends)).Data!;
@@ -282,7 +297,8 @@ public sealed class SnapshotEdgeTests
         Assert.Contains("Site s3: Microsoft Graph answered 403", domains["sharing"].Note, StringComparison.Ordinal);
         Assert.Contains("Site s2: Shared.docx: Microsoft Graph answered 404", domains["sharing"].Note, StringComparison.Ordinal);
         Assert.Equal((SnapshotDomainStatus.Ok, 0), (domains["userGroups"].Status, domains["userGroups"].Rows));
-        Assert.Equal((SnapshotDomainStatus.Ok, 0), (domains["grants"].Status, domains["grants"].Rows));
+        Assert.Equal((SnapshotDomainStatus.Ok, 1), (domains["grants"].Status, domains["grants"].Rows));
+        Assert.Equal((SnapshotDomainStatus.Ok, 1), (domains["forwarding"].Status, domains["forwarding"].Rows));
         Assert.Equal(SnapshotDomainStatus.Failed, domains["folderPermissions"].Status);
         Assert.Equal(SnapshotTake.HierarchicalSharing, graph.Requests.First(request => request.Uri.AbsolutePath.EndsWith("/delta", StringComparison.Ordinal)).Headers["Prefer"]);
         Assert.Equal(1, take.Domains.Count(domain => domain.Status == SnapshotDomainStatus.Failed));

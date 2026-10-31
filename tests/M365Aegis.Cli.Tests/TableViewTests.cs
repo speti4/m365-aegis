@@ -10,6 +10,7 @@ using M365Aegis.Core.Graph;
 using M365Aegis.Core.Groups;
 using M365Aegis.Core.Operations;
 using M365Aegis.Core.Output;
+using M365Aegis.Core.Snapshots;
 
 namespace M365Aegis.Cli.Tests;
 
@@ -465,6 +466,66 @@ public sealed class TableViewTests
     }
 
     /// <summary>The headers, the rows and the footer of a view, cells joined by a bar, one line each.</summary>
+    [Fact]
+    public void ASnapshotTakeThatPrunedThatFailedOrThatLeftFilesBehind()
+    {
+        var domain = new SnapshotDomain("users", SnapshotDomainStatus.Ok, "graph /users", 3);
+        var info = new SnapshotInfo("2026-10-30T120000Z.sqlite", Now, 2048, []);
+        var take = new SnapshotTakeResult(info, Path.Combine("home", "snapshots", "work", info.Name), 1500, [domain], new SnapshotRetention(), ["2026-09-01T000000Z.sqlite"])
+        {
+            RemovedPartials = ["2026-10-29T000000Z.sqlite.partial"],
+            Warnings = ["2026-08-01T000000Z.sqlite could not be pruned (in use); the next take tries again"],
+        };
+
+        string pruned = Show(SnapshotTakeTableView.Instance, take);
+        string failed = Show(SnapshotTakeTableView.Instance, take with { Snapshot = info with { Failed = ["grants"] }, Pruned = [] });
+
+        Assert.Contains("users|ok|3|\nsnapshot 2026-10-30T120000Z.sqlite (2.0 KB) in ", pruned, StringComparison.Ordinal);
+        Assert.Contains(", read in 1.5 s\npruned 1 by the retention (14 days, 8 weeks): 2026-09-01T000000Z.sqlite", pruned, StringComparison.Ordinal);
+        Assert.Contains("removed 2026-10-29T000000Z.sqlite.partial, left by a take that did not finish", pruned, StringComparison.Ordinal);
+        Assert.EndsWith("warning: 2026-08-01T000000Z.sqlite could not be pruned (in use); the next take tries again", pruned, StringComparison.Ordinal);
+        Assert.Contains("nothing pruned: a domain failed, so the older snapshots are kept", failed, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ASnapshotListWithFailuresAndUnreadableFiles()
+    {
+        var list = new SnapshotList("work", "folder", [new SnapshotInfo("2026-10-30T120000Z.sqlite", Now, 10, ["grants", "sharing"])]) { Unreadable = 2 };
+
+        string table = Show(SnapshotListTableView.Instance, list);
+
+        Assert.Contains("2026-10-30 12:00:00|2026-10-30T120000Z.sqlite|10 B|grants, sharing", table, StringComparison.Ordinal);
+        Assert.Contains("2 file(s) named like a snapshot cannot be read as one and are left out", table, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnAccessViewWithoutNamesAndWithEveryKindOfRow()
+    {
+        var report = new AccessReport(
+            "2026-10-30T120000Z.sqlite",
+            Now,
+            50,
+            new AccessUser(null, null, null, "partner@fabrikam.com"),
+            [new AccessGroup(null, null, null, []), new AccessGroup("id", "Finance", "Security", ["Finance EU", "Staff"])],
+            [new AccessSite("Finance", null, null, "owner")],
+            [new AccessSharedItem("Finance", "Budget.xlsx", null, "link", "anonymous", "read", "2026-12-31T00:00:00Z", null)],
+            [new AccessMailbox(null, "x@contoso.com", "send-as", "Finance"), new AccessMailbox("Box", "box@contoso.com", "full-access", null)],
+            [new AccessCalendar(null, "x@contoso.com", "Calendar", "Reviewer", null)],
+            new AccessEveryone(0, 0, 0, 0),
+            ["a warning"]);
+
+        string table = Show(AccessTableView.Instance, report);
+
+        Assert.Contains("group|?|?|direct\ngroup|Finance|Security|Finance EU, Staff", table, StringComparison.Ordinal);
+        Assert.Contains("site|Finance|-|owner of ?", table, StringComparison.Ordinal);
+        Assert.Contains("shared|Finance: /Budget.xlsx|link anonymous read until 2026-12-31T00:00:00Z|direct", table, StringComparison.Ordinal);
+        Assert.Contains("mailbox|? <x@contoso.com>|send-as|Finance\nmailbox|Box <box@contoso.com>|full-access|direct", table, StringComparison.Ordinal);
+        Assert.Contains("calendar|? <x@contoso.com>|Calendar: Reviewer|direct", table, StringComparison.Ordinal);
+        Assert.Contains("? (partner@fabrikam.com) from the snapshot 2026-10-30T120000Z.sqlite, taken 2026-10-30 12:00:00 UTC, 50 hours ago", table, StringComparison.Ordinal);
+        Assert.EndsWith("warning: a warning", table, StringComparison.Ordinal);
+        Assert.Contains("? (00000000-0000-0000-0000-000000000001) from", Show(AccessTableView.Instance, report with { User = new AccessUser("00000000-0000-0000-0000-000000000001", null, null, null) }), StringComparison.Ordinal);
+    }
+
     private static string Show<T>(ITableView<T> view, T data)
     {
         var lines = new List<string> { string.Join("|", view.HeadersFor(data)) };

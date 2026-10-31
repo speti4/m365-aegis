@@ -4,12 +4,14 @@ using System.Text.Json;
 using M365Aegis.Cli.Commands;
 using M365Aegis.Cli.Output;
 using M365Aegis.Core.Auth;
+using M365Aegis.Core.Config;
 using M365Aegis.Core.Diagnostics;
 using M365Aegis.Core.Exchange;
 using M365Aegis.Core.Exchange.Sidecar;
 using M365Aegis.Core.Graph;
 using M365Aegis.Core.Operations;
 using M365Aegis.Core.Output;
+using M365Aegis.Core.Snapshots;
 using M365Aegis.Tests;
 using Microsoft.Identity.Client;
 
@@ -103,6 +105,31 @@ public sealed class TokenHygieneTests
             await RenderAsync(Backend.Pwsh, () => MailboxLookups.ListAsync(session, sharedOnly: false, Ct), MailboxListTableView.Instance);
         }
 
+        // A snapshot take (task 087) with the profile's tokens: Graph over the real HTTP transport (the users answer, every
+        // other read fails and its message goes into the manifest), the sidecar over the fake module; then a take whose
+        // connect the module refuses with the token in its message, which stops the take. The snapshots folder is
+        // searched with the rest of the home.
+        var snapshotHandler = new GraphLikeHandler { AnswerUsers = true };
+        int takes = 0;
+        foreach (string organization in new[] { SidecarFixtures.Organization, "refuse.contoso.onmicrosoft.com" })
+        {
+            await RenderAsync(Backend.Graph, async () =>
+            {
+                await using var session = new ExchangeSession(new ExchangeSessionOptions
+                {
+                    Start = cancellationToken => SidecarClient.StartAsync(SidecarFixtures.StartInfo(), cancellationToken),
+                    Token = tokens.GetAsync,
+                    Target = _ => Task.FromResult(new ExchangeTarget(organization, null)),
+                });
+                var snapshotGraph = new GraphClient(
+                    new HttpGraphTransport(cancellationToken => auth.GetAccessTokenAsync(Resource.Graph, null, cancellationToken), snapshotHandler),
+                    options: new GraphClientOptions { Delay = (_, _) => Task.CompletedTask, Jitter = () => 0 });
+                await using var backends = new ExchangeBackends(session, null, () => snapshotGraph);
+                var options = new SnapshotTakeOptions(home, new ProfileStore(home).Resolve(null)) { Clock = new SnapshotSamples.FixedClock(SnapshotSamples.Taken.AddMinutes(takes++)) };
+                return await SnapshotTake.RunAsync(backends, options, Ct);
+            }, SnapshotTakeTableView.Instance);
+        }
+
         // The marker in no file of the home and in neither stream; a leak is named by its sink.
         string output = stdout.ToString();
         string errors = stderr.ToString();
@@ -126,6 +153,11 @@ public sealed class TokenHygieneTests
         Assert.Contains("(forbidden)", errors, StringComparison.Ordinal);
         Assert.Contains("(service-error)", errors, StringComparison.Ordinal);
         Assert.Contains("(internal)", errors, StringComparison.Ordinal);
+        // Two snapshots of the first take's two renderings, the Graph failures and the mailboxes in them; the second take
+        // stopped at the refused connect and wrote none.
+        Assert.Equal(2, Directory.GetFiles(Path.Combine(home, "snapshots", "default")).Length);
+        Assert.All(snapshotHandler.Bearers, bearer => Assert.Equal(token, bearer));
+        Assert.Contains("(partial)", errors, StringComparison.Ordinal);
         // The fake module put the token into its refusal; the sidecar's Hide-Secret took it out.
         Assert.Contains("the service refused the token <token> (401) (auth)", errors, StringComparison.Ordinal);
     }
@@ -137,6 +169,9 @@ public sealed class TokenHygieneTests
     private sealed class GraphLikeHandler : HttpMessageHandler
     {
         internal List<string> Bearers { get; } = [];
+
+        /// <summary>Whether a GET of the users answers (the snapshot's first read) with one made-up user.</summary>
+        internal bool AnswerUsers { get; init; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -159,6 +194,14 @@ public sealed class TokenHygieneTests
                 };
                 refused.Headers.Add("request-id", "00000000-0000-0000-0000-0000000000e1");
                 return Task.FromResult(refused);
+            }
+
+            if (AnswerUsers && request.Method == HttpMethod.Get && path == "/v1.0/users")
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(new { value = new[] { new { id = "00000000-0000-0000-0000-000000000001", displayName = "Alice Example", userPrincipalName = Account } } }), Encoding.UTF8, "application/json"),
+                });
             }
 
             throw new HttpRequestException("No such host is known. (graph.microsoft.com:443)");
