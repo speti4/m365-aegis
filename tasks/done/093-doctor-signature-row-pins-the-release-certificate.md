@@ -3,6 +3,7 @@ size: S
 origin: wip/085-signed-exes-and-the-release-zip.md
 created: 2026-10-30
 started: 2026-10-31
+closed: 2026-10-31
 plan: none
 milestone: M6 Release and team
 ---
@@ -65,6 +66,8 @@ certificate) rather than the real PFX, which is not on a developer machine.
   `LocalMachine\Root` for its two tests (removed in its `AfterAll`) and runs the built doctor over a folder it signed:
   `warn` naming the signer and its thumbprint, and `pass` with the variable. It needs an elevated session, which the
   `windows` job's runner is and this machine's shell is not, so it is skipped here and runs in CI.
+- 2026-10-31 — merged in #121 (squash); closed on `main` by the main session. The follow-up filed from the pull
+  request: `release.ps1 -RequireSignature` refusing a certificate that is not the pinned one as task 095
 
 ## Deviations from the plan
 
@@ -86,4 +89,4 @@ certificate) rather than the real PFX, which is not on a developer machine.
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-10-31` by the main session after the merge

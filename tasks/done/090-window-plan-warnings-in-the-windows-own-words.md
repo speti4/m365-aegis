@@ -3,6 +3,7 @@ size: S
 origin: wip/082-window-mailbox-write-cards-behind-a-plan-and-a-confirmation.md
 created: 2026-10-30
 started: 2026-10-31
+closed: 2026-10-31
 plan: none
 milestone: M4 Window
 ---
@@ -63,6 +64,8 @@ Tenth round of 2026-10-31, on one branch with task 091; the task session owns th
   forwarding card over the browser mock from the picks to the result: no `--` flag on any of them.
 - 2026-10-31 — docs: `docs/development.md` ("The front end", the write cards: where a warning is reworded and the two
   tests), `docs/usage.md` ("Mailbox forwarding": what the plan says without the copy).
+- 2026-10-31 — merged in #120 (squash); closed on `main` by the main session. The follow-up filed from the pull
+  request: the last-owner warning in the window's words as task 104
 
 ## Deviations from the plan
 
@@ -94,4 +97,4 @@ Tenth round of 2026-10-31, on one branch with task 091; the task session owns th
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-10-31` by the main session after the merge

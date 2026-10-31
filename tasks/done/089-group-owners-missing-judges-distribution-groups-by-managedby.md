@@ -3,6 +3,7 @@ size: S
 origin: wip/076-group-owners-read-through-managedby-for-distribution-groups.md
 created: 2026-10-30
 started: 2026-10-31
+closed: 2026-10-31
 plan: none
 milestone: M3 Writes with safety
 ---
@@ -73,6 +74,9 @@ the exact commands and the expected outcomes in its report.
   (a canned sidecar: a synced list with `ManagedBy` stays, a group Exchange does not list stays, the one command
   sent; no sidecar when Graph lists no Exchange group), Cli `LookupCommandTests` (the envelope and the table over the
   built exe), `TableViewTests` (the two footer lines), Pester (the bulk read through the sidecar script).
+- 2026-10-31 — merged in #119 (squash); closed on `main` by the main session. Of the pull request's follow-ups the
+  Graph fallback without an Exchange role is filed as task 096; the duplicated `tests/fixtures/README.md` is not
+  filed: task 094 removed the second copy in #121 the same day
 
 ## Deviations from the plan
 
@@ -111,4 +115,4 @@ the exact commands and the expected outcomes in its report.
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-10-31` by the main session after the merge

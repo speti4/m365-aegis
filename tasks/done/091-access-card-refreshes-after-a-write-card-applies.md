@@ -3,6 +3,7 @@ size: S
 origin: wip/082-window-mailbox-write-cards-behind-a-plan-and-a-confirmation.md
 created: 2026-10-30
 started: 2026-10-31
+closed: 2026-10-31
 plan: none
 milestone: M4 Window
 ---
@@ -71,6 +72,8 @@ Tenth round of 2026-10-31, on one branch with task 090; the task session owns th
 - 2026-10-31 — docs: `docs/development.md` ("The front end": the access card's refresh, "The refresh after an apply",
   the mock's stateful apply), `docs/usage.md` ("Mailbox access": the card reads the mailbox again after a grant or a
   revoke).
+- 2026-10-31 — merged in #120 (squash); closed on `main` by the main session. The follow-up filed from the pull
+  request: the user view marked stale with a "Read again" button as task 103
 
 ## Deviations from the plan
 
@@ -102,4 +105,4 @@ Tenth round of 2026-10-31, on one branch with task 090; the task session owns th
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-10-31` by the main session after the merge

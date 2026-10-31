@@ -3,6 +3,7 @@ size: S
 origin: wip/083-spike-snapshot-store-format-and-size.md
 created: 2026-10-30
 started: 2026-10-31
+closed: 2026-10-31
 plan: none
 milestone: M5 Snapshot and views
 ---
@@ -59,6 +60,8 @@ tenant's values stay in a scratch file, and only counts, timings and scrubbed sh
 - 2026-10-31 — the route sent to the task session of 087 (below, Verification); OneDrives are out under the consent;
   the maintainer chose a dated note in D-011 over a new decision (the shape holds, the sharing domain narrows), written
   the same day; the `docs/development.md` line is task 087's with the route (its *Docs that move*)
+- 2026-10-31 — task 087 built the route in #122 and the live take read 21,340 sharing rows with 0 failed items once
+  the permission batches honored `Retry-After` (its Verification); closed on `main` with the round
 
 ## Deviations from the plan
 
@@ -92,8 +95,10 @@ tenant's values stay in a scratch file, and only counts, timings and scrubbed sh
 
 ## Closing checklist
 
-- [ ] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log
+      (none of its own; the incremental read from the delta links is task 099, filed from task 087's pull request)
+- [x] every doc under *Docs that move* changed in this change (D-011's note; the docs/development.md line came with
+      task 087's "Snapshots" section in #122)
+- [x] Verification written, dated
+- [x] `tasks_check` green, README index regenerated
+- [x] moved to `done/` with `closed: 2026-10-31`

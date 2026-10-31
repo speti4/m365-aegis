@@ -7,6 +7,31 @@ not the list. The summary under a heading is written by hand and kept by the gen
 
 ## Unreleased
 
+<!-- The summary above is written by hand; the list below is generated from tasks/done/ by scripts/changelog.py. -->
+
+### M3 Writes with safety
+
+- `group owners-missing --all-types` judges a distribution group by its `ManagedBy`, not by Graph's empty list ([089](https://github.com/speti4/m365-aegis/blob/main/tasks/done/089-group-owners-missing-judges-distribution-groups-by-managedby.md))
+
+### M4 Window
+
+- The window's plan warnings in the window's own words, not the command line's flags ([090](https://github.com/speti4/m365-aegis/blob/main/tasks/done/090-window-plan-warnings-in-the-windows-own-words.md))
+- The mailbox access card refreshes after a write card applies a change to the mailbox it shows ([091](https://github.com/speti4/m365-aegis/blob/main/tasks/done/091-access-card-refreshes-after-a-write-card-applies.md))
+
+### M5 Snapshot and views
+
+- `access <user>`: which groups, sites and mailboxes one user reaches, from the snapshot ([084](https://github.com/speti4/m365-aegis/blob/main/tasks/done/084-access-view-for-one-user-from-the-snapshot.md))
+- The snapshot store and `snapshot take`: groups, sites, sharing and mailbox permissions under the home folder ([087](https://github.com/speti4/m365-aegis/blob/main/tasks/done/087-snapshot-store-and-snapshot-take.md))
+- Spike: the sharing-link read for the snapshot, its consent and its time over the tenant ([092](https://github.com/speti4/m365-aegis/blob/main/tasks/done/092-spike-sharing-link-read-for-the-snapshot.md))
+
+### M6 Release and team
+
+- The `home-access` doctor check judges every account that is not the user, SYSTEM or Administrators ([088](https://github.com/speti4/m365-aegis/blob/main/tasks/done/088-home-access-check-judges-every-foreign-account.md))
+- The doctor's `signature` row pins the release certificate's thumbprint ([093](https://github.com/speti4/m365-aegis/blob/main/tasks/done/093-doctor-signature-row-pins-the-release-certificate.md))
+- `scripts/check-fixtures.py` catches two-label domains too ([094](https://github.com/speti4/m365-aegis/blob/main/tasks/done/094-check-fixtures-catches-two-label-domains.md))
+
+## 0.1.0 — 2026-10-30
+
 The repository, the task standard and the empty solution: no product yet.
 
 <!-- The summary above is written by hand; the list below is generated from tasks/done/ by scripts/changelog.py. -->

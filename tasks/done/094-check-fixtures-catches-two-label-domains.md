@@ -3,6 +3,7 @@ size: S
 origin: wip/086-usage-guide-for-the-command-line-and-the-window.md
 created: 2026-10-30
 started: 2026-10-31
+closed: 2026-10-31
 plan: none
 milestone: M6 Release and team
 ---
@@ -67,6 +68,11 @@ tightened scan when they rebase; the task session owns the steps below and may r
   runs it before the scan.
 - 2026-10-31 — `tests/fixtures/README.md` held its own text twice (a second copy from line 162 on, without the window
   bundle's section, since the merge of #89); the copy is removed and the rule is a new subsection under The rules.
+- 2026-10-31 — merged in #121 (squash); closed on `main` by the main session. The scan read the gitignored
+  `CLAUDE.local.md` among the root Markdown files and flagged the maintainer's tenant notes on every local run (CI
+  never has the file): #123 makes it skip the files `git check-ignore` names. Of the pull request's follow-ups the
+  widening of `TOP_LEVEL_DOMAINS` is not filed (the maintainer's call: a top-level domain is added when a case
+  appears, with the self-test)
 
 ## Deviations from the plan
 
@@ -88,4 +94,4 @@ tightened scan when they rebase; the task session owns the steps below and may r
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-10-31` by the main session after the merge

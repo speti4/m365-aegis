@@ -3,6 +3,7 @@ size: L
 origin: session 2026-10-30
 created: 2026-10-30
 started: 2026-10-31
+closed: 2026-10-31
 plan: none
 milestone: M5 Snapshot and views
 ---
@@ -116,6 +117,9 @@ the round.
   `docs/usage.md` with the scheduled run (`Register-ScheduledTask`, interactive logon, `-StartWhenAvailable`, exit code
   3 on a refused sign-in), "Snapshots and who can reach what" in `README.md`, "The snapshot fixture" in
   `tests/fixtures/README.md`.
+- 2026-10-31 — merged in #122 (squash); closed on `main` by the main session. The follow-ups filed from the pull
+  request: the Exchange owners in one bulk call as task 097, the incremental sharing read as task 099, the piped
+  calendar names as task 100, the calendar holder matched by address as task 101
 
 ## Deviations from the plan
 
@@ -171,4 +175,4 @@ the round.
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-10-31` by the main session after the merge

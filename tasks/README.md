@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-10-31 — edit the files, not this section._
 
-**State:** 9 backlog (0 ready · 0 blocked · 0 waiting · 9 ideas) · 0 in progress · 85 done · 0 dropped · 12 decisions
+**State:** 10 backlog (0 ready · 0 blocked · 0 waiting · 10 ideas) · 0 in progress · 94 done · 0 dropped · 12 decisions
 
 ### Ready
 
@@ -34,30 +34,31 @@ _none_
 
 | # | Task | Size | Created |
 |---|---|---|---|
-| 089 | [group owners-missing --all-types judges a distribution group by its ManagedBy, …](backlog/089-group-owners-missing-judges-distribution-groups-by-managedby.md) | S | 2026-10-30 |
+| 096 | [group owners-missing --all-types falls back to Graph's list when the account ha…](backlog/096-owners-missing-all-types-falls-back-to-graph-without-an-exchange-role.md) | S | 2026-10-31 |
 
 #### M4 Window
 
 | # | Task | Size | Created |
 |---|---|---|---|
-| 090 | [The window's plan warnings in the window's own words, not the command line's fl…](backlog/090-window-plan-warnings-in-the-windows-own-words.md) | S | 2026-10-30 |
-| 091 | [The mailbox access card refreshes after a write card applies a change to the ma…](backlog/091-access-card-refreshes-after-a-write-card-applies.md) | S | 2026-10-30 |
+| 103 | [The mailbox access card's user view is marked stale after an apply names that u…](backlog/103-user-view-marked-stale-after-an-apply-with-a-read-again-button.md) | S | 2026-10-31 |
+| 104 | [The group writes' last-owner warning in the window's words when a group write c…](backlog/104-last-owner-warning-in-the-windows-words.md) | S | 2026-10-31 |
 
 #### M5 Snapshot and views
 
 | # | Task | Size | Created |
 |---|---|---|---|
-| 084 | [access <user>: which groups, sites and mailboxes one user reaches, from the sna…](backlog/084-access-view-for-one-user-from-the-snapshot.md) | M | 2026-10-30 |
-| 087 | [The snapshot store and snapshot take: groups, sites, sharing and mailbox permis…](backlog/087-snapshot-store-and-snapshot-take.md) | L | 2026-10-30 |
-| 092 | [Spike: the sharing-link read for the snapshot, its consent and its time over th…](backlog/092-spike-sharing-link-read-for-the-snapshot.md) | S | 2026-10-30 |
+| 097 | [snapshot take reads the Exchange-owned groups' owners in one bulk Get-Distribut…](backlog/097-snapshot-take-reads-exchange-owners-in-one-bulk-call.md) | S | 2026-10-31 |
+| 098 | [snapshot diff <a> <b>: who gained or lost access between two snapshots](backlog/098-snapshot-diff-who-gained-or-lost-access.md) | M | 2026-10-31 |
+| 099 | [An incremental sharing read from the delta links the previous snapshot stored](backlog/099-incremental-sharing-read-from-the-stored-delta-links.md) | M | 2026-10-31 |
+| 100 | [The calendars' folder names in one piped Get-EXOMailboxFolderStatistics call](backlog/100-calendar-names-in-one-piped-folder-statistics-call.md) | S | 2026-10-31 |
+| 101 | [A calendar permission entry's holder is matched by its address, not only by its…](backlog/101-calendar-entry-holder-matched-by-address.md) | S | 2026-10-31 |
+| 102 | [The access view as a window card](backlog/102-access-view-as-a-window-card.md) | M | 2026-10-31 |
 
 #### M6 Release and team
 
 | # | Task | Size | Created |
 |---|---|---|---|
-| 088 | [The home-access doctor check judges every account that is not the user, SYSTEM …](backlog/088-home-access-check-judges-every-foreign-account.md) | S | 2026-10-30 |
-| 093 | [The doctor's signature row pins the release certificate's thumbprint](backlog/093-doctor-signature-row-pins-the-release-certificate.md) | S | 2026-10-30 |
-| 094 | [scripts/check-fixtures.py catches two-label domains too](backlog/094-check-fixtures-catches-two-label-domains.md) | S | 2026-10-30 |
+| 095 | [release.ps1 -RequireSignature refuses a certificate whose thumbprint is not the…](backlog/095-release-refuses-a-certificate-that-is-not-the-pinned-one.md) | S | 2026-10-31 |
 
 ### In progress
 
@@ -71,18 +72,18 @@ _none_
 
 | # | Task | Closed |
 |---|---|---|
+| 094 | [scripts/check-fixtures.py catches two-label domains too](done/094-check-fixtures-catches-two-label-domains.md) | 2026-10-31 |
+| 093 | [The doctor's signature row pins the release certificate's thumbprint](done/093-doctor-signature-row-pins-the-release-certificate.md) | 2026-10-31 |
+| 092 | [Spike: the sharing-link read for the snapshot, its consent and its time over th…](done/092-spike-sharing-link-read-for-the-snapshot.md) | 2026-10-31 |
+| 091 | [The mailbox access card refreshes after a write card applies a change to the ma…](done/091-access-card-refreshes-after-a-write-card-applies.md) | 2026-10-31 |
+| 090 | [The window's plan warnings in the window's own words, not the command line's fl…](done/090-window-plan-warnings-in-the-windows-own-words.md) | 2026-10-31 |
+| 089 | [group owners-missing --all-types judges a distribution group by its ManagedBy, …](done/089-group-owners-missing-judges-distribution-groups-by-managedby.md) | 2026-10-31 |
+| 088 | [The home-access doctor check judges every account that is not the user, SYSTEM …](done/088-home-access-check-judges-every-foreign-account.md) | 2026-10-31 |
+| 087 | [The snapshot store and snapshot take: groups, sites, sharing and mailbox permis…](done/087-snapshot-store-and-snapshot-take.md) | 2026-10-31 |
+| 084 | [access <user>: which groups, sites and mailboxes one user reaches, from the sna…](done/084-access-view-for-one-user-from-the-snapshot.md) | 2026-10-31 |
 | 086 | [A usage guide for the command line and the window, shipped in the release zip](done/086-usage-guide-for-the-command-line-and-the-window.md) | 2026-10-30 |
-| 085 | [Signed exes and the release zip through a tag-driven release workflow](done/085-signed-exes-and-the-release-zip.md) | 2026-10-30 |
-| 083 | [Spike: the snapshot store's format and size, recorded as a decision](done/083-spike-snapshot-store-format-and-size.md) | 2026-10-30 |
-| 082 | [The window's mailbox write cards: access grant and revoke, forwarding set and c…](done/082-window-mailbox-write-cards-behind-a-plan-and-a-confirmation.md) | 2026-10-30 |
-| 081 | [A sidecar reply line whose id is not a string is skipped, not an internal error](done/081-sidecar-reply-with-a-non-string-id-is-skipped.md) | 2026-10-30 |
-| 080 | [Token hygiene through the window: the bridge's sign-in and the window: log lines](done/080-token-hygiene-through-the-window.md) | 2026-10-30 |
-| 079 | [A write-guard test over the window's bridge writes](done/079-write-guard-test-over-the-window-bridge-writes.md) | 2026-10-30 |
-| 078 | [The doctor warns when an existing home folder is readable by other users](done/078-doctor-warns-on-a-home-folder-readable-by-others.md) | 2026-10-30 |
-| 077 | [The window's user lookup over the split read of task 043](done/077-window-user-lookup-over-the-split-read.md) | 2026-10-30 |
-| 076 | [group owners <group> reads a distribution group's owners from ManagedBy](done/076-group-owners-read-through-managedby-for-distribution-groups.md) | 2026-10-30 |
 
-_75 more in `done/`._
+_84 more in `done/`._
 
 ### Decisions
 

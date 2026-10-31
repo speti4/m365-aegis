@@ -3,6 +3,7 @@ size: S
 origin: wip/078-doctor-warns-on-a-home-folder-readable-by-others.md
 created: 2026-10-30
 started: 2026-10-31
+closed: 2026-10-31
 plan: none
 milestone: M6 Release and team
 ---
@@ -62,6 +63,7 @@ them.
   both with their rights, the hint run, then `pass` and the user's own list. The 078 cases hold with the rights in
   their detail. The doctor fixture `warnings.json` carries a fourth account (`CONTOSO\bob (modify, inherited)`), and
   its two snapshots (the table, the envelope) were accepted with it.
+- 2026-10-31 — merged in #121 (squash); closed on `main` by the main session; no follow-up of its own
 
 ## Deviations from the plan
 
@@ -85,4 +87,4 @@ them.
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-10-31` by the main session after the merge
