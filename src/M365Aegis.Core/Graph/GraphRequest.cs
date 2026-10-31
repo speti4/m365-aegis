@@ -66,6 +66,12 @@ public sealed record GraphRequest
     /// </summary>
     public string? Accept { get; init; }
 
+    /// <summary>
+    /// The <c>Prefer</c> header, or null: <c>hierarchicalsharing</c> on a drive's <c>delta</c> marks only the items whose
+    /// sharing differs from their parent's (the snapshot's sharing read, tasks 087 and 092).
+    /// </summary>
+    public string? Prefer { get; init; }
+
     /// <summary>The <see cref="Accept"/> of a raw <c>$count</c> request.</summary>
     public const string PlainText = "text/plain";
 

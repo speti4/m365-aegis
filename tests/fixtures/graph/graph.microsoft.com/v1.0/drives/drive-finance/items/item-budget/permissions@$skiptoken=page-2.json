@@ -1,0 +1,41 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#drives('drive-finance')/items('item-budget')/permissions",
+  "value": [
+    {
+      "id": "p4",
+      "roles": [
+        "write"
+      ],
+      "grantedToV2": {
+        "user": {
+          "displayName": "Bob Example",
+          "email": "bob@contoso.com",
+          "id": "00000000-0000-0000-0000-000000000003"
+        },
+        "siteUser": {
+          "id": "12",
+          "displayName": "Bob Example",
+          "loginName": "i:0#.f|membership|bob@contoso.com"
+        }
+      }
+    },
+    {
+      "id": "p5",
+      "roles": [
+        "read"
+      ],
+      "grantedToV2": {
+        "user": {
+          "displayName": "Carol Example",
+          "email": "carol@contoso.com",
+          "id": "00000000-0000-0000-0000-000000000004"
+        }
+      },
+      "inheritedFrom": {
+        "driveId": "drive-finance",
+        "id": "item-root",
+        "path": "/drives/drive-finance/root:"
+      }
+    }
+  ]
+}

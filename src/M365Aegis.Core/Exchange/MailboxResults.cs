@@ -241,3 +241,23 @@ public sealed record UserAccessOptions(bool ExpandGroups = false, PermissionRead
 /// </param>
 /// <param name="Sidecars">How many sidecars <see cref="MailboxSizeMethod.Parallel"/> runs at once (2 to 8).</param>
 public sealed record MailboxSizeOptions(MailboxSizeMethod? Method = null, int Sidecars = 4);
+
+/// <summary>A recipient a mailbox grant's holder resolves to (the snapshot, task 087).</summary>
+/// <param name="ObjectId">The recipient's object id in the directory, or null (a role group, a contact without one).</param>
+/// <param name="UserPrincipalName">The user principal name of a mailbox, or null.</param>
+/// <param name="Address">The primary address, or null.</param>
+/// <param name="DisplayName">The display name, or null.</param>
+/// <param name="Type">The recipient type details (<c>UserMailbox</c>, <c>MailUniversalSecurityGroup</c>, …), or null.</param>
+internal sealed record GrantRecipient(string? ObjectId, string? UserPrincipalName, string? Address, string? DisplayName, string? Type);
+
+/// <summary>One direct grant on a mailbox, its holder as Exchange names it and the recipient that name resolves to.</summary>
+/// <param name="Right">The right.</param>
+/// <param name="Mailbox">The mailbox.</param>
+/// <param name="Holder">The holder as the entry names it.</param>
+/// <param name="Recipient">The recipient the name resolves to, or null when none answers to it.</param>
+internal sealed record MailboxGrant(MailboxRight Right, MailboxInfo Mailbox, string Holder, GrantRecipient? Recipient);
+
+/// <summary>Every direct grant of every mailbox (the snapshot, task 087).</summary>
+/// <param name="Grants">The grants.</param>
+/// <param name="Failed">The service's messages of the entries it could not read.</param>
+internal sealed record MailboxGrants(IReadOnlyList<MailboxGrant> Grants, IReadOnlyList<string> Failed);

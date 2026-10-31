@@ -32,6 +32,8 @@
     <Compile Include="..\shared\MarkedTokenBroker.cs" Link="shared\MarkedTokenBroker.cs" />
     <!-- The request log of the fixture transport read for its writes (tasks 071 and 079). -->
     <Compile Include="..\shared\SentRequests.cs" Link="shared\SentRequests.cs" />
+    <!-- The fixture snapshot: a take over the fixtures and the fake module, once per run (task 087). -->
+    <Compile Include="..\shared\SnapshotSamples.cs" Link="shared\SnapshotSamples.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -333,15 +333,28 @@ public sealed class GraphClient
 
     private static bool IsThrottled(int status) => status is 429 or 503;
 
-    /// <summary>The headers a request adds: <c>ConsistencyLevel</c> for an advanced query, <c>Accept</c> when it names one.</summary>
+    /// <summary>
+    /// The headers a request adds: <c>ConsistencyLevel</c> for an advanced query, <c>Accept</c> and <c>Prefer</c> when it
+    /// names them.
+    /// </summary>
     private static IReadOnlyDictionary<string, string> Headers(GraphRequest request)
     {
-        if (request.Accept is null)
+        if (request.Accept is null && request.Prefer is null)
         {
             return request.EventualConsistency ? Eventual : NoHeaders;
         }
 
-        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["Accept"] = request.Accept };
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (request.Accept is not null)
+        {
+            headers["Accept"] = request.Accept;
+        }
+
+        if (request.Prefer is not null)
+        {
+            headers["Prefer"] = request.Prefer;
+        }
+
         if (request.EventualConsistency)
         {
             headers["ConsistencyLevel"] = "eventual";

@@ -1,0 +1,32 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(driveItem)",
+  "@odata.nextLink": "https://graph.microsoft.com/v1.0/drives/drive-finance/root/delta?$select=id,name,shared,parentReference&$top=1000&$skiptoken=page-2",
+  "value": [
+    {
+      "id": "item-root",
+      "name": "root",
+      "parentReference": {
+        "driveId": "drive-finance"
+      }
+    },
+    {
+      "id": "item-budget",
+      "name": "Budget.xlsx",
+      "parentReference": {
+        "driveId": "drive-finance",
+        "path": "/drives/drive-finance/root:"
+      },
+      "shared": {
+        "scope": "users"
+      }
+    },
+    {
+      "id": "item-plan",
+      "name": "Plan.docx",
+      "parentReference": {
+        "driveId": "drive-finance",
+        "path": "/drives/drive-finance/root:"
+      }
+    }
+  ]
+}

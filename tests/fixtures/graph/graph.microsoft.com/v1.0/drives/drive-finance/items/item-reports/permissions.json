@@ -1,0 +1,31 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#drives('drive-finance')/items('item-reports')/permissions",
+  "value": [
+    {
+      "id": "p6",
+      "roles": [
+        "read"
+      ],
+      "grantedToV2": {
+        "group": {
+          "displayName": "Finance EU",
+          "email": null,
+          "id": "00000000-0000-0000-0000-000000000032"
+        }
+      }
+    },
+    {
+      "id": "p7",
+      "roles": [
+        "read"
+      ],
+      "link": {
+        "scope": "anonymous",
+        "type": "view"
+      },
+      "grantedToIdentitiesV2": [],
+      "expirationDateTime": "2026-12-31T00:00:00Z",
+      "hasPassword": true
+    }
+  ]
+}

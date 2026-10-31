@@ -1,0 +1,17 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(driveItem)",
+  "@odata.deltaLink": "https://graph.microsoft.com/v1.0/drives/drive-phoenix/root/delta?token=delta-phoenix-1",
+  "value": [
+    {
+      "id": "item-roadmap",
+      "name": "Roadmap.pptx",
+      "shared": {
+        "scope": "users"
+      },
+      "parentReference": {
+        "driveId": "drive-phoenix",
+        "path": "/drives/drive-phoenix/root:/Plans"
+      }
+    }
+  ]
+}

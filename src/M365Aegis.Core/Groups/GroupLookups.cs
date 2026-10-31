@@ -197,7 +197,15 @@ public static class GroupLookups
     /// <c>$batch</c> call (<see cref="GraphClient.BatchAsync"/>), and a group with more than a page has the rest read
     /// from its next link.
     /// </summary>
-    internal static async Task<IReadOnlyDictionary<string, IReadOnlyList<GroupMember>>> MembersOfAsync(GraphClient graph, IEnumerable<string> groupIds, CancellationToken cancellationToken)
+    internal static Task<IReadOnlyDictionary<string, IReadOnlyList<GroupMember>>> MembersOfAsync(GraphClient graph, IEnumerable<string> groupIds, CancellationToken cancellationToken) =>
+        RelationOfAsync(graph, groupIds, "members", cancellationToken);
+
+    /// <summary>
+    /// The direct members or the owners (<paramref name="relation"/>) of each group, by its object id, as
+    /// <see cref="MembersOfAsync"/> reads the members: one request per group, twenty to a <c>$batch</c> call, the
+    /// rest of a long list from its next link (the snapshot reads both, task 087).
+    /// </summary>
+    internal static async Task<IReadOnlyDictionary<string, IReadOnlyList<GroupMember>>> RelationOfAsync(GraphClient graph, IEnumerable<string> groupIds, string relation, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(graph);
         List<string> ids = groupIds.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -207,7 +215,7 @@ public static class GroupLookups
             return result;
         }
 
-        IReadOnlyList<GraphBatchResponse> answers = await graph.BatchAsync(ids.Select(id => MembersRequest(id, "members")).ToList(), cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<GraphBatchResponse> answers = await graph.BatchAsync(ids.Select(id => MembersRequest(id, relation)).ToList(), cancellationToken).ConfigureAwait(false);
         for (int index = 0; index < ids.Count; index++)
         {
             result[ids[index]] = await ReadAllAsync(graph, answers[index], cancellationToken).ConfigureAwait(false);
