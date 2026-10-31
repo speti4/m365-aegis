@@ -97,7 +97,7 @@ public sealed class BridgeWriteAttribute : Attribute;
 /// <summary>
 /// The message types of the protocol. The front end sends <see cref="Ready"/> (a notification) and the requests
 /// <see cref="Ping"/>, <see cref="WhoAmI"/>, <see cref="Login"/>, <see cref="OpenSignInPage"/>, <see cref="Logout"/>,
-/// <see cref="GroupMembers"/>, <see cref="MailboxList"/> and <see cref="MailboxAccess"/>, the write requests
+/// <see cref="GroupMembers"/>, <see cref="MailboxList"/>, <see cref="MailboxAccess"/> and <see cref="Access"/>, the write requests
 /// (<see cref="Writes"/>: <see cref="MailboxAccessGrant"/>, <see cref="MailboxAccessRevoke"/>,
 /// <see cref="MailboxForwardingSet"/>, <see cref="MailboxForwardingClear"/>) and <see cref="ApplyPlan"/>; the host
 /// answers each request with one reply of the type named here, or with <see cref="Error"/>, and sends
@@ -197,6 +197,23 @@ public static class BridgeMessageType
     public const string Members = "members";
 
     /// <summary>
+    /// Asks what one user reaches, from the newest snapshot of the window's profile, as <c>access &lt;user&gt;</c> reads
+    /// it (task 102 over task 084's read): the local file only, no sign-in and no request to any service. The payload is
+    /// an <see cref="AccessRequest"/>; answered with <see cref="AccessReport"/>, or with <see cref="NoSnapshot"/> when the
+    /// profile has no snapshot yet.
+    /// </summary>
+    public const string Access = "access";
+
+    /// <summary>What one user reaches: a <see cref="Snapshots.AccessReport"/> as the payload.</summary>
+    public const string AccessReport = "access-report";
+
+    /// <summary>
+    /// The profile has no snapshot to answer <see cref="Access"/> from: a <see cref="NoSnapshotInfo"/> as the payload. A
+    /// state of the card, as <see cref="SignedOut"/> is one of the sign-in card, not an error.
+    /// </summary>
+    public const string NoSnapshot = "no-snapshot";
+
+    /// <summary>
     /// Plans a grant of mailbox rights as <c>mailbox access grant</c> does (task 082); the payload is a
     /// <see cref="MailboxAccessWriteRequest"/>. Answered with <see cref="Plan"/>.
     /// </summary>
@@ -258,6 +275,16 @@ public static class BridgeMessageType
 /// <summary>The payload of a <see cref="BridgeMessageType.GroupMembers"/> request.</summary>
 /// <param name="Group">The group: an object id, an exact display name or address, or a word of the name.</param>
 public sealed record GroupMembersRequest(string? Group);
+
+/// <summary>The payload of an <see cref="BridgeMessageType.Access"/> request.</summary>
+/// <param name="User">The user: a user principal name, an address or an object id.</param>
+public sealed record AccessRequest(string? User);
+
+/// <summary>The payload of a <see cref="BridgeMessageType.NoSnapshot"/> reply.</summary>
+/// <param name="Profile">The tenant profile whose snapshots were looked for.</param>
+/// <param name="Message">That there is none, one sentence.</param>
+/// <param name="Hint">What to do about it, in the window's words.</param>
+public sealed record NoSnapshotInfo(string Profile, string Message, string Hint);
 
 /// <summary>The payload of a <see cref="BridgeMessageType.Login"/> request; none is a sign-in through the broker.</summary>
 /// <param name="DeviceCode">Skip the broker and sign in through a browser with a device code.</param>

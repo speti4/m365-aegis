@@ -1,0 +1,28 @@
+{
+  "aegis": 1,
+  "id": "16",
+  "type": "plan",
+  "data": {
+    "planId": "0123456789abcdef0123456789abcdef",
+    "plan": {
+      "operation": "group-owners-remove",
+      "title": "Remove owners from Finance (00000000-0000-0000-0000-000000000031)",
+      "changes": [
+        {
+          "action": "remove",
+          "target": "Finance",
+          "detail": "Alice Example (alice@contoso.com) as an owner",
+          "current": "an owner",
+          "desired": "not an owner",
+          "index": 1,
+          "key": "00000000-0000-0000-0000-000000000031/00000000-0000-0000-0000-000000000001"
+        }
+      ],
+      "unchanged": [],
+      "warnings": [
+        "Finance loses its last owner: only an administrator can manage it afterwards, and `group owners-missing` lists it"
+      ],
+      "mode": "dry-run"
+    }
+  }
+}

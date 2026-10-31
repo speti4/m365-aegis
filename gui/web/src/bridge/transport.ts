@@ -59,7 +59,8 @@ export class WebViewTransport implements Transport {
 
 /**
  * The transport of this page: WebView2's when the page runs in the window, the mock otherwise. In the browser,
- * `?mock=signed-out` in the address starts the mock signed out, so the sign-in card's flow can be tried.
+ * `?mock=signed-out` in the address starts the mock signed out, so the sign-in card's flow can be tried, and
+ * `?mock=no-snapshot` starts it without a snapshot, so the access card's plain state shows (task 102).
  */
 export function createTransport(scope: unknown = globalThis): { transport: Transport; hosted: boolean } {
   const webview = findWebView(scope);
@@ -67,6 +68,9 @@ export function createTransport(scope: unknown = globalThis): { transport: Trans
     return { transport: new WebViewTransport(webview), hosted: true };
   }
   const search = (scope as { location?: { search?: unknown } } | undefined)?.location?.search;
-  const signedOut = typeof search === "string" && new URLSearchParams(search).get("mock") === "signed-out";
-  return { transport: new MockTransport({ delayMs: 300, signedIn: !signedOut }), hosted: false };
+  const mock = typeof search === "string" ? new URLSearchParams(search).get("mock") : null;
+  return {
+    transport: new MockTransport({ delayMs: 300, signedIn: mock !== "signed-out", snapshot: mock !== "no-snapshot" }),
+    hosted: false,
+  };
 }

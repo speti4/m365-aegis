@@ -33,7 +33,9 @@ export function SignInCard({
         <CardTitle className="flex items-center gap-2">
           Sign-in <StatusBadge state={state} />
         </CardTitle>
-        <CardDescription>The account the window works as, read silently as `m365-aegis whoami` does.</CardDescription>
+        <CardDescription>
+          The account the window works as, read silently: no sign-in window opens to check it.
+        </CardDescription>
         <CardAction className="flex gap-2">
           {state.status === "signed-in" ? (
             <Button variant="outline" size="sm" onClick={onSignOut}>

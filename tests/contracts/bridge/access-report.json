@@ -1,0 +1,117 @@
+{
+  "aegis": 1,
+  "id": "15",
+  "type": "access-report",
+  "data": {
+    "snapshot": "2026-10-31T060000Z.sqlite",
+    "taken": "2026-10-31T06:00:00+00:00",
+    "ageHours": 2,
+    "user": {
+      "objectId": "00000000-0000-0000-0000-000000000005",
+      "displayName": "Dave Example",
+      "userPrincipalName": "dave@contoso.com",
+      "mail": "dave@contoso.com"
+    },
+    "groups": [
+      {
+        "id": "00000000-0000-0000-0000-000000000031",
+        "displayName": "Finance",
+        "kind": "Microsoft365",
+        "via": [
+          "Finance EU"
+        ],
+        "direct": false
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000032",
+        "displayName": "Finance EU",
+        "kind": "Security",
+        "via": [],
+        "direct": true
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000035",
+        "displayName": "Finance Staff",
+        "kind": "MailEnabledSecurity",
+        "via": [
+          "Finance EU"
+        ],
+        "direct": false
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000033",
+        "displayName": "Project Phoenix",
+        "kind": "Microsoft365",
+        "via": [],
+        "direct": true
+      }
+    ],
+    "sites": [
+      {
+        "name": "Finance",
+        "webUrl": "https://contoso.sharepoint.com/sites/finance",
+        "group": "Finance",
+        "role": "member"
+      },
+      {
+        "name": "Project Phoenix",
+        "webUrl": "https://contoso.sharepoint.com/sites/phoenix",
+        "group": "Project Phoenix",
+        "role": "member"
+      }
+    ],
+    "sharedItems": [
+      {
+        "site": "Finance",
+        "item": "Reports",
+        "path": "/",
+        "kind": "direct",
+        "roles": "read",
+        "through": "Finance EU"
+      },
+      {
+        "site": "Project Phoenix",
+        "item": "Roadmap.pptx",
+        "path": "/Plans",
+        "kind": "link",
+        "scope": "users",
+        "roles": "read",
+        "through": "Finance Staff"
+      },
+      {
+        "site": "Project Phoenix",
+        "item": "Roadmap.pptx",
+        "path": "/Plans",
+        "kind": "direct",
+        "roles": "read"
+      }
+    ],
+    "mailboxes": [
+      {
+        "mailbox": "Reception",
+        "address": "reception@contoso.com",
+        "right": "full-access",
+        "through": "Finance Staff"
+      }
+    ],
+    "calendars": [
+      {
+        "mailbox": "Carol Example",
+        "address": "carol@contoso.com",
+        "folder": "Calendar",
+        "rights": "Reviewer",
+        "through": "Finance Staff"
+      }
+    ],
+    "everyone": {
+      "organizationLinks": 1,
+      "anonymousLinks": 1,
+      "defaultCalendars": 1,
+      "anonymousCalendars": 1
+    },
+    "warnings": [
+      "sites is partial in this snapshot: 1 item(s) could not be read (forbidden 1); `m365-aegis snapshot show` names them",
+      "oneDrive was not read: other users' OneDrives need a consent the tool does not ask for (Sites.Read.All reads the signed-in account's only; task 092)"
+    ]
+  }
+}

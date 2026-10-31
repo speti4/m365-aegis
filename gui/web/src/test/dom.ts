@@ -73,13 +73,24 @@ export async function submit(form: HTMLFormElement): Promise<void> {
   });
 }
 
-/** Lets the transport answer and React settle: moves the fake clock by `ms`, or waits `ms` of the real one. */
+/** How many turns of the real clock `settle` lets pass after its wait: a reply can start a request of its own. */
+const FOLLOW_UP_TURNS = 4;
+
+/**
+ * Lets the transport answer and React settle: moves the fake clock by `ms`, or waits `ms` of the real one and then a
+ * few more turns of it, so a request a reply starts (an apply that makes the access card read the mailbox again, task
+ * 091) is answered too; with one turn that second answer came before or after the wait by chance, and a test failed
+ * now and then.
+ */
 export async function settle(ms = 0): Promise<void> {
   await act(async () => {
     if (vi.isFakeTimers()) {
       await vi.advanceTimersByTimeAsync(ms);
     } else {
       await new Promise((resolve) => setTimeout(resolve, ms));
+      for (let turn = 0; turn < FOLLOW_UP_TURNS; turn += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
     }
   });
 }

@@ -1,8 +1,10 @@
-import type { MailboxInfo, Plan } from "../bridge/protocol";
+import type { MailboxInfo, Plan, UserAccess } from "../bridge/protocol";
 
 /**
- * A change a write card applied (task 091): the plan's operation, the mailbox as the card asked for it, and the
- * addresses the plan's changes name (the core names a change's target "Finance (finance@contoso.com)"). A write card
+ * A change a write card applied (task 091): the plan's operation, the mailbox as the card asked for it, the addresses
+ * the plan's changes name (the core names a change's target "Finance (finance@contoso.com)"), and the users the write
+ * named (task 103): as the card asked for them, and the addresses in its changes' details ("FullAccess for Bob Example
+ * (bob@contoso.com)"). A write card
  * tells the page once its apply has finished, whether every change, some or none was made, and when the apply broke
  * off on the way, so a card that shows the mailbox can read it again.
  */
@@ -10,6 +12,7 @@ export interface AppliedWrite {
   operation: string;
   mailbox: string;
   addresses: string[];
+  users: string[];
 }
 
 /** The page's one channel from the write cards to the cards that read what they change. */
@@ -38,6 +41,25 @@ export function targetAddresses(plan: Plan): string[] {
     .map((change) => /\(([^()\s]+@[^()\s]+)\)$/.exec(change.target)?.[1])
     .filter((address): address is string => address !== undefined);
   return [...new Set(addresses)];
+}
+
+/** The addresses in the details of the plan's changes, as the core writes a holder: "Bob Example (bob@contoso.com)". */
+export function detailAddresses(plan: Plan): string[] {
+  const addresses = plan.changes.flatMap((change) =>
+    [...change.detail.matchAll(/\(([^()\s]+@[^()\s]+)\)/g)].map((match) => match[1]),
+  );
+  return [...new Set(addresses)];
+}
+
+/**
+ * Whether the apply named the user whose grants a card shows (task 103): a user the card asked for, or an address of
+ * the changes' details, is the user's principal name or display name.
+ */
+export function namesUser(write: AppliedWrite, user: UserAccess): boolean {
+  const names = [user.user, user.displayName]
+    .filter((name): name is string => name !== undefined)
+    .map((name) => name.toLowerCase());
+  return write.users.some((name) => names.includes(name.trim().toLowerCase()));
 }
 
 /** Whether the apply touched the mailbox: the name the card asked for or an address of its changes is the mailbox's. */

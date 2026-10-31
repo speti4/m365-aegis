@@ -388,6 +388,22 @@ first lookup starts the Exchange Online session, which takes a few seconds. When
 revokes a right on the mailbox shown here, the card reads the mailbox again on its own and says "Read again after a
 change on the Mailbox rights card." over the table.
 
+A user's list is not read again on its own: that lookup goes over every mailbox and takes a while. When the Mailbox
+rights card grants or revokes a right for the user shown here, the card marks the list as possibly out of date and
+offers "Read again", which looks the user up once more; a change for another user marks nothing.
+
+### User access
+
+A user's principal name, address or object id, then "Look up": what the user reaches, from the newest snapshot (see
+[What one user reaches](#what-one-user-reaches)): the groups, and for a nested membership the group it comes through;
+the sites of those groups, as a member or an owner; the files and folders shared with the user or one of the groups;
+the mailbox rights and the calendar permissions, each held directly or through a group. Under them, what reaches
+everyone (the links anyone in the organization or anyone at all can open, the calendars open to every user) as
+counts. The card names the snapshot's time and age, and "Good to know" says when the snapshot is older than 36 hours
+or a part of it could not be read. The card reads the snapshot on this computer only: it needs no sign-in, and its
+answer is as old as the snapshot. Without a snapshot it says "No snapshot yet": the snapshot is taken on the command
+line (`m365-aegis snapshot take`, or [a snapshot every morning](#a-snapshot-every-morning)).
+
 ### Mailbox rights
 
 Grants or revokes FullAccess, Send As or Send on Behalf on a mailbox, as `m365-aegis mailbox access grant` and

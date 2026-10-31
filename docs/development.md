@@ -891,6 +891,11 @@ The messages (tasks 017, 040, 045 and 047; `BridgeMessageType` in C#, `MessageTy
   reads it (below). A partial answer of the
   reverse lookup (exit code 6 on the command line) is the `user-grants` reply, whose `failed` list the page shows as
   a warning, as the envelope carries the data with the error;
+- `access` with `{"user": "<upn, address or object id>"}` (task 102), answered with `access-report` (the core's
+  `AccessReport`, as `access <user> --json` carries it) or `no-snapshot` (the profile, the core's sentence and the
+  window's hint, which sends to the administrator who takes the snapshots): `SnapshotAccess.ForUser` over the newest
+  snapshot of the window's profile, the age on the window's clock. It reads the local file only, so it needs no
+  sign-in and starts no session; a user the snapshot does not know is the `not-found` error;
 - the write requests (task 082, [The window's writes](#the-windows-writes)), marked `[BridgeWrite]` in
   `BridgeMessageType` (its `Writes` lists them; `writeRequests` in TypeScript): `mailbox-access-grant` and
   `mailbox-access-revoke` with `{"mailbox": …, "users": […], "rights": ["full-access", "send-as",
@@ -1030,6 +1035,33 @@ card listens while it shows a mailbox's holders; after a grant or a revoke whose
 address, says "A change was applied to this mailbox: reading its access again…" while it waits, and "Read again after
 a change on the Mailbox rights card." over the new table. An apply to another mailbox, a forwarding (the card shows no
 forwarding) or a card that shows a user's grants or nothing sends no request; the bridge has no new message.
+
+**The user view's stale mark** (task 103): the channel's message also names the users the write named, as the card
+asked for them and the addresses in its changes' details ("FullAccess for Bob Example (bob@contoso.com)"). While the
+mailbox access card shows a user's grants, a grant or a revoke that names that user (the principal name or the
+display name, in any case) marks the list ("…so it may be out of date") and offers "Read again", which sends one
+`mailbox-access` for the user; the card never reads the user again on its own, since the reverse lookup goes over
+every mailbox (task 043). An apply that names another user, or a forwarding, marks nothing.
+
+**The user access card** (task 102, `components/user-access-card.tsx`): a user, then `access`; the answer in five
+sections (groups with the member groups a nested membership comes through, sites, shared files, mailboxes, calendars),
+each a table or a line when it is empty, the snapshot's time in UTC and its age, what reaches everyone as counts, and
+the access view's warnings through the wording map below. `no-snapshot` is a plain "No snapshot yet" state with the
+host's hint; an `error` reply is the page's toast. The card does not wait for a sign-in. The browser mock answers dave
+from `src/bridge/mock-access.ts`, which a Vitest test holds equal to the `access-report.json` sample, and
+`?mock=no-snapshot` in the address starts the mock without a snapshot.
+
+**A command on a card** (task 104): the wording map rewords a warning that names a command of the command line too,
+not only a flag: the group owner write's last-owner warning (`` `group owners-missing` lists it ``) becomes "To keep
+it managed, add another owner first; otherwise the administrator's list of groups without an owner names it", for
+the group write card that will plan it, and the access view's `` `m365-aegis snapshot take` `` and `` `m365-aegis
+snapshot show` `` send to the administrator. The Vitest test that forbade a `--` flag on a card also forbids a
+command (`m365-aegis` and a command word, or anything in backticks): over every string of every reply sample under
+`tests/contracts/bridge` (the warnings as the map words them), over the views of the group write plan's sample
+(`plan.group-owners-remove.json`, which a Core test holds to the core's plan of a last owner's removal over the
+recorded answers) and of the access samples, and over the cards of the browser mock; it fails on a new warning of the
+core that names a command. The cards' descriptions name no command either. The command line's sentences are the
+core's, unchanged.
 
 **The task card design sketch** (task 018, `src/sketch/`): the card list (grant FullAccess on a shared mailbox, add
 a group owner, check a user's access), one card's steps (pick, the plan, the confirmation, the result) and the
