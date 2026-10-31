@@ -404,6 +404,37 @@ public sealed class SnapshotEdgeTests
         SnapshotDomain sharing = take.Domains.Single(domain => domain.Name == "sharing");
         Assert.Equal((SnapshotDomainStatus.Ok, 1, 0), (sharing.Status, sharing.Rows, sharing.ItemsFailed));
         Assert.Equal(6, graph.Asked("/drives/d1/items/i1/permissions"));
+        // Two deltas, the first drive's batch six times and the second's once (task 097); the five waits of fifty seconds are the domain's.
+        Assert.Equal((9L, 250_000L), (sharing.GraphRequests, sharing.ThrottledMs));
+    }
+
+    [Fact]
+    public async Task ACalendarHolderNoObjectAnswersToIsCountedInTheDomainsNote()
+    {
+        var graph = new ScriptedGraph();
+        graph.Answer("/users", 200, Page(new { id = U1, displayName = "Alice", userPrincipalName = "alice@contoso.com" }));
+        graph.Answer("/groups", 200, Page());
+        graph.Answer("/teams", 200, Page());
+        graph.Answer("/sites", 200, Page());
+        var sidecar = new CannedRunner(command => command.Cmdlet switch
+        {
+            ExoCmdlets.GetMailbox => MailboxEdgeTests.Items("""{"DisplayName":"Alice","PrimarySmtpAddress":"alice@contoso.com","UserPrincipalName":"alice@contoso.com"}"""),
+            ExoCmdlets.GetMailboxFolderStatistics => MailboxEdgeTests.Items("""{"Name":"Calendar","FolderPath":"/Calendar","FolderType":"Calendar"}"""),
+            _ => new ExoResult([], []),
+        });
+        // Default and Anonymous are everyone's; Ghost is no object of the snapshot.
+        var admin = new CannedRunner(command => command.Cmdlet == AdminApiCmdlets.GetMailbox
+            ? throw new AegisException(FailureKind.Forbidden, "refused")
+            : MailboxEdgeTests.Items(
+                """{"User":"Default","AccessRights":["AvailabilityOnly"]}""",
+                """{"User":"Anonymous","AccessRights":["None"]}""",
+                """{"User":{"DisplayName":"Ghost"},"AccessRights":["Reviewer"]}"""));
+        var backends = new ExchangeBackends(sidecar, admin, () => graph.Client);
+
+        SnapshotTakeResult take = (await SnapshotSamples.TakeAsync(SnapshotSamples.WriteProfile(PlanSamples.TempHome()), Now, backends: backends)).Data!;
+
+        SnapshotDomain calendars = take.Domains.Single(domain => domain.Name == "folderPermissions");
+        Assert.Equal((SnapshotDomainStatus.Ok, 3, "1 holder(s) matched no object"), (calendars.Status, calendars.Rows, calendars.Note));
     }
 
     [Fact]

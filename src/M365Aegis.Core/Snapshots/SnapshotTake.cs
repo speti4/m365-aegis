@@ -603,18 +603,25 @@ public static class SnapshotTake
                 }
             }).ConfigureAwait(false);
             Dictionary<string, SnapshotObject?> names = Builder.NameIndex();
+            int unmatched = 0;
             foreach ((MailboxInfo mailbox, MailboxFolderPermissions? folder) in reads.Where(read => read.Folder is not null))
             {
                 int key = Builder.Mailbox(mailbox).Key;
                 foreach (FolderPermissionEntry entry in folder!.Permissions)
                 {
-                    Builder.FolderPermissions.Add((key, folder.Folder, Named(names, entry.User)?.Key, entry.User, string.Join(",", entry.AccessRights)));
+                    int? holder = Named(names, entry.User)?.Key;
+                    unmatched += holder is null && !Everyone(entry.User) ? 1 : 0;
+                    Builder.FolderPermissions.Add((key, folder.Folder, holder, entry.User, string.Join(",", entry.AccessRights)));
                 }
             }
 
             failed.Sort((left, right) => string.CompareOrdinal(left.What, right.What));
-            return new DomainRead(Builder.FolderPermissions.Count, failed);
+            return new DomainRead(Builder.FolderPermissions.Count, failed, unmatched == 0 ? null : $"{unmatched} holder(s) matched no object");
         }
+
+        /// <summary>A calendar entry for everyone rather than a holder: <c>Default</c> (every user) or <c>Anonymous</c>.</summary>
+        private static bool Everyone(string user) =>
+            user.Equals("Default", StringComparison.OrdinalIgnoreCase) || user.Equals("Anonymous", StringComparison.OrdinalIgnoreCase);
 
         private async Task<DomainRead> ForwardingAsync()
         {
