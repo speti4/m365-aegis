@@ -99,4 +99,5 @@ and the access view as a card in the window.
 ## License
 
 [MIT](LICENSE). Microsoft 365, Microsoft Graph, Exchange Online and Entra are Microsoft's; m365-aegis is an
-independent tool and ships none of their code or branding.
+independent tool, not a Microsoft product. The third-party components it ships and their licenses are listed in the
+release's `THIRD-PARTY-NOTICES.md`.
