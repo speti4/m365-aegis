@@ -9,7 +9,8 @@ checks before a commit and the project rules are in [CONTRIBUTING.md](../CONTRIB
   Exchange Online backends and the sidecar script (`Exchange`, D-004; `Exchange/Sidecar/aegis-exo-sidecar.ps1`
   travels to every exe's output as `sidecar\` and is embedded in the Core for the doctor's hash check),
   operations with their plans (`Operations`, M3), the output contract (`Output`: the envelope, the exit codes,
-  D-006), the home folder and the tenant profiles (`Config`), the doctor and the log (`Diagnostics`) and the
+  D-006), the home folder and the tenant profiles (`Config`), the doctor and the log (`Diagnostics`), the
+  snapshot store and the access view (`Snapshots`, D-011, see [Snapshots](#snapshots)) and the
   window's message protocol (`Bridge`). Plain `net10.0`, so the tests run on Linux; the
   Windows-only paths sit behind `OperatingSystem.IsWindows()`.
 - `src/M365Aegis.Cli` — the `m365-aegis` executable: the commands under `Commands/`, each with the table view of
@@ -749,6 +750,101 @@ resume goes with it; a file the file system refuses to remove fails its change w
 `--resume` does not apply to it. The folder has no automatic size limit: a limit enforced at apply time would remove
 records without a plan anyone confirmed, which D-006 rules out for every write, and the records are the audit trail
 and the resume's source; `plan list` shows the size, and the prune is the administrator's.
+
+## Snapshots
+
+The snapshot store of D-011 (task 087) and the access view over it (task 084), in the Core's `Snapshots` folder:
+`snapshot take|list|show` and `access <user>` on the command line.
+
+**The store.** One SQLite file per snapshot (`Microsoft.Data.Sqlite`, below) under `<home>\snapshots\<profile>\`,
+named by the UTC time of the take, `yyyy-MM-ddTHHmmssZ.sqlite`; the profile's name is the folder's, so a name a
+Windows folder cannot carry is refused (exit code 2). The folder inherits the home folder's access list (task 075).
+The take collects everything in memory, writes `<name>.sqlite.partial` with the journal off in one transaction and
+`pragma user_version` last, and renames it; a reader never sees half a file, a take of the same second never replaces
+one (exit code 8), and the `.partial` files a take left (a killed process) are removed by the next take. The schema
+(`SnapshotSchema`, its `Version` constant, 1): `objects` (an integer key, the object id, the kind, the user principal
+name, the name, the address, a group's kind and sync flag, a mailbox's type; unique indexes on the object id and the
+user principal name), and the edges by key, each indexed on its principal: `members`, `userGroups` (the transitive
+closure computed at take time from the direct members, a row per via group as `group members --via` names it),
+`owners` (`graph` or `managedBy`), `sites` (the drive and the group behind it), `teams`, `links` and `linkGrantees`,
+`grants`, `folderPermissions`, `forwarding`; and `manifest` (key and value: the schema version, the time, the
+profile, the tenant, the tool's version, the elapsed time, each domain's record as JSON with the read that answered
+it, its rows, its status and its note, and each drive's delta link). An object is the same object when its object id
+or its user principal name is: the mailboxes are read third, after the users and the groups, so the user principal
+name of each ties Exchange's object id to the user Graph read, and an owner or a holder read later is that user. A
+principal with neither (a role group in `ManagedBy`, an external address of a sharing link) is one object per kind
+and name or address. A snapshot never holds a token, a secret, a sharing link's URL or password, or any content;
+the token hygiene test of task 072 runs two takes with the marked tokens and searches the snapshots folder with the
+rest of the home.
+
+**The take.** Thirteen domains, each over the Core's reads, each recorded in the manifest:
+
+| domain | read | permission |
+| --- | --- | --- |
+| `users` | `GET /users?$select=id,displayName,userPrincipalName,mail&$top=999` | `User.ReadBasic.All` |
+| `groups` | `GET /groups` with the lookups' `$select` | `GroupMember.Read.All` |
+| `mailboxes` | `mailbox list`'s read: the Admin API's `Get-Mailbox`, the sidecar's when it cannot answer | Exchange |
+| `members` | each group's `members`, twenty to a `$batch` call | `GroupMember.Read.All` |
+| `userGroups` | computed from `members` | |
+| `owners` | each group's `owners` in `$batch`; `ManagedBy` through the sidecar for a distribution or mail-enabled security group that is not synced (task 076's read) | `GroupMember.Read.All`, Exchange |
+| `teams` | `team list`'s read | `Team.ReadBasic.All` |
+| `sites` | `site list`'s read, then `GET /sites/{id}/drive?$select=id,owner` in `$batch`: `owner.group` is the Microsoft 365 group behind a group-connected site | `Sites.Read.All` |
+| `sharing` | each drive's `GET /drives/{id}/root/delta?$select=id,name,shared,parentReference&$top=1000` with `Prefer: hierarchicalsharing`, then the `permissions` of every item it marks, in `$batch` | `Sites.Read.All` |
+| `oneDrive` | skipped: another user's OneDrive needs a consent the tool does not ask for (task 092) | |
+| `grants` | the reverse lookup's table of `mailbox access --user` (FullAccess split across sidecars, Send As, Send on Behalf), each holder resolved to its recipient | Exchange |
+| `folderPermissions` | each mailbox's calendar through the Admin API (`mailbox folder-permissions`' read), four at a time | Exchange (Admin API) |
+| `forwarding` | `mailbox forwarders`' read | Exchange |
+
+The sharing read is the route the spike of task 092 measured under `Sites.Read.All` (the maintainer declined
+`Sites.FullControl.All`, D-011): with the `Prefer` header the delta marks only the items whose sharing differs from
+their parent's, so the permissions are read for those alone; a link becomes a `links` row (`link`, its scope, type,
+roles, expiry and whether it has a password) with the users and groups of `grantedToIdentitiesV2` as its grantees,
+a grant to a user or a group (`grantedToV2`) a `direct` row with that grantee; an inherited permission (its parent's,
+read already) and a grant to one of SharePoint's own groups (the site's Owners, Members and Visitors, which the group
+behind the site stands for) are left out. A grantee is matched to `objects` by its Entra object id; one with an
+address only (an external user) is an `external` object. Up to four drives are read at once; the last page's delta
+link of each drive is kept in the manifest for a later incremental take.
+
+A domain that fails as a whole is recorded with the service's failure (`failed`), the domains that need it fail with
+it (`members` and `owners` need `groups`), and the snapshot is written and usable: the take ends with exit code 6,
+names the domains, and prunes nothing. An item that fails inside a domain (a site whose library the account may not
+open, a mailbox's calendar, a group's `ManagedBy`) makes the domain `partial` with the item named in its note; the
+take still succeeds and prunes. A site without a library is named in the note of `sites`. A refused sign-in stops
+the take wherever it happens (exit code 3), and a take whose every domain failed writes nothing and ends with the
+first failure. The take only reads, so it is no plan (D-006).
+
+**The retention.** After a take that read every domain, `SnapshotStore.Prune` removes every snapshot the retention
+does not keep: every one of the last two days, the newest of each of the last 14 UTC days and the newest of each of
+the last 8 ISO weeks, `keepDaily` and `keepWeekly` of the profile in `config.json` replacing the 14 and the 8 (a
+value below 1 is exit code 2; `login` keeps them when it writes the profile again). The newest is always kept, a file
+whose name is not a snapshot's is never touched, and a file the file system refuses to remove (one a reader holds
+open) is a warning of the take and goes at the next prune.
+
+**The access view.** `SnapshotAccess.ForUser` opens the newest readable snapshot of the profile read-only (a file of
+another schema version or a damaged one is skipped) and runs one statement per section: the user by object id, user
+principal name or address among the users and the external addresses; the groups from `userGroups` with their via
+groups; the sites whose group is among them or owned by the user; the `linkGrantees` of the user or the groups; the
+organization-wide and anonymous links and the calendars whose `Default` entry gives more than free/busy, or whose
+`Anonymous` entry gives anything, as counts; the grants and calendar permissions whose holder is the user or one of
+the groups. The answer names the snapshot and its age and warns past 36 hours and for every domain the snapshot lacks
+in part or whole. No snapshot, or no such user, is exit code 4 with the take as the hint. The budget is a second in a
+cold process (D-011); over the fixture snapshot the whole process takes a few hundred milliseconds
+(`SnapshotCommandTests` holds it under three seconds on a CI runner), the queries a few milliseconds of it.
+
+**The schedule.** A Task Scheduler task with an interactive logon and `-StartWhenAvailable`, as the usage guide's
+"A snapshot every morning" gives it: the take uses the silent sign-in only (D-003), the MSAL cache is the user's DPAPI
+and the broker answers in the user's session, so it runs while that user is logged on, and a refused sign-in is the
+task's last result 3.
+
+**The package.** `Microsoft.Data.Sqlite` (MIT), with `SQLitePCLRaw.bundle_e_sqlite3` and its native `e_sqlite3.dll`
+(Apache-2.0); D-007's framework-dependent win-x64 folder carries the DLL next to the exes, and `scripts/release.ps1`
+fails when it is missing. Its reason is in `Directory.Packages.props`.
+
+**The tests.** The fixture snapshot is a take over the recorded answers and the fake module, built once per test run
+by `tests/shared/SnapshotSamples.cs` and copied into each test's home; it is never committed
+([tests/fixtures/README.md](../tests/fixtures/README.md#the-snapshot-fixture)). `SnapshotTakeTests` read every table
+of it, `SnapshotAccessTests` and `SnapshotCommandTests` answer from it, and `SnapshotEdgeTests` drive a scripted
+tenant through every failure the reads tell apart.
 
 ## The front end
 
