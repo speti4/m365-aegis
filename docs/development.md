@@ -1424,8 +1424,8 @@ README is a contributor's), writes `README.txt`, and packs everything into `dist
 | `README.txt` | written by the script | what the folder holds, the GitHub URL, how to check the download and the signature |
 | `images\` | `docs/images/`, when it exists | the guides' pictures, so their relative links `images/<file>` work unzipped |
 
-A checkout without `docs/setup.md` packs the zip without `SETUP.md` and warns; `-RequireSignature` (the release
-job) fails on it before anything is built. After packing, the script opens the zip and fails when one of the
+A checkout that lacks one of the guides or the license fails the run before anything is built. After packing, the
+script opens the zip and fails when one of the
 exes, the notices, `README.txt` or a guide is missing at its top level, so the `windows` job's dry run checks the
 file list on every pull request. No XML documentation file ships, neither ours nor the
 packages' (`PublishDocumentationFile` and `PublishReferencesDocumentationFiles` off, task 031; the script fails

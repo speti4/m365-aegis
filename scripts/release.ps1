@@ -10,8 +10,8 @@ with wwwroot\, the built front end) in one folder (D-007), the Exchange Online s
 THIRD-PARTY-NOTICES.md (nuget-license over the shipped packages, plus the front end's packages from the lock
 file), GUIDE.md (docs\usage.md, the guide for the support team; task 086), SETUP.md (docs\setup.md, the
 administrator's setup; task 106), LICENSE.txt (LICENSE), README.txt (written here: what the folder holds, where the
-project lives, how to check the download) and images\ (docs\images, when it exists; task 107). A local run without
-docs\setup.md warns and packs the zip without SETUP.md; -RequireSignature (the release job) fails on it. The packed
+project lives, how to check the download) and images\ (docs\images, when it exists; task 107); a missing guide or
+license fails the run before anything is built. The packed
 zip is opened and its top-level files checked before the checksum is written. Next to the zip go SHA256SUMS.txt
 (the zip's SHA-256 in `sha256sum -c` format) and release-notes-<version>.md (scripts\changelog.py --notes, the body
 of the GitHub release, with a line on the signature). CI runs this script on a v<version> tag with -Tag set, which
@@ -63,15 +63,11 @@ if ($RequireSignature -and -not $CertificatePath) {
 if ($RequireSignature -and -not $TimestampUrl) { throw "-RequireSignature without -TimestampUrl: the signatures of a release are timestamped" }
 if ($CertificatePath -and -not (Test-Path -LiteralPath $CertificatePath -PathType Leaf)) { throw "no certificate file at '$CertificatePath'" }
 
-# The guides and the license the zip ships: the repo's file and its name in the zip (task 107). docs\setup.md is the
-# administrator's guide of task 106: a local run without it warns and packs the zip without SETUP.md, while a release
-# (-RequireSignature) fails here, before anything is built. The other two are always there.
+# The guides and the license the zip ships: the repo's file and its name in the zip (tasks 086, 106, 107). A missing
+# one fails here, before anything is built.
 $docs = [ordered]@{ "docs\usage.md" = "GUIDE.md"; "docs\setup.md" = "SETUP.md"; "LICENSE" = "LICENSE.txt" }
-foreach ($doc in @($docs.Keys)) {
-    if (Test-Path -LiteralPath (Join-Path $root $doc) -PathType Leaf) { continue }
-    if ($RequireSignature -or $doc -ne "docs\setup.md") { throw "missing for the zip: $doc (its $($docs[$doc]))" }
-    Write-Warning "no $doc in this checkout: the zip goes without $($docs[$doc]); a release (-RequireSignature) fails on it"
-    $docs.Remove($doc)
+foreach ($doc in $docs.Keys) {
+    if (-not (Test-Path -LiteralPath (Join-Path $root $doc) -PathType Leaf)) { throw "missing for the zip: $doc (its $($docs[$doc]))" }
 }
 
 # Python as `python`, else through the `py` launcher, which is all some Windows installs put on PATH.
@@ -169,10 +165,8 @@ $readme = @(
     "  sidecar\                 the Exchange Online sidecar script the tool starts in pwsh",
     "  the other files          the tool's assemblies, the packages it uses, their settings and debug symbols"
 )
-if ($docs.Contains("docs\setup.md")) {
-    $readme += "  SETUP.md                 the administrator's setup: what to install and register before the first sign-in"
-}
 $readme += @(
+    "  SETUP.md                 the administrator's setup: what to install and register before the first sign-in",
     "  GUIDE.md                 the usage guide: the commands, the window's cards, the doctor's checks",
     "  LICENSE.txt              the MIT license of m365-aegis",
     "  THIRD-PARTY-NOTICES.md   the open-source packages shipped with the exes and their licenses",
@@ -182,14 +176,10 @@ if (Test-Path -LiteralPath (Join-Path $publish "images") -PathType Container) {
     $readme += "  images\                  the pictures of the guides"
 }
 $readme += ""
-if ($docs.Contains("docs\setup.md")) {
-    $readme += @(
-        "The guides are Markdown, readable in any text editor; on GitHub they are docs/setup.md and docs/usage.md.",
-        "Start with SETUP.md (an administrator, once per tenant), then GUIDE.md."
-    )
-} else {
-    $readme += "The guide is Markdown, readable in any text editor; on GitHub it is docs/usage.md."
-}
+$readme += @(
+    "The guides are Markdown, readable in any text editor; on GitHub they are docs/setup.md and docs/usage.md.",
+    "Start with SETUP.md (an administrator, once per tenant), then GUIDE.md."
+)
 $readme += @(
     "",
     "Check the download",

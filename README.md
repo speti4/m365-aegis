@@ -81,7 +81,7 @@ mailbox access, mailbox rights and mailbox forwarding. The [usage guide](docs/us
 
 | document | for |
 | --- | --- |
-| [Setup guide](docs/setup.md) | the administrator: the app registration, the permissions, the consent, handing it to the team |
+| [Setup guide](docs/setup.md) | the administrator: the app registration, the permissions, the consent, handing it to the team (shipped in the zip as `SETUP.md`, next to `README.txt` and `LICENSE.txt`) |
 | [Usage guide](docs/usage.md) | everyone who uses it: the download, the sign-in, every command and card, the doctor, the exit codes (shipped in the zip as `GUIDE.md`) |
 | [Security policy](SECURITY.md) | verifying a release, reporting a vulnerability, what is in scope |
 | [Contributing](CONTRIBUTING.md) | building from source, the checks before a commit, the project rules |
