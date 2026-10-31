@@ -20,8 +20,9 @@ test projects' `Snapshots/` folders, to the rules below and runs in CI.
 
 - **Where.** Every text file here, under `tests/sidecar` and `tests/contracts` and in the test projects'
   `Snapshots/` folders, and the repo's prose: every Markdown file at the root and under `docs/` (the usage guide
-  included), `tasks/` (the GitHub issues mirror them) and `.github/`. The domain, GUID and token rules hold in all
-  of them; the path length below holds for the fixture folders.
+  included), `tasks/` (the GitHub issues mirror them) and `.github/`; a Markdown file git ignores (the maintainer's
+  `CLAUDE.local.md`) is skipped, since it never enters a commit. The domain, GUID and token rules hold in all of
+  them; the path length below holds for the fixture folders.
 - **A domain** is any name of two or more labels that ends in one of the scan's `TOP_LEVEL_DOMAINS` (`com`, `net`,
   `org`, `hu`, `eu`, `de`, `io` and a few more): `alice@<company>.hu` is a finding, as is
   `<company>.sharepoint.com`. A URL escape is not part of a host (`alice%40contoso.com` in a file name is
