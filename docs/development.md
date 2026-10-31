@@ -841,8 +841,11 @@ links it to `objects` when one answers to it (task 101): by the `PrimarySmtpAddr
 first (`FolderPermissionEntry.Address`), so two people of one display name, or a renamed account, land on the right
 object; by the name as a user principal name, an address or a display name only one object carries when the entry has
 no address or no object has it. `Default` and `Anonymous` carry no address and match nothing: they are everyone's, and
-the access view counts them. The domain's note counts the holders no object matched (`N holder(s) matched no object`),
-so a take can be compared with an earlier one.
+the access view counts them. The domain's note counts the holders no object matched, split by whether the service gave an
+address (`N holder(s) matched no object: X without an address, Y with an address outside the snapshot`), so a take
+can be compared with an earlier one and the administrator knows what to look for: live (2026-11-01) the holders
+without an address were display names the Admin API gives no `PrimarySmtpAddress` (most likely removed accounts whose
+entries linger), and the addresses were ones no user or group of the snapshot has (externals or other recipients).
 
 **The retention.** After a take that read every domain, `SnapshotStore.Prune` removes every snapshot the retention
 does not keep: every one of the last two days, the newest of each of the last 14 UTC days and the newest of each of

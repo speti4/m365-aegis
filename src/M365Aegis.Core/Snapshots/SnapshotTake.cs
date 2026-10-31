@@ -716,6 +716,7 @@ public static class SnapshotTake
             }).ConfigureAwait(false);
             Dictionary<string, SnapshotObject?> names = Builder.NameIndex();
             int unmatched = 0;
+            int unmatchedAddress = 0;
             foreach ((MailboxInfo mailbox, MailboxFolderPermissions? folder) in reads.Where(read => read.Folder is not null))
             {
                 int key = Builder.Mailbox(mailbox).Key;
@@ -725,6 +726,9 @@ public static class SnapshotTake
                     bool everyone = Everyone(entry.User);
                     int? holder = everyone ? null : (entry.Address is { } address ? Named(names, address) : null)?.Key ?? Named(names, entry.User)?.Key;
                     unmatched += holder is null && !everyone ? 1 : 0;
+                    // An address no object has is someone outside the snapshot (an external or another recipient's);
+                    // a holder without one is named by its display name alone (live: a removed account's lingers).
+                    unmatchedAddress += holder is null && !everyone && (entry.Address ?? entry.User).Contains('@', StringComparison.Ordinal) ? 1 : 0;
                     Builder.FolderPermissions.Add((key, folder.Folder, holder, entry.User, string.Join(",", entry.AccessRights)));
                 }
             }
@@ -733,7 +737,7 @@ public static class SnapshotTake
             string remark = string.Join("; ", new[]
             {
                 oneByOne == 0 ? null : $"{oneByOne} calendar name(s) read one mailbox at a time, the piped read did not name them",
-                unmatched == 0 ? null : $"{unmatched} holder(s) matched no object",
+                unmatched == 0 ? null : $"{unmatched} holder(s) matched no object: {unmatched - unmatchedAddress} without an address, {unmatchedAddress} with an address outside the snapshot",
             }.OfType<string>());
             return new DomainRead(Builder.FolderPermissions.Count, failed, remark.Length == 0 ? null : remark);
         }

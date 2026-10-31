@@ -471,7 +471,8 @@ public sealed class SnapshotEdgeTests
             _ => new ExoResult([], []),
         });
         // Default and Anonymous are everyone's (no address, as the service answers them); the second Sam Same is told
-        // from the first by the address; an address no object has falls back to the display name; Ghost is no object.
+        // from the first by the address; an address no object has falls back to the display name; Ghost, without an
+        // address, and the two partners, whose addresses no object has, are counted apart in the note.
         var admin = new CannedRunner(command => command.Cmdlet == AdminApiCmdlets.GetMailbox
             ? throw new AegisException(FailureKind.Forbidden, "refused")
             : MailboxEdgeTests.Items(
@@ -481,15 +482,17 @@ public sealed class SnapshotEdgeTests
                 """{"User":{"DisplayName":"Alice","PrimarySmtpAddress":"alice.old@contoso.com"},"AccessRights":["Reviewer"]}""",
                 """{"User":"sam1@contoso.com","AccessRights":["Reviewer"]}""",
                 """{"User":{"DisplayName":"Alice"},"AccessRights":["Reviewer"]}""",
-                """{"User":{"DisplayName":"Ghost","PrimarySmtpAddress":""},"AccessRights":["Reviewer"]}"""));
+                """{"User":{"DisplayName":"Ghost","PrimarySmtpAddress":""},"AccessRights":["Reviewer"]}""",
+                """{"User":"partner@fabrikam.com","AccessRights":["Reviewer"]}""",
+                """{"User":{"DisplayName":"Partner Two","PrimarySmtpAddress":"two@fabrikam.com"},"AccessRights":["Reviewer"]}"""));
         var backends = new ExchangeBackends(sidecar, admin, () => graph.Client);
 
         SnapshotTakeResult take = (await SnapshotSamples.TakeAsync(SnapshotSamples.WriteProfile(PlanSamples.TempHome()), Now, backends: backends)).Data!;
 
         SnapshotDomain calendars = take.Domains.Single(domain => domain.Name == "folderPermissions");
-        Assert.Equal((SnapshotDomainStatus.Ok, 7), (calendars.Status, calendars.Rows));
+        Assert.Equal((SnapshotDomainStatus.Ok, 9), (calendars.Status, calendars.Rows));
         // The canned folder names no mailbox, so its calendar's name was read on its own.
-        Assert.Equal("1 calendar name(s) read one mailbox at a time, the piped read did not name them; 1 holder(s) matched no object", calendars.Note);
+        Assert.Equal("1 calendar name(s) read one mailbox at a time, the piped read did not name them; 3 holder(s) matched no object: 1 without an address, 2 with an address outside the snapshot", calendars.Note);
         await using var connection = new SqliteConnection($"Data Source={take.Path};Mode=ReadOnly;Pooling=False");
         await connection.OpenAsync(TestContext.Current.CancellationToken);
         using SqliteCommand query = connection.CreateCommand();
@@ -501,7 +504,7 @@ public sealed class SnapshotEdgeTests
             rows.Add(reader.GetString(0));
         }
 
-        Assert.Equal(["Default -", "Anonymous -", "Sam Same sam2@contoso.com", "Alice alice@contoso.com", "sam1@contoso.com sam1@contoso.com", "Alice alice@contoso.com", "Ghost -"], rows);
+        Assert.Equal(["Default -", "Anonymous -", "Sam Same sam2@contoso.com", "Alice alice@contoso.com", "sam1@contoso.com sam1@contoso.com", "Alice alice@contoso.com", "Ghost -", "partner@fabrikam.com -", "Partner Two -"], rows);
     }
 
     [Fact]
