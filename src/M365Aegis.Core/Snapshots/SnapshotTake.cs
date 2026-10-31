@@ -218,9 +218,15 @@ public static class SnapshotTake
             await DomainAsync("forwarding", "pwsh Get-EXOMailbox ForwardingSmtpAddress, ForwardingAddress", ForwardingAsync).ConfigureAwait(false);
         }
 
-        /// <summary>Reads one domain and records it; any failure but the sign-in's is the domain's own.</summary>
+        /// <summary>
+        /// Reads one domain and records it with its time and the requests it sent (task 097: the domains are read one
+        /// after the other, so the counters' difference is the domain's own); any failure but the sign-in's is the
+        /// domain's own.
+        /// </summary>
         private async Task<SnapshotDomain> DomainAsync(string name, string read, Func<Task<DomainRead>> work)
         {
+            var clock = Stopwatch.StartNew();
+            (long graph, TimeSpan waited, long adminApi, long sidecar) = (_graph.RequestsSent, _graph.Waited, backends.AdminApiCalls, backends.SidecarCalls);
             SnapshotDomain domain;
             try
             {
@@ -246,6 +252,14 @@ public static class SnapshotTake
                 domain = new SnapshotDomain(name, SnapshotDomainStatus.Failed, read, 0, $"{exception.Failure.Code}: {exception.Message}");
             }
 
+            domain = domain with
+            {
+                ElapsedMs = clock.ElapsedMilliseconds,
+                GraphRequests = _graph.RequestsSent - graph,
+                ThrottledMs = (long)(_graph.Waited - waited).TotalMilliseconds,
+                AdminApiCalls = backends.AdminApiCalls - adminApi,
+                SidecarCalls = backends.SidecarCalls - sidecar,
+            };
             Domains.Add(domain);
             return domain;
         }

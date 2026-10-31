@@ -54,7 +54,7 @@ public sealed class SnapshotCommandTests
         Assert.Equal((0, 0, 0), (listExit, showExit, jsonExit));
         Assert.Contains($"  {name}  ", list, StringComparison.Ordinal);
         Assert.Contains("1 snapshot(s) of the profile contoso under ", list, StringComparison.Ordinal);
-        Assert.Contains("sharing            ok       7     graph /drives/{id}/root/delta (Prefer: hierarchicalsharing)", show, StringComparison.Ordinal);
+        Assert.Matches(@"\nsharing +ok +7 +\d+\.\d s +\d+ graph +graph /drives/\{id\}/root/delta \(Prefer: hierarchicalsharing\)", show);
         Assert.Contains("rows: objects 17, members 14, userGroups 12, owners 5, sites 3, teams 2, links 7, linkGrantees 6, grants 7, folderPermissions 14, forwarding 3", show, StringComparison.Ordinal);
         using JsonDocument detail = JsonDocument.Parse(json);
         Assert.Equal(name, detail.RootElement.GetProperty("data").GetProperty("snapshot").GetProperty("name").GetString());
@@ -69,8 +69,8 @@ public sealed class SnapshotCommandTests
         (int exitCode, string stdout, _) = CliTests.RunWith(Layers(home), "--table", "snapshot", "take");
 
         Assert.Equal(0, exitCode);
-        Assert.StartsWith("domain             status   rows  note\n", stdout, StringComparison.Ordinal);
-        Assert.Contains("oneDrive           skipped  0     other users' OneDrives", stdout, StringComparison.Ordinal);
+        Assert.Matches(@"^domain +status +rows +time +requests +note\n", stdout);
+        Assert.Matches(@"\noneDrive +skipped +0 +0\.0 s +- +other users' OneDrives", stdout);
         Assert.Contains("nothing to prune (14 days, 8 weeks kept)", stdout, StringComparison.Ordinal);
     }
 

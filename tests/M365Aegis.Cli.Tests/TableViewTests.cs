@@ -483,8 +483,10 @@ public sealed class TableViewTests
     public void ASnapshotTakeThatPrunedThatFailedOrThatLeftFilesBehind()
     {
         var domain = new SnapshotDomain("users", SnapshotDomainStatus.Ok, "graph /users", 3);
+        var sharing = new SnapshotDomain("sharing", SnapshotDomainStatus.Ok, "graph", 9) { ElapsedMs = 61_240, GraphRequests = 40, ThrottledMs = 3_500 };
+        var calendars = new SnapshotDomain("folderPermissions", SnapshotDomainStatus.Ok, "admin-api", 2) { ElapsedMs = 800, GraphRequests = 2, AdminApiCalls = 6, SidecarCalls = 1 };
         var info = new SnapshotInfo("2026-10-30T120000Z.sqlite", Now, 2048, []);
-        var take = new SnapshotTakeResult(info, Path.Combine("home", "snapshots", "work", info.Name), 1500, [domain], new SnapshotRetention(), ["2026-09-01T000000Z.sqlite"])
+        var take = new SnapshotTakeResult(info, Path.Combine("home", "snapshots", "work", info.Name), 1500, [sharing, calendars, domain], new SnapshotRetention(), ["2026-09-01T000000Z.sqlite"])
         {
             RemovedPartials = ["2026-10-29T000000Z.sqlite.partial"],
             Warnings = ["2026-08-01T000000Z.sqlite could not be pruned (in use); the next take tries again"],
@@ -493,7 +495,8 @@ public sealed class TableViewTests
         string pruned = Show(SnapshotTakeTableView.Instance, take);
         string failed = Show(SnapshotTakeTableView.Instance, take with { Snapshot = info with { Failed = ["grants"] }, Pruned = [] });
 
-        Assert.Contains("users|ok|3|\nsnapshot 2026-10-30T120000Z.sqlite (2.0 KB) in ", pruned, StringComparison.Ordinal);
+        Assert.StartsWith("domain|status|rows|time|requests|note\nsharing|ok|9|61.2 s|40 graph (throttled 3.5 s)|\nfolderPermissions|ok|2|0.8 s|2 graph, 6 admin-api, 1 pwsh|\n", pruned, StringComparison.Ordinal);
+        Assert.Contains("users|ok|3|0.0 s|-|\nsnapshot 2026-10-30T120000Z.sqlite (2.0 KB) in ", pruned, StringComparison.Ordinal);
         Assert.Contains(", read in 1.5 s\npruned 1 by the retention (14 days, 8 weeks): 2026-09-01T000000Z.sqlite", pruned, StringComparison.Ordinal);
         Assert.Contains("removed 2026-10-29T000000Z.sqlite.partial, left by a take that did not finish", pruned, StringComparison.Ordinal);
         Assert.EndsWith("warning: 2026-08-01T000000Z.sqlite could not be pruned (in use); the next take tries again", pruned, StringComparison.Ordinal);

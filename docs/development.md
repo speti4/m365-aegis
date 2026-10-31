@@ -765,7 +765,13 @@ closure computed at take time from the direct members, a row per via group as `g
 `owners` (`graph` or `managedBy`), `sites` (the drive and the group behind it), `teams`, `links` and `linkGrantees`,
 `grants`, `folderPermissions`, `forwarding`; and `manifest` (key and value: the schema version, the time, the
 profile, the tenant, the tool's version, the elapsed time, each domain's record as JSON with the read that answered
-it, its rows, its status and its note, and each drive's delta link). An object is the same object when its object id
+it, its rows, its status and its note, and each drive's delta link). Since task 097 a domain's record also carries
+its time (`elapsedMs`) and what it sent: `graphRequests` (HTTP requests, a `$batch` call one and a retry another,
+counted by `GraphClient.RequestsSent` across the clients `WithBudget` makes), `throttledMs` (the waits on Graph's
+`Retry-After`), `adminApiCalls` and `sidecarCalls` (the cmdlets `ExchangeBackends` counted per layer, the split
+read's extra sidecars included); the domains run one after the other, so the counters' difference is the domain's
+own. `snapshot take` and `snapshot show` print them as the `time` and `requests` columns; a snapshot taken before
+has zeros there, and no schema change was needed (the manifest is key and value). An object is the same object when its object id
 or its user principal name is: the mailboxes are read third, after the users and the groups, so the user principal
 name of each ties Exchange's object id to the user Graph read, and an owner or a holder read later is that user. A
 principal with neither (a role group in `ManagedBy`, an external address of a sharing link) is one object per kind

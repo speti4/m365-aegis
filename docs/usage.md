@@ -318,7 +318,7 @@ the tenant changes.
 ```powershell
 m365-aegis snapshot take                          # read the tenant into a new snapshot, then remove the old ones
 m365-aegis snapshot list                          # the snapshots kept, newest first
-m365-aegis snapshot show                          # the newest one: when, what each part was read from, what failed
+m365-aegis snapshot show                          # the newest one: when, what each part was read from, how long it took, what failed
 m365-aegis snapshot show 2026-10-31T060000Z       # one by its name as the list prints it
 ```
 

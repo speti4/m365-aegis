@@ -19,6 +19,8 @@ public sealed class ExchangeBackends : IAsyncDisposable
     private readonly List<string> _used = [];
     private readonly Lock _lock = new();
     private int _started;
+    private long _sidecarCalls;
+    private long _adminApiCalls;
 
     /// <summary>The layers of a command.</summary>
     /// <param name="sidecar">The sidecar (one per command line run, started on its first cmdlet).</param>
@@ -28,8 +30,8 @@ public sealed class ExchangeBackends : IAsyncDisposable
     public ExchangeBackends(IExoCmdletRunner sidecar, IExoCmdletRunner? adminApi = null, Func<GraphClient>? graph = null, Func<IExoCmdletRunner>? newSidecar = null)
     {
         ArgumentNullException.ThrowIfNull(sidecar);
-        _sidecar = sidecar;
-        _adminApi = adminApi;
+        _sidecar = new Counted(sidecar, this, adminApi: false);
+        _adminApi = adminApi is null ? null : new Counted(adminApi, this, adminApi: true);
         _graph = graph is null ? null : new Lazy<GraphClient>(graph);
         _newSidecar = newSidecar;
     }
@@ -100,7 +102,7 @@ public sealed class ExchangeBackends : IAsyncDisposable
         }
 
         Use(Output.Backend.Pwsh);
-        return sidecar;
+        return new Counted(sidecar, this, adminApi: false);
     }
 
     /// <summary>
@@ -117,6 +119,12 @@ public sealed class ExchangeBackends : IAsyncDisposable
             }
         }
     }
+
+    /// <summary>The cmdlets sent to a sidecar so far, the command's own and those started for a split read (the snapshot's per-domain counts, task 097).</summary>
+    public long SidecarCalls => Interlocked.Read(ref _sidecarCalls);
+
+    /// <summary>The cmdlets sent to the Admin API so far.</summary>
+    public long AdminApiCalls => Interlocked.Read(ref _adminApiCalls);
 
     /// <summary>The layers used so far, in the order first used, joined with <c>+</c> (<c>admin-api+pwsh</c>); <c>pwsh</c> before any.</summary>
     public string Backend
@@ -154,6 +162,16 @@ public sealed class ExchangeBackends : IAsyncDisposable
             {
                 _used.Add(backend);
             }
+        }
+    }
+
+    /// <summary>A layer's runner that counts the cmdlets sent through it.</summary>
+    private sealed class Counted(IExoCmdletRunner inner, ExchangeBackends owner, bool adminApi) : IExoCmdletRunner
+    {
+        public Task<ExoResult> InvokeAsync(ExoCommand command, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref adminApi ? ref owner._adminApiCalls : ref owner._sidecarCalls);
+            return inner.InvokeAsync(command, cancellationToken);
         }
     }
 }
