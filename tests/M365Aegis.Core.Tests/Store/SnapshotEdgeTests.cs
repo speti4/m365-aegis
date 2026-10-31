@@ -454,10 +454,13 @@ public sealed class SnapshotEdgeTests
     }
 
     [Fact]
-    public async Task ACalendarHolderNoObjectAnswersToIsCountedInTheDomainsNote()
+    public async Task ACalendarHolderIsMatchedByItsAddressFirstAndOneNoObjectAnswersToIsCounted()
     {
         var graph = new ScriptedGraph();
-        graph.Answer("/users", 200, Page(new { id = U1, displayName = "Alice", userPrincipalName = "alice@contoso.com" }));
+        graph.Answer("/users", 200, Page(
+            new { id = U1, displayName = "Alice", userPrincipalName = "alice@contoso.com" },
+            new { id = U2, displayName = "Sam Same", userPrincipalName = "sam1@contoso.com" },
+            new { id = "00000000-0000-0000-0000-0000000000d3", displayName = "Sam Same", userPrincipalName = "sam2@contoso.com" }));
         graph.Answer("/groups", 200, Page());
         graph.Answer("/teams", 200, Page());
         graph.Answer("/sites", 200, Page());
@@ -467,21 +470,38 @@ public sealed class SnapshotEdgeTests
             ExoCmdlets.GetMailboxFolderStatistics => MailboxEdgeTests.Items("""{"Name":"Calendar","FolderPath":"/Calendar","FolderType":"Calendar"}"""),
             _ => new ExoResult([], []),
         });
-        // Default and Anonymous are everyone's; Ghost is no object of the snapshot.
+        // Default and Anonymous are everyone's (no address, as the service answers them); the second Sam Same is told
+        // from the first by the address; an address no object has falls back to the display name; Ghost is no object.
         var admin = new CannedRunner(command => command.Cmdlet == AdminApiCmdlets.GetMailbox
             ? throw new AegisException(FailureKind.Forbidden, "refused")
             : MailboxEdgeTests.Items(
-                """{"User":"Default","AccessRights":["AvailabilityOnly"]}""",
+                """{"User":{"DisplayName":"Default","Name":"Default","PrimarySmtpAddress":null},"AccessRights":["AvailabilityOnly"]}""",
                 """{"User":"Anonymous","AccessRights":["None"]}""",
-                """{"User":{"DisplayName":"Ghost"},"AccessRights":["Reviewer"]}"""));
+                """{"User":{"DisplayName":"Sam Same","PrimarySmtpAddress":"sam2@contoso.com"},"AccessRights":["Editor"]}""",
+                """{"User":{"DisplayName":"Alice","PrimarySmtpAddress":"alice.old@contoso.com"},"AccessRights":["Reviewer"]}""",
+                """{"User":"sam1@contoso.com","AccessRights":["Reviewer"]}""",
+                """{"User":{"DisplayName":"Alice"},"AccessRights":["Reviewer"]}""",
+                """{"User":{"DisplayName":"Ghost","PrimarySmtpAddress":""},"AccessRights":["Reviewer"]}"""));
         var backends = new ExchangeBackends(sidecar, admin, () => graph.Client);
 
         SnapshotTakeResult take = (await SnapshotSamples.TakeAsync(SnapshotSamples.WriteProfile(PlanSamples.TempHome()), Now, backends: backends)).Data!;
 
         SnapshotDomain calendars = take.Domains.Single(domain => domain.Name == "folderPermissions");
-        Assert.Equal((SnapshotDomainStatus.Ok, 3), (calendars.Status, calendars.Rows));
+        Assert.Equal((SnapshotDomainStatus.Ok, 7), (calendars.Status, calendars.Rows));
         // The canned folder names no mailbox, so its calendar's name was read on its own.
         Assert.Equal("1 calendar name(s) read one mailbox at a time, the piped read did not name them; 1 holder(s) matched no object", calendars.Note);
+        await using var connection = new SqliteConnection($"Data Source={take.Path};Mode=ReadOnly;Pooling=False");
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        using SqliteCommand query = connection.CreateCommand();
+        query.CommandText = "select f.principalName || ' ' || coalesce(p.userPrincipalName, '-') from folderPermissions f left join objects p on p.key = f.principalKey order by f.rowid";
+        using SqliteDataReader reader = await query.ExecuteReaderAsync(TestContext.Current.CancellationToken);
+        var rows = new List<string>();
+        while (await reader.ReadAsync(TestContext.Current.CancellationToken))
+        {
+            rows.Add(reader.GetString(0));
+        }
+
+        Assert.Equal(["Default -", "Anonymous -", "Sam Same sam2@contoso.com", "Alice alice@contoso.com", "sam1@contoso.com sam1@contoso.com", "Alice alice@contoso.com", "Ghost -"], rows);
     }
 
     [Fact]

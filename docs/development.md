@@ -820,6 +820,14 @@ take still succeeds and prunes. A site without a library is named in the note of
 the take wherever it happens (exit code 3), and a take whose every domain failed writes nothing and ends with the
 first failure. The take only reads, so it is no plan (D-006).
 
+**The calendar holders.** A `folderPermissions` row names the holder as the service does (`principalName`) and
+links it to `objects` when one answers to it (task 101): by the `PrimarySmtpAddress` of the Admin API's `User` object
+first (`FolderPermissionEntry.Address`), so two people of one display name, or a renamed account, land on the right
+object; by the name as a user principal name, an address or a display name only one object carries when the entry has
+no address or no object has it. `Default` and `Anonymous` carry no address and match nothing: they are everyone's, and
+the access view counts them. The domain's note counts the holders no object matched (`N holder(s) matched no object`),
+so a take can be compared with an earlier one.
+
 **The retention.** After a take that read every domain, `SnapshotStore.Prune` removes every snapshot the retention
 does not keep: every one of the last two days, the newest of each of the last 14 UTC days and the newest of each of
 the last 8 ISO weeks, `keepDaily` and `keepWeekly` of the profile in `config.json` replacing the 14 and the 8 (a

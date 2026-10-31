@@ -591,7 +591,9 @@ public static class SnapshotTake
         /// <summary>
         /// Each mailbox's calendar permissions over the Admin API (task 042), several mailboxes at once; a mailbox that
         /// fails is an item that failed. An entry's holder is named as the service names it, and matched to an object by
-        /// its user principal name, its address or a display name only one object carries.
+        /// the address the service gives with it first (task 101), else by the name as a user principal name, an address
+        /// or a display name only one object carries; <c>Default</c> and <c>Anonymous</c> are everyone's and match none.
+        /// The note counts the holders no object matched.
         /// </summary>
         private async Task<DomainRead> FolderPermissionsAsync()
         {
@@ -634,8 +636,10 @@ public static class SnapshotTake
                 int key = Builder.Mailbox(mailbox).Key;
                 foreach (FolderPermissionEntry entry in folder!.Permissions)
                 {
-                    int? holder = Named(names, entry.User)?.Key;
-                    unmatched += holder is null && !Everyone(entry.User) ? 1 : 0;
+                    // The holder by its address first (task 101), by the name the service gives it only without one.
+                    bool everyone = Everyone(entry.User);
+                    int? holder = everyone ? null : (entry.Address is { } address ? Named(names, address) : null)?.Key ?? Named(names, entry.User)?.Key;
+                    unmatched += holder is null && !everyone ? 1 : 0;
                     Builder.FolderPermissions.Add((key, folder.Folder, holder, entry.User, string.Join(",", entry.AccessRights)));
                 }
             }

@@ -174,7 +174,8 @@ m365-aegis mailbox organization                   # the MailTips settings and th
 `--expand-groups` to include the mailboxes the user reaches through a group. `mailbox size` without a mailbox reads
 Microsoft's usage report, which is a few days old; `mailbox size alice` reads one mailbox live, and
 `--method parallel` reads every mailbox live. `mailbox folder-permissions` takes `--folder` for another folder
-than the calendar (`--folder Inbox/Reports` for a nested one, in the mailbox's own language).
+than the calendar (`--folder Inbox/Reports` for a nested one, in the mailbox's own language); its `user` column names
+a holder with the address the service gives (`Alice Example <alice@contoso.com>`), and the JSON carries it as `address`.
 
 ### Mail flow
 

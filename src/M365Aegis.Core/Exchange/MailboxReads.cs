@@ -153,7 +153,10 @@ public static partial class MailboxLookups
             .Select(item => new FolderPermissionEntry(
                 Name(item, "User") ?? "?",
                 Words(item, "AccessRights", keepNone: true),
-                Words(item, "SharingPermissionFlags", keepNone: false)))
+                Words(item, "SharingPermissionFlags", keepNone: false))
+            {
+                Address = HolderAddress(item),
+            })
             .ToList();
         string? folderName = result.Items.Select(item => item.Text("FolderName")).FirstOrDefault(name => name is not null);
         return CommandResult.Success(new MailboxFolderPermissions(box, path, folderName, entries));
@@ -1164,6 +1167,16 @@ public static partial class MailboxLookups
 
         return null;
     }
+
+    /// <summary>
+    /// A folder entry's holder's primary address (task 101): the Admin API's <c>User</c> object
+    /// (<c>Exchange.MailboxFolderUserId</c>) carries it as <c>PrimarySmtpAddress</c>, null for <c>Default</c> and
+    /// <c>Anonymous</c>; a <c>User</c> given as text is its address when it is one.
+    /// </summary>
+    private static string? HolderAddress(ExoObject item) =>
+        item.Value("User") is { ValueKind: JsonValueKind.Object } user
+            ? user.TryGetProperty("PrimarySmtpAddress", out JsonElement smtp) && smtp.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(smtp.GetString()) ? smtp.GetString() : null
+            : item.Text("User") is { } text && text.Contains('@', StringComparison.Ordinal) ? text : null;
 
     /// <summary>A list value's words: a list, or a text of comma-separated words; <c>None</c> left out unless kept.</summary>
     private static List<string> Words(ExoObject item, string property, bool keepNone) =>
