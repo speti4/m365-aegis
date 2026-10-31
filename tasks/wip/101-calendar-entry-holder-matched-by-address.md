@@ -38,12 +38,15 @@ reshape them. The live unmatched count before and after is the main session's.
 2. [x] The take matches the holder by address first, by display name as the fallback; `Default` and `Anonymous` stay
        everyone's; the manifest's unmatched count stays
 3. [x] A fixture with a duplicated display name is matched by address; the Core tests hold it
-4. [ ] The live unmatched holder count before and after in the Verification; docs under *Docs that move*;
+4. [x] The live unmatched holder count before and after in the Verification; docs under *Docs that move*;
        `tasks_check` without `write` clean apart from the stale index
 
 ## Log
 
 - 2026-10-31 — promoted on `task/097-snapshot-take-exchange-and-sharing` by the main session
+- 2026-11-01 — the note splits the unmatched holders: `N holder(s) matched no object: X without an address, Y with an
+  address outside the snapshot`, an entry's address or a holder named by an address counting as the latter, so the
+  administrator knows what to look for
 - 2026-10-31 — the manifest gained the count first: the folderPermissions domain's note says `N holder(s) matched no
   object` (`Default` and `Anonymous` left out), in the build the live baseline ran
 - 2026-10-31 — `FolderPermissionEntry.Address`: the `PrimarySmtpAddress` of the Admin API's `User` object
@@ -59,17 +62,30 @@ reshape them. The live unmatched count before and after is the main session's.
 
 - The sidecar's `RecipientPrincipal` is not read: the sidecar does not run `Get-MailboxFolderPermission` (it is on the
   Admin API only, not on the sidecar's allow-list), so the Admin API's `User.PrimarySmtpAddress` is the one source
+- The done-when's "the live unmatched count drops" was a wrong expectation for this tenant: the 64 unmatched
+  holders of the baseline stayed 64. Live, the display-name holders carry no address in the Admin API's answer (so
+  in the mailbox checked; most likely removed accounts whose entries linger), and the address-like ones are addresses
+  no user or group of the snapshot has, so no match rule can place them. The duplicated-display-name
+  case stays proven over the fixtures; the address match works where the service gives an address (a live
+  `mailbox folder-permissions` showed entries with and without it). The note now says which kind each is
 - A localized `Default`/`Anonymous` entry is still told by its name: the recorded answer names them `Default` and
   `Anonymous` with no address, and nothing recorded shows a localized one
 
 ## Verification
 
-- <dated, concrete: the unmatched holder count of the manifest before and after>
+- 2026-11-01 — live, the main session, cached token: the folderPermissions note of the baseline take (build `5a30bc7`,
+  match by name) counted 64 holders matched to no object; the after-take (build `46118d7`, match by address first)
+  counted 64 again, some 40 of them display names without an address in the Admin API's answer and some 25 addresses
+  no object of the snapshot has, of some 40 distinct holders; `Default` and `Anonymous` (some 1,200 rows) counted as
+  everyone's, as before. A live `mailbox folder-permissions` of one affected mailbox from build `46118d7` listed
+  entries with an `address` and the unmatched one without
+- 2026-11-01 — local, merged tree: the matrix of task 097's Verification; the split of the note is in
+  `SnapshotEdgeTests` (one holder without an address, two with an address outside the snapshot)
 
 ## Closing checklist
 
 - [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green (the stale index is the main session's)
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
+- [x] `tasks_check` green (the stale index is the main session's)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge

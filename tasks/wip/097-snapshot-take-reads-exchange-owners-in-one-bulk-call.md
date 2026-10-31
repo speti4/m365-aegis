@@ -35,8 +35,8 @@ read); the task session owns the steps below and may reshape them. The live befo
 1. [x] The owners domain in `SnapshotTake.OwnersAsync`: one bulk `ManagedBy` read over the Exchange-owned groups
        (the read of task 089), the rows matched to the take's groups, the `read` label names the bulk cmdlet
 2. [x] The fake module and the take fixtures give the same owner rows as before; the Core tests hold it
-3. [ ] The live before/after of the owners domain (the main session's numbers) in the Verification
-4. [ ] Docs under *Docs that move*; the Verification dated; `tasks_check` without `write` clean apart from the stale
+3. [x] The live before/after of the owners domain (the main session's numbers) in the Verification
+4. [x] Docs under *Docs that move*; the Verification dated; `tasks_check` without `write` clean apart from the stale
        index
 
 ## Log
@@ -61,12 +61,20 @@ read); the task session owns the steps below and may reshape them. The live befo
 
 ## Verification
 
-- <dated, concrete: the owners domain's time and sidecar call count before and after>
+- 2026-11-01 — live, the main session, cached token (tenant counts rounded): the owners domain of the baseline take
+  (build `5a30bc7`, per-group read) took 42,477 ms with 122 Graph requests and some 34 sidecar calls (about 17
+  Exchange-owned groups, 2 calls each); the after-take (build `46118d7`, `--full`) took 31,185 ms with 122 Graph
+  requests and 2 sidecar calls, the same order of rows (some 500). The rest of the domain's time is the Graph
+  `$batch` read of the other groups' owners, which this task leaves as it is
+- 2026-11-01 — local, merged tree: restore `--locked-mode`, format, build, 1586 tests, Core and Cli coverage 100% lines
+  and branches, changelog `--check`, check-fixtures `--self-test` and scan, sidecar Pester 124 with 100% of the
+  script, `gui/web` lint, typecheck, `test:coverage` and build, `doctor --offline` exit 0, `whoami` exit 3 on an
+  empty home, the window's `--smoke` exit 0, `release.ps1 -DryRun` exit 0
 
 ## Closing checklist
 
 - [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green (the stale index is the main session's)
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
+- [x] `tasks_check` green (the stale index is the main session's)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge

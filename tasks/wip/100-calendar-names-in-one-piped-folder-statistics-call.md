@@ -39,7 +39,7 @@ session's, over the broker's cached token.
 2. [x] The piped read over the sidecar (the allow-list, the C# allow-list in `ExoCmdlets.cs` and the Pester tests if a
        pipeline needs a new request shape), the domain's `read` label names the piped form
 3. [x] The fake module and the take fixtures give the same calendar rows; the Core tests and the sidecar Pester tests hold it
-4. [ ] The live measurement of both reads in the Verification; docs under *Docs that move*; `tasks_check` without
+4. [x] The live measurement of both reads in the Verification; docs under *Docs that move*; `tasks_check` without
        `write` clean apart from the stale index
 
 ## Log
@@ -70,12 +70,18 @@ session's, over the broker's cached token.
 
 ## Verification
 
-- <dated, concrete: the per-mailbox read's time and call count against the piped read's>
+- 2026-11-01 — live, the main session, cached token (tenant counts rounded): the folderPermissions domain of the
+  baseline take (build `5a30bc7`, one calendar-name call per mailbox) took 364,632 ms with some 620 Admin API calls
+  and some 620 sidecar calls, about 590 ms per mailbox for the pair; the after-take (build `46118d7`) took 227,317 ms
+  with some 620 Admin API calls and 3 sidecar calls: `Get-EXOMailbox`, the piped folder statistics, and one mailbox
+  the piped read did not name, read on its own (the note says so). The rows stayed at some 1,500. The rest is the
+  Admin API's `Get-MailboxFolderPermission`, one per mailbox, which this task leaves as it is
+- 2026-11-01 — local, merged tree: the matrix of task 097's Verification, the sidecar Pester tests included
 
 ## Closing checklist
 
 - [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green (the stale index is the main session's)
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
+- [x] `tasks_check` green (the stale index is the main session's)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
