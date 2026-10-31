@@ -20,17 +20,23 @@ public sealed class DistributionGroupWritesTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    /// <summary>A sidecar over the fake module that records its writes in <paramref name="writes"/>.</summary>
-    private static ExchangeSession Session(string writes)
+    /// <summary>
+    /// A sidecar over the fake module that records its writes in <paramref name="writes"/>; the cmdlets of
+    /// <paramref name="noRole"/> are refused as for an account without the Exchange Online role (task 096).
+    /// </summary>
+    private static ExchangeSession Session(string writes, string? noRole = null)
     {
-        SidecarStartInfo start = SidecarFixtures.StartInfo() with
+        var environment = new Dictionary<string, string>
         {
-            Environment = new Dictionary<string, string>
-            {
-                ["M365AEGIS_EXO_MODULE_ROOT"] = SidecarFixtures.ModuleRoot,
-                ["M365AEGIS_FAKE_EXO_WRITES"] = writes,
-            },
+            ["M365AEGIS_EXO_MODULE_ROOT"] = SidecarFixtures.ModuleRoot,
+            ["M365AEGIS_FAKE_EXO_WRITES"] = writes,
         };
+        if (noRole is not null)
+        {
+            environment["M365AEGIS_FAKE_EXO_NO_ROLE"] = noRole;
+        }
+
+        SidecarStartInfo start = SidecarFixtures.StartInfo() with { Environment = environment };
         return new ExchangeSession(new ExchangeSessionOptions
         {
             Start = cancellationToken => SidecarClient.StartAsync(start, cancellationToken),
@@ -255,6 +261,28 @@ public sealed class DistributionGroupWritesTests
         Assert.Equal("graph+pwsh", backends.Backend);
         // The one wide query over its two pages, and no request per group.
         Assert.Equal(2, transport.Requests.Count);
+    }
+
+    [Fact]
+    public async Task OwnersMissingAllTypesWithoutAnExchangeRoleIsGraphsListWithAWarning()
+    {
+        await using ExchangeSession session = Session(WritesFile(), noRole: "Get-DistributionGroup");
+        await using var backends = new ExchangeBackends(session, AdminApiConnection.Fixtures(GraphFixtures.Root), () => GraphFixtures.Client().Client);
+
+        // Task 096: the fake module refuses the ManagedBy read as the service refuses an account without the role.
+        CommandResult<OwnerlessGroups> result = await GroupLookups.OwnerlessAsync(backends, allTypes: true, Ct);
+
+        Assert.True(result.Ok);
+        Assert.Equal(["All Staff", "Helpdesk Admins", "HR Synced", "Project Phoenix", "Sales Managers"], result.Data!.Groups.Select(group => group.DisplayName));
+        Assert.Null(result.Data.ManagedInExchange);
+        Assert.Equal(0, result.Data.LeftOut);
+        string warning = Assert.Single(result.Data.Warnings!);
+        Assert.StartsWith(
+            "the distribution and mail-enabled security groups are judged by Graph's empty owner list: Exchange Online refused the ManagedBy read (the Exchange Online cmdlet failed: fake: Access denied.",
+            warning,
+            StringComparison.Ordinal);
+        Assert.EndsWith("(403).); the account needs an Exchange Online role that runs the cmdlet (View-Only Organization Management or Recipient Management for the mailbox lookups), and the app registration Exchange.Manage with admin consent", warning, StringComparison.Ordinal);
+        Assert.Equal("graph", backends.Backend);
     }
 
     [Fact]

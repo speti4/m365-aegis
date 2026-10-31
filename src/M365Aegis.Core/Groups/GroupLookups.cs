@@ -393,7 +393,9 @@ public static class GroupLookups
     /// left out (<see cref="OwnerlessGroups.ManagedInExchange"/> counts them), and one Exchange does not list stays as
     /// Graph lists it. A synced group stays Graph's judgment, and without <paramref name="allTypes"/> nothing is asked of
     /// Exchange. The envelope's backend names the layers used: <c>graph+pwsh</c>, or <c>graph</c> when Graph listed no
-    /// group Exchange owns.
+    /// group Exchange owns. When Exchange Online refuses the read for a missing role or permission (exit code 8 on its
+    /// own, task 096), the answer is Graph's list as before task 089, backend <c>graph</c>, with a warning that names the
+    /// refusal; any other failure of the sidecar (a missing module, a failed connect, throttling) stays the error.
     /// </summary>
     public static async Task<CommandResult<OwnerlessGroups>> OwnerlessAsync(ExchangeBackends backends, bool allTypes, CancellationToken cancellationToken)
     {
@@ -410,10 +412,26 @@ public static class GroupLookups
             return CommandResult.Success(graph with { ManagedInExchange = 0 });
         }
 
-        HashSet<string> managed = await ManagedGroupsAsync(backends.Sidecar, cancellationToken).ConfigureAwait(false);
+        HashSet<string> managed;
+        try
+        {
+            managed = await ManagedGroupsAsync(backends.Sidecar, cancellationToken).ConfigureAwait(false);
+        }
+        catch (AegisException exception) when (exception.Failure.Kind == FailureKind.Forbidden)
+        {
+            // Task 096: a partial answer with its limit stated serves better than none, as `group owners` reads Graph
+            // for every group Exchange does not own. The answer comes from Graph alone, so the backend says so.
+            backends.Forget(Backend.Pwsh);
+            return CommandResult.Success(graph with { Warnings = [ExchangeRefusedWarning(exception)] });
+        }
+
         List<GroupInfo> ownerless = graph.Groups.Where(group => !GroupWrites.ThroughExchange(group) || !managed.Contains(group.Id)).ToList();
         return CommandResult.Success(graph with { Groups = ownerless, ManagedInExchange = graph.Groups.Count - ownerless.Count });
     }
+
+    /// <summary>The warning of an <c>--all-types</c> answer whose <c>ManagedBy</c> read Exchange Online refused (task 096).</summary>
+    internal static string ExchangeRefusedWarning(AegisException exception) =>
+        $"the distribution and mail-enabled security groups are judged by Graph's empty owner list: Exchange Online refused the ManagedBy read ({exception.Message}); {exception.Failure.Hint}";
 
     /// <summary>
     /// The object ids of the distribution and mail-enabled security groups whose <c>ManagedBy</c> names an owner: one

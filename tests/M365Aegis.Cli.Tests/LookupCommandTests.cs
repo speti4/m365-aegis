@@ -184,6 +184,29 @@ public sealed class LookupCommandTests
         Assert.Contains("1 synced group(s) as Graph lists them", stdout, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AllTypesWithoutAnExchangeRoleIsGraphsListWithAWarning()
+    {
+        // Task 096: the fake module refuses Get-DistributionGroup as the service refuses an account without the role.
+        Dictionary<string, string> environment = Layers();
+        environment["M365AEGIS_FAKE_EXO_NO_ROLE"] = "Get-DistributionGroup";
+
+        (int exitCode, string stdout, string stderr) = CliTests.RunWith(environment, "--json", "group", "owners-missing", "--all-types");
+        (int tableExit, string table, _) = CliTests.RunWith(environment, "--table", "group", "owners-missing", "--all-types");
+
+        Assert.Equal((0, 0), (exitCode, tableExit));
+        Assert.Equal("", stderr);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement data = document.RootElement.GetProperty("data");
+        Assert.Equal(5, data.GetProperty("groups").GetArrayLength());
+        Assert.False(data.TryGetProperty("managedInExchange", out _));
+        Assert.StartsWith("the distribution and mail-enabled security groups are judged by Graph's empty owner list", data.GetProperty("warnings")[0].GetString(), StringComparison.Ordinal);
+        Assert.Equal("graph", document.RootElement.GetProperty("meta").GetProperty("backend").GetString());
+        Assert.Contains("Sales Managers", table, StringComparison.Ordinal);
+        Assert.Contains("5 group(s) without an owner\n", table, StringComparison.Ordinal);
+        Assert.Contains("\nwarning: the distribution and mail-enabled security groups are judged by Graph's empty owner list: Exchange Online refused the ManagedBy read (", table, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("team", "list")]
     [InlineData("site", "list")]
