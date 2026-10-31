@@ -92,7 +92,10 @@ reshape them. The access read of task 084 (`SnapshotAccess`) is used as it is: t
   `transport.test.ts`; 194 tests, 100% statements, branches, functions and lines; Biome and `tsc` clean
 - 2026-10-31 — the browser mock in the dev server (`npm run dev`, then `?mock=no-snapshot`): the card for
   dave@contoso.com and the plain state, by screenshot; the dev server stopped after
-- 2026-10-31 — the window: `m365-aegis-gui.exe --smoke` exit 0 on an empty home; `release.ps1 -DryRun`
+- 2026-10-31 — the whole local matrix in the worktree: restore `--locked-mode`, format, build, test, the changelog and
+  fixture checks, the coverage gate, the `gui/web` block, the full build with the front end, `doctor --offline` exit 0,
+  `whoami` exit 3 on an empty `M365AEGIS_HOME`, `m365-aegis-gui.exe --smoke` exit 0 and `scripts/release.ps1 -DryRun`
+  (the zip packed, nothing written under `dist`)
 
 ## Closing checklist
 
