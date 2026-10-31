@@ -35,7 +35,7 @@ public sealed class SnapshotTakeTests
         // What each domain sent (task 097): Graph requests, Admin API and sidecar cmdlets; the skipped one nothing.
         Assert.Equal(
             ["users 1 0 0", "groups 1 0 0", "mailboxes 0 1 0", "members 2 0 0", "userGroups 0 0 0", "owners 1 0 2", "teams 1 0 0", "sites 2 0 0", "sharing 6 0 0",
-             "oneDrive 0 0 0", "grants 0 0 6", "folderPermissions 0 6 6", "forwarding 0 0 3"],
+             "oneDrive 0 0 0", "grants 0 0 6", "folderPermissions 0 6 2", "forwarding 0 0 3"],
             take.Domains.Select(domain => $"{domain.Name} {domain.GraphRequests} {domain.AdminApiCalls} {domain.SidecarCalls}"));
         Assert.All(take.Domains, domain => Assert.InRange(domain.ElapsedMs, 0, take.ElapsedMs));
         SnapshotDomain sites = take.Domains.Single(domain => domain.Name == "sites");

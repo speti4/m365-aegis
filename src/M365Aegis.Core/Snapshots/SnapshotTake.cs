@@ -214,7 +214,7 @@ public static class SnapshotTake
                 0,
                 "other users' OneDrives need a consent the tool does not ask for (Sites.Read.All reads the signed-in account's only; task 092)"));
             await DomainAsync("grants", "pwsh Get-EXOMailboxPermission (split across sidecars), Get-EXORecipientPermission, GrantSendOnBehalfTo", GrantsAsync).ConfigureAwait(false);
-            await DomainAsync("folderPermissions", "admin-api Get-MailboxFolderPermission of each mailbox's calendar", () => After(mailboxes, FolderPermissionsAsync)).ConfigureAwait(false);
+            await DomainAsync("folderPermissions", "pwsh Get-EXOMailbox | Get-EXOMailboxFolderStatistics -FolderScope Calendar (the calendars' names, piped); admin-api Get-MailboxFolderPermission of each mailbox's calendar", () => After(mailboxes, FolderPermissionsAsync)).ConfigureAwait(false);
             await DomainAsync("forwarding", "pwsh Get-EXOMailbox ForwardingSmtpAddress, ForwardingAddress", ForwardingAsync).ConfigureAwait(false);
         }
 
@@ -600,12 +600,22 @@ public static class SnapshotTake
                 throw new AegisException(FailureKind.ServiceError, "the calendars' permissions need the Exchange Online Admin API, which this run does not have");
             }
 
+            // The calendars' names in the mailboxes' languages in one piped read (task 100); a mailbox it did not name
+            // has its calendar's name read on its own, as before.
+            IReadOnlyDictionary<string, string> calendars = await MailboxLookups.CalendarPathsAsync(backends.Sidecar, cancellationToken).ConfigureAwait(false);
             var failed = new List<Unread>();
+            int oneByOne = 0;
             (MailboxInfo Mailbox, MailboxFolderPermissions? Folder)[] reads = await EachAsync(_mailboxes, async mailbox =>
             {
+                string? calendar = (mailbox.ObjectId is { } id ? calendars.GetValueOrDefault(id) : null) ?? calendars.GetValueOrDefault(mailbox.PrimarySmtpAddress);
+                if (calendar is null)
+                {
+                    Interlocked.Increment(ref oneByOne);
+                }
+
                 try
                 {
-                    return (mailbox, (await MailboxLookups.FolderPermissionsAsync(backends, mailbox.PrimarySmtpAddress, null, cancellationToken).ConfigureAwait(false)).Data);
+                    return (mailbox, (await MailboxLookups.FolderPermissionsAsync(backends, mailbox.PrimarySmtpAddress, calendar, cancellationToken).ConfigureAwait(false)).Data);
                 }
                 catch (AegisException exception) when (exception.Failure.Kind != FailureKind.Auth)
                 {
@@ -631,7 +641,12 @@ public static class SnapshotTake
             }
 
             failed.Sort((left, right) => string.CompareOrdinal(left.What, right.What));
-            return new DomainRead(Builder.FolderPermissions.Count, failed, unmatched == 0 ? null : $"{unmatched} holder(s) matched no object");
+            string remark = string.Join("; ", new[]
+            {
+                oneByOne == 0 ? null : $"{oneByOne} calendar name(s) read one mailbox at a time, the piped read did not name them",
+                unmatched == 0 ? null : $"{unmatched} holder(s) matched no object",
+            }.OfType<string>());
+            return new DomainRead(Builder.FolderPermissions.Count, failed, remark.Length == 0 ? null : remark);
         }
 
         /// <summary>A calendar entry for everyone rather than a holder: <c>Default</c> (every user) or <c>Anonymous</c>.</summary>

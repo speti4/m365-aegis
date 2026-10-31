@@ -479,7 +479,9 @@ public sealed class SnapshotEdgeTests
         SnapshotTakeResult take = (await SnapshotSamples.TakeAsync(SnapshotSamples.WriteProfile(PlanSamples.TempHome()), Now, backends: backends)).Data!;
 
         SnapshotDomain calendars = take.Domains.Single(domain => domain.Name == "folderPermissions");
-        Assert.Equal((SnapshotDomainStatus.Ok, 3, "1 holder(s) matched no object"), (calendars.Status, calendars.Rows, calendars.Note));
+        Assert.Equal((SnapshotDomainStatus.Ok, 3), (calendars.Status, calendars.Rows));
+        // The canned folder names no mailbox, so its calendar's name was read on its own.
+        Assert.Equal("1 calendar name(s) read one mailbox at a time, the piped read did not name them; 1 holder(s) matched no object", calendars.Note);
     }
 
     [Fact]

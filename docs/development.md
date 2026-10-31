@@ -794,7 +794,7 @@ rest of the home.
 | `sharing` | each drive's `GET /drives/{id}/root/delta?$select=id,name,shared,parentReference&$top=1000` with `Prefer: hierarchicalsharing`, then the `permissions` of every item it marks, in `$batch` | `Sites.Read.All` |
 | `oneDrive` | skipped: another user's OneDrive needs a consent the tool does not ask for (task 092) | |
 | `grants` | the reverse lookup's table of `mailbox access --user` (FullAccess split across sidecars, Send As, Send on Behalf), each holder resolved to its recipient | Exchange |
-| `folderPermissions` | each mailbox's calendar through the Admin API (`mailbox folder-permissions`' read), four at a time | Exchange (Admin API) |
+| `folderPermissions` | each mailbox's calendar through the Admin API (`mailbox folder-permissions`' read), four at a time; the calendars' names in the mailboxes' languages first, in two sidecar calls whatever the count (task 100): `Get-EXOMailbox` with each mailbox's `ExchangeGuid`, then the mailboxes' object ids piped into one `Get-EXOMailboxFolderStatistics -FolderScope Calendar` (the sidecar's `input`, no new request shape, the allow-list unchanged), each folder matched to its mailbox by `ContentMailboxGuid` or `MailboxGuid`, else by its `Identity` up to the backslash; a mailbox the piped read did not name has its calendar's name read on its own, as `mailbox folder-permissions` does, and the domain's note counts those | Exchange (Admin API), Exchange |
 | `forwarding` | `mailbox forwarders`' read | Exchange |
 
 The sharing read is the route the spike of task 092 measured under `Sites.Read.All` (the maintainer declined
