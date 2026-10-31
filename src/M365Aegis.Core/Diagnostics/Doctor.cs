@@ -178,7 +178,8 @@ public static class Doctor
 
     /// <summary>
     /// The groups whose read right on the home folder lets every other account of the machine read it, by their
-    /// well-known SIDs: Everyone, Users and Authenticated Users (task 078).
+    /// well-known SIDs: Everyone, Users and Authenticated Users (task 078). The detail names them in English whatever
+    /// the language of Windows, and the fix line always removes them.
     /// </summary>
     internal static IReadOnlyList<(string Sid, string Name)> BroadReaders { get; } =
     [
@@ -187,18 +188,29 @@ public static class Doctor
         ("S-1-5-11", "Authenticated Users"),
     ];
 
+    /// <summary>The well-known SIDs of SYSTEM and Administrators, which a home the product creates grants next to the user.</summary>
+    internal static IReadOnlyList<string> AllowedReaders { get; } = ["S-1-5-18", "S-1-5-32-544"];
+
     /// <summary>
     /// The access rights that read what is in a folder: list the folder (a file's read data, the same bit), and the
     /// generic read and generic all rights an inheritable entry may carry instead of the specific ones.
     /// </summary>
     internal const int ReadRights = 0x1 | 0x10000000 | unchecked((int)0x80000000);
 
+    /// <summary>The specific rights of <c>FullControl</c>, and the generic all right that stands for them.</summary>
+    private const int FullControlRights = 0x1F01FF;
+    private const int GenericAll = 0x10000000;
+
+    /// <summary>The specific rights of <c>Modify</c>: read, write, execute and delete.</summary>
+    private const int ModifyRights = 0x1301BF;
+
     /// <summary>
-    /// The home folder's access list on Windows (task 078): a warning when Everyone, Users or Authenticated Users has
-    /// a read right on it (an allow entry, explicit or inherited; a deny entry is not weighed against it), with the
-    /// <c>icacls</c> line that gives it the list a home the product creates has (task 075, <see cref="AegisHome.Create"/>):
-    /// nothing inherited, full control for the user, SYSTEM and Administrators, the three groups removed. The doctor
-    /// does not change the list itself. Not required: the tool runs either way.
+    /// The home folder's access list on Windows (tasks 078 and 088): a warning when any account other than the user,
+    /// SYSTEM and Administrators has a read right on it (an allow entry, explicit or inherited; a deny entry is not
+    /// weighed against it), naming each account with its right, with the <c>icacls</c> line that gives it the list a
+    /// home the product creates has (task 075, <see cref="AegisHome.Create"/>): nothing inherited, full control for the
+    /// user, SYSTEM and Administrators, every other account's explicit entry removed. The doctor does not change the
+    /// list itself. Not required: the tool runs either way.
     /// </summary>
     internal static DoctorCheck CheckHomeAccess(DoctorEnvironment environment)
     {
@@ -219,25 +231,51 @@ public static class Doctor
             return new(name, CheckStatus.Warn, "the home folder's access list could not be read", Required: false, $"icacls \"{home}\" shows it");
         }
 
-        List<string> readers = [.. BroadReaders
-            .Select(reader => (reader.Name, Entries: access.Entries.Where(entry => entry.Allow && entry.Sid == reader.Sid && (entry.Rights & ReadRights) != 0).ToList()))
-            .Where(found => found.Entries.Count > 0)
-            .Select(found => found.Entries.All(entry => entry.Inherited) ? $"{found.Name} (inherited)" : found.Name)];
+        // Each account with a read right, in the order of the list, with the entries that give it.
+        List<IGrouping<string, AccessEntry>> readers = [.. access.Entries
+            .Where(entry => entry.Allow && (entry.Rights & ReadRights) != 0)
+            .Where(entry => !string.Equals(entry.Sid, access.UserSid, StringComparison.OrdinalIgnoreCase) && !AllowedReaders.Contains(entry.Sid))
+            .GroupBy(entry => entry.Sid, StringComparer.OrdinalIgnoreCase)];
         if (readers.Count == 0)
         {
-            return new(name, CheckStatus.Pass, "neither Everyone, Users nor Authenticated Users can read it", Required: false);
+            return new(name, CheckStatus.Pass, "only you, SYSTEM and Administrators can read it", Required: false);
         }
 
+        string who = readers.Any(reader => BroadReaders.Any(broad => broad.Sid == reader.Key))
+            ? "every account on this machine"
+            : "an account other than you, SYSTEM and Administrators";
         return new(name, CheckStatus.Warn,
-            $"{string.Join(", ", readers)} can read it: every account on this machine can read the profiles, the plan records and the logs",
-            Required: false, HomeAccessFix(home, access.User));
+            $"{string.Join(", ", readers.Select(Describe))} can read it: {who} can read the profiles, the plan records and the logs",
+            Required: false, HomeAccessFix(home, access.User, readers.Where(reader => !reader.All(entry => entry.Inherited)).Select(reader => reader.Key)));
     }
 
-    /// <summary>The <c>icacls</c> line that gives a home the product's own list; it runs the same in pwsh and in cmd.</summary>
-    internal static string HomeAccessFix(string home, string user)
+    /// <summary>An account that can read the home, for the detail: its name, its right and whether it is inherited only.</summary>
+    private static string Describe(IGrouping<string, AccessEntry> reader)
     {
-        string grants = string.Join(" ", new[] { user, "*S-1-5-18", "*S-1-5-32-544" }.Select(sid => $"\"{sid}:(OI)(CI)F\""));
-        string removes = string.Join(" ", BroadReaders.Select(reader => $"*{reader.Sid}"));
+        string account = BroadReaders.Where(broad => broad.Sid == reader.Key).Select(broad => broad.Name).FirstOrDefault()
+            ?? reader.Select(entry => entry.Account).FirstOrDefault(account => account is not null)
+            ?? reader.Key;
+        string right = RightName(reader.Aggregate(0, (rights, entry) => rights | entry.Rights));
+        return reader.All(entry => entry.Inherited) ? $"{account} ({right}, inherited)" : $"{account} ({right})";
+    }
+
+    /// <summary>The strongest of full control, modify and read that an access mask holds.</summary>
+    internal static string RightName(int rights) =>
+        (rights & GenericAll) != 0 || (rights & FullControlRights) == FullControlRights ? "full control"
+        : (rights & ModifyRights) == ModifyRights ? "modify"
+        : "read";
+
+    /// <summary>
+    /// The <c>icacls</c> line that gives a home the product's own list; it runs the same in pwsh and in cmd.
+    /// <c>/inheritance:r</c> drops every inherited entry; <c>/remove:g</c> removes the three broad groups and the other
+    /// accounts with an explicit entry, which would outlive it. An inherited account is not named there: icacls refuses
+    /// a SID that does not resolve (error 1332), as a deleted account's or a sandbox's may not.
+    /// </summary>
+    internal static string HomeAccessFix(string home, string user, IEnumerable<string> explicitReaders)
+    {
+        string[] owners = [user, .. AllowedReaders.Select(sid => $"*{sid}")];
+        string grants = string.Join(" ", owners.Select(account => $"\"{account}:(OI)(CI)F\""));
+        string removes = string.Join(" ", BroadReaders.Select(reader => reader.Sid).Concat(explicitReaders).Distinct(StringComparer.OrdinalIgnoreCase).Select(sid => $"*{sid}"));
         return $"icacls \"{home}\" /inheritance:r /grant:r {grants} /remove:g {removes}";
     }
 
@@ -309,11 +347,12 @@ public static class Doctor
     }
 
     /// <summary>
-    /// The Authenticode signatures of the exes and the product's assemblies in the running exe's folder (task 085):
-    /// a pass when every one is signed by a certificate this machine trusts, a warning when one is not signed (a build
-    /// from source, or an unsigned zip) or its certificate is not trusted here, a failure when a signature does not
-    /// hold (the file changed after it was signed). The worst state names its files. Not required: an unsigned build
-    /// runs the same.
+    /// The Authenticode signatures of the exes and the product's assemblies in the running exe's folder (tasks 085 and
+    /// 093): a pass when every one is signed by the release's certificate (<see cref="Authenticode.ReleaseThumbprint"/>,
+    /// D-012) and this machine trusts it, a warning when one is not signed (a build from source, or an unsigned zip),
+    /// its certificate is not trusted here, or a trusted certificate signed it that is not the release's (named with
+    /// its thumbprint), a failure when a signature does not hold (the file changed after it was signed). The worst state
+    /// names its files. Not required: an unsigned build runs the same.
     /// </summary>
     internal static DoctorCheck CheckSignature(DoctorEnvironment environment)
     {
@@ -341,15 +380,33 @@ public static class Doctor
                 "the zip of the releases page is signed; a build from source is not");
         }
 
+        string? overridden = Authenticode.NormalizeThumbprint(environment.PinOverride);
+        string pin = overridden ?? Authenticode.ReleaseThumbprint;
         if (Named(files, SignatureState.Untrusted) is { } untrusted)
         {
+            // Trusting a certificate that is not the release's would make the wrong signer pass on this machine.
             return new(name, CheckStatus.Warn, $"{untrusted}: signed by {Signers(files, SignatureState.Untrusted)}, which this machine does not trust", Required: false,
-                "an administrator trusts the release's signing certificate on this machine (the usage guide, \"Check the download\")");
+                files.Where(file => file.State == SignatureState.Untrusted).All(file => file.Thumbprint == pin)
+                    ? "an administrator trusts the release's signing certificate on this machine (the usage guide, \"Check the download\")"
+                    : $"the signer is not the release's certificate (thumbprint {pin}): unzip the release from the releases page again");
+        }
+
+        List<string> others = [.. files.Where(file => file.Thumbprint != pin).Select(file => file.File)];
+        if (others.Count > 0)
+        {
+            return new(name, CheckStatus.Warn,
+                $"{string.Join(", ", others)}: signed by {OtherSigners(files.Where(file => file.Thumbprint != pin))}, not the release's certificate (thumbprint {pin})",
+                Required: false, "the release zip of the releases page is signed by the release's certificate; unzip it again");
         }
 
         string count = string.Format(CultureInfo.InvariantCulture, "{0} file(s)", files.Count);
-        return new(name, CheckStatus.Pass, $"{count} signed by {Signers(files, SignatureState.Valid)}", Required: false);
+        string pinned = overridden is null ? "the release's certificate" : $"the certificate {Authenticode.PinOverrideVariable} pins";
+        return new(name, CheckStatus.Pass, $"{count} signed by {Signers(files, SignatureState.Valid)}, {pinned}", Required: false);
     }
+
+    /// <summary>The distinct signers of the files with their thumbprints; "an unreadable certificate" where none was read.</summary>
+    private static string OtherSigners(IEnumerable<FileSignature> files) =>
+        string.Join("; ", files.Select(file => file.Signer is null ? "an unreadable certificate" : $"{file.Signer} ({file.Thumbprint ?? "no thumbprint read"})").Distinct(StringComparer.Ordinal));
 
     /// <summary>
     /// The files in a state, or null when none is in it; a broken or untrusted one with its <c>WinVerifyTrust</c> answer,

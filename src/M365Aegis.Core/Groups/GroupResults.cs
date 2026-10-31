@@ -92,7 +92,15 @@ public sealed record GroupOwners(GroupInfo Group, IReadOnlyList<GroupMember> Own
 /// The groups without an owner in Graph that were left out because Graph keeps no owners for them (distribution,
 /// mail-enabled security and synced groups); 0 under <c>--all-types</c>.
 /// </param>
-public sealed record OwnerlessGroups(IReadOnlyList<GroupInfo> Groups, int LeftOut);
+public sealed record OwnerlessGroups(IReadOnlyList<GroupInfo> Groups, int LeftOut)
+{
+    /// <summary>
+    /// Under <c>--all-types</c> over the Exchange layers (task 089): how many of the distribution and mail-enabled
+    /// security groups Graph lists without an owner were left out because their <c>ManagedBy</c> in Exchange Online
+    /// names one; null when Exchange was not asked (the default list, or Graph alone), so that envelope is unchanged.
+    /// </summary>
+    public int? ManagedInExchange { get; init; }
+}
 
 /// <summary>One team of <c>team list</c>.</summary>
 /// <param name="Id">The team's id, which is its Microsoft 365 group's id.</param>

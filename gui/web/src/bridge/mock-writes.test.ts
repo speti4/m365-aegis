@@ -130,6 +130,61 @@ describe("the browser mock's writes", () => {
     expect(unnamed).toMatchObject({ type: MessageType.error, data: { code: "usage" } });
   });
 
+  it("changes its own state with an apply, so the next plan and lookup see it (task 091)", async () => {
+    const mock = client();
+    const confirm = async (reply: Reply) =>
+      mock.call(MessageType.applyPlan, { planId: plan(reply).planId, confirm: true });
+
+    await confirm(await mock.call(MessageType.mailboxForwardingClear, { mailbox: "bob@contoso.com" }));
+    await confirm(
+      await mock.call(MessageType.mailboxForwardingSet, {
+        mailbox: "Alice Example",
+        to: "finance@contoso.com",
+        keepCopy: true,
+      }),
+    );
+    await confirm(
+      await mock.call(MessageType.mailboxAccessGrant, {
+        mailbox: "finance",
+        users: ["bob@contoso.com"],
+        rights: ["full-access"],
+      }),
+    );
+    await confirm(
+      await mock.call(MessageType.mailboxAccessRevoke, {
+        mailbox: "finance",
+        users: ["alice@contoso.com"],
+        rights: ["send-as"],
+      }),
+    );
+
+    const bob = plan(await mock.call(MessageType.mailboxForwardingClear, { mailbox: "bob@contoso.com" }));
+    const alice = plan(
+      await mock.call(MessageType.mailboxForwardingSet, {
+        mailbox: "Alice Example",
+        to: "finance@contoso.com",
+        keepCopy: true,
+      }),
+    );
+    const finance = await mock.call(MessageType.mailboxAccess, { mailbox: "finance" });
+    const fresh = await client().call(MessageType.mailboxAccess, { mailbox: "finance" });
+
+    expect(bob.plan.unchanged[0].state).toBe("no forwarding");
+    expect(alice.plan.unchanged[0].state).toBe("forwards to finance@contoso.com, keeps a copy already");
+    const rows = (reply: Reply) =>
+      reply.type === MessageType.mailboxHolders ? reply.data.holders.map((row) => `${row.right} ${row.holder}`) : [];
+    expect(rows(finance)).toEqual([
+      "full-access alice@contoso.com",
+      "send-on-behalf Bob Example",
+      "full-access bob@contoso.com",
+    ]);
+    expect(rows(fresh)).toEqual([
+      "full-access alice@contoso.com",
+      "send-as alice@contoso.com",
+      "send-on-behalf Bob Example",
+    ]);
+  });
+
   it("fails a Send on Behalf change on Reception, so the page's partial result shows", async () => {
     const mock = client();
     const ready = plan(

@@ -428,7 +428,10 @@ function Set-Mailbox {
 # (a non-terminating error), and the failing identities 'broken', 'nobody' and 'busy' fail the writes too.
 #
 # The owners (task 064) are ManagedBy, kept as the service lists them, by each recipient's name: Sales is managed by
-# alice, Finance Staff by carol and by 'Organization Management', a role group no recipient lookup knows.
+# alice, Finance Staff by carol and by 'Organization Management', a role group no recipient lookup knows. The two groups
+# the Graph fixtures list without an owner (task 089) are here too: the distribution group All Staff
+# (allstaff@contoso.com, ...03b) with an empty ManagedBy, and the mail-enabled security group Sales Managers
+# (salesmanagers@contoso.com, ...03d) managed by alice.
 $script:Groups = @(
     [pscustomobject]@{ Name = 'Sales'; Alias = 'sales'; DisplayName = 'Sales'; PrimarySmtpAddress = 'sales@contoso.com'; ExternalDirectoryObjectId = '00000000-0000-0000-0000-000000000036'
         RecipientTypeDetails = 'MailUniversalDistributionGroup'
@@ -438,6 +441,14 @@ $script:Groups = @(
         RecipientTypeDetails = 'MailUniversalSecurityGroup'
         Members = [System.Collections.Generic.List[string]]@('carol@contoso.com')
         ManagedBy = [System.Collections.Generic.List[string]]@('carol', 'Organization Management') }
+    [pscustomobject]@{ Name = 'All Staff'; Alias = 'allstaff'; DisplayName = 'All Staff'; PrimarySmtpAddress = 'allstaff@contoso.com'; ExternalDirectoryObjectId = '00000000-0000-0000-0000-00000000003b'
+        RecipientTypeDetails = 'MailUniversalDistributionGroup'
+        Members = [System.Collections.Generic.List[string]]@('alice@contoso.com', 'bob@contoso.com')
+        ManagedBy = [System.Collections.Generic.List[string]]@() }
+    [pscustomobject]@{ Name = 'Sales Managers'; Alias = 'salesmanagers'; DisplayName = 'Sales Managers'; PrimarySmtpAddress = 'salesmanagers@contoso.com'; ExternalDirectoryObjectId = '00000000-0000-0000-0000-00000000003d'
+        RecipientTypeDetails = 'MailUniversalSecurityGroup'
+        Members = [System.Collections.Generic.List[string]]@('alice@contoso.com')
+        ManagedBy = [System.Collections.Generic.List[string]]@('alice') }
 )
 
 function Find-FakeGroup {
@@ -496,25 +507,38 @@ function Remove-DistributionGroupMember {
     [void] $group.Members.Remove($recipient.PrimarySmtpAddress)
 }
 
+function ConvertTo-FakeGroup {
+    # A group as Get-DistributionGroup returns it.
+    param([object] $Group)
+    [pscustomobject]@{
+        Name = $Group.Name
+        Alias = $Group.Alias
+        DisplayName = $Group.DisplayName
+        Identity = $Group.Name
+        PrimarySmtpAddress = $Group.PrimarySmtpAddress
+        ExternalDirectoryObjectId = $Group.ExternalDirectoryObjectId
+        RecipientTypeDetails = $Group.RecipientTypeDetails
+        ManagedBy = [System.Collections.ArrayList]@($Group.ManagedBy)
+    }
+}
+
 function Get-DistributionGroup {
-    # A distribution or mail-enabled security group with its owners (task 064): ManagedBy lists them by name.
+    # A distribution or mail-enabled security group with its owners (task 064): ManagedBy lists them by name. Without an
+    # identity, every group up to ResultSize, as the bulk read of owners-missing --all-types asks (task 089).
     [CmdletBinding()]
     param([Parameter(ValueFromPipeline)] [string] $Identity, [object] $ResultSize = 1000)
     process {
         Assert-FakeConnected
+        if (-not $Identity) {
+            $groups = @($script:Groups)
+            if ("$ResultSize" -ne 'Unlimited') { $groups = @($groups | Select-Object -First ([int] $ResultSize)) }
+            foreach ($group in $groups) { ConvertTo-FakeGroup $group }
+            return
+        }
         if (-not (Assert-FakeIdentity $Identity)) { return }
         $group = Find-FakeGroup -Identity $Identity
         if (-not $group) { return }
-        [pscustomobject]@{
-            Name = $group.Name
-            Alias = $group.Alias
-            DisplayName = $group.DisplayName
-            Identity = $group.Name
-            PrimarySmtpAddress = $group.PrimarySmtpAddress
-            ExternalDirectoryObjectId = $group.ExternalDirectoryObjectId
-            RecipientTypeDetails = $group.RecipientTypeDetails
-            ManagedBy = [System.Collections.ArrayList]@($group.ManagedBy)
-        }
+        ConvertTo-FakeGroup $group
     }
 }
 

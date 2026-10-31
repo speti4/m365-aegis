@@ -18,6 +18,7 @@ public sealed class DoctorTests
     /// <summary>The access masks of <c>FileSystemRights.FullControl</c> and <c>ReadAndExecute</c> (with <c>Synchronize</c>).</summary>
     private const int FullControl = 0x1F01FF;
     private const int ReadAndExecute = 0x1200A9;
+    private const int Modify = 0x1301BF;
 
     private static readonly byte[] Script = Encoding.UTF8.GetBytes("#Requires -Version 7.6\nparam()\n'hello'\n");
 
@@ -84,8 +85,65 @@ public sealed class DoctorTests
 
         DoctorCheck check = Doctor.CheckHomeAccess(environment);
 
-        Assert.Equal(new DoctorCheck("home-access", CheckStatus.Pass, "neither Everyone, Users nor Authenticated Users can read it", Required: false), check);
+        Assert.Equal(new DoctorCheck("home-access", CheckStatus.Pass, "only you, SYSTEM and Administrators can read it", Required: false), check);
     }
+
+    [Fact]
+    public void AnotherAccountThatCanReadTheHomeWarnsNamingItsRight()
+    {
+        // Task 088: a sandbox group or another user with an inherited right is named, with its right; a SID that does not
+        // resolve is named by itself; the user's own SID in another case, SYSTEM and Administrators are not judged.
+        string home = WithProfile();
+        DoctorEnvironment environment = Fake(home) with
+        {
+            ReadHomeAccess = _ => UserOnly(
+                new("S-1-15-2-1", Allow: true, ReadAndExecute, Inherited: true, @"APPLICATION PACKAGE AUTHORITY\ALL APPLICATION PACKAGES"),
+                new("S-1-5-21-0-0-0-1002", Allow: true, Modify, Inherited: true, @"CONTOSO\bob"),
+                new("S-1-5-21-0-0-0-1003", Allow: true, 0x1, Inherited: false),
+                new("s-1-5-21-0-0-0-1001", Allow: true, ReadAndExecute, Inherited: true, @"CONTOSO\alice"),
+                new("S-1-5-18", Allow: true, FullControl, Inherited: true, @"NT AUTHORITY\SYSTEM")),
+        };
+
+        DoctorCheck check = Doctor.CheckHomeAccess(environment);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.Equal(
+            @"APPLICATION PACKAGE AUTHORITY\ALL APPLICATION PACKAGES (read, inherited), CONTOSO\bob (modify, inherited), S-1-5-21-0-0-0-1003 (read) can read it: an account other than you, SYSTEM and Administrators can read the profiles, the plan records and the logs",
+            check.Detail);
+        Assert.Equal(
+            $"icacls \"{home}\" /inheritance:r /grant:r \"CONTOSO\\alice:(OI)(CI)F\" \"*S-1-5-18:(OI)(CI)F\" \"*S-1-5-32-544:(OI)(CI)F\" /remove:g *S-1-1-0 *S-1-5-32-545 *S-1-5-11 *S-1-5-21-0-0-0-1003",
+            check.Hint);
+    }
+
+    [Fact]
+    public void AnAccountWithSeveralEntriesIsNamedOnceWithItsStrongestRight()
+    {
+        // Two entries of one account add up, and an explicit one among them makes it more than inherited; one of the
+        // broad groups among the readers makes it every account on the machine.
+        DoctorEnvironment environment = Fake(WithProfile()) with
+        {
+            ReadHomeAccess = _ => UserOnly(
+                new("S-1-5-21-0-0-0-1002", Allow: true, ReadAndExecute, Inherited: true),
+                new("S-1-5-21-0-0-0-1002", Allow: true, Modify, Inherited: false, @"CONTOSO\bob"),
+                new("S-1-5-32-545", Allow: true, ReadAndExecute, Inherited: true, @"BUILTIN\Users")),
+        };
+
+        DoctorCheck check = Doctor.CheckHomeAccess(environment);
+
+        Assert.Equal(
+            @"CONTOSO\bob (modify), Users (read, inherited) can read it: every account on this machine can read the profiles, the plan records and the logs",
+            check.Detail);
+        Assert.EndsWith("/remove:g *S-1-1-0 *S-1-5-32-545 *S-1-5-11 *S-1-5-21-0-0-0-1002", check.Hint, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0x10000000, "full control")]
+    [InlineData(FullControl, "full control")]
+    [InlineData(Modify, "modify")]
+    [InlineData(ReadAndExecute, "read")]
+    [InlineData(unchecked((int)0x80000000), "read")]
+    public void TheRightOfAnEntryIsItsStrongestName(int rights, string expected) =>
+        Assert.Equal(expected, Doctor.RightName(rights));
 
     [Fact]
     public void AHomeTheBroadGroupsCanReadWarnsWithTheIcaclsLineThatFixesIt()
@@ -104,7 +162,7 @@ public sealed class DoctorTests
 
         Assert.Equal(CheckStatus.Warn, check.Status);
         Assert.False(check.Required);
-        Assert.Equal("Everyone, Users (inherited), Authenticated Users can read it: every account on this machine can read the profiles, the plan records and the logs", check.Detail);
+        Assert.Equal("Everyone (read), Users (read, inherited), Authenticated Users (full control) can read it: every account on this machine can read the profiles, the plan records and the logs", check.Detail);
         Assert.Equal(
             $"icacls \"{home}\" /inheritance:r /grant:r \"CONTOSO\\alice:(OI)(CI)F\" \"*S-1-5-18:(OI)(CI)F\" \"*S-1-5-32-544:(OI)(CI)F\" /remove:g *S-1-1-0 *S-1-5-32-545 *S-1-5-11",
             check.Hint);
@@ -235,11 +293,69 @@ public sealed class DoctorTests
     }
 
     [Fact]
-    public void ExesSignedByATrustedCertificatePass()
+    public void ExesSignedByTheReleaseCertificatePass()
     {
         DoctorCheck check = Doctor.CheckSignature(Fake(ProfileStoreTests.TempHome()));
 
-        Assert.Equal(new DoctorCheck("signature", CheckStatus.Pass, "3 file(s) signed by CN=Contoso Release Signing", Required: false), check);
+        Assert.Equal(new DoctorCheck("signature", CheckStatus.Pass, "3 file(s) signed by CN=Contoso Release Signing, the release's certificate", Required: false), check);
+    }
+
+    [Fact]
+    public void ATrustedCertificateThatIsNotTheReleasesWarnsWithItsSignerAndThumbprint()
+    {
+        // Task 093: a machine that trusts a wrong certificate does not see a pass on a replaced file.
+        DoctorEnvironment environment = Fake(ProfileStoreTests.TempHome()) with
+        {
+            ReadSignatures = () =>
+            [
+                Signed(SignatureState.Valid)[0],
+                new("m365-aegis.dll", SignatureState.Valid, "CN=Fabrikam Code Signing", 0, OtherThumbprint),
+                new("M365Aegis.Core.dll", SignatureState.Valid, "CN=Fabrikam Code Signing", 0),
+                new("m365-aegis-gui.exe", SignatureState.Valid, null, 0),
+            ],
+        };
+
+        DoctorCheck check = Doctor.CheckSignature(environment);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.Equal(
+            $"m365-aegis.dll, M365Aegis.Core.dll, m365-aegis-gui.exe: signed by CN=Fabrikam Code Signing ({OtherThumbprint}); CN=Fabrikam Code Signing (no thumbprint read); an unreadable certificate, not the release's certificate (thumbprint {Authenticode.ReleaseThumbprint})",
+            check.Detail);
+        Assert.Contains("releases page", check.Hint, StringComparison.Ordinal);
+        Assert.False(check.Required);
+    }
+
+    [Fact]
+    public void TheTestSeamPinsAnotherCertificateAndTheRowSaysSo()
+    {
+        // The signing tests pin their throwaway certificate through the variable; spaces and the case do not matter.
+        DoctorEnvironment environment = Fake(ProfileStoreTests.TempHome()) with
+        {
+            ReadSignatures = () => Signed(SignatureState.Valid, OtherThumbprint),
+            PinOverride = $" {OtherThumbprint[..8]} {OtherThumbprint[8..].ToLowerInvariant()} ",
+        };
+
+        DoctorCheck check = Doctor.CheckSignature(environment);
+
+        Assert.Equal(CheckStatus.Pass, check.Status);
+        Assert.Equal("3 file(s) signed by CN=Contoso Release Signing, the certificate M365AEGIS_TEST_RELEASE_THUMBPRINT pins", check.Detail);
+        Assert.Equal(CheckStatus.Warn, Doctor.CheckSignature(environment with { PinOverride = " " }).Status);
+        Assert.Equal(CheckStatus.Pass, Doctor.CheckSignature(environment with { PinOverride = " ", ReadSignatures = () => Signed(SignatureState.Valid) }).Status);
+    }
+
+    [Fact]
+    public void AnUntrustedCertificateThatIsNotTheReleasesIsNotTheOneToTrust()
+    {
+        DoctorEnvironment environment = Fake(ProfileStoreTests.TempHome()) with
+        {
+            ReadSignatures = () => [new("m365-aegis.exe", SignatureState.Untrusted, "CN=Fabrikam Code Signing", Authenticode.UntrustedRoot, OtherThumbprint)],
+        };
+
+        DoctorCheck check = Doctor.CheckSignature(environment);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.Equal("m365-aegis.exe (0x800B0109): signed by CN=Fabrikam Code Signing, which this machine does not trust", check.Detail);
+        Assert.Equal($"the signer is not the release's certificate (thumbprint {Authenticode.ReleaseThumbprint}): unzip the release from the releases page again", check.Hint);
     }
 
     [Fact]
@@ -265,8 +381,8 @@ public sealed class DoctorTests
         {
             ReadSignatures = () =>
             [
-                new("m365-aegis.exe", SignatureState.Untrusted, "CN=Contoso Release Signing", Authenticode.UntrustedRoot),
-                new("m365-aegis.dll", SignatureState.Untrusted, null, Authenticode.UntrustedRoot),
+                new("m365-aegis.exe", SignatureState.Untrusted, "CN=Contoso Release Signing", Authenticode.UntrustedRoot, Authenticode.ReleaseThumbprint),
+                new("m365-aegis.dll", SignatureState.Untrusted, null, Authenticode.UntrustedRoot, Authenticode.ReleaseThumbprint),
             ],
         };
 
@@ -608,6 +724,7 @@ public sealed class DoctorTests
     /// <summary>The access list a home the product created has (task 075), with the given entries added.</summary>
     private static HomeAccess UserOnly(params AccessEntry[] added) => new(
         @"CONTOSO\alice",
+        "S-1-5-21-0-0-0-1001",
         [
             new("S-1-5-21-0-0-0-1001", Allow: true, FullControl, Inherited: false),
             new("S-1-5-18", Allow: true, FullControl, Inherited: false),
@@ -616,12 +733,15 @@ public sealed class DoctorTests
         ]);
 
     /// <summary>The three files of a command line folder, each in the given state, signed by the made-up publisher.</summary>
-    private static FileSignature[] Signed(SignatureState state) =>
+    private static FileSignature[] Signed(SignatureState state, string thumbprint = Authenticode.ReleaseThumbprint) =>
     [
-        new("m365-aegis.exe", state, "CN=Contoso Release Signing", 0),
-        new("m365-aegis.dll", state, "CN=Contoso Release Signing", 0),
-        new("M365Aegis.Core.dll", state, "CN=Contoso Release Signing", 0),
+        new("m365-aegis.exe", state, "CN=Contoso Release Signing", 0, thumbprint),
+        new("m365-aegis.dll", state, "CN=Contoso Release Signing", 0, thumbprint),
+        new("M365Aegis.Core.dll", state, "CN=Contoso Release Signing", 0, thumbprint),
     ];
+
+    /// <summary>A made-up thumbprint of a certificate that is not the release's.</summary>
+    private const string OtherThumbprint = "00000000000000000000000000000000000000AB";
 
     private static string Fixture(string fileName) =>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "doctor", fileName));
@@ -645,6 +765,7 @@ public sealed class DoctorTests
             ReadInstalledSidecar = () => Script,
             ReadBuildSidecar = () => Script,
             ReadSignatures = () => Signed(SignatureState.Valid),
+            PinOverride = null,
             SignIn = signIn ?? ((_, _) => Task.FromResult(AuthSamples.SignedIn)),
             Probe = (_, _) => Task.FromResult(new EndpointAnswer(200, TimeSpan.FromMilliseconds(80), null)),
         };

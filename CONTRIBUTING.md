@@ -18,7 +18,8 @@ Nothing from a tenant enters the repo: no tenant name or id, no client id, no us
 address or object id, no sign-in record, no token, no certificate, no screenshot of a real admin center page.
 Reproduce a problem with made-up names: `contoso.onmicrosoft.com`, `alice@contoso.com`, ids of the form
 `00000000-0000-0000-0000-0000000000NN`. The fixtures under `tests/fixtures/` are recorded answers scrubbed to
-those names, and `scripts/check-fixtures.py` fails on anything else (`tests/fixtures/README.md` has the rules).
+those names, and `scripts/check-fixtures.py` fails on anything else, in the fixtures and in every Markdown file of
+the repo (`tests/fixtures/README.md` has the rules and the allow-list of the other hosts a doc may name).
 The tenant profiles, the MSAL cache, the logs and the plan records live under `%LOCALAPPDATA%\m365-aegis\`,
 never under the repo; `.gitignore` keeps `config.json`, `msal-cache*.bin` and certificates out.
 
@@ -70,6 +71,7 @@ dotnet format --verify-no-changes --no-restore
 dotnet build --no-restore -c Release -p:SkipFrontendBuild=true
 dotnet test --no-build -c Release
 python -I scripts/changelog.py --check
+python -I scripts/check-fixtures.py --self-test
 python -I scripts/check-fixtures.py
 ```
 

@@ -234,6 +234,45 @@ public sealed class DistributionGroupWritesTests
     }
 
     [Fact]
+    public async Task OwnersMissingAllTypesJudgesADistributionGroupByItsManagedBy()
+    {
+        await using ExchangeSession session = Session(WritesFile());
+        (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
+        await using var backends = new ExchangeBackends(session, AdminApiConnection.Fixtures(GraphFixtures.Root), () => graph);
+
+        // Task 089: Graph lists five groups without an owner; the fake module's ManagedBy names alice for the mail-enabled
+        // security group Sales Managers and nobody for the distribution group All Staff.
+        CommandResult<OwnerlessGroups> result = await GroupLookups.OwnerlessAsync(backends, allTypes: true, Ct);
+
+        Assert.True(result.Ok);
+        Assert.Equal(["All Staff", "Helpdesk Admins", "HR Synced", "Project Phoenix"], result.Data!.Groups.Select(group => group.DisplayName));
+        Assert.DoesNotContain(result.Data.Groups, group => group.DisplayName == "Sales Managers");
+        // The Microsoft 365 group and the security group stay Graph's answer, the synced group too.
+        Assert.Equal(GroupKind.Microsoft365, result.Data.Groups.Single(group => group.DisplayName == "Project Phoenix").Kind);
+        Assert.True(result.Data.Groups.Single(group => group.DisplayName == "HR Synced").Synced);
+        Assert.Equal(1, result.Data.ManagedInExchange);
+        Assert.Equal(0, result.Data.LeftOut);
+        Assert.Equal("graph+pwsh", backends.Backend);
+        // The one wide query over its two pages, and no request per group.
+        Assert.Equal(2, transport.Requests.Count);
+    }
+
+    [Fact]
+    public async Task OwnersMissingWithoutAllTypesAsksNothingOfExchange()
+    {
+        await using ExchangeSession session = Session(WritesFile());
+        await using var backends = new ExchangeBackends(session, AdminApiConnection.Fixtures(GraphFixtures.Root), () => GraphFixtures.Client().Client);
+
+        CommandResult<OwnerlessGroups> result = await GroupLookups.OwnerlessAsync(backends, allTypes: false, Ct);
+
+        Assert.Equal(["Helpdesk Admins", "Project Phoenix"], result.Data!.Groups.Select(group => group.DisplayName));
+        Assert.Equal(3, result.Data.LeftOut);
+        Assert.Null(result.Data.ManagedInExchange);
+        Assert.Equal("graph", backends.Backend);
+        await Assert.ThrowsAsync<ArgumentNullException>(() => GroupLookups.OwnerlessAsync((ExchangeBackends)null!, allTypes: true, Ct));
+    }
+
+    [Fact]
     public async Task AMicrosoft365GroupsOwnersStillGoThroughGraph()
     {
         string writes = WritesFile();

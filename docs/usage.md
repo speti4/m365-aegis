@@ -48,9 +48,12 @@ releases page (https://github.com/speti4/m365-aegis/releases). Before you unzip 
 The exes and the tool's own assemblies are signed. In the unzipped folder,
 `Get-AuthenticodeSignature .\m365-aegis.exe` names the signer, which the release notes name too, and
 `m365-aegis doctor` checks every signed file in its `signature` row. `Valid` means the file is unchanged and its
-certificate is trusted on this machine. If the row says the certificate is not trusted, an administrator trusts the
-release's signing certificate on the machine (the maintainer hands it out); if it says a signature does not hold,
-the file changed after it was signed: delete the folder and unzip the release again.
+certificate is trusted on this machine; the row passes only when that certificate is the release's, whose thumbprint
+the tool knows and the release notes print. If the row says the certificate is not trusted, an administrator trusts
+the release's signing certificate on the machine (the maintainer hands it out), unless the row's fix line says the
+signer is not the release's certificate: then the files did not come from the release, so delete the folder and
+unzip the release again. If it says a signature does not hold, the file changed after it was signed: delete the
+folder and unzip the release again.
 
 ## Sign in
 
@@ -122,7 +125,11 @@ m365-aegis group owners-missing --all-types       # also distribution, mail-enab
 ```
 
 The owners of a distribution group or a mail-enabled security group are read from Exchange Online (their
-"managed by" list), since Microsoft Graph does not keep them.
+"managed by" list), since Microsoft Graph does not keep them. `owners-missing --all-types` judges these groups the
+same way: one is listed only when its "managed by" list in Exchange Online is empty, and the line under the table
+counts the ones left out because it names an owner. A group synced from on-premises Active Directory is listed as
+Microsoft Graph sees it, with a line under the table that says so. Without `--all-types` the command asks Microsoft
+Graph alone, as before.
 
 ### Teams and SharePoint
 
@@ -361,7 +368,9 @@ A group's name, address or object id, then "Look up": the group's type and its d
 "A mailbox" or "A user", then the address and "Look up": who holds FullAccess, Send As and Send on Behalf on the
 mailbox, or the mailboxes the user holds them on, as `m365-aegis mailbox access` reads them. "List the shared
 mailboxes" lists them as buttons; pick one to see its access. A right held by a group is listed as the group. The
-first lookup starts the Exchange Online session, which takes a few seconds.
+first lookup starts the Exchange Online session, which takes a few seconds. When the Mailbox rights card grants or
+revokes a right on the mailbox shown here, the card reads the mailbox again on its own and says "Read again after a
+change on the Mailbox rights card." over the table.
 
 ### Mailbox rights
 
@@ -387,7 +396,8 @@ sign-in says so and waits for the sign-in card.
 
 Forwards a mailbox's mail to an address, or stops it, as `m365-aegis mailbox forwarding set` and `clear` do:
 "Forward" or "Stop forwarding", the mailbox, the address, and "Keep a copy in the mailbox" (ticked by default here;
-on the command line a copy needs `--keep-copy`). Then the same steps as the mailbox rights card.
+on the command line a copy needs `--keep-copy`). Then the same steps as the mailbox rights card; without the copy, the
+plan's "Good to know" says that the mail reaches the address only and that ticking the box keeps one.
 
 The group writes, the CSV batches and a resume are on the command line only. `m365-aegis-gui.exe --verbose` writes
 the window's sign-in log as `--verbose` does on the command line.
@@ -402,13 +412,13 @@ three endpoints, the checks that need the network.
 | check | `warn` means | `fail` means, and the fix |
 | --- | --- | --- |
 | `home` (required) | the home folder does not exist yet; the first sign-in creates it | it is a file, not a folder: move the file away |
-| `home-access` | other accounts of the machine can read your profiles, plan records and logs: the fix line is an `icacls` command that gives the folder back to you alone | (never fails) |
+| `home-access` | an account other than you, `SYSTEM` and `Administrators` can read your profiles, plan records and logs (the row names each one with its right): the fix line is an `icacls` command that gives the folder back to you alone | (never fails) |
 | `dotnet-runtime` | (a fact: the .NET version the tool runs on) | |
 | `dotnet-desktop-runtime` | it is a patch behind the .NET runtime: `winget upgrade Microsoft.DotNet.DesktopRuntime.10` | not installed, the window cannot start: `winget install Microsoft.DotNet.DesktopRuntime.10` |
 | `pwsh` (required) | PowerShell's version could not be read | missing or older than 7.6: `winget install Microsoft.PowerShell` |
 | `exchange-online-module` | older than 3.10: `Update-Module ExchangeOnlineManagement` | not installed, the mailbox commands cannot run: `Install-Module ExchangeOnlineManagement -Scope CurrentUser` |
 | `sidecar-script` (required) | the Exchange Online script differs in its line endings only | the script is missing or was changed: unzip the release again |
-| `signature` | a file is not signed (a build from source, or an unsigned zip), or its certificate is not trusted on this machine (an administrator trusts it) | a signature does not hold, the file changed after it was signed: unzip the release again |
+| `signature` | a file is not signed (a build from source, or an unsigned zip), its certificate is not trusted on this machine (an administrator trusts it, if it is the release's), or a certificate that is not the release's signed it (unzip the release again) | a signature does not hold, the file changed after it was signed: unzip the release again |
 | `webview2-runtime` | it is old, so Edge Update is blocked here | not installed, the window cannot start: `winget install Microsoft.EdgeWebView2Runtime` |
 | `config` | no profile yet (`m365-aegis login`), or no default (`m365-aegis profile use <name>`) | `config.json` does not read, or a profile lacks a value |
 | `device` | the machine is registered, not joined, or has no primary refresh token: the profile's account signs in instead of the Windows account, which is normal on a registered machine | neither joined nor registered: Settings > Accounts > Access work or school > Connect |

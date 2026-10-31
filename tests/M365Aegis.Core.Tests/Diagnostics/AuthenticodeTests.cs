@@ -49,4 +49,14 @@ public sealed class AuthenticodeTests
     [InlineData(unchecked((int)0x800B010C), SignatureState.Broken)]
     public void AWinVerifyTrustAnswerReadsAsAState(int code, SignatureState state) =>
         Assert.Equal(state, Authenticode.Classify(code));
+
+    [Fact]
+    public void ThePinIsAThumbprintAsWindowsPrintsIt()
+    {
+        // Task 093: the release certificate's SHA-1 thumbprint, in the form X509Certificate2.Thumbprint compares with.
+        Assert.Matches("^[0-9A-F]{40}$", Authenticode.ReleaseThumbprint);
+        Assert.Equal(Authenticode.ReleaseThumbprint, Authenticode.NormalizeThumbprint($" {Authenticode.ReleaseThumbprint.ToLowerInvariant()} "));
+        Assert.Null(Authenticode.NormalizeThumbprint(null));
+        Assert.Null(Authenticode.NormalizeThumbprint(""));
+    }
 }

@@ -27,7 +27,8 @@ public enum SignatureState
 /// <param name="State">The verdict.</param>
 /// <param name="Signer">The signing certificate's subject, or null when there is none to read.</param>
 /// <param name="Code">The <c>WinVerifyTrust</c> answer (an HRESULT, 0 for a valid signature).</param>
-public sealed record FileSignature(string File, SignatureState State, string? Signer, int Code);
+/// <param name="Thumbprint">The signing certificate's SHA-1 thumbprint in capitals, or null when there is none to read (task 093).</param>
+public sealed record FileSignature(string File, SignatureState State, string? Signer, int Code, string? Thumbprint = null);
 
 /// <summary>
 /// The Authenticode signatures of the product's own files (task 085): the files the release script signs, found by
@@ -37,6 +38,23 @@ public sealed record FileSignature(string File, SignatureState State, string? Si
 /// </summary>
 public static partial class Authenticode
 {
+    /// <summary>
+    /// The thumbprint of the release's signing certificate (D-012, <c>CN=m365-aegis release signing</c>, valid to
+    /// 2029-10-30), which the doctor's <c>signature</c> row pins (task 093); the release notes of every signed release
+    /// carry the same value. A new certificate changes it here and ships in a release of its own.
+    /// </summary>
+    public const string ReleaseThumbprint = "E2F4F13409FB5B3BA437238F0D69EFAF37403619";
+
+    /// <summary>
+    /// The test seam of the pin (task 093): a thumbprint here replaces <see cref="ReleaseThumbprint"/>, so the signing
+    /// tests see a pass for the throwaway certificate they make; the doctor's row says so when it is set.
+    /// </summary>
+    public const string PinOverrideVariable = "M365AEGIS_TEST_RELEASE_THUMBPRINT";
+
+    /// <summary>A thumbprint as Windows prints it: no spaces, in capitals; null for a blank one.</summary>
+    internal static string? NormalizeThumbprint(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : string.Concat(value.Where(c => !char.IsWhiteSpace(c))).ToUpperInvariant();
+
     /// <summary>The <c>WinVerifyTrust</c> answers the doctor tells apart; any other is <see cref="SignatureState.Broken"/>.</summary>
     internal const int TrustProviderUnknown = unchecked((int)0x800B0001);
     internal const int SubjectFormUnknown = unchecked((int)0x800B0003);
@@ -79,8 +97,8 @@ public static partial class Authenticode
         var signatures = new List<FileSignature>();
         foreach (string name in ProductFiles(folder))
         {
-            (int code, string? signer) = Verify(Path.Combine(folder, name));
-            signatures.Add(new FileSignature(name, Classify(code), signer, code));
+            (int code, string? signer, string? thumbprint) = Verify(Path.Combine(folder, name));
+            signatures.Add(new FileSignature(name, Classify(code), signer, code, thumbprint));
         }
 
         return signatures;
@@ -88,11 +106,11 @@ public static partial class Authenticode
 
     /// <summary>
     /// <c>WinVerifyTrust</c> with the generic Authenticode policy over one file: no user interface, no revocation
-    /// check, only what the local caches hold (no download); the signer's subject from the state it leaves.
+    /// check, only what the local caches hold (no download); the signer's subject and thumbprint from the state it leaves.
     /// </summary>
     [SupportedOSPlatform("windows")]
     [ExcludeFromCodeCoverage(Justification = ThisMachine)]
-    private static (int Code, string? Signer) Verify(string path)
+    private static (int Code, string? Signer, string? Thumbprint) Verify(string path)
     {
         IntPtr pathText = Marshal.StringToHGlobalUni(path);
         IntPtr fileInfo = Marshal.AllocHGlobal(Marshal.SizeOf<FileInfo>());
@@ -113,10 +131,10 @@ public static partial class Authenticode
             // Windows, where nothing here is measured.
             Guid action = new("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
             int code = WinVerifyTrust(IntPtr.Zero, ref action, ref data);
-            string? signer = Signer(data.StateData);
+            (string? signer, string? thumbprint) = Signer(data.StateData);
             data.StateAction = 2; // WTD_STATEACTION_CLOSE
             _ = WinVerifyTrust(IntPtr.Zero, ref action, ref data);
-            return (code, signer);
+            return (code, signer, thumbprint);
         }
         finally
         {
@@ -125,38 +143,38 @@ public static partial class Authenticode
         }
     }
 
-    /// <summary>The subject of the first signer's certificate in the state <c>WinVerifyTrust</c> left, or null.</summary>
+    /// <summary>The subject and the thumbprint of the first signer's certificate in the state <c>WinVerifyTrust</c> left, or nulls.</summary>
     [SupportedOSPlatform("windows")]
     [ExcludeFromCodeCoverage(Justification = ThisMachine)]
-    private static string? Signer(IntPtr state)
+    private static (string? Subject, string? Thumbprint) Signer(IntPtr state)
     {
         if (state == IntPtr.Zero)
         {
-            return null;
+            return (null, null);
         }
 
         IntPtr provider = WTHelperProvDataFromStateData(state);
         IntPtr signer = provider == IntPtr.Zero ? IntPtr.Zero : WTHelperGetProvSignerFromChain(provider, 0, fCounterSigner: 0, 0);
         if (signer == IntPtr.Zero)
         {
-            return null;
+            return (null, null);
         }
 
         ProviderSigner read = Marshal.PtrToStructure<ProviderSigner>(signer);
         if (read.CertificateCount == 0 || read.Certificates == IntPtr.Zero)
         {
-            return null;
+            return (null, null);
         }
 
         IntPtr context = Marshal.PtrToStructure<ProviderCertificate>(read.Certificates).Certificate;
         if (context == IntPtr.Zero)
         {
-            return null;
+            return (null, null);
         }
 
         // A copy of the context: the state owns the original, and closing it frees it.
         using var certificate = new X509Certificate2(context);
-        return certificate.Subject;
+        return (certificate.Subject, certificate.Thumbprint);
     }
 
     [GeneratedRegex(@"^(?:m365-aegis[A-Za-z0-9-]*\.(?:exe|dll)|M365Aegis\.[A-Za-z0-9.]+\.dll)$", RegexOptions.IgnoreCase)]

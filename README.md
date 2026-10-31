@@ -103,7 +103,7 @@ name, its address, its object id or a word of its name:
 & $aegis group members Finance
 & $aegis group members Finance --transitive   # the nested groups' members too, each marked direct or nested
 & $aegis group owners finance@contoso.com
-& $aegis group owners-missing            # --all-types adds the groups Graph keeps no owners for
+& $aegis group owners-missing            # --all-types adds the groups Graph keeps no owners for, a distribution list by its ManagedBy
 & $aegis team list
 & $aegis site list --search finance
 & $aegis trace --sender alice@contoso.com --days 3              # at most 10 days per trace
@@ -275,6 +275,7 @@ Directory keeps its warning:
 
 ```powershell
 & $aegis group owners Sales                                          # its ManagedBy, through Exchange
+& $aegis group owners-missing --all-types                            # a distribution list only when its ManagedBy is empty
 & $aegis group owners add Sales dave@contoso.com --dry-run            # a distribution group, through Exchange
 ```
 
