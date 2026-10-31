@@ -32,7 +32,7 @@ public sealed class DoctorTests
         Assert.True(report.Healthy);
         Assert.All(report.Checks, check => Assert.Equal(CheckStatus.Pass, check.Status));
         Assert.Equal(
-            ["home", "home-access", "dotnet-runtime", "dotnet-desktop-runtime", "pwsh", "exchange-online-module", "sidecar-script", "signature", "webview2-runtime", "config", "device", "sign-in", "endpoint-login", "endpoint-graph", "endpoint-exchange"],
+            ["home", "home-access", "dotnet-runtime", "dotnet-desktop-runtime", "pwsh", "exchange-online-module", "sidecar-script", "signature", "webview2-runtime", "config", "device", "sign-in", "consent", "endpoint-login", "endpoint-graph", "endpoint-exchange"],
             report.Checks.Select(check => check.Name));
         Assert.All(report.Checks, check => Assert.Null(check.Hint));
         Assert.Equal(ExitCode.Ok, report.ToResult().ExitCode);
@@ -50,7 +50,7 @@ public sealed class DoctorTests
         DoctorReport report = await Doctor.RunAsync(environment, offline: true, CancellationToken.None);
 
         Assert.False(called);
-        Assert.All(report.Checks.Where(check => check.Name == "sign-in" || check.Name.StartsWith("endpoint-", StringComparison.Ordinal)),
+        Assert.All(report.Checks.Where(check => check.Name is "sign-in" or "consent" || check.Name.StartsWith("endpoint-", StringComparison.Ordinal)),
             check => Assert.Equal(CheckStatus.Skipped, check.Status));
         Assert.True(report.Healthy);
     }
@@ -511,18 +511,20 @@ public sealed class DoctorTests
     [Fact]
     public async Task SignIn()
     {
-        DoctorCheck pass = await Doctor.CheckSignInAsync(Fake(WithProfile()), CancellationToken.None);
+        (DoctorCheck pass, SignInInfo? read) = await Doctor.CheckSignInAsync(Fake(WithProfile()), CancellationToken.None);
         Assert.Equal(CheckStatus.Pass, pass.Status);
+        Assert.NotNull(read);
         Assert.StartsWith("alice@contoso.com: graph token until 2026-10-29 15:00 +01:00, exchange token until", pass.Detail, StringComparison.Ordinal);
 
-        DoctorCheck partial = await Doctor.CheckSignInAsync(Fake(WithProfile(), signIn: (_, _) => Task.FromResult(AuthSamples.NoExchangeToken)), CancellationToken.None);
+        (DoctorCheck partial, _) = await Doctor.CheckSignInAsync(Fake(WithProfile(), signIn: (_, _) => Task.FromResult(AuthSamples.NoExchangeToken)), CancellationToken.None);
         Assert.Equal(CheckStatus.Warn, partial.Status);
         Assert.Contains("no exchange token (consent_required", partial.Detail, StringComparison.Ordinal);
 
-        DoctorCheck failed = await Doctor.CheckSignInAsync(
+        (DoctorCheck failed, SignInInfo? none) = await Doctor.CheckSignInAsync(
             Fake(WithProfile(), signIn: (_, _) => throw new AegisException(FailureKind.Auth, "no silent sign-in for alice@contoso.com", "run `m365-aegis login`")),
             CancellationToken.None);
         Assert.Equal(CheckStatus.Fail, failed.Status);
+        Assert.Null(none);
         Assert.False(failed.Required);
         Assert.Equal("run `m365-aegis login`", failed.Hint);
     }
@@ -533,11 +535,137 @@ public sealed class DoctorTests
         bool called = false;
         DoctorEnvironment environment = Fake(ProfileStoreTests.TempHome(), signIn: (_, _) => { called = true; return Task.FromResult(AuthSamples.SignedIn); });
 
-        DoctorCheck check = await Doctor.CheckSignInAsync(environment, CancellationToken.None);
+        (DoctorCheck check, SignInInfo? info) = await Doctor.CheckSignInAsync(environment, CancellationToken.None);
 
         Assert.False(called);
+        Assert.Null(info);
         Assert.Equal(CheckStatus.Warn, check.Status);
         Assert.Contains("login --tenant", check.Hint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ConsentPassesWhenEveryPermissionOfTheTableIsThere()
+    {
+        DoctorCheck check = Doctor.CheckConsent(AuthSamples.EveryPermission);
+
+        Assert.Equal(CheckStatus.Pass, check.Status);
+        Assert.False(check.Required);
+        Assert.Null(check.Hint);
+        Assert.Equal(
+            "every permission of the setup guide's table is consented: User.Read, GroupMember.Read.All, User.ReadBasic.All, Team.ReadBasic.All, " +
+            "Sites.Read.All, AuditLog.Read.All, Application.Read.All, ExchangeMessageTrace.Read.All, Reports.Read.All, GroupMember.ReadWrite.All, " +
+            "Group.ReadWrite.All (Microsoft Graph) and Exchange.Manage, Exchange.ManageV2 (Exchange Online)",
+            check.Detail);
+    }
+
+    [Fact]
+    public void ConsentReadsThePermissionsWhateverTheirCase()
+    {
+        SignInInfo lower = AuthSamples.WithScopes(
+            [.. AuthSamples.EveryPermission.Tokens[0].Scopes.Select(scope => scope.ToLowerInvariant())], ["exchange.manage", "EXCHANGE.MANAGEV2"]);
+
+        Assert.Equal(CheckStatus.Pass, Doctor.CheckConsent(lower).Status);
+    }
+
+    [Fact]
+    public void AMissingPermissionWarnsWithTheRowsOfTheTableAndTheConsentAsTheFix()
+    {
+        SignInInfo info = AuthSamples.WithScopes(
+            [.. AuthSamples.EveryPermission.Tokens[0].Scopes.Where(scope => scope != "AuditLog.Read.All")], ["Exchange.Manage", "Exchange.ManageV2"]);
+
+        DoctorCheck check = Doctor.CheckConsent(info);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.False(check.Required);
+        Assert.Equal("not consented: signin list, audit list (AuditLog.Read.All)", check.Detail);
+        Assert.Equal("an administrator consents to AuditLog.Read.All (Microsoft Graph) in the portal (the setup guide's Permissions table), then `m365-aegis login`", check.Hint);
+    }
+
+    [Fact]
+    public void AMissingExchangePermissionNamesEveryRowThatNeedsIt()
+    {
+        SignInInfo info = AuthSamples.WithScopes(AuthSamples.EveryPermission.Tokens[0].Scopes, ["Exchange.Manage"]);
+
+        DoctorCheck check = Doctor.CheckConsent(info);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.Equal(
+            "not consented: mailbox list, mailbox access, mailbox forwarders, mailbox folder-permissions, mailbox group-members, mailbox organization, " +
+            "mailbox size <mailbox>, the window's mailbox cards (Exchange.ManageV2); " +
+            "the same four writes on a distribution group or a mail-enabled security group (Exchange.ManageV2); " +
+            "mailbox access grant, mailbox access revoke, mailbox forwarding set, mailbox forwarding clear, the window's Mailbox rights and Mailbox forwarding cards (Exchange.ManageV2); " +
+            "snapshot take (the mailboxes, their rights, calendars and forwarding, the distribution lists' owners) (Exchange.ManageV2)",
+            check.Detail);
+        Assert.Equal("an administrator consents to Exchange.ManageV2 (Exchange Online) in the portal (the setup guide's Permissions table), then `m365-aegis login`", check.Hint);
+    }
+
+    [Fact]
+    public void AResourceWithoutATokenIsUnreadAndTheOtherOneIsStillChecked()
+    {
+        // The Graph token carries User.Read only; the Exchange Online token is missing (its consent, the sign-in row says).
+        DoctorCheck check = Doctor.CheckConsent(AuthSamples.NoExchangeToken);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.StartsWith("no exchange token, so its permissions are not read (the sign-in row says why); not consented: group members, group owners, group owners-missing (GroupMember.Read.All, User.ReadBasic.All); team list (Team.ReadBasic.All); ", check.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("Exchange.Manage", check.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("User.Read)", check.Detail, StringComparison.Ordinal);
+        Assert.StartsWith("an administrator consents to GroupMember.Read.All, User.ReadBasic.All, Team.ReadBasic.All, ", check.Hint, StringComparison.Ordinal);
+        Assert.DoesNotContain("Exchange Online", check.Hint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AResourceWithoutATokenAloneWarnsWithoutAFixOfItsOwn()
+    {
+        SignInInfo info = AuthSamples.EveryPermission with
+        {
+            Tokens = [AuthSamples.EveryPermission.Tokens[0], ResourceToken.Failed(Resource.Exchange, "consent_required")],
+        };
+
+        DoctorCheck check = Doctor.CheckConsent(info);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.Equal("no exchange token, so its permissions are not read (the sign-in row says why)", check.Detail);
+        Assert.Null(check.Hint);
+    }
+
+    [Fact]
+    public void ConsentIsSkippedWhenNoTokenWasRead()
+    {
+        DoctorCheck none = Doctor.CheckConsent(null);
+        DoctorCheck failed = Doctor.CheckConsent(AuthSamples.SignedIn with
+        {
+            Tokens = [ResourceToken.Failed(Resource.Graph, "interaction_required"), ResourceToken.Failed(Resource.Exchange, "interaction_required")],
+        });
+
+        Assert.All([none, failed], check =>
+        {
+            Assert.Equal(CheckStatus.Skipped, check.Status);
+            Assert.Equal("no token to read the permissions from; the sign-in row says why", check.Detail);
+        });
+    }
+
+    [Fact]
+    public async Task TheDoctorReadsTheConsentOfTheTokensTheSignInHandsOut()
+    {
+        // The scripted broker's tokens: Graph with User.Read and GroupMember.ReadWrite.All, Exchange Online with
+        // Exchange.Manage under its resource prefix, which the sign-in strips as whoami shows it.
+        string home = WithProfile();
+        var auth = new AuthService(home, _ => new MarkedTokenBroker(MarkedTokenBroker.NewMarker()));
+        DoctorEnvironment environment = Fake(home, signIn: auth.WhoAmIAsync);
+
+        DoctorReport report = await Doctor.RunAsync(environment, offline: false, CancellationToken.None);
+
+        DoctorCheck check = Assert.Single(report.Checks, check => check.Name == "consent");
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.Contains("; mailbox list, mailbox access, ", check.Detail, StringComparison.Ordinal);
+        Assert.Contains(", the window's mailbox cards (Exchange.ManageV2, GroupMember.Read.All); ", check.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("login, whoami", check.Detail, StringComparison.Ordinal);
+        Assert.Equal(
+            "an administrator consents to GroupMember.Read.All, User.ReadBasic.All, Team.ReadBasic.All, Sites.Read.All, AuditLog.Read.All, " +
+            "Application.Read.All, ExchangeMessageTrace.Read.All, Reports.Read.All, Group.ReadWrite.All (Microsoft Graph) and Exchange.ManageV2 " +
+            "(Exchange Online) in the portal (the setup guide's Permissions table), then `m365-aegis login`",
+            check.Hint);
+        Assert.True(report.Healthy);
     }
 
     [Theory]
@@ -599,7 +727,7 @@ public sealed class DoctorTests
         // No assumption about the machine: the checks run and each has an outcome; nothing touches the network.
         DoctorReport report = await Doctor.RunAsync(ProfileStoreTests.TempHome(), null, offline: true, CancellationToken.None);
 
-        Assert.Equal(15, report.Checks.Count);
+        Assert.Equal(16, report.Checks.Count);
         Assert.Equal(CheckStatus.Skipped, Assert.Single(report.Checks, check => check.Name == "home-access").Status);
         DoctorCheck pwsh = Assert.Single(report.Checks, check => check.Name == "pwsh");
         string? found = Doctor.FindPwsh();
@@ -695,8 +823,9 @@ public sealed class DoctorTests
         DoctorEnvironment environment = Fake(WithProfile(), signIn: (_, _) =>
             Task.FromException<SignInInfo>(new BrokerException(BrokerErrorKind.Other, "wam_provider_error_0", "the broker did not answer")));
 
-        DoctorCheck check = await Doctor.CheckSignInAsync(environment, CancellationToken.None);
+        (DoctorCheck check, SignInInfo? info) = await Doctor.CheckSignInAsync(environment, CancellationToken.None);
 
+        Assert.Null(info);
         Assert.Equal(CheckStatus.Fail, check.Status);
         Assert.Contains("wam_provider_error_0", check.Detail, StringComparison.Ordinal);
         Assert.Equal("run `m365-aegis login`", check.Hint);
@@ -766,7 +895,7 @@ public sealed class DoctorTests
             ReadBuildSidecar = () => Script,
             ReadSignatures = () => Signed(SignatureState.Valid),
             PinOverride = null,
-            SignIn = signIn ?? ((_, _) => Task.FromResult(AuthSamples.SignedIn)),
+            SignIn = signIn ?? ((_, _) => Task.FromResult(AuthSamples.EveryPermission)),
             Probe = (_, _) => Task.FromResult(new EndpointAnswer(200, TimeSpan.FromMilliseconds(80), null)),
         };
 }

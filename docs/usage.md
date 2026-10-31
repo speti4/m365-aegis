@@ -145,6 +145,12 @@ counts the ones left out because it names an owner. A group synced from on-premi
 Microsoft Graph sees it, with a line under the table that says so. Without `--all-types` the command asks Microsoft
 Graph alone, as before.
 
+When your account has no Exchange Online role that may read the distribution groups, Exchange Online refuses that read
+and `owners-missing --all-types` answers with Microsoft Graph's list instead: every distribution and mail-enabled
+security group is listed, since Graph keeps no owners for them, and a warning under the table says so and names the
+refusal. Any other Exchange Online failure (the module missing, a connection that fails) still ends the command with
+its error.
+
 ### Teams and SharePoint
 
 ```powershell
@@ -355,6 +361,23 @@ everyone else, so they are counted under the table rather than listed. The answe
 when it is older than 36 hours. Without a snapshot it ends with exit code 4 and the hint
 `run m365-aegis snapshot take first`.
 
+### What changed between two snapshots
+
+```powershell
+m365-aegis snapshot diff 2026-10-31               # from the last snapshot of that day (UTC) to the newest
+m365-aegis snapshot diff 2026-10-31T060000Z latest --json | ConvertFrom-Json
+```
+
+`snapshot diff <a> <b>` lists who gained or lost access from the first snapshot to the second, without signing in: the
+group memberships and owners, the shared files and who they are shared with, the mailbox rights, the calendar
+permissions and the forwarding, each row marked `added` or `removed`. A snapshot is named as `snapshot list` prints
+it, or picked: `latest` is the newest, `yesterday` the last one taken before today, a date (`2026-10-31`) the last one
+taken on that day or before it, all in UTC; without `<b>` the newest is compared. The rows are matched by the people
+and groups in them, not by their names, so a renamed group or user is no change, and a changed calendar permission is
+one row removed and one added. The answer names both snapshots and their ages; a part of the tenant that one of them
+could not read is left out of the comparison with a warning, and a part read only in part is compared with a warning
+that its unread items may show as changes. A pick that finds no snapshot ends with exit code 4.
+
 ### A snapshot every morning
 
 A Task Scheduler task takes the snapshot while you are logged on; the sign-in it uses is the one of your Windows
@@ -399,6 +422,22 @@ first lookup starts the Exchange Online session, which takes a few seconds. When
 revokes a right on the mailbox shown here, the card reads the mailbox again on its own and says "Read again after a
 change on the Mailbox rights card." over the table.
 
+A user's list is not read again on its own: that lookup goes over every mailbox and takes a while. When the Mailbox
+rights card grants or revokes a right for the user shown here, the card marks the list as possibly out of date and
+offers "Read again", which looks the user up once more; a change for another user marks nothing.
+
+### User access
+
+A user's principal name, address or object id, then "Look up": what the user reaches, from the newest snapshot (see
+[What one user reaches](#what-one-user-reaches)): the groups, and for a nested membership the group it comes through;
+the sites of those groups, as a member or an owner; the files and folders shared with the user or one of the groups;
+the mailbox rights and the calendar permissions, each held directly or through a group. Under them, what reaches
+everyone (the links anyone in the organization or anyone at all can open, the calendars open to every user) as
+counts. The card names the snapshot's time and age, and "Good to know" says when the snapshot is older than 36 hours
+or a part of it could not be read. The card reads the snapshot on this computer only: it needs no sign-in, and its
+answer is as old as the snapshot. Without a snapshot it says "No snapshot yet": the snapshot is taken on the command
+line (`m365-aegis snapshot take`, or [a snapshot every morning](#a-snapshot-every-morning)).
+
 ### Mailbox rights
 
 Grants or revokes FullAccess, Send As or Send on Behalf on a mailbox, as `m365-aegis mailbox access grant` and
@@ -433,8 +472,8 @@ the window's sign-in log as `--verbose` does on the command line.
 
 `m365-aegis doctor` is the first thing to run when something does not work. Each row is a check with `pass`,
 `warn`, `fail` (`FAIL` when the tool cannot work without it) or `skip`, and every `warn` and `fail` has a `fix`
-line under the table. A `FAIL` ends with exit code 10; anything else with 0. `--offline` skips the sign-in and the
-three endpoints, the checks that need the network.
+line under the table. A `FAIL` ends with exit code 10; anything else with 0. `--offline` skips the sign-in, its
+consent and the three endpoints, the checks that need the network.
 
 | check | `warn` means | `fail` means, and the fix |
 | --- | --- | --- |
@@ -450,6 +489,7 @@ three endpoints, the checks that need the network.
 | `config` | no profile yet (`m365-aegis login`), or no default (`m365-aegis profile use <name>`) | `config.json` does not read, or a profile lacks a value |
 | `device` | the machine is registered, not joined, or has no primary refresh token: the profile's account signs in instead of the Windows account, which is normal on a registered machine | neither joined nor registered: Settings > Accounts > Access work or school > Connect |
 | `sign-in` | no profile, or a token is missing (the administrator consents to the permission) | the silent sign-in failed: `m365-aegis login` |
+| `consent` | a permission of the setup guide's [permissions table](setup.md#permissions) is not consented: the row names each table row that misses one, with the permissions it misses, and the fix line the permissions an administrator consents to (then `m365-aegis login`); or a resource has no token, so its permissions are not read | (never fails; skipped without a token) |
 | `endpoint-login`, `endpoint-graph`, `endpoint-exchange` (required) | a proxy asks for authentication, or the answer took over 3 seconds | no answer within 10 seconds: the network, the proxy or the firewall blocks `login.microsoftonline.com`, `graph.microsoft.com` or `outlook.office365.com` |
 
 ```powershell

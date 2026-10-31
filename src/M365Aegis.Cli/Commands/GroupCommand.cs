@@ -285,5 +285,11 @@ internal sealed class OwnerlessGroupsTableView : ITableView<OwnerlessGroups>
                 "{0} synced group(s) as Graph lists them: Graph keeps no owners for them, on-premises Active Directory manages them",
                 synced);
         }
+
+        // Under --all-types without an Exchange Online role (task 096): Graph's list, and why.
+        foreach (string warning in data.Warnings ?? [])
+        {
+            yield return $"warning: {warning}";
+        }
     }
 }

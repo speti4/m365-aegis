@@ -100,6 +100,13 @@ public sealed record OwnerlessGroups(IReadOnlyList<GroupInfo> Groups, int LeftOu
     /// names one; null when Exchange was not asked (the default list, or Graph alone), so that envelope is unchanged.
     /// </summary>
     public int? ManagedInExchange { get; init; }
+
+    /// <summary>
+    /// What limits the answer (task 096): under <c>--all-types</c>, Exchange Online refused the <c>ManagedBy</c> read, so
+    /// the distribution and mail-enabled security groups are judged by Graph's empty owner list; null when nothing does,
+    /// so every other envelope is unchanged.
+    /// </summary>
+    public IReadOnlyList<string>? Warnings { get; init; }
 }
 
 /// <summary>One team of <c>team list</c>.</summary>

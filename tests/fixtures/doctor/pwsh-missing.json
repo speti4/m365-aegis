@@ -12,6 +12,7 @@
     { "name": "config", "status": "warn", "detail": "D:\\aegis-home\\config.json not found", "required": false, "hint": "run `m365-aegis login --tenant <tenant id or domain> --client-id <application id> --account <user@domain>` once" },
     { "name": "device", "status": "fail", "detail": "neither Entra-joined nor registered: a Conditional Access policy that wants a known device blocks the sign-in", "required": false, "hint": "Settings > Accounts > Access work or school > Connect" },
     { "name": "sign-in", "status": "skipped", "detail": "offline run", "required": false },
+    { "name": "consent", "status": "skipped", "detail": "offline run", "required": false },
     { "name": "endpoint-login", "status": "skipped", "detail": "offline run", "required": true },
     { "name": "endpoint-graph", "status": "skipped", "detail": "offline run", "required": true },
     { "name": "endpoint-exchange", "status": "skipped", "detail": "offline run", "required": true }

@@ -33,6 +33,18 @@ describe("the browser mock", () => {
     });
   });
 
+  it("answers dave's access by his display name, and a missing user with a usage error (task 102)", async () => {
+    expect((await client().call(MessageType.access, { user: "Dave Example" })).type).toBe(MessageType.accessReport);
+    expect(await client().call(MessageType.access, {})).toEqual({
+      type: MessageType.error,
+      data: {
+        code: "usage",
+        message: "no user was named",
+        hint: "give the user's user principal name, address or object id",
+      },
+    });
+  });
+
   it("answers a request type it does not know with an error", async () => {
     const reply = await client().call("frobnicate");
 

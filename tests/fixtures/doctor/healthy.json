@@ -12,6 +12,7 @@
     { "name": "config", "status": "pass", "detail": "D:\\aegis-home\\config.json: 1 profile(s), default 'work'", "required": false },
     { "name": "device", "status": "pass", "detail": "Entra-joined with a primary refresh token: the Windows account signs in silently", "required": false },
     { "name": "sign-in", "status": "pass", "detail": "alice@contoso.com: graph token until 2026-10-29 15:00 +01:00, exchange token until 2026-10-29 15:00 +01:00", "required": false },
+    { "name": "consent", "status": "pass", "detail": "every permission of the setup guide's table is consented: User.Read, GroupMember.Read.All, User.ReadBasic.All, Team.ReadBasic.All, Sites.Read.All, AuditLog.Read.All, Application.Read.All, ExchangeMessageTrace.Read.All, Reports.Read.All, GroupMember.ReadWrite.All, Group.ReadWrite.All (Microsoft Graph) and Exchange.Manage, Exchange.ManageV2 (Exchange Online)", "required": false },
     { "name": "endpoint-login", "status": "pass", "detail": "login.microsoftonline.com: HTTP 200 in 85 ms", "required": true },
     { "name": "endpoint-graph", "status": "pass", "detail": "graph.microsoft.com: HTTP 405 in 112 ms", "required": true },
     { "name": "endpoint-exchange", "status": "pass", "detail": "outlook.office365.com: HTTP 417 in 98 ms", "required": true }

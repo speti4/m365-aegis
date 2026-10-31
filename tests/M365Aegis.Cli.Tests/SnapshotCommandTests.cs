@@ -1,13 +1,16 @@
 using System.Diagnostics;
 using System.Text.Json;
+using M365Aegis.Cli.Commands;
+using M365Aegis.Cli.Output;
 using M365Aegis.Core.Graph;
+using M365Aegis.Core.Output;
 using M365Aegis.Core.Snapshots;
 using M365Aegis.Tests;
 
 namespace M365Aegis.Cli.Tests;
 
 /// <summary>
-/// <c>snapshot take|list|show</c> (task 087) and <c>access &lt;user&gt;</c> (task 084) as child processes: the take over
+/// <c>snapshot take|list|show</c> (task 087), <c>snapshot diff</c> (task 098) and <c>access &lt;user&gt;</c> (task 084) as child processes: the take over
 /// the recorded answers and the fake Exchange Online module into a temporary home, the reads of the files it leaves, and
 /// the answers without a profile, a snapshot or the user.
 /// </summary>
@@ -142,6 +145,89 @@ public sealed class SnapshotCommandTests
 
         var clock = Stopwatch.StartNew();
         (int exitCode, _, _) = CliTests.RunWith(Layers(home), "--json", "access", "dave@contoso.com");
+        clock.Stop();
+
+        // The whole process, the start of dotnet included; CI runners are slower than a desktop, hence the margin.
+        Assert.Equal(0, exitCode);
+        Assert.True(clock.ElapsedMilliseconds < 3000, $"{clock.ElapsedMilliseconds} ms");
+    }
+
+    private static async Task<string> HomeWithTwoSnapshotsAsync()
+    {
+        string home = await HomeWithTheFixtureSnapshotAsync();
+        await SnapshotSamples.SeedChangedAsync(home);
+        return home;
+    }
+
+    [Fact]
+    public async Task DiffListsWhatAppearedAndDisappearedBetweenTwoSnapshots()
+    {
+        string home = await HomeWithTwoSnapshotsAsync();
+
+        (int exitCode, string stdout, string stderr) = CliTests.RunWith(Layers(home), "--json", "snapshot", "diff", "2026-10-31");
+        (int tableExit, string table, _) = CliTests.RunWith(Layers(home), "--table", "snapshot", "diff", "2026-10-31T060000Z", "latest");
+
+        Assert.Equal((0, 0), (exitCode, tableExit));
+        Assert.Equal("", stderr);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement data = document.RootElement.GetProperty("data");
+        Assert.Equal("2026-10-31T060000Z.sqlite", data.GetProperty("from").GetProperty("snapshot").GetString());
+        Assert.Equal("2026-11-01T060000Z.sqlite", data.GetProperty("to").GetProperty("snapshot").GetString());
+        Assert.Equal("latest", data.GetProperty("to").GetProperty("pick").GetString());
+        Assert.Equal((6, 6), (data.GetProperty("added").GetInt32(), data.GetProperty("removed").GetInt32()));
+        Assert.Equal("local", document.RootElement.GetProperty("meta").GetProperty("backend").GetString());
+        Assert.StartsWith("domain             change   what", table, StringComparison.Ordinal);
+        Assert.Matches(@"\ngrants +removed +reception@contoso\.com +Finance Staff +full-access\n", table);
+        Assert.Contains("\nfrom 2026-10-31T060000Z.sqlite (taken 2026-10-31 06:00:00 UTC, ", table, StringComparison.Ordinal);
+        Assert.Contains("\n6 added, 6 removed: members +1 -1, owners +1 -1, sharing +1 -1, grants +1 -1, folderPermissions +1 -1, forwarding +1 -1\n", table, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DiffOfASnapshotWithItselfSaysNoChange()
+    {
+        string home = await HomeWithTheFixtureSnapshotAsync();
+
+        (int exitCode, string stdout, _) = CliTests.RunWith(Layers(home), "--table", "snapshot", "diff", "latest", "latest");
+
+        Assert.Equal(0, exitCode);
+        Assert.Contains("\nno change in members, owners, sharing, grants, folderPermissions, forwarding\n", stdout, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DiffWithAPickThatFindsNothingOrIsNoneEndsWithItsExitCode()
+    {
+        string home = await HomeWithTheFixtureSnapshotAsync();
+
+        (int earlyExit, _, string early) = CliTests.RunWith(Layers(home), "--table", "snapshot", "diff", "2026-01-01");
+        (int wordExit, _, string word) = CliTests.RunWith(Layers(home), "--table", "snapshot", "diff", "last-week");
+        (int noneExit, _, _) = CliTests.RunWith(Layers(SnapshotSamples.WriteProfile(PlanSamples.TempHome())), "--json", "snapshot", "diff", "latest");
+
+        Assert.Equal((4, 2, 4), (earlyExit, wordExit, noneExit));
+        Assert.Contains("error: no snapshot of the profile 'contoso' taken on 2026-01-01 (UTC) or before (not-found)", early, StringComparison.Ordinal);
+        Assert.Contains("error: 'last-week' names no snapshot (usage)", word, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheDiffTable()
+    {
+        string home = await HomeWithTwoSnapshotsAsync();
+        SnapshotDiffReport diff = SnapshotDiff.Compare(home, "contoso", "yesterday", "latest", SnapshotSamples.ChangedTaken.AddHours(2));
+
+        var output = new StringWriter();
+        var error = new StringWriter();
+        Renderer.Render(CommandResult.Success(diff), new EnvelopeMeta([], 12, Backend.Local), SnapshotDiffTableView.Instance, OutputMode.Table, output, error);
+
+        await Verify($"--- stdout ---\n{output}--- stderr ---\n{error}");
+    }
+
+    [Fact]
+    public async Task TheDiffAnswersInUnderASecondInAColdProcess()
+    {
+        string home = await HomeWithTwoSnapshotsAsync();
+        CliTests.RunWith(Layers(home), "--json", "snapshot", "diff", "2026-10-31");
+
+        var clock = Stopwatch.StartNew();
+        (int exitCode, _, _) = CliTests.RunWith(Layers(home), "--json", "snapshot", "diff", "2026-10-31");
         clock.Stop();
 
         // The whole process, the start of dotnet included; CI runners are slower than a desktop, hence the margin.

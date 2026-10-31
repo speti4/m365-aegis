@@ -12,6 +12,7 @@ webview2-runtime        pass    141.0.3537.71
 config                  warn    D:\aegis-home\config.json not found
 device                  fail    neither Entra-joined nor registered: a Conditional Access policy that wants a known device blocks the sign-in
 sign-in                 skip    offline run
+consent                 skip    offline run
 endpoint-login          skip    offline run
 endpoint-graph          skip    offline run
 endpoint-exchange       skip    offline run

@@ -14,7 +14,7 @@ import {
   MessageType,
   type UserAccess,
 } from "../bridge/protocol";
-import { type AppliedWrites, touches } from "./applied-writes";
+import { type AppliedWrites, namesUser, touches } from "./applied-writes";
 
 export const rightNames: Record<MailboxRight, string> = {
   "full-access": "FullAccess",
@@ -57,7 +57,11 @@ const accessWrites: readonly string[] = [MessageType.mailboxAccessGrant, Message
 type Result =
   /** `refreshed` when the card read the mailbox again after a write card applied a change to it (task 091). */
   | { kind: "holders"; data: MailboxAccess; ms: number; refreshed: boolean }
-  | { kind: "grants"; data: UserAccess; ms: number }
+  /**
+   * `stale` when a write card applied a grant or a revoke that names the user after the card read the grants (task
+   * 103): the card marks the list and offers to read it again, which is the slow reverse lookup.
+   */
+  | { kind: "grants"; data: UserAccess; ms: number; stale: boolean }
   | { kind: "shared"; data: MailboxInfo[]; ms: number };
 
 /**
@@ -67,7 +71,10 @@ type Result =
  * ones answer in the cmdlet's own time, which the line under the table shows. A mailbox's grants come over the
  * layers as on the command line (task 063): each row names the layer that read it. When the mailbox rights card applies a
  * grant or a revoke to the mailbox the card shows (`applied`, task 091), the card reads it again with one
- * `mailbox-access` request and says so; an apply to another mailbox, or a forwarding, sends nothing.
+ * `mailbox-access` request and says so; an apply to another mailbox, or a forwarding, sends nothing. A user's grants
+ * are not read again on their own (the reverse lookup goes over every mailbox, task 043): when a grant or a revoke names
+ * the user the card shows, the card marks the list as possibly out of date and offers "Read again" (task 103), which
+ * sends one `mailbox-access` request for the user; an apply that names another user marks nothing.
  */
 export function MailboxAccessCard({
   client,
@@ -97,7 +104,7 @@ export function MailboxAccessCard({
             setResult({ kind: "holders", data: reply.data, ms, refreshed });
             break;
           case MessageType.userGrants:
-            setResult({ kind: "grants", data: reply.data, ms });
+            setResult({ kind: "grants", data: reply.data, ms, stale: false });
             break;
           case MessageType.mailboxes:
             setResult({ kind: "shared", data: reply.data.mailboxes, ms });
@@ -127,6 +134,19 @@ export function MailboxAccessCard({
     });
   }, [applied, shown, run]);
 
+  // The user on the card; a grant or a revoke that names them marks the list, and reads nothing (task 103).
+  const grants = result?.kind === "grants" ? result : null;
+  useEffect(() => {
+    if (!applied || !grants || grants.stale) {
+      return;
+    }
+    return applied.subscribe((write) => {
+      if (accessWrites.includes(write.operation) && namesUser(write, grants.data)) {
+        setResult({ ...grants, stale: true });
+      }
+    });
+  }, [applied, grants]);
+
   function lookUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void run(MessageType.mailboxAccess, { [mode]: query.trim() });
@@ -143,8 +163,8 @@ export function MailboxAccessCard({
       <CardHeader>
         <CardTitle>Mailbox access</CardTitle>
         <CardDescription>
-          Who can open a mailbox or send as it, or which mailboxes a user can, as `m365-aegis mailbox access` reads
-          them: direct grants only, a group is listed as the group.
+          Who can open a mailbox or send as it, or which mailboxes a user can: direct grants only, a group is listed as
+          the group.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -198,13 +218,30 @@ export function MailboxAccessCard({
             The first lookup starts the Exchange Online session, which takes a few seconds.
           </p>
         ) : null}
-        {result ? <ResultView result={result} onPick={pick} /> : null}
+        {result ? (
+          <ResultView
+            result={result}
+            busy={busy}
+            onPick={pick}
+            onReadAgain={(user) => void run(MessageType.mailboxAccess, { user })}
+          />
+        ) : null}
       </CardContent>
     </Card>
   );
 }
 
-function ResultView({ result, onPick }: { result: Result; onPick: (mailbox: MailboxInfo) => void }) {
+function ResultView({
+  result,
+  busy,
+  onPick,
+  onReadAgain,
+}: {
+  result: Result;
+  busy: boolean;
+  onPick: (mailbox: MailboxInfo) => void;
+  onReadAgain: (user: string) => void;
+}) {
   const elapsed = <p className="text-xs text-muted-foreground">answered in {describeElapsed(result.ms)}</p>;
   switch (result.kind) {
     case "shared":
@@ -282,6 +319,21 @@ function ResultView({ result, onPick }: { result: Result; onPick: (mailbox: Mail
             </span>
             {failed.length > 0 ? <Badge variant="destructive">partial</Badge> : null}
           </p>
+          {result.stale ? (
+            <div
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/50 p-3 text-sm"
+              role="status"
+              data-testid="stale"
+            >
+              <span>
+                A change on the Mailbox rights card named this user since this list was read, so it may be out of date.
+                Reading it again goes over every mailbox and takes a while.
+              </span>
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => onReadAgain(user)}>
+                Read again
+              </Button>
+            </div>
+          ) : null}
           {failed.length > 0 ? (
             <div className="rounded-lg border border-destructive/50 p-3 text-sm">
               <p className="font-medium">

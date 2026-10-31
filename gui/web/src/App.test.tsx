@@ -200,7 +200,7 @@ describe("the window's page", () => {
   it("in a plain browser: a grant on the rights card is read again by the access card that shows the mailbox", async () => {
     const { container } = await render(<App />);
     await settle(MOCK_MS);
-    const [, , access, rights] = [...container.querySelectorAll('[data-slot="card"]')] as HTMLElement[];
+    const [, , access, , rights] = [...container.querySelectorAll('[data-slot="card"]')] as HTMLElement[];
     const field = (card: HTMLElement, label: string) =>
       card.querySelector(`input[aria-label="${label}"]`) as HTMLInputElement;
 
@@ -222,6 +222,30 @@ describe("the window's page", () => {
 
     expect(access.textContent).toContain("· 4 grant(s)");
     expect(access.textContent).toContain("Read again after a change on the Mailbox rights card.");
+  });
+
+  it("in a plain browser: the user access card answers from the snapshot, signed out too", async () => {
+    const { container } = await render(<App />);
+    await settle(MOCK_MS);
+    await click(button(container, "Sign out"));
+    await settle(MOCK_MS);
+    await settle(MOCK_MS);
+    const user = [...container.querySelectorAll('[data-slot="card"]')][3] as HTMLElement;
+
+    await type(user.querySelector('input[aria-label="User"]') as HTMLInputElement, "dave@contoso.com");
+    await submit(user.querySelector("form") as HTMLFormElement);
+    expect(button(user, "Looking up…").disabled).toBe(true);
+    await settle(MOCK_MS);
+
+    expect(user.querySelector('[data-testid="snapshot"]')?.textContent).toBe(
+      "From the snapshot taken 2026-10-31 06:00 UTC, 2 hour(s) ago.",
+    );
+    await type(user.querySelector('input[aria-label="User"]') as HTMLInputElement, "nobody@contoso.com");
+    await submit(user.querySelector("form") as HTMLFormElement);
+    await settle(MOCK_MS);
+    expect(toasts).toHaveBeenCalledWith("the snapshot 2026-10-31T060000Z.sqlite knows no user 'nobody@contoso.com'", {
+      description: "check the name or the address and try again",
+    });
   });
 
   it("leaves the sign-in as it is on a host notification of another kind", async () => {

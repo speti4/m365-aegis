@@ -1,3 +1,4 @@
+import { mockAccess } from "./mock-access";
 import { type MockForwarding, MockWrites, mockForwarding } from "./mock-writes";
 import {
   type BridgeError,
@@ -154,6 +155,8 @@ export interface MockOptions {
   delayMs?: number;
   /** Whether the mock starts signed in (the default) or signed out. */
   signedIn?: boolean;
+  /** Whether the profile has a snapshot for the access card (the default) or none (task 102). */
+  snapshot?: boolean;
 }
 
 /**
@@ -162,12 +165,14 @@ export interface MockOptions {
  * asked, with the `device-code` notification first), one group, `Finance`, by name, address or id, and the
  * mailboxes of the fake Exchange Online module, and the mailbox writes planned over them and applied only with the
  * confirmation (`MockWrites`, task 082); an apply changes this mock's own holders and forwarding, so a lookup after it
- * shows the change (task 091). Anything else is not found, an unknown type an error.
+ * shows the change (task 091), and dave's access from the snapshot (`mock-access.ts`, task 102), signed in or not, or the
+ * answer without a snapshot. Anything else is not found, an unknown type an error.
  */
 export class MockTransport implements Transport {
   private handlers: Array<(message: BridgeMessage) => void> = [];
   private readonly delayMs: number;
   private signedIn: boolean;
+  private readonly snapshot: boolean;
   /** The page of the device-code sign-in in flight, which `open-sign-in-page` "opens"; null when none waits. */
   private signInPage: string | null = null;
   /** The mailboxes' holders and forwarding, which an apply changes. */
@@ -176,9 +181,10 @@ export class MockTransport implements Transport {
   /** The plans waiting for their confirmation; a sign-in or a sign-out drops them, as the host does. */
   private writes = this.newWrites();
 
-  constructor({ delayMs = 0, signedIn = true }: MockOptions = {}) {
+  constructor({ delayMs = 0, signedIn = true, snapshot = true }: MockOptions = {}) {
     this.delayMs = delayMs;
     this.signedIn = signedIn;
+    this.snapshot = snapshot;
   }
 
   send(message: BridgeMessage): void {
@@ -321,6 +327,8 @@ export class MockTransport implements Transport {
           ? { type: MessageType.mailboxHolders, data: { ...access, holders: [...access.holders] } }
           : notFound("mailbox", mailboxName, "check the name or the address and try again");
       }
+      case MessageType.access:
+        return mockAccess(text("user"), this.snapshot);
       case MessageType.mailboxAccessGrant:
       case MessageType.mailboxAccessRevoke:
       case MessageType.mailboxForwardingSet:

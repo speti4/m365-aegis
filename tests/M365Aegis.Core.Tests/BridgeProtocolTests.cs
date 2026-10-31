@@ -494,10 +494,11 @@ public sealed class BridgeProtocolTests
 
         Assert.Equal(
             [
-                "apply-plan.json", "device-code.json", "error.json", "group-members.json", "logged-out.json", "login.json", "logout.json",
-                "mailbox-access-grant.json", "mailbox-access-revoke.json", "mailbox-access.json", "mailbox-forwarding-clear.json",
-                "mailbox-forwarding-set.json", "mailbox-holders.json", "mailbox-list.json", "mailboxes.json", "members.json",
-                "open-sign-in-page.json", "ping.json", "plan-applied.json", "plan.json", "pong.json", "ready.json",
+                "access-report.json", "access.json", "apply-plan.json", "device-code.json", "error.json", "group-members.json",
+                "logged-out.json", "login.json", "logout.json", "mailbox-access-grant.json", "mailbox-access-revoke.json",
+                "mailbox-access.json", "mailbox-forwarding-clear.json", "mailbox-forwarding-set.json", "mailbox-holders.json",
+                "mailbox-list.json", "mailboxes.json", "members.json", "no-snapshot.json", "open-sign-in-page.json", "ping.json",
+                "plan-applied.json", "plan.group-owners-remove.json", "plan.json", "pong.json", "ready.json",
                 "sign-in-page-opened.json", "signed-in.json", "signed-out.json", "user-grants.json", "whoami.json",
             ],
             samples.Select(Path.GetFileName).Order(StringComparer.Ordinal));

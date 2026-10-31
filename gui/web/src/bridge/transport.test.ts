@@ -218,6 +218,15 @@ describe("the browser mock's sign-in and mailboxes", () => {
     expect((await client.call(MessageType.whoami)).type).toBe("signed-in");
   });
 
+  it("starts without a snapshot with ?mock=no-snapshot, signed in, and with one otherwise (task 102)", async () => {
+    const without = new BridgeClient(createTransport({ location: { search: "?mock=no-snapshot" } }).transport);
+    const signedOut = new BridgeClient(createTransport({ location: { search: "?mock=signed-out" } }).transport);
+
+    expect((await without.call(MessageType.whoami)).type).toBe("signed-in");
+    expect((await without.call(MessageType.access, { user: "dave@contoso.com" })).type).toBe("no-snapshot");
+    expect((await signedOut.call(MessageType.access, { user: "dave@contoso.com" })).type).toBe("access-report");
+  });
+
   it("answers open-sign-in-page while a device-code sign-in waits, and refuses it otherwise (task 047)", async () => {
     const client = new BridgeClient(new MockTransport({ signedIn: false }));
     const opened: Promise<unknown>[] = [];

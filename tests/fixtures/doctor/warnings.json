@@ -12,6 +12,7 @@
     { "name": "config", "status": "pass", "detail": "D:\\aegis-home\\config.json: 2 profile(s), default 'work'", "required": false },
     { "name": "device", "status": "warn", "detail": "registered, not Entra-joined: no primary refresh token, so the silent sign-in as the Windows account fails (normal here); the profile's account signs in through the broker", "required": false },
     { "name": "sign-in", "status": "warn", "detail": "alice@contoso.com: graph token until 2026-10-29 15:00 +01:00, no exchange token (consent_required: AADSTS65001: the administrator has not consented to Exchange.Manage)", "required": false, "hint": "an administrator consents to the missing permissions in the portal, then `m365-aegis login`" },
+    { "name": "consent", "status": "warn", "detail": "no exchange token, so its permissions are not read (the sign-in row says why); not consented: signin list, audit list (AuditLog.Read.All)", "required": false, "hint": "an administrator consents to AuditLog.Read.All (Microsoft Graph) in the portal (the setup guide's Permissions table), then `m365-aegis login`" },
     { "name": "endpoint-login", "status": "pass", "detail": "login.microsoftonline.com: HTTP 200 in 85 ms", "required": true },
     { "name": "endpoint-graph", "status": "warn", "detail": "graph.microsoft.com: HTTP 405 in 4210 ms, slow", "required": true, "hint": "check the network path to https://graph.microsoft.com" },
     { "name": "endpoint-exchange", "status": "pass", "detail": "outlook.office365.com: HTTP 417 in 98 ms", "required": true }
