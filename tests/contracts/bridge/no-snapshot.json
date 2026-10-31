@@ -1,0 +1,10 @@
+{
+  "aegis": 1,
+  "id": "15",
+  "type": "no-snapshot",
+  "data": {
+    "profile": "contoso",
+    "message": "no snapshot of the profile 'contoso' yet",
+    "hint": "ask the administrator to take a snapshot on this computer, or to schedule one every morning"
+  }
+}

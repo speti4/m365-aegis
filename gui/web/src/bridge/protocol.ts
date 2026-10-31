@@ -38,6 +38,13 @@ export const MessageType = {
   mailboxAccess: "mailbox-access",
   mailboxHolders: "mailbox-holders",
   userGrants: "user-grants",
+  /**
+   * `{ user }`: what the user reaches, from the newest snapshot of the window's profile (task 102), as `access <user>`
+   * reads it; answered with `access-report`, or `no-snapshot` when the profile has none. No sign-in, no live read.
+   */
+  access: "access",
+  accessReport: "access-report",
+  noSnapshot: "no-snapshot",
   /** The write requests (task 082): each is answered with `plan`, the plan as `--dry-run` prints it; nothing is sent. */
   mailboxAccessGrant: "mailbox-access-grant",
   mailboxAccessRevoke: "mailbox-access-revoke",
@@ -193,6 +200,91 @@ export interface UserAccess {
   failed: string[];
 }
 
+/** The user an access view is about, as the snapshot knows them. */
+export interface AccessUser {
+  objectId?: string;
+  displayName?: string;
+  userPrincipalName?: string;
+  mail?: string;
+}
+
+/** A group the user is a member of; `via` names the member groups a nested membership comes through. */
+export interface AccessGroup {
+  id?: string;
+  displayName?: string;
+  kind?: string;
+  via: string[];
+  direct: boolean;
+}
+
+/** A site the user reaches through the Microsoft 365 group behind it, as a `member` or an `owner`. */
+export interface AccessSite {
+  name: string;
+  webUrl?: string;
+  group?: string;
+  role: string;
+}
+
+/** A shared item granted to the user (`through` absent) or to one of their groups. */
+export interface AccessSharedItem {
+  site: string;
+  item?: string;
+  path?: string;
+  /** `link` for a sharing link that names the user, `direct` for a permission granted directly. */
+  kind: string;
+  scope?: string;
+  roles?: string;
+  expires?: string;
+  through?: string;
+}
+
+/** A right the user holds on a mailbox, directly (`through` absent) or through a group. */
+export interface AccessMailbox {
+  mailbox?: string;
+  address?: string;
+  right: MailboxRight;
+  through?: string;
+}
+
+/** A calendar permission the user holds, directly or through a group. */
+export interface AccessCalendar {
+  mailbox?: string;
+  address?: string;
+  folder: string;
+  rights: string;
+  through?: string;
+}
+
+/** What reaches everyone, as counts: it reaches this user as it reaches any other. */
+export interface AccessEveryone {
+  organizationLinks: number;
+  anonymousLinks: number;
+  defaultCalendars: number;
+  anonymousCalendars: number;
+}
+
+/** The result of `access <user>` (the core's `AccessReport`): what one user reaches, from the newest snapshot. */
+export interface AccessReport {
+  snapshot: string;
+  taken: string;
+  ageHours: number;
+  user: AccessUser;
+  groups: AccessGroup[];
+  sites: AccessSite[];
+  sharedItems: AccessSharedItem[];
+  mailboxes: AccessMailbox[];
+  calendars: AccessCalendar[];
+  everyone: AccessEveryone;
+  warnings: string[];
+}
+
+/** The profile has no snapshot to answer `access` from: the profile, that there is none, and what to do. */
+export interface NoSnapshotInfo {
+  profile: string;
+  message: string;
+  hint: string;
+}
+
 /** A failure as the envelope's `error` carries it: a stable code, one sentence, and what to do about it. */
 export interface BridgeError {
   code: string;
@@ -289,6 +381,8 @@ export type Reply =
   | { type: typeof MessageType.mailboxes; data: MailboxList }
   | { type: typeof MessageType.mailboxHolders; data: MailboxAccess }
   | { type: typeof MessageType.userGrants; data: UserAccess }
+  | { type: typeof MessageType.accessReport; data: AccessReport }
+  | { type: typeof MessageType.noSnapshot; data: NoSnapshotInfo }
   | { type: typeof MessageType.plan; data: PlanReady }
   | { type: typeof MessageType.planApplied; data: PlanApplied }
   | { type: typeof MessageType.error; data: BridgeError };
@@ -346,6 +440,12 @@ export function readReply(message: BridgeMessage): Reply | null {
       return isMailboxAccess(data) ? { type, data } : null;
     case MessageType.userGrants:
       return isUserAccess(data) ? { type, data } : null;
+    case MessageType.accessReport:
+      return isAccessReport(data) ? { type, data } : null;
+    case MessageType.noSnapshot:
+      return isRecord(data) && isString(data.profile) && isString(data.message) && isString(data.hint)
+        ? { type, data: { profile: data.profile, message: data.message, hint: data.hint } }
+        : null;
     case MessageType.plan:
       return isPlanReady(data) ? { type, data } : null;
     case MessageType.planApplied:
@@ -522,6 +622,48 @@ function isUserAccess(value: unknown): value is UserAccess {
       (grant) =>
         isRecord(grant) && isString(grant.right) && rights.includes(grant.right) && isMailboxInfo(grant.mailbox),
     )
+  );
+}
+
+function isStrings(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(isString);
+}
+
+/** Every item of the list, when it is one, has the strings `required` names and, if at all, the strings `optional` names. */
+function isListOf(value: unknown, required: readonly string[], optional: readonly string[]): boolean {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) =>
+        isRecord(item) &&
+        required.every((name) => isString(item[name])) &&
+        optional.every((name) => isOptionalString(item[name])),
+    )
+  );
+}
+
+function isAccessReport(value: unknown): value is AccessReport {
+  if (!isRecord(value) || !isRecord(value.user) || !isRecord(value.everyone)) {
+    return false;
+  }
+  const { user, everyone } = value;
+  return (
+    isString(value.snapshot) &&
+    isString(value.taken) &&
+    typeof value.ageHours === "number" &&
+    ["objectId", "displayName", "userPrincipalName", "mail"].every((name) => isOptionalString(user[name])) &&
+    Array.isArray(value.groups) &&
+    value.groups.every((group) => isRecord(group) && isStrings(group.via) && typeof group.direct === "boolean") &&
+    isListOf(value.groups, [], ["id", "displayName", "kind"]) &&
+    isListOf(value.sites, ["name", "role"], ["webUrl", "group"]) &&
+    isListOf(value.sharedItems, ["site", "kind"], ["item", "path", "scope", "roles", "expires", "through"]) &&
+    isListOf(value.mailboxes, ["right"], ["mailbox", "address", "through"]) &&
+    (value.mailboxes as Array<{ right: string }>).every((mailbox) => rights.includes(mailbox.right)) &&
+    isListOf(value.calendars, ["folder", "rights"], ["mailbox", "address", "through"]) &&
+    ["organizationLinks", "anonymousLinks", "defaultCalendars", "anonymousCalendars"].every(
+      (name) => typeof everyone[name] === "number",
+    ) &&
+    isStrings(value.warnings)
   );
 }
 

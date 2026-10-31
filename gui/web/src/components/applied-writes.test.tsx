@@ -5,7 +5,14 @@ import { MockTransport } from "../bridge/mock-transport";
 import { type BridgeMessage, type MailboxInfo, MessageType, type Plan, type PlanChange } from "../bridge/protocol";
 import { button, click, render, settle, submit, type } from "../test/dom";
 import { type Answer, ScriptedTransport } from "../test/scripted-transport";
-import { type AppliedWrite, AppliedWrites, targetAddresses, touches } from "./applied-writes";
+import {
+  type AppliedWrite,
+  AppliedWrites,
+  detailAddresses,
+  namesUser,
+  targetAddresses,
+  touches,
+} from "./applied-writes";
 import { MailboxAccessCard } from "./mailbox-access-card";
 import { MailboxAccessWriteCard, MailboxForwardingCard } from "./mailbox-write-cards";
 
@@ -16,10 +23,11 @@ const finance: MailboxInfo = {
   objectId: "00000000-0000-0000-0000-000000000015",
 };
 
-const grant = (mailbox: string, addresses: string[] = []): AppliedWrite => ({
+const grant = (mailbox: string, addresses: string[] = [], users: string[] = []): AppliedWrite => ({
   operation: MessageType.mailboxAccessGrant,
   mailbox,
   addresses,
+  users,
 });
 
 describe("the applies the write cards tell", () => {
@@ -47,6 +55,38 @@ describe("the applies the write cards tell", () => {
     expect(touches(grant("fin", ["finance@contoso.com"]), finance)).toBe(true);
     expect(touches(grant("reception", ["reception@contoso.com"]), finance)).toBe(false);
     expect(touches(grant("finance@contoso.com"), { ...finance, userPrincipalName: "finance@contoso.com" })).toBe(true);
+  });
+
+  it("names the addresses in the changes' details once each, as the users the write named", () => {
+    const change = (detail: string): PlanChange => ({
+      action: "add",
+      target: "Finance",
+      detail,
+      current: "a",
+      desired: "b",
+    });
+    const plan: Plan = {
+      operation: MessageType.mailboxAccessGrant,
+      title: "t",
+      changes: [
+        change("FullAccess for Bob Example (bob@contoso.com), without automapping"),
+        change("Send As for Bob Example (bob@contoso.com)"),
+        change("Send As for Finance Staff (finance-staff@contoso.com) and Carol (carol@contoso.com)"),
+        change("forwarding to alice@fabrikam.com"),
+      ],
+      unchanged: [],
+      warnings: [],
+      mode: "dry-run",
+    };
+    expect(detailAddresses(plan)).toEqual(["bob@contoso.com", "finance-staff@contoso.com", "carol@contoso.com"]);
+  });
+
+  it("matches the user a card shows by a user the write named, whatever the case", () => {
+    const bob = { user: "bob@contoso.com", displayName: "Bob Example", grants: [], mailboxesScanned: 6, failed: [] };
+    expect(namesUser(grant("finance", [], [" BOB@contoso.com "]), bob)).toBe(true);
+    expect(namesUser(grant("finance", [], ["bob example"]), bob)).toBe(true);
+    expect(namesUser(grant("finance", [], ["alice@contoso.com"]), bob)).toBe(false);
+    expect(namesUser(grant("finance", [], ["Bob Example"]), { ...bob, displayName: undefined })).toBe(false);
   });
 
   it("tells every listener until it stops listening", () => {
@@ -317,5 +357,128 @@ describe("the write card's apply, as the access card hears it", () => {
     });
     const { onError } = await lookUpThenApply(transport);
     expect(onError).toHaveBeenCalledWith({ code: "sidecar-unavailable", message: "the session ended" });
+  });
+});
+
+describe("the mailbox access card's user view after an apply (task 103)", () => {
+  async function showUser(card: HTMLElement, user: string) {
+    await click(button(card, "A user"));
+    await type(input(card, "User"), user);
+    await submit(card.querySelector("form") as HTMLFormElement);
+    await settle();
+  }
+
+  const grantRows = (card: HTMLElement) =>
+    [...card.querySelectorAll("tbody tr")].map((row) =>
+      [...row.querySelectorAll("td")].map((cell) => cell.textContent),
+    );
+
+  /** A plan of a FullAccess grant for bob on Finance, as the host plans it and, `applied`, applies it. */
+  const bobsGrant = (applied: boolean) => ({
+    operation: MessageType.mailboxAccessGrant,
+    title: "Grant",
+    changes: [
+      {
+        action: "add",
+        target: "Finance (finance@contoso.com)",
+        detail: "FullAccess for Bob Example (bob@contoso.com)",
+        current: "no FullAccess",
+        desired: "holds FullAccess",
+        ...(applied ? { result: { status: "applied" } } : {}),
+      },
+    ],
+    unchanged: [],
+    warnings: [],
+    mode: applied ? "applied" : "dry-run",
+  });
+
+  it("marks the list after a grant that names the user, and reads it once on Read again", async () => {
+    const { transport, sent, types } = recorded();
+    const { access, rights } = await page(transport);
+    await showUser(access, "bob@contoso.com");
+    expect(access.querySelector('[data-testid="stale"]')).toBeNull();
+    expect(grantRows(access)).not.toContainEqual(["Finance", "finance@contoso.com", "SharedMailbox", "FullAccess"]);
+
+    await apply(rights, { Mailbox: "finance", Users: "bob@contoso.com" });
+    await settle();
+
+    // Marked, and nothing read: the reverse lookup goes over every mailbox.
+    expect(access.querySelector('[data-testid="stale"]')?.textContent).toContain(
+      "A change on the Mailbox rights card named this user since this list was read, so it may be out of date.",
+    );
+    expect(types().filter((sentType) => sentType === MessageType.mailboxAccess)).toHaveLength(1);
+
+    // Another apply that names the user changes nothing more.
+    await click(button(rights, "Done"));
+    await click(button(rights, "Send As"));
+    await apply(rights, {});
+    await settle();
+    expect(types().filter((sentType) => sentType === MessageType.mailboxAccess)).toHaveLength(1);
+
+    await click(button(access, "Read again"));
+    await settle();
+
+    expect(types().filter((sentType) => sentType === MessageType.mailboxAccess)).toHaveLength(2);
+    expect(sent.at(-1)?.data).toEqual({ user: "bob@contoso.com" });
+    expect(access.querySelector('[data-testid="stale"]')).toBeNull();
+    expect(grantRows(access)).toContainEqual(["Finance", "finance@contoso.com", "SharedMailbox", "FullAccess"]);
+  });
+
+  it("marks it after a revoke that names the user", async () => {
+    const { access, rights } = await page(new MockTransport());
+    await showUser(access, "bob@contoso.com");
+
+    await click(button(rights, "Revoke"));
+    await apply(rights, { Mailbox: "reception", Users: "BOB@contoso.com" });
+    await settle();
+
+    expect(rights.textContent).toContain("Every change was made.");
+    expect(access.querySelector('[data-testid="stale"]')).not.toBeNull();
+  });
+
+  it("marks nothing after an apply for another user, or a forwarding to the user", async () => {
+    const { transport, types } = recorded();
+    const { access, rights, forwarding } = await page(transport);
+    await showUser(access, "bob@contoso.com");
+
+    await apply(rights, { Mailbox: "bob@contoso.com", Users: "alice@contoso.com" });
+    await settle();
+    await apply(forwarding, { Mailbox: "alice@contoso.com", "Forward to": "bob@contoso.com" });
+    await settle();
+
+    expect(rights.textContent).toContain("Every change was made.");
+    expect(forwarding.textContent).toContain("Every change was made.");
+    expect(access.querySelector('[data-testid="stale"]')).toBeNull();
+    expect(types().filter((sentType) => sentType === MessageType.mailboxAccess)).toHaveLength(1);
+  });
+
+  it("knows the user by an address of the plan's details, and sends no second lookup while one is under way", async () => {
+    const transport = new ScriptedTransport((message) => {
+      switch (message.type) {
+        case MessageType.mailboxAccess:
+          return transport.types.filter((sentType) => sentType === MessageType.mailboxAccess).length === 1
+            ? {
+                type: MessageType.userGrants,
+                data: { user: "bob@contoso.com", grants: [], mailboxesScanned: 6, failed: [] },
+              }
+            : null;
+        case MessageType.applyPlan:
+          return { type: MessageType.planApplied, data: { plan: bobsGrant(true) } };
+        default:
+          return { type: MessageType.plan, data: { planId: "p1", plan: bobsGrant(false) } };
+      }
+    });
+    const { access, rights } = await page(transport);
+    await showUser(access, "bob");
+    // The card asked for "b"; the plan's detail names bob@contoso.com, the user the card shows.
+    await apply(rights, { Mailbox: "finance", Users: "b" });
+    await settle();
+    expect(access.querySelector('[data-testid="stale"]')).not.toBeNull();
+
+    await click(button(access, "Read again"));
+    await settle();
+
+    expect(button(access, "Read again").disabled).toBe(true);
+    expect(transport.types.filter((sentType) => sentType === MessageType.mailboxAccess)).toHaveLength(2);
   });
 });

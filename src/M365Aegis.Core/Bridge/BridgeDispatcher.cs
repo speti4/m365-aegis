@@ -14,6 +14,7 @@ using M365Aegis.Core.Graph;
 using M365Aegis.Core.Groups;
 using M365Aegis.Core.Operations;
 using M365Aegis.Core.Output;
+using M365Aegis.Core.Snapshots;
 
 namespace M365Aegis.Core.Bridge;
 
@@ -92,7 +93,8 @@ public sealed record BridgeServices(
 /// <summary>
 /// Routes a front-end request to the core and makes the reply: <c>ping</c>, the sign-in (<c>whoami</c>,
 /// <c>login</c>, <c>logout</c>), a group's members (<c>group-members</c>), the mailbox lookups over the window's
-/// Exchange Online session (<c>mailbox-list</c>, <c>mailbox-access</c>) and the mailbox writes (task 082), each
+/// Exchange Online session (<c>mailbox-list</c>, <c>mailbox-access</c>), what one user reaches from the newest snapshot
+/// (<c>access</c>, task 102) and the mailbox writes (task 082), each
 /// answered with its reply type or with <c>error</c>. A failure of the core becomes the <c>error</c> reply with the
 /// contract's code, message and hint (D-006), the hint in the window's words where the core's names a command (task 057,
 /// <see cref="SignInHints.ForSurface"/>); an unexpected exception becomes the <c>internal</c> error with the stack
@@ -162,6 +164,8 @@ public sealed class BridgeDispatcher
                     return await ExchangeAsync(request, BridgeMessageType.Mailboxes, (backends, ct) => MailboxLookups.ListAsync(backends, shared, ct), cancellationToken).ConfigureAwait(false);
                 case BridgeMessageType.MailboxAccess:
                     return await MailboxAccessAsync(request, cancellationToken).ConfigureAwait(false);
+                case BridgeMessageType.Access:
+                    return Access(request);
                 case BridgeMessageType.MailboxAccessGrant:
                     return await AccessWriteAsync(request, grant: true, cancellationToken).ConfigureAwait(false);
                 case BridgeMessageType.MailboxAccessRevoke:
@@ -330,6 +334,43 @@ public sealed class BridgeDispatcher
                 cancellationToken,
                 DescribeLayers);
     }
+
+    /// <summary>
+    /// <c>access</c> (task 102): what one user reaches, from the newest snapshot of the window's profile, as
+    /// <c>access &lt;user&gt;</c> reads it (task 084): the snapshot file only, opened read-only, with no sign-in and no
+    /// request to any service, the snapshot's age counted on the window's clock. A profile without a snapshot is answered
+    /// with <c>no-snapshot</c>, a state of the card; a user the snapshot does not know is the <c>not-found</c> error, its
+    /// hint the window's.
+    /// </summary>
+    private BridgeMessage Access(BridgeMessage request)
+    {
+        string? user = Text(request, "user");
+        if (user is null)
+        {
+            return Error(request, new AegisFailure(
+                FailureKind.Usage,
+                "no user was named",
+                "give the user's user principal name, address or object id"));
+        }
+
+        string home = _services.Auth.Home;
+        string profile = _services.Auth.Profiles.Resolve(_services.Profile).Name;
+        try
+        {
+            _ = SnapshotStore.Newest(home, profile);
+        }
+        catch (AegisException exception) when (exception.Failure.Kind == FailureKind.NotFound)
+        {
+            return BridgeProtocol.Reply(request, BridgeMessageType.NoSnapshot, new NoSnapshotInfo(profile, exception.Failure.Message, NoSnapshotHint));
+        }
+
+        AccessReport report = SnapshotAccess.ForUser(home, profile, user, _services.Clock.GetUtcNow());
+        return BridgeProtocol.Reply(request, BridgeMessageType.AccessReport, report);
+    }
+
+    /// <summary>What the card says to do without a snapshot: the snapshot is taken on the command line, by the administrator.</summary>
+    internal const string NoSnapshotHint =
+        "ask the administrator to take a snapshot on this computer, or to schedule one every morning";
 
     /// <summary>
     /// <c>mailbox-access-grant</c> and <c>mailbox-access-revoke</c> (task 082): the rows of the arguments as

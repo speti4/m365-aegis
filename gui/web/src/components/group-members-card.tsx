@@ -40,8 +40,7 @@ export function GroupMembersCard({ client, onError }: { client: BridgeClient; on
       <CardHeader>
         <CardTitle>Group members</CardTitle>
         <CardDescription>
-          A group's direct members, as `m365-aegis group members` lists them: the object id, the exact name or address,
-          or a word of the name.
+          A group's direct members, by the group's object id, its exact name or address, or a word of its name.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

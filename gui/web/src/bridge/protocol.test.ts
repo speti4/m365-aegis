@@ -33,6 +33,8 @@ describe("the bridge protocol", () => {
         .filter((name) => name.endsWith(".json"))
         .sort(),
     ).toEqual([
+      "access-report.json",
+      "access.json",
       "apply-plan.json",
       "device-code.json",
       "error.json",
@@ -49,9 +51,11 @@ describe("the bridge protocol", () => {
       "mailbox-list.json",
       "mailboxes.json",
       "members.json",
+      "no-snapshot.json",
       "open-sign-in-page.json",
       "ping.json",
       "plan-applied.json",
+      "plan.group-owners-remove.json",
       "plan.json",
       "pong.json",
       "ready.json",
@@ -377,5 +381,59 @@ describe("the bridge protocol", () => {
     expect(reply("plan-applied", { plan: { ...plan, record: 7 } })).toBeNull();
     expect(reply("plan-applied", { plan, error: { code: "partial" } })).toBeNull();
     expect(reply("plan-applied", "no")).toBeNull();
+  });
+
+  it("writes the access request as its sample, and reads the access-report and no-snapshot samples (task 102)", () => {
+    expect(JSON.parse(writeMessage(request(MessageType.access, { user: "dave@contoso.com" }, "15")))).toEqual(
+      JSON.parse(sample("access.json")),
+    );
+    const report = readReply(parsed("access-report.json"));
+    expect(report?.type).toBe(MessageType.accessReport);
+    if (report?.type !== MessageType.accessReport) return;
+    expect(report.data.user.userPrincipalName).toBe("dave@contoso.com");
+    expect(report.data.groups.map((group) => [group.displayName, group.direct, group.via])).toEqual([
+      ["Finance", false, ["Finance EU"]],
+      ["Finance EU", true, []],
+      ["Finance Staff", false, ["Finance EU"]],
+      ["Project Phoenix", true, []],
+    ]);
+    expect(report.data.everyone).toEqual({
+      organizationLinks: 1,
+      anonymousLinks: 1,
+      defaultCalendars: 1,
+      anonymousCalendars: 1,
+    });
+    expect(readReply(parsed("no-snapshot.json"))).toEqual({
+      type: MessageType.noSnapshot,
+      data: JSON.parse(sample("no-snapshot.json")).data,
+    });
+  });
+
+  it("refuses an access reply whose payload does not have its type's shape", () => {
+    const reply = (type: string, data: unknown) => readReply({ aegis: PROTOCOL_VERSION, id: "9", type, data });
+    const report = JSON.parse(sample("access-report.json")).data;
+    expect(reply("access-report", report)?.type).toBe(MessageType.accessReport);
+    expect(reply("access-report", null)).toBeNull();
+    expect(reply("access-report", { ...report, user: "dave" })).toBeNull();
+    expect(reply("access-report", { ...report, everyone: undefined })).toBeNull();
+    expect(reply("access-report", { ...report, snapshot: 1 })).toBeNull();
+    expect(reply("access-report", { ...report, taken: undefined })).toBeNull();
+    expect(reply("access-report", { ...report, ageHours: "2" })).toBeNull();
+    expect(reply("access-report", { ...report, user: { mail: 7 } })).toBeNull();
+    expect(reply("access-report", { ...report, groups: {} })).toBeNull();
+    expect(reply("access-report", { ...report, groups: [{ via: "Finance EU", direct: false }] })).toBeNull();
+    expect(reply("access-report", { ...report, groups: [{ via: [], direct: "yes" }] })).toBeNull();
+    expect(reply("access-report", { ...report, groups: [{ via: [], direct: true, kind: 3 }] })).toBeNull();
+    expect(reply("access-report", { ...report, sites: [{ name: "Finance" }] })).toBeNull();
+    expect(reply("access-report", { ...report, sites: [null] })).toBeNull();
+    expect(
+      reply("access-report", { ...report, sharedItems: [{ site: "Finance", kind: "link", roles: 1 }] }),
+    ).toBeNull();
+    expect(reply("access-report", { ...report, mailboxes: [{ right: "owner" }] })).toBeNull();
+    expect(reply("access-report", { ...report, calendars: [{ folder: "Calendar" }] })).toBeNull();
+    expect(reply("access-report", { ...report, everyone: { ...report.everyone, anonymousLinks: "1" } })).toBeNull();
+    expect(reply("access-report", { ...report, warnings: [1] })).toBeNull();
+    expect(reply("no-snapshot", { profile: "contoso", message: "none" })).toBeNull();
+    expect(reply("no-snapshot", "none")).toBeNull();
   });
 });

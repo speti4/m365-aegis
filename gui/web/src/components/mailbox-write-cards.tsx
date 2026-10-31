@@ -12,7 +12,7 @@ import {
   MessageType,
   type PlanReady,
 } from "../bridge/protocol";
-import { type AppliedWrite, targetAddresses } from "./applied-writes";
+import { type AppliedWrite, detailAddresses, targetAddresses } from "./applied-writes";
 import { rightNames } from "./mailbox-access-card";
 import { ConfirmView, ErrorText, Notice, PlanView, ResultView, Stepper, Working } from "./plan-view";
 import { canConfirm, initialWriteState, type WriteState, writeReducer } from "./write-flow";
@@ -59,8 +59,9 @@ export function WriteCard({
   onApplied?: (write: AppliedWrite) => void;
 }) {
   const [state, dispatch] = useReducer(writeReducer, initialWriteState);
-  // The mailbox of the request the plan on the card answers: the one an apply touches.
+  // The mailbox and the users of the request the plan on the card answers: the ones an apply touches.
   const plannedMailbox = useRef("");
+  const plannedUsers = useRef<string[]>([]);
   // A plan was read for the account signed in then; signed out, the card starts over.
   useEffect(() => {
     if (!signedIn) {
@@ -70,6 +71,7 @@ export function WriteCard({
 
   async function seePlan(asked: WriteRequest): Promise<void> {
     plannedMailbox.current = asked.data.mailbox;
+    plannedUsers.current = "users" in asked.data ? asked.data.users : [];
     dispatch({ type: "request-plan" });
     dispatch({ type: "reply", reply: await client.call(asked.type, asked.data) });
   }
@@ -83,7 +85,12 @@ export function WriteCard({
       (reply.type === MessageType.error && !nothingSent.includes(reply.data.code));
     if (mayHaveChanged) {
       const plan = reply.type === MessageType.planApplied ? reply.data.plan : ready.plan;
-      onApplied?.({ operation: plan.operation, mailbox: plannedMailbox.current, addresses: targetAddresses(plan) });
+      onApplied?.({
+        operation: plan.operation,
+        mailbox: plannedMailbox.current,
+        addresses: targetAddresses(plan),
+        users: [...new Set([...plannedUsers.current, ...detailAddresses(plan)])],
+      });
     }
   }
 
@@ -313,7 +320,7 @@ export function MailboxAccessWriteCard({
   return (
     <WriteCard
       title="Mailbox rights"
-      description="Grant or revoke FullAccess, Send As or Send on Behalf on a mailbox, as `m365-aegis mailbox access grant|revoke` does: the plan first, then your confirmation."
+      description="Grant or revoke FullAccess, Send As or Send on Behalf on a mailbox: the plan first, then your confirmation."
       client={client}
       signedIn={signedIn}
       request={request}
@@ -388,7 +395,7 @@ export function MailboxForwardingCard({
   return (
     <WriteCard
       title="Mailbox forwarding"
-      description="Forward a mailbox's mail to an address, or stop it, as `m365-aegis mailbox forwarding set|clear` does: the plan first, then your confirmation."
+      description="Forward a mailbox's mail to an address, or stop it: the plan first, then your confirmation."
       client={client}
       signedIn={signedIn}
       request={request}
