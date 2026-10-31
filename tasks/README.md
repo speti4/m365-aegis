@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-10-31 — edit the files, not this section._
 
-**State:** 12 backlog (2 ready · 0 blocked · 0 waiting · 10 ideas) · 1 in progress · 94 done · 0 dropped · 12 decisions
+**State:** 12 backlog (2 ready · 0 blocked · 0 waiting · 10 ideas) · 0 in progress · 95 done · 0 dropped · 12 decisions
 
 ### Ready
 
@@ -67,11 +67,7 @@ _none_
 
 ### In progress
 
-#### M6 Release and team
-
-| # | Task | Started | Plan |
-|---|---|---|---|
-| 105 | [Round the tenant's size figures to an order of magnitude](wip/105-round-the-tenants-size-figures.md) | 2026-10-31 | `none` |
+_none_
 
 ### Closed – do not reopen
 
@@ -81,6 +77,7 @@ _none_
 
 | # | Task | Closed |
 |---|---|---|
+| 105 | [Round the tenant's size figures to an order of magnitude](done/105-round-the-tenants-size-figures.md) | 2026-10-31 |
 | 094 | [scripts/check-fixtures.py catches two-label domains too](done/094-check-fixtures-catches-two-label-domains.md) | 2026-10-31 |
 | 093 | [The doctor's signature row pins the release certificate's thumbprint](done/093-doctor-signature-row-pins-the-release-certificate.md) | 2026-10-31 |
 | 092 | [Spike: the sharing-link read for the snapshot, its consent and its time over th…](done/092-spike-sharing-link-read-for-the-snapshot.md) | 2026-10-31 |
@@ -90,9 +87,8 @@ _none_
 | 088 | [The home-access doctor check judges every account that is not the user, SYSTEM …](done/088-home-access-check-judges-every-foreign-account.md) | 2026-10-31 |
 | 087 | [The snapshot store and snapshot take: groups, sites, sharing and mailbox permis…](done/087-snapshot-store-and-snapshot-take.md) | 2026-10-31 |
 | 084 | [access <user>: which groups, sites and mailboxes one user reaches, from the sna…](done/084-access-view-for-one-user-from-the-snapshot.md) | 2026-10-31 |
-| 086 | [A usage guide for the command line and the window, shipped in the release zip](done/086-usage-guide-for-the-command-line-and-the-window.md) | 2026-10-30 |
 
-_84 more in `done/`._
+_85 more in `done/`._
 
 ### Decisions
 

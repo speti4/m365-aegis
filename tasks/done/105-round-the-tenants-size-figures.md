@@ -3,6 +3,7 @@ size: S
 origin: session 2026-10-31
 created: 2026-10-31
 started: 2026-10-31
+closed: 2026-10-31
 plan: none
 milestone: M6 Release and team
 changelog: housekeeping
@@ -48,6 +49,7 @@ passes, and `CHANGELOG.md` is unchanged.
 - 2026-10-31 — 23 files: a scripted pass of exact-substring replacements (each asserted to match once), then three sweeps for
   counts next to the tenant's nouns caught the drive-level figures of the 092 spike, the snapshot row counts of 084 and 087
   and the group kinds of 089, which the first grep had missed; the per-kind breakdowns became proportions
+- 2026-10-31 — merged as #137 (squash `ca57dc4`); closed on `main` by the main session; no follow-up found
 
 ## Deviations from the plan
 
@@ -65,4 +67,4 @@ passes, and `CHANGELOG.md` is unchanged.
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] moved to `done/` with `closed: 2026-10-31`
