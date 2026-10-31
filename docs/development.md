@@ -30,8 +30,11 @@ checks before a commit and the project rules are in [CONTRIBUTING.md](../CONTRIB
   answers are read from the source tree through `shared/GraphFixtures.cs`).
 - `scripts/` — the helper scripts: the release and its signature, the changelog, the commit rules, the fixture check, the
   vulnerability check, the front end's license check, the Pester version pin.
-- `docs/` — this page, the usage guide for the support team (`usage.md`, shipped in the zip as `GUIDE.md`), the git
-  workflow, the maintainer sessions, origin and research.
+- `docs/` — this page, the user's guide (`usage.md`, shipped in the zip as `GUIDE.md`; `UsageGuideTests` and
+  `scripts/release.ps1` read it by that name), the administrator's setup guide for a tenant (`setup.md`: the app
+  registration, the permissions table, the consent), the git workflow, the maintainer sessions, origin and research;
+  `docs/images/` holds the README's window picture, taken from the front end's browser mock (`npm run dev --prefix
+  gui/web`, made-up data only).
 - `tasks/` — the backlog, the work in flight, the history and the decisions (the task standard).
 - `.github/workflows/` — CI, the commit rules, the tagged release and the weekly advisory check;
   `.github/dependabot.yml` — the weekly dependency updates.
@@ -46,7 +49,7 @@ checks before a commit and the project rules are in [CONTRIBUTING.md](../CONTRIB
 
 ## The sign-in and the home folder
 
-The Core signs in as a public client of the maintainer's own app registration through MSAL.NET and the Windows
+The Core signs in as a public client of the tenant's own app registration through MSAL.NET and the Windows
 account manager (WAM), in the order task 013 measured (D-003): silent as the account Windows is signed in with
 (an Entra-joined machine with a primary refresh token; a registered-only machine fails this step in well under a
 second, which is the normal case there), silent as the profile's account chosen by user principal name among
@@ -70,36 +73,20 @@ Online sidecar: each resource gets a token of its own with the `.default` scope
 delegated permission the tenant administrator consented to in the portal, the code names none, and `whoami`
 shows what a token actually carries.
 
-The app registration, whose ids stay out of the repo (D-003): a single-tenant public client, the "Mobile and
-desktop applications" platform with the broker redirect `ms-appx-web://microsoft.aad.brokerplugin/<application
-id>` and `http://localhost`, "Allow public client flows" on, no credential, and admin consent for the delegated
-permissions the domains need. The sign-in itself needs `User.Read` (Microsoft Graph) and the Exchange Online
-backends `Exchange.Manage` and `Exchange.ManageV2` (Office 365 Exchange Online; tasks 009 and 010); the lookups
-of the other domains add theirs as their tasks settle them (the groups, Teams and SharePoint lookups of task 005,
-the audit lookups of task 006, `ExchangeMessageTrace.Read.All` for the message trace of task 007), each with a
-line here:
-
-- `call` (task 003): nothing of its own; the endpoint it calls needs what its reference page names.
-- Groups (task 005): `GroupMember.Read.All` for the groups, their members and owners and `group owners-missing`,
-  and `User.ReadBasic.All` for the names of members and owners that are users (without it Graph returns their ids
-  and types only).
-- Group writes (task 052): `GroupMember.ReadWrite.All` for `group members add|remove`, `Group.ReadWrite.All` for
-  `group owners add|remove`, and `User.ReadBasic.All` for the users to add; the account also needs a role that
-  changes the group (Groups Administrator, User Administrator, or the group's owner).
-- Teams (task 005): `Team.ReadBasic.All` for `team list`.
-- SharePoint (task 005): `Sites.Read.All` for `site list`; with a delegated token the site search is trimmed to the
-  sites the signed-in account can open (`getAllSites`, every site regardless, is application-only).
-- Audit (task 006): `AuditLog.Read.All` for `signin list` and `audit list`, the sign-in log and the directory
-  audit log; the account also needs a role that reads them (Reports Reader, Security Reader or Global Reader), and
-  the sign-in log a Microsoft Entra ID P1 or P2 license in the tenant (without one `signin list` exits 8 with a
-  sentence that says so). `Application.Read.All` for `secrets expiring`, the secrets and certificates of the
-  application registrations and the service principals.
-- Message trace (task 007): `ExchangeMessageTrace.Read.All`, and once per tenant the service principal of
-  Microsoft's message trace application (application id `8bd644d1-64a1-4d4b-ae52-2e0cbf64e373`, the same in every
-  tenant), which an administrator creates with `Connect-MgGraph -Scopes Application.ReadWrite.All` and
-  `New-MgServicePrincipal -AppId 8bd644d1-64a1-4d4b-ae52-2e0cbf64e373`. Provisioning can take several hours; until
-  then the service answers 401 naming the service principal, which `trace` reports as exit code 8 with this step
-  as the hint. After a new consent, `login` fetches a token that carries it.
+The app registration, whose ids stay out of the repo (D-003): every tenant registers its own single-tenant public
+client, the "Mobile and desktop applications" platform with the broker redirect
+`ms-appx-web://microsoft.aad.brokerplugin/<application id>` and `http://localhost`, "Allow public client flows" on,
+no credential, and admin consent for the delegated permissions the domains need. How to register it, the one
+canonical list of the permissions (each command group with its delegated permission, its API and the role the account
+needs) and the message trace's service principal are in the administrator's
+[setup guide](setup.md#permissions); a command that adds a permission adds its row there. The sign-in itself needs
+`User.Read`, the Exchange Online backends `Exchange.Manage` and `Exchange.ManageV2` (tasks 009 and 010), and each
+domain adds its own as its task settles it. Three facts behind the list: without `User.ReadBasic.All` Graph returns
+the members and owners that are users as ids and types only; with a delegated token the site search is trimmed to
+the sites the signed-in account can open (`getAllSites`, every site regardless, is application-only); and until the
+message trace's service principal is provisioned (hours after it is created) the service answers 401 naming it,
+which `trace` reports as exit code 8 with the step as the hint. After a new consent, `login` fetches a token that
+carries it.
 
 Everything the tool keeps lives under `%LOCALAPPDATA%\m365-aegis\` (D-005): `config.json` with the tenant
 profiles, `msal-cache.bin` (DPAPI, with a `.lockfile` next to it while a process reads or writes it, so the

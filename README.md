@@ -1,11 +1,33 @@
 # m365-aegis
 
-A thin Microsoft 365 operations layer for Windows 11: one sign-in for Graph and Exchange Online, a command line
-whose answers a shell, a script or an agent can parse, and a window with guided task cards for the support team.
-Groups, Teams and SharePoint; Exchange Online mailboxes; audit, sign-ins and reports. Every write behind a plan
-and a confirmation.
+[![ci](https://github.com/speti4/m365-aegis/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/speti4/m365-aegis/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/speti4/m365-aegis)](https://github.com/speti4/m365-aegis/releases/latest)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-What it prints (M1, against a made-up tenant):
+A thin Microsoft 365 operations layer for Windows 11, for a Microsoft 365 administrator and the support team they hand
+tasks to: one sign-in for Microsoft Graph and Exchange Online, a command line whose answers a shell, a script or an
+agent can parse, and a window with guided task cards. Groups, Teams and SharePoint; Exchange Online mailboxes; audit,
+sign-ins and reports. Every write behind a plan and a confirmation.
+
+## What it does
+
+- **One sign-in.** The Windows account manager signs you in with the account you already use (silently on an
+  Entra-joined machine), and the same sign-in serves Microsoft Graph and Exchange Online.
+- **Graph without the module import.** A direct client: paging, throttling and batching handled once, v1.0 by default
+  and `--beta` when needed, plus a raw `call` for any endpoint.
+- **Exchange Online included.** Mailbox permissions, forwarding, shared mailboxes, calendars and sizes through the
+  Exchange Online Admin API and a long-lived PowerShell sidecar running `ExchangeOnlineManagement` with a cmdlet
+  allow-list; message trace through Graph.
+- **Two outputs, one contract.** A table at a terminal, a JSON envelope in a pipe or for an agent; exit codes that mean
+  one thing each.
+- **Writes behind a plan.** Group members and owners, mailbox rights and forwarding, one at a time or from a CSV file:
+  `--dry-run` shows the plan, `--yes` applies it, and every apply leaves a record that `--resume` can continue.
+- **Snapshots.** Who can reach what (groups, sites, shared files, mailboxes, calendars) read into one local file, so
+  `access <user>` answers in under a second without signing in.
+- **A window for the team.** Task cards for the daily Exchange and group work the admin centers make slow, each write
+  ending in a confirmation.
+
+What it prints, against a made-up tenant:
 
 ```text
 > m365-aegis group owners-missing
@@ -21,344 +43,61 @@ Project Phoenix  Microsoft 365  phoenix@contoso.com  00000000-0000-0000-0000-000
 {"ok":true,"data":{"group":{"id":"00000000-0000-0000-0000-000000000031","displayName":"Finance","kind":"microsoft365","mail":"finance@contoso.com","synced":false},"owners":[{"type":"user","displayName":"Alice Example","userPrincipalName":"alice@contoso.com","mail":"alice@contoso.com","id":"00000000-0000-0000-0000-000000000001"}]},"meta":{"requestIds":["00000000-0000-0000-0000-0000000000e1","00000000-0000-0000-0000-0000000000e5"],"elapsedMs":412,"backend":"graph"}}
 ```
 
-## What it will do
+And the window's group members card, over the same made-up tenant:
 
-m365-aegis is under construction; the plan and its state are in [`tasks/`](tasks/README.md), the milestones in
-[`tasks/roadmap.md`](tasks/roadmap.md). The first milestone is the sign-in, the Graph client and the first
-lookups:
+![The window's Group members card listing the members of the group Finance](docs/images/window-group-members.png)
 
-- **One sign-in.** The Windows account manager signs you in with the account you already use (silent on an
-  Entra-joined machine), and the same sign-in serves Graph and the Exchange Online module.
-- **Graph without the import tax.** A direct client: paging, throttling and batching handled once, v1.0 by
-  default and `--beta` when needed, plus a raw `call` for any endpoint.
-- **Exchange Online included.** Mailbox permissions, forwarding, shared mailboxes and sizes through a long-lived
-  PowerShell sidecar running `ExchangeOnlineManagement` with a cmdlet allow-list; message trace through Graph.
-- **Two outputs, one contract.** A table at a terminal, a JSON envelope in a pipe or for an agent; exit codes
-  that mean one thing each. `--dry-run` shows a plan, `--yes` applies it.
-- **A window for the team.** Task cards for the daily Exchange and group work the admin centers make slow, each
-  ending in a confirmation.
+## Install
 
-## Using a release
+1. Download `m365-aegis-<version>.zip` and `SHA256SUMS.txt` from the
+   [latest release](https://github.com/speti4/m365-aegis/releases/latest).
+2. Check the checksum: `(Get-FileHash .\m365-aegis-<version>.zip).Hash` matches `SHA256SUMS.txt`.
+3. Check the build: `gh attestation verify .\m365-aegis-<version>.zip --repo speti4/m365-aegis`.
+4. `Unblock-File .\m365-aegis-<version>.zip`, then extract it into a folder of your own.
+5. Run `.\m365-aegis.exe doctor --offline` there: it says what the machine still needs (the .NET 10 Desktop Runtime,
+   PowerShell 7.6 and the `ExchangeOnlineManagement` module).
 
-Using the tool, not building it? The [usage guide](docs/usage.md) is written for you: checking the download and
-its signature, the sign-in and the profiles, the daily lookups with an example each, the writes and their plans, the
-window's cards, and what each row of `m365-aegis doctor` means. The release zip ships it as `GUIDE.md`, next to the
-signed exes. The rest of this page is for contributors.
+The [usage guide](docs/usage.md#before-the-first-start) has the details, and what the doctor's `signature` row means on
+your machines.
 
-## Requirements
+## Set up your tenant
 
-Windows 11 with the .NET 10 runtime: the command line (`m365-aegis.exe`) needs the .NET Runtime 10, the window
-(`m365-aegis-gui.exe`) the .NET Desktop Runtime 10, which includes the former (`winget install
-Microsoft.DotNet.DesktopRuntime.10`). The Exchange Online commands need PowerShell 7.6 and the
-`ExchangeOnlineManagement` module 3.10; the window's WebView2 runtime comes with Windows 11. `m365-aegis doctor`
-says what is missing, the Desktop Runtime of the window included (its `dotnet-desktop-runtime` row).
+There is no shared client id: every tenant registers its own public client of m365-aegis once, and consents to the
+delegated permissions its team will use. The [setup guide](docs/setup.md) walks the administrator through the
+registration, the permissions table, the consent and the first sign-in.
 
-## Build from source
-
-m365-aegis is a .NET 10 core with a `System.CommandLine` command line and a WinForms window hosting a React front
-end in WebView2; why is in [D-002](tasks/decisions/D-002-dotnet-10-core-cli-and-window-with-react.md) and D-009.
-You need the .NET 10 SDK, Node 24 and PowerShell 7.6 (details in [CONTRIBUTING.md](CONTRIBUTING.md)):
+## Use it
 
 ```powershell
-dotnet build -c Release
-src\M365Aegis.Cli\bin\Release\net10.0\m365-aegis.exe doctor --offline
+m365-aegis login --tenant contoso.onmicrosoft.com --client-id <application id> --account alice@contoso.com
+m365-aegis mailbox access finance@contoso.com
+m365-aegis group members add Finance dave@contoso.com --dry-run
 ```
 
-## First run
-
-The tool signs in as a public client of your own app registration in your tenant; how to register it, and
-which delegated permissions to consent to, is in
-[docs/development.md](docs/development.md#the-sign-in-and-the-home-folder). Once, with the registration's
-values, which `login` saves as the tenant profile under `%LOCALAPPDATA%\m365-aegis\config.json`; afterwards
-`whoami` and every lookup sign in silently through the Windows account manager:
-
-```powershell
-$aegis = "src\M365Aegis.Cli\bin\Release\net10.0\m365-aegis.exe"
-& $aegis login --tenant contoso.onmicrosoft.com --client-id <application id> --account alice@contoso.com
-& $aegis whoami
-```
-
-Without a window (an SSH session, a scheduled task) `login` falls back to a device code on its own;
-`login --device-code` asks for it. `logout` forgets the account and keeps the profile. A second tenant or account
-is another `login --profile <name> …`; `profile list` shows the profiles, `profile use <name>` picks the default
-and `profile remove <name>` signs one out and deletes it.
-
-When something does not work, `doctor` checks the prerequisites (the home folder and who can read it, the .NET
-Desktop Runtime of the window, pwsh and the Exchange Online module, the sidecar script, WebView2, the device's join
-state, the sign-in, the endpoints, and the signatures of the exes) and says what to install or do for each warning and failure. A sign-in that fails is diagnosed with `--verbose login`: the sign-in library's log, without
-tokens or personal data, goes to `%LOCALAPPDATA%\m365-aegis\logs\`.
-
-Any Graph request goes through `call`, its answer unchanged inside the envelope; a method other than GET is a
-write and is sent only with `--yes` (without it the request is printed as the plan):
-
-```powershell
-& $aegis call GET /me                    # v1.0; /beta/me or --beta for the beta endpoint
-& $aegis call GET "/groups?`$top=5" --all # every page
-```
-
-The first lookups, each a table at a terminal and the envelope with `--json`; a group is named by its display
-name, its address, its object id or a word of its name:
-
-```powershell
-& $aegis group members Finance
-& $aegis group members Finance --transitive   # the nested groups' members too, each marked direct or nested
-& $aegis group owners finance@contoso.com
-& $aegis group owners-missing            # --all-types adds the groups Graph keeps no owners for, a distribution list by its ManagedBy
-& $aegis team list
-& $aegis site list --search finance
-& $aegis trace --sender alice@contoso.com --days 3              # at most 10 days per trace
-& $aegis trace --recipient bob@contoso.com --until 2026-10-01   # up to 90 days back
-& $aegis trace --sender alice@contoso.com --status failed       # or --subject "Quarterly report" (contains)
-& $aegis trace details "<message-id@contoso.com>"               # where a message stopped: the steps per recipient
-& $aegis trace details <trace id> --recipient bob@contoso.com   # the trace id of a trace row, one recipient
-```
-
-Each needs its delegated permission consented for the app registration (docs/development.md, "The sign-in and
-the home folder"); the message trace also needs a service principal created once per tenant.
-
-The mailbox lookups run the Exchange Online module in a PowerShell sidecar the command starts and ends, signed in
-with the same account (`Exchange.Manage`, and an Exchange role that reads recipients):
-
-```powershell
-& $aegis mailbox list --shared
-& $aegis mailbox access finance@contoso.com            # who holds FullAccess, Send As, Send on Behalf
-& $aegis mailbox access --user alice@contoso.com       # every mailbox alice can open or send as
-& $aegis mailbox forwarders                            # forwarding mailboxes, the external targets first
-& $aegis mailbox size --top 10                         # sizes from the usage report, the largest first
-```
-
-The audit lookups read the logs of the last `--days N` (1 by default, 30 at most) or from `--since <date>`, the
-newest first:
-
-```powershell
-& $aegis signin list --user alice@contoso.com --days 7  # the sign-ins of a user (needs Microsoft Entra ID P1)
-& $aegis signin list --failures                         # the failed sign-ins of every user in the last day
-& $aegis signin list --kind service-principal --failures # also non-interactive, managed-identity (beta endpoint)
-& $aegis secrets expiring 30                            # app secrets and certificates that expire within a month
-& $aegis audit list --days 7 --activity "Add member"    # the directory audit, by the start of the activity's name
-& $aegis audit list --user alice@contoso.com --days 3   # what one admin changed
-& $aegis audit list --since 2026-10-28 --until 2026-10-28T15:27:00Z  # continue a list cut at --limit
-```
-
-A list cut at `--limit` (1000 by default) names the oldest entry it reached and the `--since … --until …` that
-lists the ones before it.
-
-The window, `src\M365Aegis.Gui\bin\Release\net10.0-windows\m365-aegis-gui.exe`, works with the same tenant profile
-and sign-in as the command line. Its first page shows the signed-in account, read silently as `whoami` does, and
-a group's members in a table, as `group members` lists them; a lookup that fails is a notification with the hint.
-`m365-aegis-gui --verbose` writes the sign-in library's log to the same `logs\` folder as the command line's
-`--verbose`.
-
-## Mailbox reads through the Admin API and group expansion
-
-Some mailbox reads go through the Exchange Online Admin API, a REST call with the same sign-in and no PowerShell
-start (`Exchange.ManageV2` for the app registration); a group that holds a grant, or nests other groups, is read
-through Graph:
-
-```powershell
-& $aegis mailbox access finance@contoso.com --expand-groups     # a group holder's members, every nesting level
-& $aegis mailbox access --user alice@contoso.com --expand-groups # also the mailboxes alice reaches through a group
-& $aegis mailbox folder-permissions finance@contoso.com         # the calendar's, in any language; --folder Inbox for another
-& $aegis mailbox group-members sales@contoso.com                # a distribution group's members, hidden ones too
-& $aegis mailbox organization                                   # MailTips settings and the accepted domains
-& $aegis group members Finance --via                            # the nested group each nested member comes through
-& $aegis mailbox size finance@contoso.com                       # one mailbox's live size
-```
-
-A folder given with `--folder` is named as the mailbox's own language names it. `mailbox access --user` reads every
-mailbox's permissions with 4 sidecars at once (about 40 s over some 600 mailboxes; `--sidecars N`, or `--method piped`
-for one). `mailbox size` over every mailbox reads Microsoft 365's mailbox usage report, a few days old, whose day
-is under the table (`Reports.Read.All` for the app registration); `--method piped` or `parallel` reads the live
-sizes instead.
-
-## The window: sign-in and the mailbox page
-
-The window signs in from its sign-in card once the command line has written the tenant profile (`login --tenant …
---client-id … --account …`, above): "Sign in" opens the Windows account picker over the window, "Sign in with a
-code" shows a device code and the page to enter it on, and the card shows the account as soon as the sign-in
-completes. "Sign out" forgets the account as `logout` does and keeps the profile.
-
-The mailbox access card asks the same questions as `mailbox access`: who holds FullAccess, Send As and Send on
-Behalf on a mailbox, which mailboxes a user holds them on, and which shared mailboxes there are to pick from. The
-window keeps one Exchange Online sidecar for as long as it is open: the first lookup starts it (a few seconds),
-every later one answers in the cmdlet's own time, and the sidecar ends with the window or with "Sign out".
-
-Two write cards change a mailbox without PowerShell, the same way the command line does: "Mailbox rights" grants
-or revokes FullAccess, Send As and Send on Behalf (a FullAccess grant optionally without automapping), and
-"Mailbox forwarding" forwards a mailbox's mail to an address, with or without a copy, or stops it. Each card asks
-for the plan first (what changes, from what to what, what is so already, the warnings) and sends nothing until you
-tick "I checked the plan" and choose "Confirm and apply", which stands for `--yes`; going back sends nothing. The
-result lists each change and the plan record's file under `%LOCALAPPDATA%\m365-aegis\plans\`, which `plan show`
-reads and `--resume` continues as it does a command line's.
-
-## Writes behind a plan
-
-Every change to the tenant is a plan first: the command reads what is there, lists only what is not so already
-(the state now and after), and sends nothing until you say so. `--dry-run` prints the plan; without a flag the plan
-is printed and the exit code is 7; `--yes` applies it, keeps going past a change the service refuses (exit code 6,
-each change's result in the answer) and records the plan with every result under
-`%LOCALAPPDATA%\m365-aegis\plans\`. A plan warns before you confirm: a group's last owner, a grant to a group, an
-address outside the organization.
-
-```powershell
-& $aegis group members add Finance dave@contoso.com bob@contoso.com --dry-run   # bob is a member already
-& $aegis group owners remove Finance alice@contoso.com --yes
-& $aegis mailbox access grant finance@contoso.com --user bob@contoso.com --right FullAccess,SendAs --dry-run
-& $aegis mailbox access revoke finance@contoso.com --user alice@contoso.com --right SendOnBehalf --yes
-& $aegis mailbox forwarding set bob@contoso.com --to bob@fabrikam.com --keep-copy --dry-run
-& $aegis mailbox forwarding clear bob@contoso.com --yes
-```
-
-A list of changes is one plan from a CSV file, a header line and one change per line (`group,user` for the group
-writes, `mailbox,user,right` for the mailbox rights, `mailbox,to,keepCopy` and `mailbox` for the forwarding); a
-file with a malformed line is refused whole before anything is sent:
-
-```powershell
-& $aegis mailbox access grant --from-csv grants.csv --dry-run
-& $aegis group members add --from-csv new-team.csv --yes
-```
-
-The group writes need `GroupMember.ReadWrite.All` (and `Group.ReadWrite.All` for the owners) consented for the app
-registration; the mailbox writes an Exchange Online role that changes recipients. The columns, the exit codes and the
-plan record are in [docs/development.md](docs/development.md#writes-and-plans).
-
-## Automapping, the window's layers and its hints
-
-A FullAccess grant can leave out automapping, so the shared mailbox does not appear in the holder's Outlook on its
-own; in a CSV file it is the optional `automapping` column (`false` on a FullAccess line):
-
-```powershell
-& $aegis mailbox access grant finance@contoso.com --user alice@contoso.com --right FullAccess --no-automapping --dry-run
-```
-
-`mailbox forwarders` keeps reading through PowerShell: the Admin API's mailbox list does not carry the forwarding
-settings.
-
-The window's mailbox list comes from the Admin API too, with no sidecar start; the access lookups keep the window's
-sidecar (beside the Admin API for a mailbox, below), and both share one Exchange Online token. A failure after the sign-in shows a hint written for the window
-("ask the administrator", "Sign in again") instead of a command to type.
-
-## Batched group writes, distribution lists, plan records and resume
-
-A group write sends its changes to Graph twenty to a request, so a CSV of a hundred members is five requests; each
-change still has its own result. The members of a distribution group or a mail-enabled security group, which Graph
-cannot change, are read through the Exchange Online Admin API and changed through the Exchange Online module
-(`Add-DistributionGroupMember`, `Remove-DistributionGroupMember`), with the same plan, flags and exit codes as any
-other write:
-
-```powershell
-& $aegis group members add Sales dave@contoso.com --dry-run           # a distribution group, through Exchange
-& $aegis group members remove "Finance Staff" carol@contoso.com --yes
-```
-
-Every apply leaves a plan record; `plan list` shows them newest first, `plan show` one of them with each change's
-result, both without a sign-in. An apply that ended partial, or stopped at a sign-in or sidecar failure, continues
-with `--resume`: only its failed and skipped changes are planned again against the current state (one done in the
-meantime comes out unchanged), under the usual `--dry-run` or `--yes`, and the new record names the one it continues:
-
-```powershell
-& $aegis plan list
-& $aegis plan show 20261030T110000.000Z-group-members-add
-& $aegis group members add --resume 20261030T110000.000Z-group-members-add --dry-run
-```
-
-The distribution group writes need an Exchange Online role that changes group members (Organization Management, or
-Recipient Management with Security Group Creation and Membership). The details are in
-[docs/development.md](docs/development.md#writes-and-plans).
-
-## Distribution list owners, a narrower resume and plan prune
-
-The owners of a distribution group or a mail-enabled security group (Exchange's `ManagedBy`) are read and changed
-through the Exchange Online module too (`Get-DistributionGroup`, `Set-DistributionGroup -ManagedBy`), with the same
-plan, flags and exit codes; a Microsoft 365 group's owners stay on Graph, and a group synced from on-premises Active
-Directory keeps its warning:
-
-```powershell
-& $aegis group owners Sales                                          # its ManagedBy, through Exchange
-& $aegis group owners-missing --all-types                            # a distribution list only when its ManagedBy is empty
-& $aegis group owners add Sales dave@contoso.com --dry-run            # a distribution group, through Exchange
-```
-
-A plan record now numbers each change's line and keys it by object ids, so `--resume` plans only the lines its record
-left to do (60 pending lines of 100 read 60 objects) and still finds a change whose group or user was renamed since;
-a record written before this keeps the old resume. `plan list` says how many records there are and how much they
-take, and `plan prune` removes the older ones behind the usual guard:
-
-```powershell
-& $aegis plan prune --older-than 90 --dry-run                          # lists the records it would remove
-& $aegis plan prune --older-than 90 --yes
-```
-
-The details are in [docs/development.md](docs/development.md#the-writes-follow-ups-owners-resume-and-prune).
-
-## The window's mailbox access over the Admin API
-
-The window's access card reads a mailbox the way `mailbox access` does: the mailbox and its Send on Behalf
-delegates by display name from the Admin API, FullAccess and Send As from the window's sidecar, side by side over
-the one Exchange Online token. Each row names the layer that read it ("Admin API" or "PowerShell"), and
-`mailbox access <mailbox> --json` carries the same `layer` on each holder and `mailboxLayer` on the answer. When
-the Admin API cannot answer for a mailbox, the sidecar reads all of it, as on the command line, and the card says
-so under the mailbox. A user's access (the reverse lookup) still reads through the sidecar.
-
-## Safety tests and the home folder's access list
-
-The promises of [SECURITY.md](SECURITY.md) are held by tests over the whole tool, not one command at a time: no write
-command sends anything without `--yes` and no write card of the window without its confirmation, a CSV file is read the same way whether Excel or a script wrote it (and a
-malformed one is refused whole), no token reaches a log, a plan record, an answer or stderr, and the exit codes keep
-their numbers.
-
-The home folder (`%LOCALAPPDATA%\m365-aegis\`, or the folder `M365AEGIS_HOME` names) is now created with an access list
-of its own: the signed-in Windows user, SYSTEM and Administrators, and nothing inherited from the folder above it, so
-the MSAL cache, the profiles, the logs and the plan records stay readable by you alone even under a folder other users
-may read. A folder that exists already keeps its access list; `doctor` warns when `Everyone`, `Users` or
-`Authenticated Users` can read it and prints the `icacls` line that makes it yours alone. The details are in
-[docs/development.md](docs/development.md#the-safety-tests).
-
-## Every line and branch tested
-
-Each layer's tests are measured, and CI fails a change below 100% of the lines and the branches of the core and the
-command line (coverlet), the lines, branches, functions and statements of the window's front end (Vitest), and the
-commands of the Exchange Online sidecar script (Pester). The reports are artifacts of every CI run. The few
-members that need a real sign-in, a desktop session or the machine itself are excluded by name, each with its
-reason, in [docs/development.md](docs/development.md#coverage).
-
-## Snapshots and who can reach what
-
-`m365-aegis snapshot take` reads who can reach what into one SQLite file under the home folder
-(`snapshots\<profile>\`, never in the repo): the users, the groups with their direct and nested members and their
-owners (Graph's, and Exchange's "managed by" for the distribution lists), the teams, the SharePoint sites with the
-Microsoft 365 group behind each and the files shared from their libraries (the sharing links' scope, roles and expiry,
-never a link's URL), and every mailbox with FullAccess, Send As, Send on Behalf, its calendar's permissions and its
-forwarding. A part that fails is recorded and the snapshot stays usable; the older snapshots are pruned by a
-retention of days and weeks (D-011). `snapshot list` and `snapshot show` read the files back, and a Task Scheduler
-task takes one every morning (the [usage guide](docs/usage.md#snapshots) has the lines).
-
-`m365-aegis access <user>` answers from the newest snapshot, in well under a second and without signing in: the
-groups the user is in (and through which nested group), the sites of those groups and of the groups the user owns,
-the files shared with the user or a group, the mailbox rights and the calendar permissions, with the links and
-calendars that reach everyone as counts and the snapshot's age in the answer.
+`m365-aegis-gui.exe` opens the window, with the same sign-in and plans and cards for the sign-in, group members,
+mailbox access, mailbox rights and mailbox forwarding. The [usage guide](docs/usage.md) covers every command and card.
 
 ## Documentation
 
-- [Usage guide](docs/usage.md): the command line and the window for the support team, shipped in the zip as `GUIDE.md`
-- [Development](docs/development.md): layout, CI, releases (the signing included) and helper scripts
-- [Changelog](CHANGELOG.md): every release and the tasks it closed, with the zips and checksums on the
-  [releases page](https://github.com/speti4/m365-aegis/releases) once there is a release
-- [Contributing](CONTRIBUTING.md) and the [security policy](SECURITY.md)
-- [Why m365-aegis exists](docs/origin.md) and [the tooling landscape it was measured against](docs/research/)
-- [Decisions](tasks/decisions/): build or not, the stack, the sign-in, Exchange Online, the output contract, the
-  publish, the public repo
+| document | for |
+| --- | --- |
+| [Setup guide](docs/setup.md) | the administrator: the app registration, the permissions, the consent, handing it to the team |
+| [Usage guide](docs/usage.md) | everyone who uses it: the download, the sign-in, every command and card, the doctor, the exit codes (shipped in the zip as `GUIDE.md`) |
+| [Security policy](SECURITY.md) | verifying a release, reporting a vulnerability, what is in scope |
+| [Contributing](CONTRIBUTING.md) | building from source, the checks before a commit, the project rules |
+| [Development](docs/development.md) | how it works inside: the layout, the sign-in, the Exchange Online layers, the writes, CI and releases |
+| [Decisions](tasks/decisions/) | why it is built the way it is: the stack, the sign-in, Exchange Online, the output contract, the signing |
+| [Changelog](CHANGELOG.md) | what each release changed |
+| [Releases](https://github.com/speti4/m365-aegis/releases) | the zips, their checksums and release notes |
 
-## Project status
+## Status
 
-Pre-alpha: nothing is released or downloadable yet, and the commands answer with the task that will build
-them; build from source as above. The plan lives in [`tasks/`](tasks/README.md): the backlog, the work in
-flight and the history, one file per item. Windows 11 is the platform.
-
-m365-aegis is for a Microsoft 365 administrator who wants the daily lookups and changes of one tenant to take a
-second instead of a module import, and to hand some of them to the support team with a safety net.
+Version 0.1.0, for Windows 11 only, under active development: each release adds commands, while the exit codes and the
+plan-first rule for writes stay as they are. Next: a snapshot comparison (who gained or lost access since the last one)
+and the access view as a card in the window.
 
 ## License
 
 [MIT](LICENSE). Microsoft 365, Microsoft Graph, Exchange Online and Entra are Microsoft's; m365-aegis is an
-independent tool and ships none of their code or branding.
+independent tool, not a Microsoft product. The third-party components it ships and their licenses are listed in the
+release's `THIRD-PARTY-NOTICES.md`.

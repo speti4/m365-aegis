@@ -5,6 +5,17 @@ the tenant (nothing from it enters the repo), every write to the tenant goes thr
 the shipped artifact stays one folder with two exes and nothing to install beyond the .NET runtime and
 PowerShell 7.6, and the task files are the plan. Everything below follows from these.
 
+## The guides and who reads them
+
+- [docs/setup.md](docs/setup.md), the setup guide, for the administrator who brings the tool into a tenant: the app
+  registration, the one canonical permissions table, the consent, handing it to the team.
+- [docs/usage.md](docs/usage.md), the usage guide, for everyone who uses the tool with the zip and no source: every
+  command and card, the doctor, the exit codes. The release zip ships it as `GUIDE.md`.
+- [docs/development.md](docs/development.md), for contributors: how it works inside, CI and releases.
+
+A change that adds a command, an example or a card changes the usage guide; one that needs a new permission or role
+adds its row to the setup guide's table.
+
 ## Start with an issue
 
 Open an issue before a pull request: a [bug report](https://github.com/speti4/m365-aegis/issues/new?template=bug-report.yml)
