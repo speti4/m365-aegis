@@ -539,6 +539,26 @@ public sealed class TableViewTests
         Assert.Contains("? (00000000-0000-0000-0000-000000000001) from", Show(AccessTableView.Instance, report with { User = new AccessUser("00000000-0000-0000-0000-000000000001", null, null, null) }), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ASnapshotDiffWithADomainLeftOutCountsOnlyTheComparedOnes()
+    {
+        var diff = new SnapshotDiffReport(
+            new SnapshotDiffSide("2026-10-29T120000Z.sqlite", Now.AddDays(-1), 24, "yesterday"),
+            new SnapshotDiffSide("2026-10-30T120000Z.sqlite", Now, 0.5, "latest"),
+            [new SnapshotDiffDomain("members", true, 1, 0), new SnapshotDiffDomain("grants", false, 0, 0)],
+            [new SnapshotDiffEntry("members", SnapshotChange.Added, "Finance", "bob@contoso.com", "member")],
+            ["grants is left out: grants was not read in 2026-10-30T120000Z.sqlite"]);
+
+        string table = Show(SnapshotDiffTableView.Instance, diff);
+        string none = Show(SnapshotDiffTableView.Instance, diff with { Changes = [] });
+
+        Assert.Contains("members|added|Finance|bob@contoso.com|member", table, StringComparison.Ordinal);
+        Assert.Contains("from 2026-10-29T120000Z.sqlite (taken 2026-10-29 12:00:00 UTC, 24 hours ago) to 2026-10-30T120000Z.sqlite (taken 2026-10-30 12:00:00 UTC, 0.5 hours ago)", table, StringComparison.Ordinal);
+        Assert.Contains("\n1 added, 0 removed: members +1 -0\n", table, StringComparison.Ordinal);
+        Assert.EndsWith("warning: grants is left out: grants was not read in 2026-10-30T120000Z.sqlite", table, StringComparison.Ordinal);
+        Assert.Contains("\nno change in members\n", none, StringComparison.Ordinal);
+    }
+
     private static string Show<T>(ITableView<T> view, T data)
     {
         var lines = new List<string> { string.Join("|", view.HeadersFor(data)) };

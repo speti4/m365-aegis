@@ -1,0 +1,21 @@
+﻿--- stdout ---
+domain             change   what                                  who                           how
+-----------------  -------  ------------------------------------  ----------------------------  ------------------------------------
+members            removed  Finance EU                            FIN-KIOSK-01                  member (device)
+members            added    Project Phoenix                       bob@contoso.com               member
+owners             removed  Finance EU                            carol@contoso.com             owner (graph)
+owners             added    Project Phoenix                       dave@contoso.com              owner (graph)
+sharing            removed  Finance: /Budget.xlsx                 everyone in the organization  link organization read
+sharing            added    Project Phoenix: /Plans/Roadmap.pptx  bob@contoso.com               link users read
+grants             added    finance@contoso.com                   dave@contoso.com              full-access
+grants             removed  reception@contoso.com                 Finance Staff                 full-access
+folderPermissions  removed  carol@contoso.com: Calendar           Default                       AvailabilityOnly
+folderPermissions  added    carol@contoso.com: Calendar           Default                       Reviewer
+forwarding         added    alice@contoso.com                     carol@contoso.com             recipient, keeps a copy
+forwarding         removed  bob@contoso.com                       bob@fabrikam.com              smtp-address, external, keeps a copy
+
+from 2026-10-31T060000Z.sqlite (taken 2026-10-31 06:00:00 UTC, 26 hours ago) to 2026-11-01T060000Z.sqlite (taken 2026-11-01 06:00:00 UTC, 2 hours ago)
+6 added, 6 removed: members +1 -1, owners +1 -1, sharing +1 -1, grants +1 -1, folderPermissions +1 -1, forwarding +1 -1
+warning: sites is partial in 2026-10-31T060000Z.sqlite (1 item(s) not read): the sharing rows of those items may show as removed or added
+warning: sites is partial in 2026-11-01T060000Z.sqlite (1 item(s) not read): the sharing rows of those items may show as removed or added
+--- stderr ---

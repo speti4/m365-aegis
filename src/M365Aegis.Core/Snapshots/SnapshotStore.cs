@@ -287,7 +287,7 @@ public static class SnapshotStore
     private static DateTime Monday(DateTime day) => day.AddDays(-(((int)day.DayOfWeek + 6) % 7));
 
     /// <summary>The snapshot files of a folder, newest first; none when the folder does not exist.</summary>
-    private static IEnumerable<string> Files(string folder) =>
+    internal static IEnumerable<string> Files(string folder) =>
         Directory.Exists(folder)
             ? Directory.EnumerateFiles(folder, "*" + Extension)
                 .Where(file => TakenOf(Path.GetFileName(file)) is not null)

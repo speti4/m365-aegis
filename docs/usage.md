@@ -145,6 +145,12 @@ counts the ones left out because it names an owner. A group synced from on-premi
 Microsoft Graph sees it, with a line under the table that says so. Without `--all-types` the command asks Microsoft
 Graph alone, as before.
 
+When your account has no Exchange Online role that may read the distribution groups, Exchange Online refuses that read
+and `owners-missing --all-types` answers with Microsoft Graph's list instead: every distribution and mail-enabled
+security group is listed, since Graph keeps no owners for them, and a warning under the table says so and names the
+refusal. Any other Exchange Online failure (the module missing, a connection that fails) still ends the command with
+its error.
+
 ### Teams and SharePoint
 
 ```powershell
@@ -343,6 +349,23 @@ anyone in the organization or anyone at all can open, and the calendars open to 
 everyone else, so they are counted under the table rather than listed. The answer names the snapshot's time and warns
 when it is older than 36 hours. Without a snapshot it ends with exit code 4 and the hint
 `run m365-aegis snapshot take first`.
+
+### What changed between two snapshots
+
+```powershell
+m365-aegis snapshot diff 2026-10-31               # from the last snapshot of that day (UTC) to the newest
+m365-aegis snapshot diff 2026-10-31T060000Z latest --json | ConvertFrom-Json
+```
+
+`snapshot diff <a> <b>` lists who gained or lost access from the first snapshot to the second, without signing in: the
+group memberships and owners, the shared files and who they are shared with, the mailbox rights, the calendar
+permissions and the forwarding, each row marked `added` or `removed`. A snapshot is named as `snapshot list` prints
+it, or picked: `latest` is the newest, `yesterday` the last one taken before today, a date (`2026-10-31`) the last one
+taken on that day or before it, all in UTC; without `<b>` the newest is compared. The rows are matched by the people
+and groups in them, not by their names, so a renamed group or user is no change, and a changed calendar permission is
+one row removed and one added. The answer names both snapshots and their ages; a part of the tenant that one of them
+could not read is left out of the comparison with a warning, and a part read only in part is compared with a warning
+that its unread items may show as changes. A pick that finds no snapshot ends with exit code 4.
 
 ### A snapshot every morning
 

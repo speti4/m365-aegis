@@ -63,7 +63,40 @@ internal static class SnapshotCommand
         snapshot.Subcommands.Add(take);
         snapshot.Subcommands.Add(list);
         snapshot.Subcommands.Add(show);
+        snapshot.Subcommands.Add(Diff(json, table, profile));
         return snapshot;
+    }
+
+    /// <summary>
+    /// <c>snapshot diff &lt;a&gt; [&lt;b&gt;]</c> (task 098): what appeared and disappeared from the first snapshot to the
+    /// second (the newest when omitted), per domain; it reads the two files only (<c>local</c>).
+    /// </summary>
+    private static Command Diff(Option<bool> json, Option<bool> table, Option<string?> profile)
+    {
+        Argument<string> from = new("a")
+        {
+            Description = "The first snapshot: its name as `snapshot list` shows it, `latest`, `yesterday` or a date (yyyy-MM-dd, UTC), which picks the newest taken that day or before.",
+        };
+        Argument<string> to = new("b")
+        {
+            Description = "The second snapshot, picked the same way; the newest when omitted.",
+            Arity = ArgumentArity.ZeroOrOne,
+            DefaultValueFactory = _ => SnapshotDiff.Latest,
+        };
+        Command diff = new("diff", "Show who gained or lost access between two snapshots: memberships, owners, sharing, mailbox rights, calendars, forwarding.");
+        diff.Arguments.Add(from);
+        diff.Arguments.Add(to);
+        diff.SetAction(parsed => CommandRunner.Run(
+            Program.ResolveMode(parsed, json, table),
+            Backend.Local,
+            () =>
+            {
+                string home = AegisHome.Resolve();
+                string name = SnapshotStore.ProfileName(home, parsed.GetValue(profile));
+                return CommandResult.Success(SnapshotDiff.Compare(home, name, parsed.GetValue(from)!, parsed.GetValue(to)!, DateTimeOffset.UtcNow));
+            },
+            SnapshotDiffTableView.Instance));
+        return diff;
     }
 
     /// <summary>A domain's row: its name, how it was read, its rows, and its note.</summary>
@@ -186,4 +219,51 @@ internal sealed class SnapshotDetailTableView : ITableView<SnapshotDetail>
             data.SchemaVersion);
         yield return "rows: " + string.Join(", ", data.Tables.Select(pair => string.Create(CultureInfo.InvariantCulture, $"{pair.Key} {pair.Value}")));
     }
+}
+
+/// <summary>
+/// The table of <c>snapshot diff</c>: a row per membership, owner, shared item's grantee, mailbox right, calendar
+/// permission or forwarding that appeared or disappeared; the two snapshots, the counts per domain and the warnings
+/// under it.
+/// </summary>
+internal sealed class SnapshotDiffTableView : ITableView<SnapshotDiffReport>
+{
+    internal static SnapshotDiffTableView Instance { get; } = new();
+
+    private SnapshotDiffTableView()
+    {
+    }
+
+    public IReadOnlyList<string> Headers => ["domain", "change", "what", "who", "how"];
+
+    public IEnumerable<IReadOnlyList<string>> Rows(SnapshotDiffReport data) => data.Changes.Select(change => (IReadOnlyList<string>)
+    [
+        change.Domain,
+        change.Change == SnapshotChange.Added ? "added" : "removed",
+        change.What,
+        change.Who,
+        change.How,
+    ]);
+
+    public IEnumerable<string> Footer(SnapshotDiffReport data)
+    {
+        yield return $"from {Side(data.From)} to {Side(data.To)}";
+        IEnumerable<string> counts = data.Domains
+            .Where(domain => domain.Compared)
+            .Select(domain => string.Create(CultureInfo.InvariantCulture, $"{domain.Name} +{domain.Added} -{domain.Removed}"));
+        yield return data.Changes.Count > 0
+            ? string.Create(CultureInfo.InvariantCulture, $"{data.Added} added, {data.Removed} removed: {string.Join(", ", counts)}")
+            : $"no change in {string.Join(", ", data.Domains.Where(domain => domain.Compared).Select(domain => domain.Name))}";
+        foreach (string warning in data.Warnings)
+        {
+            yield return $"warning: {warning}";
+        }
+    }
+
+    private static string Side(SnapshotDiffSide side) => string.Format(
+        CultureInfo.InvariantCulture,
+        "{0} (taken {1} UTC, {2:0.#} hours ago)",
+        side.Snapshot,
+        PlanCommand.When(side.Taken),
+        side.AgeHours);
 }
