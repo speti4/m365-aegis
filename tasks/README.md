@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-10-31 — edit the files, not this section._
 
-**State:** 13 backlog (3 ready · 0 blocked · 0 waiting · 10 ideas) · 0 in progress · 94 done · 0 dropped · 12 decisions
+**State:** 12 backlog (2 ready · 0 blocked · 0 waiting · 10 ideas) · 1 in progress · 94 done · 0 dropped · 12 decisions
 
 ### Ready
 
@@ -22,7 +22,6 @@ _Generated 2026-10-31 — edit the files, not this section._
 
 | # | Task | Size | Created |
 |---|---|---|---|
-| 105 | [Round the tenant's size figures to an order of magnitude](backlog/105-round-the-tenants-size-figures.md) | S | 2026-10-31 |
 | 106 | [A user-facing README and a setup guide for another tenant's administrator](backlog/106-user-facing-readme-and-setup-guide.md) | M | 2026-10-31 |
 | 107 | [The setup and usage guides, the license and a readme in the release zip](backlog/107-guides-license-and-readme-in-the-release-zip.md) | S | 2026-10-31 |
 
@@ -68,7 +67,11 @@ _none_
 
 ### In progress
 
-_none_
+#### M6 Release and team
+
+| # | Task | Started | Plan |
+|---|---|---|---|
+| 105 | [Round the tenant's size figures to an order of magnitude](wip/105-round-the-tenants-size-figures.md) | 2026-10-31 | `none` |
 
 ### Closed – do not reopen
 
