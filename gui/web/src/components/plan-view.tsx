@@ -4,12 +4,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { BridgeError, Plan, PlanApplied, PlanChange } from "../bridge/protocol";
+import { windowWarning } from "./plan-wording";
 import { outcome, type WriteState, writeStepIndex, writeStepNames } from "./write-flow";
 
 /**
  * The parts of a write card (task 082), as the task card sketch of task 018 drew them, over the core's `Plan`: the
  * steps, the plan (what changes from what to what, what is left as it is, the warnings), the confirmation that
- * stands for `--yes`, and the result of each change with the plan record's file.
+ * stands for `--yes`, and the result of each change with the plan record's file. What the card writes names the card's
+ * own controls, never a flag of the command line (task 090).
  */
 
 /** The steps above the card's body: Pick › Plan › Confirm › Result. */
@@ -100,7 +102,10 @@ function ChangeLine({ change }: { change: PlanChange }) {
   );
 }
 
-/** The plan as the command line prints it: the title, each change, what is left as it is, the warnings. */
+/**
+ * The plan as the command line prints it: the title, each change, what is left as it is, and the warnings, a warning
+ * that names a flag in the window's words (`windowWarning`, task 090).
+ */
 export function PlanView({ plan }: { plan: Plan }) {
   return (
     <div className="space-y-3">
@@ -140,7 +145,7 @@ export function PlanView({ plan }: { plan: Plan }) {
       ) : null}
       {plan.warnings.map((warning) => (
         <Notice key={warning} tone="warning" icon={<TriangleAlert aria-hidden />} title="Good to know">
-          {warning}
+          {windowWarning(warning)}
         </Notice>
       ))}
     </div>
@@ -183,7 +188,7 @@ export function ConfirmView({ plan, onConfirm, onBack }: { plan: Plan; onConfirm
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">
-        Going back changes nothing; the command line asks for the same confirmation with `--yes`.
+        Going back changes nothing: the window sends no change until you confirm.
       </p>
     </div>
   );
