@@ -43,7 +43,7 @@ guide's table. The live run over the maintainer's real token is the main session
        token is cached (today's `sign-in` row stays)
 3. [x] The offline tests over scripted tokens: a missing permission warns with the row's name, a full set passes; the
        output contract's snapshot tests of the doctor
-4. [ ] The live run over the maintainer's token (the main session's) in the Verification; docs under *Docs that move*;
+4. [x] The live run over the maintainer's token (the main session's) in the Verification; docs under *Docs that move*;
        `tasks_check` without `write` clean apart from the stale index
 
 ## Log
@@ -94,12 +94,18 @@ guide's table. The live run over the maintainer's real token is the main session
   `check-fixtures.py --self-test` and the scan (0 findings), `doctor --offline` exit 0 (`consent` skipped, offline
   run), `whoami` exit 3 on an empty home, the window's `--smoke` exit 0; the doctor's snapshots (envelope and table)
   carry the new row.
-- LIVE
+- 2026-10-31 — live, the main session over the maintainer's token (silent sign-in, no login), `doctor --table` of
+  this branch's build, exit 0: `sign-in` pass with both tokens; `consent` warn naming two rows, `group members add,
+  group members remove (Microsoft 365 and security groups) (GroupMember.ReadWrite.All)` and `group owners add, group
+  owners remove (Microsoft 365 and security groups) (Group.ReadWrite.All)`, with the fix line to consent to the two
+  Microsoft Graph permissions, then `login`. `whoami --json` over the same token lists exactly the other permissions,
+  so the row matches it; the sign-in asks `.default`, so a scope missing from the token is a consent missing on the
+  registration: a real finding, the maintainer's to consent in the portal.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green (the stale index is the main session's)
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every doc under *Docs that move* changed in this change (`docs/setup.md` not needed: its tables are read as they are)
+- [x] Verification written, dated
+- [x] `tasks_check` green (the stale index is the main session's)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge

@@ -82,7 +82,7 @@ No live check: the signed dry run with a throwaway certificate is the local matr
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change (`CONTRIBUTING.md` not needed: the invocation is unchanged)
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
