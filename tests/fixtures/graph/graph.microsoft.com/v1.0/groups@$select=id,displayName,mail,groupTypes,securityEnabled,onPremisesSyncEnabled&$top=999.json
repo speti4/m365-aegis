@@ -1,0 +1,57 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#groups(id,displayName,mail,groupTypes,securityEnabled,onPremisesSyncEnabled)",
+  "value": [
+    {
+      "id": "00000000-0000-0000-0000-000000000031",
+      "displayName": "Finance",
+      "mail": "finance@contoso.com",
+      "groupTypes": [
+        "Unified"
+      ],
+      "securityEnabled": false,
+      "onPremisesSyncEnabled": null
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000032",
+      "displayName": "Finance EU",
+      "mail": null,
+      "groupTypes": [],
+      "securityEnabled": true,
+      "onPremisesSyncEnabled": null
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000033",
+      "displayName": "Project Phoenix",
+      "mail": "phoenix@contoso.com",
+      "groupTypes": [
+        "Unified"
+      ],
+      "securityEnabled": false,
+      "onPremisesSyncEnabled": null
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000035",
+      "displayName": "Finance Staff",
+      "mail": "finance-staff@contoso.com",
+      "groupTypes": [],
+      "securityEnabled": true,
+      "onPremisesSyncEnabled": null
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000036",
+      "displayName": "Sales",
+      "mail": "sales@contoso.com",
+      "groupTypes": [],
+      "securityEnabled": false,
+      "onPremisesSyncEnabled": null
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000003a",
+      "displayName": "Sales Synced",
+      "mail": "sales-synced@contoso.com",
+      "groupTypes": [],
+      "securityEnabled": false,
+      "onPremisesSyncEnabled": true
+    }
+  ]
+}

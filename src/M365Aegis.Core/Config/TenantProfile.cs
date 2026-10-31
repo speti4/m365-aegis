@@ -14,7 +14,17 @@ namespace M365Aegis.Core.Config;
 /// <param name="Tenant">The tenant id or a verified domain (<c>contoso.onmicrosoft.com</c>), the authority's tenant.</param>
 /// <param name="ClientId">The application (client) id of the public-client app registration.</param>
 /// <param name="Account">The user principal name of the account to sign in; the broker may list several.</param>
-public sealed record TenantProfile(string Name, string Tenant, string ClientId, string Account);
+public sealed record TenantProfile(string Name, string Tenant, string ClientId, string Account)
+{
+    /// <summary>
+    /// The days for which the newest snapshot of each day is kept (D-011, task 087): <c>keepDaily</c> of the profile in
+    /// <c>config.json</c>, written by hand; null for the default, 14.
+    /// </summary>
+    public int? KeepDaily { get; init; }
+
+    /// <summary>The ISO weeks for which the newest snapshot of each week is kept: <c>keepWeekly</c>; null for the default, 8.</summary>
+    public int? KeepWeekly { get; init; }
+}
 
 /// <summary>One profile as <c>profile list</c> shows it.</summary>
 /// <param name="Name">The profile's name.</param>
@@ -180,7 +190,13 @@ public sealed class ProfileStore
     {
         ArgumentNullException.ThrowIfNull(profile);
         ConfigFile file = Load();
-        file.Profiles[profile.Name] = ProfileEntry.From(profile);
+        // The retention is written by hand, and a login that writes the profile again keeps it.
+        ProfileEntry? before = file.Profiles.GetValueOrDefault(profile.Name);
+        file.Profiles[profile.Name] = ProfileEntry.From(profile) with
+        {
+            KeepDaily = profile.KeepDaily ?? before?.KeepDaily,
+            KeepWeekly = profile.KeepWeekly ?? before?.KeepWeekly,
+        };
         if (makeDefault || file.Default is null)
         {
             file.Default = profile.Name;
@@ -246,8 +262,14 @@ public sealed class ProfileStore
     /// <summary>One profile without its name, which is the key.</summary>
     private sealed record ProfileEntry(string Tenant, string ClientId, string Account)
     {
+        /// <summary>The snapshots' retention of the profile (task 087), by hand; null for the default.</summary>
+        public int? KeepDaily { get; init; }
+
+        /// <summary>The weeks of snapshots the profile keeps (task 087), by hand; null for the default.</summary>
+        public int? KeepWeekly { get; init; }
+
         public static ProfileEntry From(TenantProfile profile) => new(profile.Tenant, profile.ClientId, profile.Account);
 
-        public TenantProfile ToProfile(string name) => new(name, Tenant, ClientId, Account);
+        public TenantProfile ToProfile(string name) => new(name, Tenant, ClientId, Account) { KeepDaily = KeepDaily, KeepWeekly = KeepWeekly };
     }
 }

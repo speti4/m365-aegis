@@ -520,6 +520,56 @@ public static partial class MailboxLookups
             displayName ??= item.Text("DisplayName");
         }
 
+        // Every direct, allowed entry of every mailbox: who holds which right on which mailbox.
+        GrantTable table = await GrantTableAsync(exo, backends, options, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<ExoObject> mailboxes = table.Mailboxes;
+        List<(MailboxRight Right, string Holder, MailboxInfo Mailbox)> entries = table.Entries;
+        List<string> failed = table.Failed;
+        foreach (ExoObject mailbox in mailboxes)
+        {
+            MailboxInfo info = ToMailbox(mailbox);
+            if (string.Equals(info.UserPrincipalName, name, StringComparison.OrdinalIgnoreCase) || string.Equals(info.PrimarySmtpAddress, name, StringComparison.OrdinalIgnoreCase))
+            {
+                names.UnionWith(Keys(mailbox));
+                displayName ??= info.DisplayName;
+            }
+        }
+
+        var grants = entries.Where(entry => names.Contains(entry.Holder)).Select(entry => new UserGrant(entry.Right, entry.Mailbox)).ToList();
+        int? groupCount = null;
+        if (groupsRead is not null)
+        {
+            IReadOnlyList<UserGroup> groups = await groupsRead.ConfigureAwait(false);
+            groupCount = groups.Count;
+            grants.AddRange(await GroupGrantsAsync(exo, groups, entries.Where(entry => !names.Contains(entry.Holder)).ToList(), table.ByKey, cancellationToken).ConfigureAwait(false));
+        }
+
+        var result = new UserAccess(
+            name,
+            displayName,
+            grants
+                .DistinctBy(grant => (grant.Right, grant.Mailbox.PrimarySmtpAddress))
+                .OrderBy(grant => grant.Mailbox.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(grant => grant.Right)
+                .ToList(),
+            mailboxes.Count,
+            failed)
+        {
+            Method = backends is null ? null : Method(options.Method),
+            Groups = groupCount,
+        };
+        return failed.Count == 0
+            ? CommandResult.Success(result)
+            : CommandResult.Failure(Partial(failed.Count, "mailbox permission list(s)"), result);
+    }
+
+    /// <summary>
+    /// Every direct, allowed entry of every mailbox (the reverse lookup's table, task 016): who holds which right on
+    /// which mailbox, the holder as Exchange names it; the mailboxes with their Send on Behalf lists, every name a
+    /// mailbox answers to, and the service's messages of the entries it could not read.
+    /// </summary>
+    private static async Task<GrantTable> GrantTableAsync(IExoCmdletRunner exo, ExchangeBackends? backends, UserAccessOptions options, CancellationToken cancellationToken)
+    {
         IReadOnlyList<ExoObject> mailboxes = await AllMailboxesAsync(exo, sharedOnly: false, ["GrantSendOnBehalfTo"], cancellationToken).ConfigureAwait(false);
         var byKey = new Dictionary<string, MailboxInfo>(StringComparer.OrdinalIgnoreCase);
         foreach (ExoObject mailbox in mailboxes)
@@ -529,15 +579,8 @@ public static partial class MailboxLookups
             {
                 byKey.TryAdd(key, info);
             }
-
-            if (string.Equals(info.UserPrincipalName, name, StringComparison.OrdinalIgnoreCase) || string.Equals(info.PrimarySmtpAddress, name, StringComparison.OrdinalIgnoreCase))
-            {
-                names.UnionWith(Keys(mailbox));
-                displayName ??= info.DisplayName;
-            }
         }
 
-        // Every direct, allowed entry of every mailbox: who holds which right on which mailbox.
         var entries = new List<(MailboxRight Right, string Holder, MailboxInfo Mailbox)>();
         var failed = new List<string>();
         if (mailboxes.Count > 0)
@@ -565,32 +608,63 @@ public static partial class MailboxLookups
             entries.AddRange(mailbox.Texts("GrantSendOnBehalfTo").Select(holder => (MailboxRight.SendOnBehalf, holder, ToMailbox(mailbox))));
         }
 
-        var grants = entries.Where(entry => names.Contains(entry.Holder)).Select(entry => new UserGrant(entry.Right, entry.Mailbox)).ToList();
-        int? groupCount = null;
-        if (groupsRead is not null)
+        return new GrantTable(mailboxes, entries, failed, byKey);
+    }
+
+    /// <summary>The table of <see cref="GrantTableAsync"/>.</summary>
+    private sealed record GrantTable(
+        IReadOnlyList<ExoObject> Mailboxes,
+        List<(MailboxRight Right, string Holder, MailboxInfo Mailbox)> Entries,
+        List<string> Failed,
+        Dictionary<string, MailboxInfo> ByKey);
+
+    /// <summary>
+    /// Every direct grant of every mailbox for the snapshot (task 087): the reverse lookup's table, read the way
+    /// <c>mailbox access --user</c> reads it by default (the FullAccess entries split across sidecars), each holder
+    /// with the recipient Exchange knows by that name: a mailbox's own names first, then one piped
+    /// <c>Get-EXORecipient</c> for the rest (a security identifier is left as it is). A holder no recipient answers
+    /// to has none; the service's messages of the entries it could not read come with the grants.
+    /// </summary>
+    internal static async Task<MailboxGrants> AllGrantsAsync(ExchangeBackends backends, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(backends);
+        GrantTable table = await GrantTableAsync(backends.Sidecar, backends, new UserAccessOptions(), cancellationToken).ConfigureAwait(false);
+        var byName = new Dictionary<string, GrantRecipient>(StringComparer.OrdinalIgnoreCase);
+        void Add(ExoObject recipient)
         {
-            IReadOnlyList<UserGroup> groups = await groupsRead.ConfigureAwait(false);
-            groupCount = groups.Count;
-            grants.AddRange(await GroupGrantsAsync(exo, groups, entries.Where(entry => !names.Contains(entry.Holder)).ToList(), byKey, cancellationToken).ConfigureAwait(false));
+            var found = new GrantRecipient(
+                recipient.Text("ExternalDirectoryObjectId"),
+                recipient.Text("UserPrincipalName"),
+                recipient.Text("PrimarySmtpAddress"),
+                recipient.Text("DisplayName") ?? recipient.Text("Name"),
+                recipient.Text("RecipientTypeDetails"));
+            foreach (string key in Keys(recipient))
+            {
+                byName.TryAdd(key, found);
+            }
         }
 
-        var result = new UserAccess(
-            name,
-            displayName,
-            grants
-                .DistinctBy(grant => (grant.Right, grant.Mailbox.PrimarySmtpAddress))
-                .OrderBy(grant => grant.Mailbox.DisplayName, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(grant => grant.Right)
-                .ToList(),
-            mailboxes.Count,
-            failed)
+        foreach (ExoObject mailbox in table.Mailboxes)
         {
-            Method = backends is null ? null : Method(options.Method),
-            Groups = groupCount,
-        };
-        return failed.Count == 0
-            ? CommandResult.Success(result)
-            : CommandResult.Failure(Partial(failed.Count, "mailbox permission list(s)"), result);
+            Add(mailbox);
+        }
+
+        List<string> unknown = table.Entries
+            .Select(entry => entry.Holder)
+            .Where(holder => !byName.ContainsKey(holder) && !holder.StartsWith("S-1-", StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (unknown.Count > 0)
+        {
+            foreach (ExoObject recipient in await RecipientsAsync(backends.Sidecar, unknown, cancellationToken).ConfigureAwait(false))
+            {
+                Add(recipient);
+            }
+        }
+
+        return new MailboxGrants(
+            table.Entries.Select(entry => new MailboxGrant(entry.Right, entry.Mailbox, entry.Holder, byName.GetValueOrDefault(entry.Holder))).ToList(),
+            table.Failed);
     }
 
     /// <summary>

@@ -1,0 +1,69 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#drives('drive-finance')/items('item-budget')/permissions",
+  "@odata.nextLink": "https://graph.microsoft.com/v1.0/drives/drive-finance/items/item-budget/permissions?$skiptoken=page-2",
+  "value": [
+    {
+      "id": "p1",
+      "roles": [
+        "owner"
+      ],
+      "grantedToV2": {
+        "siteGroup": {
+          "id": "3",
+          "displayName": "Finance Owners",
+          "loginName": "Finance Owners"
+        }
+      }
+    },
+    {
+      "id": "p2",
+      "roles": [
+        "read"
+      ],
+      "link": {
+        "scope": "organization",
+        "type": "view",
+        "preventsDownload": false
+      },
+      "grantedToIdentitiesV2": [],
+      "hasPassword": false
+    },
+    {
+      "id": "p3",
+      "roles": [
+        "write"
+      ],
+      "link": {
+        "scope": "users",
+        "type": "edit",
+        "preventsDownload": false
+      },
+      "hasPassword": false,
+      "grantedToIdentitiesV2": [
+        {
+          "user": {
+            "displayName": "Alice Example",
+            "email": "alice@contoso.com",
+            "id": "00000000-0000-0000-0000-000000000001"
+          },
+          "siteUser": {
+            "id": "11",
+            "displayName": "Alice Example"
+          }
+        },
+        {
+          "user": {
+            "displayName": "Partner Example",
+            "email": "partner@fabrikam.com"
+          }
+        },
+        {
+          "siteUser": {
+            "id": "14",
+            "displayName": "Everyone except external users"
+          }
+        }
+      ]
+    }
+  ]
+}

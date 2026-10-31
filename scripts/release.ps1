@@ -96,8 +96,9 @@ foreach ($project in @("src\M365Aegis.Cli\M365Aegis.Cli.csproj", "src\M365Aegis.
 $xml = @(Get-ChildItem $publish -Filter *.xml -Recurse -File)
 if ($xml.Count -gt 0) { throw "documentation files in the publish folder: $($xml.Name -join ', ')" }
 # msalruntime.dll is the broker's native half (Microsoft.Identity.Client.NativeInterop); a win-x64 publish puts it
-# next to the exes, and the sign-in fails without it.
-foreach ($file in @("m365-aegis.exe", "m365-aegis-gui.exe", "msalruntime.dll", "wwwroot\index.html", "sidecar\aegis-exo-sidecar.ps1")) {
+# next to the exes, and the sign-in fails without it. e_sqlite3.dll is SQLite's native library (SQLitePCLRaw), which
+# the snapshot store opens (D-011, task 087).
+foreach ($file in @("m365-aegis.exe", "m365-aegis-gui.exe", "msalruntime.dll", "e_sqlite3.dll", "wwwroot\index.html", "sidecar\aegis-exo-sidecar.ps1")) {
     if (-not (Test-Path (Join-Path $publish $file))) { throw "missing in the publish folder: $file" }
 }
 

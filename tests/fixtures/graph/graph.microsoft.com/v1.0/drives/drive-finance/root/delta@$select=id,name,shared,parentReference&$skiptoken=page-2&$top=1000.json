@@ -1,0 +1,17 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(driveItem)",
+  "@odata.deltaLink": "https://graph.microsoft.com/v1.0/drives/drive-finance/root/delta?token=delta-finance-1",
+  "value": [
+    {
+      "id": "item-reports",
+      "name": "Reports",
+      "parentReference": {
+        "driveId": "drive-finance",
+        "path": "/drives/drive-finance/root:"
+      },
+      "shared": {
+        "scope": "users"
+      }
+    }
+  ]
+}

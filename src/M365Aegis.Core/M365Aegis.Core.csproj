@@ -29,6 +29,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The snapshot store (D-011, task 087): one SQLite file per snapshot; the version and the reason are in
+         Directory.Packages.props. -->
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- The Exchange Online sidecar script travels next to every exe that references the Core, as sidecar\ (D-004);
          the doctor checks its hash and the release zip carries it at the same path. -->
     <None Include="Exchange\Sidecar\aegis-exo-sidecar.ps1" Link="sidecar\aegis-exo-sidecar.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

@@ -1,0 +1,11 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#drives(id,owner)/$entity",
+  "id": "drive-phoenix",
+  "owner": {
+    "group": {
+      "id": "00000000-0000-0000-0000-000000000033",
+      "displayName": "Project Phoenix",
+      "email": null
+    }
+  }
+}

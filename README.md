@@ -322,6 +322,22 @@ commands of the Exchange Online sidecar script (Pester). The reports are artifac
 members that need a real sign-in, a desktop session or the machine itself are excluded by name, each with its
 reason, in [docs/development.md](docs/development.md#coverage).
 
+## Snapshots and who can reach what
+
+`m365-aegis snapshot take` reads who can reach what into one SQLite file under the home folder
+(`snapshots\<profile>\`, never in the repo): the users, the groups with their direct and nested members and their
+owners (Graph's, and Exchange's "managed by" for the distribution lists), the teams, the SharePoint sites with the
+Microsoft 365 group behind each and the files shared from their libraries (the sharing links' scope, roles and expiry,
+never a link's URL), and every mailbox with FullAccess, Send As, Send on Behalf, its calendar's permissions and its
+forwarding. A part that fails is recorded and the snapshot stays usable; the older snapshots are pruned by a
+retention of days and weeks (D-011). `snapshot list` and `snapshot show` read the files back, and a Task Scheduler
+task takes one every morning (the [usage guide](docs/usage.md#snapshots) has the lines).
+
+`m365-aegis access <user>` answers from the newest snapshot, in well under a second and without signing in: the
+groups the user is in (and through which nested group), the sites of those groups and of the groups the user owns,
+the files shared with the user or a group, the mailbox rights and the calendar permissions, with the links and
+calendars that reach everyone as counts and the snapshot's age in the answer.
+
 ## Documentation
 
 - [Usage guide](docs/usage.md): the command line and the window for the support team, shipped in the zip as `GUIDE.md`

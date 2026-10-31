@@ -69,6 +69,13 @@ public sealed class GraphClient
     /// <summary>The request ids of every answer so far.</summary>
     public RequestLog RequestLog { get; }
 
+    /// <summary>
+    /// A client over the same transport and request log with another throttling budget, a fresh one, and the same clock
+    /// and jitter: the snapshot's take (task 087) is a long run that may wait where a command would fail.
+    /// </summary>
+    internal GraphClient WithBudget(int maxRetries, TimeSpan maxTotalDelay) =>
+        new(_transport, RequestLog, _options with { MaxRetries = maxRetries, MaxTotalDelay = maxTotalDelay });
+
     /// <summary>How long the client has waited on throttling so far.</summary>
     public TimeSpan Waited
     {
@@ -333,15 +340,28 @@ public sealed class GraphClient
 
     private static bool IsThrottled(int status) => status is 429 or 503;
 
-    /// <summary>The headers a request adds: <c>ConsistencyLevel</c> for an advanced query, <c>Accept</c> when it names one.</summary>
+    /// <summary>
+    /// The headers a request adds: <c>ConsistencyLevel</c> for an advanced query, <c>Accept</c> and <c>Prefer</c> when it
+    /// names them.
+    /// </summary>
     private static IReadOnlyDictionary<string, string> Headers(GraphRequest request)
     {
-        if (request.Accept is null)
+        if (request.Accept is null && request.Prefer is null)
         {
             return request.EventualConsistency ? Eventual : NoHeaders;
         }
 
-        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["Accept"] = request.Accept };
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (request.Accept is not null)
+        {
+            headers["Accept"] = request.Accept;
+        }
+
+        if (request.Prefer is not null)
+        {
+            headers["Prefer"] = request.Prefer;
+        }
+
         if (request.EventualConsistency)
         {
             headers["ConsistencyLevel"] = "eventual";

@@ -207,3 +207,36 @@ carol) so the dry runs plan against the recorded answers and the fake module. Th
 names of every fixture, no file without a case in `CsvEdgeCaseTests.CaseNames` (the test checks every family has
 exactly those), and the bytes as written, which `.gitattributes` keeps (`tests/fixtures/** -text`): an editor that
 saves the BOM away or the line endings to LF breaks the case, so a change is made with a script that writes bytes.
+
+## The snapshot fixture
+
+Tasks 087 and 084. The fixture snapshot is never committed: `tests/shared/SnapshotSamples.cs` takes it once per test
+run, in process, over the recorded answers here and the fake module (the take's clock at 2026-10-31T06:00:00Z, so its
+name is `2026-10-31T060000Z.sqlite`, about 128 KB), and copies it into each test's temporary home. The answers the take
+reads beyond the lookups' own:
+
+- `v1.0/users@$select=id,displayName,userPrincipalName,mail&$top=999`: alice, bob, carol (without an address), dave,
+  eve, and the accounts of the shared mailboxes Finance (`…015`) and Reception (`…016`), whose ids the fake module's
+  mailboxes carry too. The fake module gives the mailboxes of alice to dave the ids `…011` to `…014`, which Graph does not; the take
+  ties each mailbox to its user by the user principal name.
+- `v1.0/groups@$select=…&$top=999`: Finance (`…031`, Microsoft 365, a team), Finance EU (`…032`, security), Project
+  Phoenix (`…033`, Microsoft 365, a team), Finance Staff (`…035`, mail-enabled security), Sales (`…036`, distribution)
+  and Sales Synced (`…03a`, distribution, synced); the members of Project Phoenix (dave, eve), Sales (bob, alice and
+  the contact Dave Private, `…030`) and Sales Synced (eve), and the owner of Finance EU (carol). Finance's, Finance
+  EU's and Finance Staff's members and the other owners are the lookups' fixtures; Finance Staff's and Sales' owners
+  come from the fake module's `ManagedBy`.
+- `v1.0/sites/<site id>/drive@$select=id,owner`: Finance's library (`drive-finance`) and Project Phoenix's
+  (`drive-phoenix`), each owned by its group, and a 403 for the communication site.
+- `v1.0/drives/drive-finance/root/delta@…` over two pages (the root, `Budget.xlsx` and `Reports` marked shared,
+  `Plan.docx` not) and `drive-phoenix`'s in one (`Plans/Roadmap.pptx` marked), each ending in a made-up delta link.
+- `v1.0/drives/<drive>/items/<item>/permissions`: `Budget.xlsx` over two pages (the site's Owners group, an
+  organization view link, a users edit link for alice, the external `partner@fabrikam.com` and a SharePoint identity
+  alone, a grant to bob, and a grant inherited from the root), `Reports` (a grant to Finance EU, an anonymous view link
+  with a password and an expiry) and `Roadmap.pptx` (a users view link for Finance Staff, a grant to dave).
+- On the Admin API's side, `MailboxFolderPermission@Identity=<address>%3A%5C<calendar>&ResultSize=Unlimited` for the six
+  mailboxes by address: `Default` free/busy everywhere but bob's (Reviewer), `Anonymous` free/busy on dave's, Finance
+  Staff a Reviewer on carol's, alice an Editor on Finance's and bob a Reviewer on Reception's `Kalender`.
+
+So dave reaches Finance and Finance Staff through Finance EU, the sites of Finance and Project Phoenix, `Reports`
+through Finance EU, `Roadmap.pptx` directly and through Finance Staff, Reception's FullAccess and carol's calendar
+through Finance Staff: the answer `SnapshotAccessTests` holds.

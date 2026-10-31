@@ -290,6 +290,61 @@ m365-aegis group members add --resume 20261030T110000.000Z-group-members-add --d
 The resume is the same write as the record (the hint names it if you pick another one), with no other arguments,
 and `--dry-run` or `--yes` as usual. A change the window applied resumes the same way.
 
+## Snapshots
+
+A snapshot is a copy of who can reach what in the tenant, read in one run and kept as one file under
+`%LOCALAPPDATA%\m365-aegis\snapshots\<profile>\`: the users and groups with their members (nested ones too) and
+owners, the teams, the SharePoint sites with the group behind each one and their shared files, and the Exchange Online
+mailboxes with FullAccess, Send As, Send on Behalf, the calendars' permissions and the forwarding. Reading all of it
+takes minutes in a large tenant; a question to a snapshot takes well under a second. Taking one only reads: nothing in
+the tenant changes.
+
+```powershell
+m365-aegis snapshot take                          # read the tenant into a new snapshot, then remove the old ones
+m365-aegis snapshot list                          # the snapshots kept, newest first
+m365-aegis snapshot show                          # the newest one: when, what each part was read from, what failed
+m365-aegis snapshot show 2026-10-31T060000Z       # one by its name as the list prints it
+```
+
+A part that could not be read (a permission the account lacks, a site it may not open) is named by `snapshot take`
+and `snapshot show`, and the rest of the snapshot is kept and used; when a whole part failed, the take ends with
+exit code 6 and keeps the older snapshots. After a take that read every part, the old snapshots are removed: every
+snapshot of the last two days is kept, then the newest of each day for 14 days and the newest of each week for 8
+weeks. `keepDaily` and `keepWeekly` in the profile of `config.json` change the 14 and the 8. The other users'
+OneDrives are not read: that needs a permission the tool does not ask for.
+
+### What one user reaches
+
+```powershell
+m365-aegis access dave@contoso.com                # groups, sites, shared files, mailboxes and calendars of one user
+m365-aegis access dave@contoso.com --json | ConvertFrom-Json
+```
+
+`access` answers from the newest snapshot, without signing in: the groups the user is in (and through which group a
+nested membership comes), the sites of those groups and of the groups the user owns, the files shared with the user
+or one of the groups, the mailbox rights and the calendar permissions held directly or through a group. The links
+anyone in the organization or anyone at all can open, and the calendars open to every user, reach this user like
+everyone else, so they are counted under the table rather than listed. The answer names the snapshot's time and warns
+when it is older than 36 hours. Without a snapshot it ends with exit code 4 and the hint
+`run m365-aegis snapshot take first`.
+
+### A snapshot every morning
+
+A Task Scheduler task takes the snapshot while you are logged on; the sign-in it uses is the one of your Windows
+session, so it runs only while you are logged on and never asks for a password:
+
+```powershell
+$action = New-ScheduledTaskAction -Execute "C:\Tools\m365-aegis\m365-aegis.exe" -Argument "snapshot take --profile work --json"
+$trigger = New-ScheduledTaskTrigger -Daily -At 7:00
+$principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable
+Register-ScheduledTask -TaskName "m365-aegis snapshot" -Action $action -Trigger $trigger -Principal $principal -Settings $settings
+```
+
+`-StartWhenAvailable` runs a take that was missed (the machine was off at 7:00) at the next logon. When the sign-in is
+no longer valid, the take ends with exit code 3 (the task's last result) and takes nothing; `m365-aegis login` once
+fixes it, and `access` keeps answering from the last snapshot with its age.
+
 ## The window
 
 `m365-aegis-gui.exe` opens the window. It uses the same tenant profile, the same sign-in and the same plans as the

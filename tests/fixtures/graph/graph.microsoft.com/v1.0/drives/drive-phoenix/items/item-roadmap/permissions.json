@@ -1,0 +1,38 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#drives('drive-phoenix')/items('item-roadmap')/permissions",
+  "value": [
+    {
+      "id": "p8",
+      "roles": [
+        "read"
+      ],
+      "link": {
+        "scope": "users",
+        "type": "view"
+      },
+      "hasPassword": false,
+      "grantedToIdentitiesV2": [
+        {
+          "group": {
+            "displayName": "Finance Staff",
+            "email": "finance-staff@contoso.com",
+            "id": "00000000-0000-0000-0000-000000000035"
+          }
+        }
+      ]
+    },
+    {
+      "id": "p9",
+      "roles": [
+        "read"
+      ],
+      "grantedToV2": {
+        "user": {
+          "displayName": "Dave Example",
+          "email": "dave@contoso.com",
+          "id": "00000000-0000-0000-0000-000000000005"
+        }
+      }
+    }
+  ]
+}

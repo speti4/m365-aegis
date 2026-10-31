@@ -1,0 +1,26 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#directoryObjects(id,displayName,userPrincipalName,mail)",
+  "@odata.count": 3,
+  "value": [
+    {
+      "@odata.type": "#microsoft.graph.user",
+      "id": "00000000-0000-0000-0000-000000000003",
+      "displayName": "Bob Example",
+      "userPrincipalName": "bob@contoso.com",
+      "mail": "bob@contoso.com"
+    },
+    {
+      "@odata.type": "#microsoft.graph.user",
+      "id": "00000000-0000-0000-0000-000000000001",
+      "displayName": "Alice Example",
+      "userPrincipalName": "alice@contoso.com",
+      "mail": "alice@contoso.com"
+    },
+    {
+      "@odata.type": "#microsoft.graph.orgContact",
+      "id": "00000000-0000-0000-0000-000000000030",
+      "displayName": "Dave Private",
+      "mail": "dave@example.com"
+    }
+  ]
+}
