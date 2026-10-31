@@ -29,6 +29,8 @@ not the list. The summary under a heading is written by hand and kept by the gen
 - The `home-access` doctor check judges every account that is not the user, SYSTEM or Administrators ([088](https://github.com/speti4/m365-aegis/blob/main/tasks/done/088-home-access-check-judges-every-foreign-account.md))
 - The doctor's `signature` row pins the release certificate's thumbprint ([093](https://github.com/speti4/m365-aegis/blob/main/tasks/done/093-doctor-signature-row-pins-the-release-certificate.md))
 - `scripts/check-fixtures.py` catches two-label domains too ([094](https://github.com/speti4/m365-aegis/blob/main/tasks/done/094-check-fixtures-catches-two-label-domains.md))
+- A user-facing README and a setup guide for another tenant's administrator ([106](https://github.com/speti4/m365-aegis/blob/main/tasks/done/106-user-facing-readme-and-setup-guide.md))
+- The setup and usage guides, the license and a readme in the release zip ([107](https://github.com/speti4/m365-aegis/blob/main/tasks/done/107-guides-license-and-readme-in-the-release-zip.md))
 
 ### Project housekeeping
 

@@ -91,8 +91,9 @@ carries it.
 Everything the tool keeps lives under `%LOCALAPPDATA%\m365-aegis\` (D-005): `config.json` with the tenant
 profiles, `msal-cache.bin` (DPAPI, with a `.lockfile` next to it while a process reads or writes it, so the
 command line and the window share one cache), `webview2\`, `logs\` and `plans\` with the plan records.
-`M365AEGIS_HOME` overrides the folder; the tests point it at a temporary one. The M5 snapshots are to live in
-`snapshots\<profile>\` there, one SQLite file per snapshot, as D-011 proposes (task 083; task 087 builds the store).
+`M365AEGIS_HOME` overrides the folder; the tests point it at a temporary one. The snapshots live in
+`snapshots\<profile>\` there, one SQLite file per snapshot, as D-011 decided (task 083 measured it, task 087 built
+the store; see [Snapshots](#snapshots)).
 
 `logs\` holds one file a day, `m365-aegis-yyyy-MM-dd.log`, appended to by every process (tasks 021 and 025): the
 stack trace of an unexpected internal error, always (exit code 70, see [The output contract](#the-output-contract)),

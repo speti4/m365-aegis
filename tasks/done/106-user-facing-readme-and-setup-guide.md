@@ -3,6 +3,7 @@ size: M
 origin: session 2026-10-31
 created: 2026-10-31
 started: 2026-10-31
+closed: 2026-10-31
 plan: none
 milestone: M6 Release and team
 ---
@@ -80,6 +81,12 @@ register the app, consent, sign in and run a lookup in their own tenant.
   it went
 - 2026-10-31 — README rewritten as the landing page; `SECURITY.md` (no "no release yet", writes exist now), the issue
   template's advisory link, a "guides and who reads them" section in `CONTRIBUTING.md`
+- 2026-10-31 — rebased onto `main` after #137 by the main session (the index and the rewritten README resolved), the
+  README's license line corrected (the zip ships Microsoft components, named in `THIRD-PARTY-NOTICES.md`); merged as
+  #139 (`c246e03`). Closed on `main` by the main session. The follow-ups of the pull request, decided by the
+  maintainer on 2026-10-31: the live check of the Azure CLI block and of the message trace role is backlog 108; the
+  two stale snapshot sentences of `docs/development.md` were fixed in the closing commit; the doctor's per-permission
+  consent check is backlog 109 (idea)
 
 ## Deviations from the plan
 
@@ -115,9 +122,9 @@ register the app, consent, sign in and run a lookup in their own tenant.
 
 ## Closing checklist
 
-- [ ] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log
+- [x] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log
       (a task session of a parallel-sessions repo: listed in the pull request under `## Follow-ups`, the main session files them)
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] `tasks_check` green, README index regenerated
+- [x] moved to `done/` with `closed: 2026-10-31`

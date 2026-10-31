@@ -14,11 +14,15 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-10-31 — edit the files, not this section._
 
-**State:** 10 backlog (0 ready · 0 blocked · 0 waiting · 10 ideas) · 2 in progress · 95 done · 0 dropped · 12 decisions
+**State:** 12 backlog (1 ready · 0 blocked · 0 waiting · 11 ideas) · 0 in progress · 97 done · 0 dropped · 12 decisions
 
 ### Ready
 
-_none_
+#### M6 Release and team
+
+| # | Task | Size | Created |
+|---|---|---|---|
+| 108 | [Verify the setup guide in a live round: the Azure CLI registration block and th…](backlog/108-verify-the-setup-guide-in-a-live-round.md) | S | 2026-10-31 |
 
 ### Needs decision
 
@@ -59,15 +63,11 @@ _none_
 | # | Task | Size | Created |
 |---|---|---|---|
 | 095 | [release.ps1 -RequireSignature refuses a certificate whose thumbprint is not the…](backlog/095-release-refuses-a-certificate-that-is-not-the-pinned-one.md) | S | 2026-10-31 |
+| 109 | [Doctor: a per-permission consent check that names the missing row of the setup …](backlog/109-doctor-per-permission-consent-check.md) | M | 2026-10-31 |
 
 ### In progress
 
-#### M6 Release and team
-
-| # | Task | Started | Plan |
-|---|---|---|---|
-| 106 | [A user-facing README and a setup guide for another tenant's administrator](wip/106-user-facing-readme-and-setup-guide.md) | 2026-10-31 | `none` |
-| 107 | [The setup and usage guides, the license and a readme in the release zip](wip/107-guides-license-and-readme-in-the-release-zip.md) | 2026-10-31 | `none` |
+_none_
 
 ### Closed – do not reopen
 
@@ -77,6 +77,8 @@ _none_
 
 | # | Task | Closed |
 |---|---|---|
+| 107 | [The setup and usage guides, the license and a readme in the release zip](done/107-guides-license-and-readme-in-the-release-zip.md) | 2026-10-31 |
+| 106 | [A user-facing README and a setup guide for another tenant's administrator](done/106-user-facing-readme-and-setup-guide.md) | 2026-10-31 |
 | 105 | [Round the tenant's size figures to an order of magnitude](done/105-round-the-tenants-size-figures.md) | 2026-10-31 |
 | 094 | [scripts/check-fixtures.py catches two-label domains too](done/094-check-fixtures-catches-two-label-domains.md) | 2026-10-31 |
 | 093 | [The doctor's signature row pins the release certificate's thumbprint](done/093-doctor-signature-row-pins-the-release-certificate.md) | 2026-10-31 |
@@ -85,10 +87,8 @@ _none_
 | 090 | [The window's plan warnings in the window's own words, not the command line's fl…](done/090-window-plan-warnings-in-the-windows-own-words.md) | 2026-10-31 |
 | 089 | [group owners-missing --all-types judges a distribution group by its ManagedBy, …](done/089-group-owners-missing-judges-distribution-groups-by-managedby.md) | 2026-10-31 |
 | 088 | [The home-access doctor check judges every account that is not the user, SYSTEM …](done/088-home-access-check-judges-every-foreign-account.md) | 2026-10-31 |
-| 087 | [The snapshot store and snapshot take: groups, sites, sharing and mailbox permis…](done/087-snapshot-store-and-snapshot-take.md) | 2026-10-31 |
-| 084 | [access <user>: which groups, sites and mailboxes one user reaches, from the sna…](done/084-access-view-for-one-user-from-the-snapshot.md) | 2026-10-31 |
 
-_85 more in `done/`._
+_87 more in `done/`._
 
 ### Decisions
 
