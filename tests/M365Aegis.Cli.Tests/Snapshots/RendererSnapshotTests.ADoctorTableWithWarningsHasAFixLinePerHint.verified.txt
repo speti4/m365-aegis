@@ -1,8 +1,8 @@
 ﻿--- stdout ---
 check                   status  detail
-----------------------  ------  ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+----------------------  ------  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 home                    pass    D:\aegis-home
-home-access             warn    Users (inherited), Authenticated Users (inherited) can read it: every account on this machine can read the profiles, the plan records and the logs
+home-access             warn    Users (read, inherited), Authenticated Users (read, inherited), CONTOSO\bob (modify, inherited) can read it: every account on this machine can read the profiles, the plan records and the logs
 dotnet-runtime          pass    10.0.4
 dotnet-desktop-runtime  warn    10.0.1 is older than the .NET Runtime 10.0.4: an update reached one of the two only
 pwsh                    pass    7.6.9 at D:\tools\pwsh\pwsh.exe

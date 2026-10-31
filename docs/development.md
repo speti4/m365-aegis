@@ -1081,13 +1081,13 @@ that need the network.
 | check | required | pass | warn | fail (with the fix) |
 | --- | --- | --- | --- | --- |
 | `home` | yes | the folder exists | not created yet | a file, not a folder |
-| `home-access` | no | neither `Everyone`, `Users` nor `Authenticated Users` holds a read right on the home folder (the list a home the product creates has) | one of them does, explicitly or inherited, with the `icacls` line that gives the folder the product's own list; or the list is unreadable (`icacls "<home>"` shows it) | none; skipped off Windows and while the home does not exist |
+| `home-access` | no | no account but the user, `SYSTEM` and `Administrators` holds a read right on the home folder (the list a home the product creates has) | another account does, explicitly or inherited, named with its right, with the `icacls` line that gives the folder the product's own list; or the list is unreadable (`icacls "<home>"` shows it) | none; skipped off Windows and while the home does not exist |
 | `dotnet-runtime` | no | the runtime the process runs on (a fact, so it has no warn or fail) | | |
 | `dotnet-desktop-runtime` | no | the .NET Desktop Runtime the window needs, in the major version of the .NET Runtime (the `Microsoft.WindowsDesktop.App` folders of the same installation) | a patch behind the .NET Runtime (`winget upgrade Microsoft.DotNet.DesktopRuntime.10`) | not installed: the window cannot start (`winget install Microsoft.DotNet.DesktopRuntime.10`); skipped off Windows |
 | `pwsh` | yes | 7.6 or later on PATH | the version is unreadable | missing (`winget install Microsoft.PowerShell`) or older |
 | `exchange-online-module` | no | 3.10 or later | older (`Update-Module`) | not installed (`Install-Module … -Scope CurrentUser`); skipped without pwsh |
 | `sidecar-script` | yes | the SHA-256 of `sidecar\aegis-exo-sidecar.ps1` matches the copy compiled into the Core | differs in its line endings only | missing or changed (reinstall the release zip) |
-| `signature` | no | every product file next to the running exe (`m365-aegis*.exe`, `m365-aegis*.dll`, `M365Aegis.*.dll`) is signed by a certificate this machine trusts, with the signer | one is not signed (a build from source, an unsigned zip), or its certificate is not trusted here (an untrusted or distrusted root, expired without a timestamp), each with its `WinVerifyTrust` code | a signature does not hold: the file changed after it was signed (reinstall the release zip); skipped off Windows and without a product file |
+| `signature` | no | every product file next to the running exe (`m365-aegis*.exe`, `m365-aegis*.dll`, `M365Aegis.*.dll`) is signed by the release's certificate (the thumbprint the Core pins, D-012) and this machine trusts it, with the signer | one is not signed (a build from source, an unsigned zip), or its certificate is not trusted here (an untrusted or distrusted root, expired without a timestamp), each with its `WinVerifyTrust` code; or a certificate this machine trusts signed it that is not the release's, with the signer and its thumbprint | a signature does not hold: the file changed after it was signed (reinstall the release zip); skipped off Windows and without a product file |
 | `webview2-runtime` | no | the `pv` of the EdgeUpdate client key, 120 or later | older (Edge Update is blocked) | not installed (`winget install Microsoft.EdgeWebView2Runtime`); skipped off Windows |
 | `config` | no | the profiles and the default | no file (the login command), no profile, or no default (`profile use`) | the file does not parse, or a profile lacks a value |
 | `device` | no | Entra-joined with a primary refresh token | registered only, or joined without a primary refresh token (task 013: the silent sign-in as the Windows account fails, the profile's account signs in instead), or `dsregcmd` unreadable | neither joined nor registered (Settings > Accounts > Access work or school) |
@@ -1103,20 +1103,36 @@ the installed Desktop Runtime versions, the two copies of the script, the signat
 The `signature` check (task 085) asks `WinVerifyTrust` (the Authenticode policy, `Diagnostics/Authenticode.cs`)
 about each product file in `AppContext.BaseDirectory`, the same names `scripts/sign-release.ps1` signs, with no
 revocation check and only the local caches (no download), so `--offline` stays offline, and reads the signer's subject
-from the state it leaves. A signature that holds over an untrusted root is a warning with the signer named, since
-the team's machines may trust a self-signed certificate by hand; the expected publisher is not pinned yet (it waits
-for the certificate decision). The interop is the one part excluded from the coverage ([Coverage](#coverage)); the
-names and the verdict of each `WinVerifyTrust` code are tested, and `tests/release/sign-release.Tests.ps1` runs the
-doctor of a signed and of a changed folder in the `windows` job.
+from the state it leaves, the signer's subject and its certificate's thumbprint. A signature that holds over an
+untrusted root is a warning with the signer named, since the team's machines trust the self-signed certificate of
+D-012 by hand; its hint asks an administrator to trust the release's certificate only when the signer is that
+certificate, and otherwise says the signer is not the release's. A signature that holds and that this machine trusts
+passes only when its certificate is the release's (task 093): `Authenticode.ReleaseThumbprint` pins its thumbprint
+in the Core, and the release notes of every signed release print the same value (the second place it is written);
+any other trusted signer is a warning naming it with its thumbprint, so a machine that trusts a wrong certificate
+does not see a pass on a replaced exe. A new certificate is a change of the pin and a release of its own, and the
+release notes of that release name the new thumbprint. The test seam is the `M365AEGIS_TEST_RELEASE_THUMBPRINT`
+environment variable: a thumbprint there replaces the pin, and the row's pass then says the certificate the variable
+pins instead of the release's, so the override is never silent. The interop is the one part excluded from the
+coverage ([Coverage](#coverage)); the names, the verdict of each `WinVerifyTrust` code and the pin's rule are tested,
+and `tests/release/sign-release.Tests.ps1` runs the doctor of a signed and of a changed folder in the `windows` job,
+and, in an elevated session (the job's runner), of a folder whose throwaway certificate the machine trusts for the
+length of the test: a warning, and a pass once the variable pins it.
 
-The `home-access` check (task 078) reads the home folder's access list by SID, so the names do not depend on the
-Windows display language: an allow entry for `Everyone` (`S-1-1-0`), `Users` (`S-1-5-32-545`) or `Authenticated Users`
-(`S-1-5-11`) that carries a read right (list the folder, or the generic read or all right of an inheritable entry) is
-a warning, whether it is explicit or inherited; a deny entry is not weighed against it, and other accounts are not
-judged. The hint is one command line, the same in pwsh and in cmd, that gives the folder the list of a home the
-product creates ([The safety tests](#the-safety-tests)): `icacls "<home>" /inheritance:r /grant:r "<the user>:(OI)(CI)F"
-"*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /remove:g *S-1-1-0 *S-1-5-32-545 *S-1-5-11`. The doctor never changes
-the list itself. The check looks at the folder; the files below it inherit from it.
+The `home-access` check (tasks 078 and 088) reads the home folder's access list by SID: an allow entry that carries a
+read right (list the folder, or the generic read or all right of an inheritable entry) for any account but the
+running user (by its SID), `SYSTEM` (`S-1-5-18`) and `Administrators` (`S-1-5-32-544`) is a warning, whether it is
+explicit or inherited; a deny entry is not weighed against it. The detail names each such account once, with the
+strongest of `full control`, `modify` and `read` its entries add up to and `inherited` when no entry of it is explicit:
+`Everyone` (`S-1-1-0`), `Users` (`S-1-5-32-545`) and `Authenticated Users` (`S-1-5-11`) by these names whatever the
+Windows display language (then every account of the machine can read the home), any other by its account name (a
+sandbox group, another user, a service), or by its SID when it does not resolve (a deleted account). The hint is one
+command line, the same in pwsh and in cmd, that gives the folder the list of a home the product creates
+([The safety tests](#the-safety-tests)): `icacls "<home>" /inheritance:r /grant:r "<the user>:(OI)(CI)F"
+"*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /remove:g *S-1-1-0 *S-1-5-32-545 *S-1-5-11`, with every other account
+that has an explicit entry added to `/remove:g`; an inherited one goes with `/inheritance:r` and is not named there,
+since icacls refuses a SID that does not resolve (error 1332). The doctor never changes the list itself. The check
+looks at the folder; the files below it inherit from it.
 
 ## The safety tests
 
@@ -1221,7 +1237,8 @@ Administrators, elevated); the cache's bytes hold no token in clear (DPAPI) whil
 back. Without the protected list the same test fails on the inherited `Users` and `Authenticated Users` entries.
 The doctor's `home-access` check (task 078, [The doctor](#the-doctor)) is where a user learns that an existing home
 does not have the list: the same tests hold it `pass` on a home the product created and `warn` on one that inherits
-the parent's `Users` and `Authenticated Users` entries, run its `icacls` hint, and find the home the user's own after it.
+the parent's `Users` and `Authenticated Users` entries, or a sandbox group's read and a service account's modify (task
+088), run its `icacls` hint, and find the home the user's own after it.
 
 ## CI and releases
 
@@ -1342,14 +1359,20 @@ certificate or no timestamp server is given. `signtool` comes from the Windows S
 (Pester, in the `windows` job) signs copies of the built files with a throwaway certificate that
 `tests/release/new-test-certificate.ps1` makes in memory and no store holds, checks that a package's assembly and the
 sidecar script are left alone, that a wrong password and a missing file are refused, runs the doctor of a signed
-folder (`signature` names the signer and warns that it is not trusted) and of one with a byte changed after the
-signing (`signature` fails), and that `release.ps1 -RequireSignature` refuses to start without a certificate.
+folder (`signature` names the signer and warns that it is not trusted, with the hint for a signer that is not the
+release's, or, pinned through `M365AEGIS_TEST_RELEASE_THUMBPRINT`, the hint to trust it) and of one with a byte
+changed after the signing (`signature` fails), and that `release.ps1 -RequireSignature` refuses to start without a
+certificate. In an elevated session it also puts the throwaway certificate into the local machine's root store for
+two tests and takes it out afterwards (task 093): the doctor of a folder it signed warns that the trusted signer is
+not the release's, and passes once the variable pins it. A shell that is not elevated skips the two, the `windows`
+job's runner runs them.
 
 The certificate lives in the repository's `release` environment, never in the repo: the secret
 `SIGNING_CERTIFICATE` holds the PFX file in base64 and `SIGNING_CERTIFICATE_PASSWORD` its password. The release job
 writes the file into the runner's temporary folder for the run and removes it afterwards; a tag without the secret
-fails the release. Which certificate it is (a self-signed one the team's machines trust, a bought one, or Azure
-Trusted Signing) is the decision task 085 drafted; whichever it is, it goes in as a PFX file:
+fails the release. The certificate is a self-signed one the team's machines trust (D-012), and its thumbprint is
+the one the doctor pins (`Authenticode.ReleaseThumbprint`, task 093); a new certificate changes the pin in the same
+change that replaces the secret. It goes in as a PFX file:
 
 ```powershell
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("signing.pfx")) | gh secret set SIGNING_CERTIFICATE --env release
@@ -1419,9 +1442,11 @@ public text: decisions and results, no conversation, `plan: none`, no home folde
 ### The other scripts
 
 - `scripts/check-fixtures.py` — every file under `tests/fixtures`, `tests/sidecar` and `tests/contracts`, the
-  accepted snapshots and the usage guide `docs/usage.md` (task 086) carry made-up data only: the allowed domains, the
-  `00000000-…` ids, nothing that looks like a token; and no file path there is over 190 characters from the repo
-  root, which a worktree would push past git for Windows' 260.
+  accepted snapshots and every Markdown file at the root and under `docs/`, `tasks/` and `.github/` (task 094; the
+  usage guide since task 086) carry made-up data only: the made-up domains or a host on its allow-list, each with
+  its reason (a domain is any name of two or more labels), the `00000000-…` ids, nothing that looks like a token;
+  and no fixture path is over 190 characters from the repo root, which a worktree would push past git for
+  Windows' 260. `--self-test` runs the rules against known cases ([the fixtures' rules](../tests/fixtures/README.md#the-rules)).
 - `scripts/sign-release.ps1` — the release's signature, called by `release.ps1` ([The release](#the-release)).
 - `scripts/check-vulnerable.py` — `dotnet package list --vulnerable --include-transitive` as JSON, with a failing
   exit code when it finds anything (the command itself exits 0 either way).
@@ -1493,7 +1518,7 @@ listed here, and a new one is added to this list in the change that adds it:
 | `ConsoleWindow.RootOwner` (Core, `Auth`) | Win32 calls on the console window of a desktop session, which CI's runners do not have. |
 | `BridgeServices.ForWindow` (Core, `Bridge`) | Wires the window's real layers: MSAL over the window, Graph, and an Exchange Online session that a first cmdlet would start against the tenant. The `windows` job's `--smoke` run starts the window with it; each layer it wires is measured on its own. |
 | `Doctor.PwshFileName` (Core, `Diagnostics`) | `pwsh.exe` or `pwsh`: one side per operating system. The search over `PATH` is tested with a made-up file name. |
-| `DoctorEnvironment`: `ReadHomeAccessFromDisk`, `RunDsregcmd`, `ReadDesktopRuntimeVersionsFromDisk`, `ReadWebView2VersionsFromRegistry`, `ReadPv`, the nested `Network` (the endpoint probe and its `HttpClient`) (Core, `Diagnostics`) | They read the real machine (the home folder's access list, `dsregcmd`, the registry, the .NET installation's folders, Microsoft's endpoints), differently on Windows and on Linux. The checks over their answers are tested through the `DoctorEnvironment` seams; the access list reader also runs in the home folder's access list tests of the `windows` job. |
+| `DoctorEnvironment`: `ReadHomeAccessFromDisk`, `AccountName`, `RunDsregcmd`, `ReadDesktopRuntimeVersionsFromDisk`, `ReadWebView2VersionsFromRegistry`, `ReadPv`, the nested `Network` (the endpoint probe and its `HttpClient`) (Core, `Diagnostics`) | They read the real machine (the home folder's access list, `dsregcmd`, the registry, the .NET installation's folders, Microsoft's endpoints), differently on Windows and on Linux. The checks over their answers are tested through the `DoctorEnvironment` seams; the access list reader also runs in the home folder's access list tests of the `windows` job. |
 | `Authenticode`: `ReadProductFiles`, `Verify`, `Signer` (Core, `Diagnostics`) | `WinVerifyTrust` and its state over the files next to the running assembly, Windows only. The names of the product's files and the verdict of each `WinVerifyTrust` code are tested, the check over the answers through the `DoctorEnvironment.ReadSignatures` seam; the interop itself runs in the `windows` job's signing tests, over a signed folder and a changed one. |
 | `SidecarClient.KillQuietly` (Core, `Exchange/Sidecar`) | Its catch runs only when the operating system refuses the kill, or the child ends between the check and the call: a race no test can stage. |
 | `SidecarClient.WriteQuietlyAsync` (Core, `Exchange/Sidecar`) | Its catch runs only when a message reaches a child that has ended and nothing else holds the pipe's read end at that moment; whether the write fails or not, the read after it meets the end of the stream and says the sidecar stopped, which is tested. |

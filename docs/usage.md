@@ -48,9 +48,12 @@ releases page (https://github.com/speti4/m365-aegis/releases). Before you unzip 
 The exes and the tool's own assemblies are signed. In the unzipped folder,
 `Get-AuthenticodeSignature .\m365-aegis.exe` names the signer, which the release notes name too, and
 `m365-aegis doctor` checks every signed file in its `signature` row. `Valid` means the file is unchanged and its
-certificate is trusted on this machine. If the row says the certificate is not trusted, an administrator trusts the
-release's signing certificate on the machine (the maintainer hands it out); if it says a signature does not hold,
-the file changed after it was signed: delete the folder and unzip the release again.
+certificate is trusted on this machine; the row passes only when that certificate is the release's, whose thumbprint
+the tool knows and the release notes print. If the row says the certificate is not trusted, an administrator trusts
+the release's signing certificate on the machine (the maintainer hands it out), unless the row's fix line says the
+signer is not the release's certificate: then the files did not come from the release, so delete the folder and
+unzip the release again. If it says a signature does not hold, the file changed after it was signed: delete the
+folder and unzip the release again.
 
 ## Sign in
 
@@ -354,13 +357,13 @@ three endpoints, the checks that need the network.
 | check | `warn` means | `fail` means, and the fix |
 | --- | --- | --- |
 | `home` (required) | the home folder does not exist yet; the first sign-in creates it | it is a file, not a folder: move the file away |
-| `home-access` | other accounts of the machine can read your profiles, plan records and logs: the fix line is an `icacls` command that gives the folder back to you alone | (never fails) |
+| `home-access` | an account other than you, `SYSTEM` and `Administrators` can read your profiles, plan records and logs (the row names each one with its right): the fix line is an `icacls` command that gives the folder back to you alone | (never fails) |
 | `dotnet-runtime` | (a fact: the .NET version the tool runs on) | |
 | `dotnet-desktop-runtime` | it is a patch behind the .NET runtime: `winget upgrade Microsoft.DotNet.DesktopRuntime.10` | not installed, the window cannot start: `winget install Microsoft.DotNet.DesktopRuntime.10` |
 | `pwsh` (required) | PowerShell's version could not be read | missing or older than 7.6: `winget install Microsoft.PowerShell` |
 | `exchange-online-module` | older than 3.10: `Update-Module ExchangeOnlineManagement` | not installed, the mailbox commands cannot run: `Install-Module ExchangeOnlineManagement -Scope CurrentUser` |
 | `sidecar-script` (required) | the Exchange Online script differs in its line endings only | the script is missing or was changed: unzip the release again |
-| `signature` | a file is not signed (a build from source, or an unsigned zip), or its certificate is not trusted on this machine (an administrator trusts it) | a signature does not hold, the file changed after it was signed: unzip the release again |
+| `signature` | a file is not signed (a build from source, or an unsigned zip), its certificate is not trusted on this machine (an administrator trusts it, if it is the release's), or a certificate that is not the release's signed it (unzip the release again) | a signature does not hold, the file changed after it was signed: unzip the release again |
 | `webview2-runtime` | it is old, so Edge Update is blocked here | not installed, the window cannot start: `winget install Microsoft.EdgeWebView2Runtime` |
 | `config` | no profile yet (`m365-aegis login`), or no default (`m365-aegis profile use <name>`) | `config.json` does not read, or a profile lacks a value |
 | `device` | the machine is registered, not joined, or has no primary refresh token: the profile's account signs in instead of the Windows account, which is normal on a registered machine | neither joined nor registered: Settings > Accounts > Access work or school > Connect |
