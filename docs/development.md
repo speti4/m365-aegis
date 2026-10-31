@@ -788,7 +788,7 @@ rest of the home.
 | `mailboxes` | `mailbox list`'s read: the Admin API's `Get-Mailbox`, the sidecar's when it cannot answer | Exchange |
 | `members` | each group's `members`, twenty to a `$batch` call | `GroupMember.Read.All` |
 | `userGroups` | computed from `members` | |
-| `owners` | each group's `owners` in `$batch`; `ManagedBy` through the sidecar for a distribution or mail-enabled security group that is not synced (task 076's read) | `GroupMember.Read.All`, Exchange |
+| `owners` | each group's `owners` in `$batch`; for the distribution and mail-enabled security groups that are not synced, `ManagedBy` of every group in one `Get-DistributionGroup -ResultSize Unlimited` (task 089's read) and every owner's name resolved in one piped `Get-EXORecipient`, two sidecar calls whatever the count (task 097; it was two per group); a group Exchange does not list is a `not-found` item | `GroupMember.Read.All`, Exchange |
 | `teams` | `team list`'s read | `Team.ReadBasic.All` |
 | `sites` | `site list`'s read, then `GET /sites/{id}/drive?$select=id,owner` in `$batch`: `owner.group` is the Microsoft 365 group behind a group-connected site | `Sites.Read.All` |
 | `sharing` | each drive's `GET /drives/{id}/root/delta?$select=id,name,shared,parentReference&$top=1000` with `Prefer: hierarchicalsharing`, then the `permissions` of every item it marks, in `$batch` | `Sites.Read.All` |

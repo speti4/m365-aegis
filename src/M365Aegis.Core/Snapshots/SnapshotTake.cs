@@ -200,7 +200,7 @@ public static class SnapshotTake
             SnapshotDomain mailboxes = await DomainAsync("mailboxes", "admin-api Get-Mailbox (pwsh Get-EXOMailbox when it cannot answer)", MailboxesAsync).ConfigureAwait(false);
             SnapshotDomain members = await DomainAsync("members", "graph /groups/{id}/members ($batch)", () => After(groups, MembersAsync)).ConfigureAwait(false);
             await DomainAsync("userGroups", "computed from the direct members at take time", () => After(members, () => Task.FromResult(new DomainRead(Builder.Closure(), [])))).ConfigureAwait(false);
-            await DomainAsync("owners", "graph /groups/{id}/owners ($batch); pwsh Get-DistributionGroup ManagedBy for the groups Exchange owns", () => After(groups, OwnersAsync)).ConfigureAwait(false);
+            await DomainAsync("owners", "graph /groups/{id}/owners ($batch); pwsh Get-DistributionGroup -ResultSize Unlimited ManagedBy and one piped Get-EXORecipient for the groups Exchange owns", () => After(groups, OwnersAsync)).ConfigureAwait(false);
             await DomainAsync("teams", "graph /teams", TeamsAsync).ConfigureAwait(false);
             SnapshotDomain sites = await DomainAsync("sites", "graph /sites?search=*; /sites/{id}/drive ($batch): the drive and the group behind the site", SitesAsync).ConfigureAwait(false);
             await DomainAsync(
@@ -317,17 +317,32 @@ public static class SnapshotTake
                 AddOwners(groupId, owners, "graph");
             }
 
+            // The groups Exchange owns: ManagedBy of every one in two sidecar calls (task 097), not two per group.
             var failed = new List<Unread>();
-            foreach (GroupInfo group in _groups.Where(GroupWrites.ThroughExchange))
+            List<GroupInfo> exchangeOwned = _groups.Where(GroupWrites.ThroughExchange).ToList();
+            if (exchangeOwned.Count == 0)
             {
-                try
+                return new DomainRead(Builder.Owners.Count, failed);
+            }
+
+            try
+            {
+                IReadOnlyDictionary<string, IReadOnlyList<GroupMember>> managedBy = await GroupWrites.ExchangeOwnerListsAsync(backends, cancellationToken).ConfigureAwait(false);
+                foreach (GroupInfo group in exchangeOwned)
                 {
-                    AddOwners(group.Id, await GroupWrites.ExchangeOwnerListAsync(backends, group, cancellationToken).ConfigureAwait(false), "managedBy");
+                    if (managedBy.TryGetValue(group.Id, out IReadOnlyList<GroupMember>? owners))
+                    {
+                        AddOwners(group.Id, owners, "managedBy");
+                    }
+                    else
+                    {
+                        failed.Add(new Unread($"{group.DisplayName}: not among the groups Get-DistributionGroup lists", FailureKind.NotFound.ToCode()));
+                    }
                 }
-                catch (AegisException exception) when (exception.Failure.Kind != FailureKind.Auth)
-                {
-                    failed.Add(new Unread($"{group.DisplayName}: {exception.Message}", exception.Failure.Code));
-                }
+            }
+            catch (AegisException exception) when (exception.Failure.Kind != FailureKind.Auth)
+            {
+                failed.AddRange(exchangeOwned.Select(group => new Unread($"{group.DisplayName}: {exception.Message}", exception.Failure.Code)));
             }
 
             return new DomainRead(Builder.Owners.Count, failed);

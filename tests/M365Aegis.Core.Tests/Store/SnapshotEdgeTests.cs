@@ -409,6 +409,51 @@ public sealed class SnapshotEdgeTests
     }
 
     [Fact]
+    public async Task TheOwnersOfTheGroupsExchangeOwnsAreReadInOneBulkCall()
+    {
+        ScriptedGraph Tenant()
+        {
+            var graph = new ScriptedGraph();
+            graph.Answer("/users", 200, Page());
+            graph.Answer("/groups", 200, Page(
+                new { id = G1, displayName = "List", mail = "list@contoso.com", groupTypes = Array.Empty<string>(), securityEnabled = false },
+                new { id = G2, displayName = "Gone", mail = "gone@contoso.com", groupTypes = Array.Empty<string>(), securityEnabled = false }));
+            graph.Answer($"/groups/{G1}/members", 200, Page());
+            graph.Answer($"/groups/{G2}/members", 200, Page());
+            return graph;
+        }
+
+        // Exchange lists a group without an object id, List without an owner, and not Gone: no name to resolve.
+        var unowned = new CannedRunner(command => command.Cmdlet == ExoCmdlets.GetDistributionGroup
+            ? MailboxEdgeTests.Items("""{"ManagedBy":["someone"]}""", $$"""{"ExternalDirectoryObjectId":"{{G1}}","ManagedBy":[]}""")
+            : new ExoResult([], []));
+        SnapshotTakeResult first = (await SnapshotSamples.TakeAsync(SnapshotSamples.WriteProfile(PlanSamples.TempHome()), Now, backends: new ExchangeBackends(unowned, null, () => Tenant().Client))).Data!;
+
+        SnapshotDomain owners = first.Domains.Single(domain => domain.Name == "owners");
+        Assert.Equal((SnapshotDomainStatus.Partial, 0, "1 could not be read (not-found 1), for example Gone: not among the groups Get-DistributionGroup lists"), (owners.Status, owners.Rows, owners.Note));
+        Assert.Equal("Unlimited", Assert.Single(unowned.Commands, command => command.Cmdlet == ExoCmdlets.GetDistributionGroup).Parameters["ResultSize"]);
+        Assert.DoesNotContain(unowned.Commands, command => command.Cmdlet == ExoCmdlets.GetRecipient);
+
+        // Both groups listed, their owners a role group no recipient answers to: listed by its name, one call each way.
+        var roles = new CannedRunner(command => command.Cmdlet switch
+        {
+            ExoCmdlets.GetDistributionGroup => MailboxEdgeTests.Items(
+                $$"""{"ExternalDirectoryObjectId":"{{G1}}","ManagedBy":["Organization Management"]}""",
+                $$"""{"ExternalDirectoryObjectId":"{{G2}}","ManagedBy":["Organization Management"]}"""),
+            ExoCmdlets.GetRecipient => throw new AegisException(FailureKind.CmdletFailed, "no such recipient"),
+            _ => new ExoResult([], []),
+        });
+        string home = SnapshotSamples.WriteProfile(PlanSamples.TempHome());
+        SnapshotTakeResult second = (await SnapshotSamples.TakeAsync(home, Now, backends: new ExchangeBackends(roles, null, () => Tenant().Client))).Data!;
+
+        Assert.Equal((SnapshotDomainStatus.Ok, 2), (second.Domains.Single(domain => domain.Name == "owners").Status, second.Domains.Single(domain => domain.Name == "owners").Rows));
+        Assert.Equal(
+            [(ExoCmdlets.GetDistributionGroup, 1), (ExoCmdlets.GetRecipient, 1)],
+            roles.Commands.Where(command => command.Cmdlet is ExoCmdlets.GetDistributionGroup or ExoCmdlets.GetRecipient).GroupBy(command => command.Cmdlet).Select(group => (group.Key, group.Count())));
+        Assert.Equal(["Organization Management"], Assert.Single(roles.Commands, command => command.Cmdlet == ExoCmdlets.GetRecipient).Input);
+    }
+
+    [Fact]
     public async Task ACalendarHolderNoObjectAnswersToIsCountedInTheDomainsNote()
     {
         var graph = new ScriptedGraph();
