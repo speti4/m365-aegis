@@ -106,6 +106,12 @@ the round.
   drive a scripted tenant through every failure the reads tell apart, `SnapshotCommandTests` run the commands as child
   processes; the token hygiene test of task 072 runs two takes with the marked tokens and searches the snapshots folder;
   the usage guide's examples run over a home with a profile and the fixture snapshot.
+- 2026-10-31 — after the main session's first live take (1,036 permission reads throttled, a 259,348-character note):
+  the take's Graph client gets its own budget (8 retries, an hour of waits; a command keeps 4 and a minute) over the
+  same transport and request log, the drives' permission batches go one at a time, and a partial domain's note counts
+  its failures by code and names three examples; the `access` warnings count and name no site or file.
+- 2026-10-31 — merged `origin/main` (#119, #120, #121) into the branch; no conflict, the matrix green on the merged
+  tree (1533 tests, the coverage gate at 100%, the tightened `check-fixtures.py` and its `--self-test`).
 - 2026-10-31 — docs: a "Snapshots" section and the layout in `docs/development.md`, a "Snapshots" section in
   `docs/usage.md` with the scheduled run (`Register-ScheduledTask`, interactive logon, `-StartWhenAvailable`, exit code
   3 on a refused sign-in), "Snapshots and who can reach what" in `README.md`, "The snapshot fixture" in
@@ -122,6 +128,9 @@ the round.
 - "Never after a failure": a domain that failed as a whole stops the prune; an item that failed inside a domain (one
   site's library, one mailbox's calendar) makes it `partial` and does not, so a tenant with one unreadable site still
   prunes.
+- The 092 route with its own throttling: the permission reads met `activityLimitReached` live, so the take waits
+  longer than a command may (8 retries, an hour of waits in all, each `Retry-After` honored) and sends the drives'
+  permission batches one at a time while their deltas stay four at once; a take of the tenant takes about 25 minutes.
 - The 092 route as sent, with two narrower `$select`s: the drive's `id,owner` (the fixture path of the longer one is
   over the 190 characters `check-fixtures.py` allows, and `quota` and `driveType` are not stored) and the delta's
   `id,name,shared,parentReference` (`size`, `folder`, `file` and `webUrl` are not stored either).
@@ -144,7 +153,17 @@ the round.
   exit 0); the windows job's steps: `doctor --offline` exit 0, `whoami` exit 3 on an empty home, the window's `--smoke`
   exit 0, `Invoke-Pester tests/release` 7 passed, `release.ps1 -DryRun` signed with a throwaway certificate (publish
   14.6 MB; the SQLite files 2.65 MB of it with ReadyToRun, `e_sqlite3.dll` 1.98 MB).
-- The live take over the tenant is the main session's (the pull request's "Live check").
+- 2026-10-31, live (the main session, the real tenant, the broker's cached token; counts only), first run: exit 0 in
+  11 min 8 s, 2,920,448 bytes, but `sharing` partial with 1,036 permission reads answered 429 `activityLimitReached`
+  inside `$batch` (the command's throttling budget ran out) and a 259,348-character note carried into every `access`
+  answer; both fixed (the Log, the deviation).
+- 2026-10-31, live, second run of the fixed build: exit 0 in 24 min 35 s (`elapsedMs` 1,474,366), 6,803,456 bytes,
+  no failed domain, nothing pruned (both snapshots are today's), no `.partial` left, no warning; users 1021, groups
+  2446, mailboxes 621, members 18,777, userGroups 18,988, owners 524, teams 305, sites 111 (partial: 2 libraries
+  answered 403, the note bounded), sharing 21,340 rows with 0 items failed (nothing throttled past the take's budget),
+  oneDrive skipped, grants 717, folderPermissions 1,461, forwarding 39. `snapshot list`: 2 snapshots, 0 unreadable.
+  The 11 minutes against 24.6 are the price of honoring `Retry-After` on about 1,000 permission reads and of the
+  permission batches one at a time: fine for a nightly take.
 
 ## Closing checklist
 

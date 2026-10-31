@@ -71,6 +71,9 @@ it is older than 36 hours. The live timing over a tenant snapshot is the main se
 ## Deviations from the plan
 
 - An external address (a sharing link's email-only grantee) can be asked for too; it answers with its shared items.
+- The warnings count and name no item (after the first live take carried a 259,348-character note into them): a
+  partial domain's count by failure code, a failed domain's name, a skipped one's reason; `snapshot show` names the
+  items.
 - The calendars that reach everyone are counted as D-011 says for `Default` (above free/busy), and `Anonymous` entries
   that give anything are counted beside them.
 
@@ -85,7 +88,11 @@ it is older than 36 hours. The live timing over a tenant snapshot is the main se
   open to every user, 1 to anonymous; the warnings name the partial `sites` and the skipped `oneDrive`.
 - 2026-10-31: without a snapshot, `access` ends with exit 4, `error: no snapshot of the profile 'contoso' yet` and the
   take as its hint; the whole local matrix as in task 087's Verification.
-- The live timing over a tenant snapshot is the main session's (the pull request's "Live check").
+- 2026-10-31, live (the main session, over the tenant snapshot of 6,803,456 bytes): `access <the admin's UPN>
+  --json` in a cold process 206, 195 and 201 ms, exit 0: 90 groups, 44 sites, 5,463 shared items, 0 mailboxes, 0
+  calendars, everyone 3,558 organization-wide links, 0 anonymous, 29 calendars open to every user, 0 to anonymous; age
+  0.4 hours; two warnings, both bounded and without names (sites partial, oneDrive skipped). Over the first, throttled
+  snapshot (2,920,448 bytes) it was 171 to 176 ms. `access nobody@<the tenant's domain>` exit 4.
 
 ## Closing checklist
 

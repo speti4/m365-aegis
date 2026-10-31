@@ -810,8 +810,13 @@ roles, expiry and whether it has a password) with the users and groups of `grant
 a grant to a user or a group (`grantedToV2`) a `direct` row with that grantee; an inherited permission (its parent's,
 read already) and a grant to one of SharePoint's own groups (the site's Owners, Members and Visitors, which the group
 behind the site stands for) are left out. A grantee is matched to `objects` by its Entra object id; one with an
-address only (an external user) is an `external` object. Up to four drives are read at once; the last page's delta
-link of each drive is kept in the manifest for a later incremental take.
+address only (an external user) is an `external` object. Up to four drives' deltas are read at once, but their
+permission batches one at a time: SharePoint answers a busy tenant's permission reads with 429
+`activityLimitReached` item by item inside the batch (1,036 of them in the first live take), so the take's Graph
+client has its own budget (`GraphClient.WithBudget`: 8 retries and an hour of waits in all, where a command has 4 and
+a minute) and honors each item's `Retry-After`; a take of the tenant took about 25 minutes with it. The last page's
+delta link of each drive is kept in the manifest for a later incremental take. A partial domain's note counts its
+failed items by code and names three as examples, and the `access` warnings count without naming a site or a file.
 
 A domain that fails as a whole is recorded with the service's failure (`failed`), the domains that need it fail with
 it (`members` and `owners` need `groups`), and the snapshot is written and usable: the take ends with exit code 6,
