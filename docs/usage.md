@@ -422,8 +422,8 @@ the window's sign-in log as `--verbose` does on the command line.
 
 `m365-aegis doctor` is the first thing to run when something does not work. Each row is a check with `pass`,
 `warn`, `fail` (`FAIL` when the tool cannot work without it) or `skip`, and every `warn` and `fail` has a `fix`
-line under the table. A `FAIL` ends with exit code 10; anything else with 0. `--offline` skips the sign-in and the
-three endpoints, the checks that need the network.
+line under the table. A `FAIL` ends with exit code 10; anything else with 0. `--offline` skips the sign-in, its
+consent and the three endpoints, the checks that need the network.
 
 | check | `warn` means | `fail` means, and the fix |
 | --- | --- | --- |
@@ -439,6 +439,7 @@ three endpoints, the checks that need the network.
 | `config` | no profile yet (`m365-aegis login`), or no default (`m365-aegis profile use <name>`) | `config.json` does not read, or a profile lacks a value |
 | `device` | the machine is registered, not joined, or has no primary refresh token: the profile's account signs in instead of the Windows account, which is normal on a registered machine | neither joined nor registered: Settings > Accounts > Access work or school > Connect |
 | `sign-in` | no profile, or a token is missing (the administrator consents to the permission) | the silent sign-in failed: `m365-aegis login` |
+| `consent` | a permission of the setup guide's [permissions table](setup.md#permissions) is not consented: the row names each table row that misses one, with the permissions it misses, and the fix line the permissions an administrator consents to (then `m365-aegis login`); or a resource has no token, so its permissions are not read | (never fails; skipped without a token) |
 | `endpoint-login`, `endpoint-graph`, `endpoint-exchange` (required) | a proxy asks for authentication, or the answer took over 3 seconds | no answer within 10 seconds: the network, the proxy or the firewall blocks `login.microsoftonline.com`, `graph.microsoft.com` or `outlook.office365.com` |
 
 ```powershell

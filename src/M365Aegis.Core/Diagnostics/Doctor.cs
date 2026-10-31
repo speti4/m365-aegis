@@ -55,8 +55,8 @@ public sealed record DoctorReport(string Home, IReadOnlyList<DoctorCheck> Checks
 /// The prerequisites of the tool, checked one by one (task 008): the home folder and its access list, the .NET runtime, PowerShell 7.6
 /// and the ExchangeOnlineManagement module for the Exchange Online sidecar, the sidecar script against the copy
 /// compiled into the Core, the signatures of the exes and the product's assemblies, the WebView2 runtime of the window, the tenant profiles, the device's join state, the
-/// sign-in, and the three endpoints. Everything the checks read comes through <see cref="DoctorEnvironment"/>;
-/// <c>--offline</c> skips the two checks that need the network (the sign-in and the endpoints).
+/// sign-in and the permissions its tokens carry, and the three endpoints. Everything the checks read comes through <see cref="DoctorEnvironment"/>;
+/// <c>--offline</c> skips the checks that need the network (the sign-in, its consent and the endpoints).
 /// </summary>
 public static class Doctor
 {
@@ -120,11 +120,14 @@ public static class Doctor
         if (offline)
         {
             checks.Add(new("sign-in", CheckStatus.Skipped, "offline run", Required: false));
+            checks.Add(new("consent", CheckStatus.Skipped, "offline run", Required: false));
             checks.AddRange(Endpoints.Select(endpoint => new DoctorCheck(endpoint.Name, CheckStatus.Skipped, "offline run", Required: true)));
         }
         else
         {
-            checks.Add(await CheckSignInAsync(environment, cancellationToken).ConfigureAwait(false));
+            (DoctorCheck signIn, SignInInfo? info) = await CheckSignInAsync(environment, cancellationToken).ConfigureAwait(false);
+            checks.Add(signIn);
+            checks.Add(CheckConsent(info));
             DoctorCheck[] endpoints = await Task.WhenAll(Endpoints.Select(async endpoint =>
                 CheckEndpoint(endpoint.Name, endpoint.Uri, await environment.Probe(endpoint.Uri, cancellationToken).ConfigureAwait(false)))).ConfigureAwait(false);
             checks.AddRange(endpoints);
@@ -547,7 +550,8 @@ public static class Doctor
             "Settings > Accounts > Access work or school > Connect");
     }
 
-    internal static async Task<DoctorCheck> CheckSignInAsync(DoctorEnvironment environment, CancellationToken cancellationToken)
+    /// <summary>The silent sign-in of <c>whoami</c>: the row, and what it read for the consent row (null when it read nothing).</summary>
+    internal static async Task<(DoctorCheck Check, SignInInfo? Info)> CheckSignInAsync(DoctorEnvironment environment, CancellationToken cancellationToken)
     {
         const string name = "sign-in";
         try
@@ -557,7 +561,7 @@ public static class Doctor
         }
         catch (AegisException exception)
         {
-            return new(name, CheckStatus.Warn, exception.Failure.Message, Required: false, exception.Failure.Hint);
+            return (new(name, CheckStatus.Warn, exception.Failure.Message, Required: false, exception.Failure.Hint), null);
         }
 
         SignInInfo info;
@@ -567,21 +571,70 @@ public static class Doctor
         }
         catch (AegisException exception)
         {
-            return new(name, CheckStatus.Fail, exception.Failure.Message, Required: false, exception.Failure.Hint);
+            return (new(name, CheckStatus.Fail, exception.Failure.Message, Required: false, exception.Failure.Hint), null);
         }
         catch (BrokerException exception)
         {
-            return new(name, CheckStatus.Fail, $"the broker did not answer ({exception.Code}: {exception.Message})", Required: false, "run `m365-aegis login`");
+            return (new(name, CheckStatus.Fail, $"the broker did not answer ({exception.Code}: {exception.Message})", Required: false, "run `m365-aegis login`"), null);
         }
 
         string tokens = string.Join(", ", info.Tokens.Select(token => token.ExpiresOn is { } expiresOn
             ? string.Format(CultureInfo.InvariantCulture, "{0} token until {1:yyyy-MM-dd HH:mm zzz}", ResourceName(token.Resource), expiresOn)
             : $"no {ResourceName(token.Resource)} token ({token.Error ?? "no reason given"})"));
         string detail = $"{info.Account}: {tokens}";
-        return info.Tokens.All(token => token.ExpiresOn is not null)
+        DoctorCheck check = info.Tokens.All(token => token.ExpiresOn is not null)
             ? new(name, CheckStatus.Pass, detail, Required: false)
             : new(name, CheckStatus.Warn, detail, Required: false, "an administrator consents to the missing permissions in the portal, then `m365-aegis login`");
+        return (check, info);
     }
+
+    /// <summary>
+    /// The consent (task 109): the permissions each token of the sign-in carries (what <c>whoami</c> lists) against
+    /// <see cref="PermissionMap"/>, the rows of the setup guide's permissions table. A pass when every one is there; a
+    /// warning that names each row missing a permission, with the permissions it misses, and the consent of the missing
+    /// ones as the fix line; a resource without a token is named as unread, since the sign-in row already says why.
+    /// Skipped when no token was read (no profile, no sign-in). Not required: a permission an administrator left out
+    /// costs only the commands that need it. The roles of the table's last column are not checked: no token carries them.
+    /// </summary>
+    internal static DoctorCheck CheckConsent(SignInInfo? info)
+    {
+        const string name = "consent";
+        Dictionary<Resource, HashSet<string>> carried = info is null
+            ? new()
+            : info.Tokens.Where(token => token.ExpiresOn is not null)
+                .ToDictionary(token => token.Resource, token => new HashSet<string>(token.Scopes, StringComparer.OrdinalIgnoreCase));
+        if (carried.Count == 0)
+        {
+            return new(name, CheckStatus.Skipped, "no token to read the permissions from; the sign-in row says why", Required: false);
+        }
+
+        bool Missing(NeededScope permission) =>
+            carried.TryGetValue(permission.Resource, out HashSet<string>? scopes) && !scopes.Contains(permission.Name);
+        List<NeededScope> missing = [.. PermissionMap.Permissions.Where(Missing)];
+        List<Resource> unread = [.. PermissionMap.Permissions.Select(permission => permission.Resource).Distinct().Where(resource => !carried.ContainsKey(resource))];
+        if (missing.Count == 0 && unread.Count == 0)
+        {
+            return new(name, CheckStatus.Pass, $"every permission of the setup guide's table is consented: {ByApi(PermissionMap.Permissions)}", Required: false);
+        }
+
+        var parts = new List<string>();
+        parts.AddRange(unread.Select(resource => $"no {ResourceName(resource)} token, so its permissions are not read (the sign-in row says why)"));
+        if (missing.Count > 0)
+        {
+            parts.Add("not consented: " + string.Join("; ", PermissionMap.Rows
+                .Select(row => (row.Commands, Missing: row.Permissions.Where(Missing).Select(permission => permission.Name).ToList()))
+                .Where(row => row.Missing.Count > 0)
+                .Select(row => $"{row.Commands} ({string.Join(", ", row.Missing)})")));
+        }
+
+        return new(name, CheckStatus.Warn, string.Join("; ", parts), Required: false,
+            missing.Count == 0 ? null : $"an administrator consents to {ByApi(missing)} in the portal (the setup guide's Permissions table), then `m365-aegis login`");
+    }
+
+    /// <summary>Permissions grouped by their API, in the order given: <c>A, B (Microsoft Graph) and C (Exchange Online)</c>.</summary>
+    private static string ByApi(IEnumerable<NeededScope> permissions) =>
+        string.Join(" and ", permissions.GroupBy(permission => permission.Resource)
+            .Select(api => $"{string.Join(", ", api.Select(permission => permission.Name))} ({PermissionMap.ApiName(api.Key)})"));
 
     internal static DoctorCheck CheckEndpoint(string name, Uri endpoint, EndpointAnswer answer)
     {

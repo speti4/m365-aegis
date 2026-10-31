@@ -1164,8 +1164,8 @@ opening a diff tool in a non-interactive run.
 framework-dependent publish relies on (D-007; task 008). Each check is a row with `pass`, `warn`, `fail` (`FAIL`
 when it is required) or `skip`; a warning or a failure carries a hint, which the table prints under the rows as a
 `fix <check>: …` line and the envelope as the check's `hint`. A required check that fails makes the report fail
-with exit code 10; every other outcome exits 0. `--offline` skips the sign-in and the endpoints, the two checks
-that need the network.
+with exit code 10; every other outcome exits 0. `--offline` skips the sign-in, its consent and the endpoints, the
+checks that need the network.
 
 | check | required | pass | warn | fail (with the fix) |
 | --- | --- | --- | --- | --- |
@@ -1181,6 +1181,7 @@ that need the network.
 | `config` | no | the profiles and the default | no file (the login command), no profile, or no default (`profile use`) | the file does not parse, or a profile lacks a value |
 | `device` | no | Entra-joined with a primary refresh token | registered only, or joined without a primary refresh token (task 013: the silent sign-in as the Windows account fails, the profile's account signs in instead), or `dsregcmd` unreadable | neither joined nor registered (Settings > Accounts > Access work or school) |
 | `sign-in` | no | the silent sign-in of `whoami`: the account and each token's expiry | no profile, or a resource without a token (the consent) | the silent sign-in failed (`login`) |
+| `consent` | no | every permission of the setup guide's permissions table is in the scopes of its API's token, named per API | a permission is not, with each table row that misses one and the permissions it misses, and the consent of the missing ones as the fix; or a resource has no token, so its permissions are not read | none; skipped offline and when the sign-in read no token |
 | `endpoint-login`, `endpoint-graph`, `endpoint-exchange` | yes | any HTTP answer from `login.microsoftonline.com`, `graph.microsoft.com`, `outlook.office365.com` | a proxy asks for authentication (407), or slower than 3 s | no answer within 10 s (the network, the proxy, the firewall) |
 
 The pwsh and module checks are one pwsh call; the device check reads `AzureAdJoined`, `WorkplaceJoined` and
@@ -1199,14 +1200,31 @@ certificate, and otherwise says the signer is not the release's. A signature tha
 passes only when its certificate is the release's (task 093): `Authenticode.ReleaseThumbprint` pins its thumbprint
 in the Core, and the release notes of every signed release print the same value (the second place it is written);
 any other trusted signer is a warning naming it with its thumbprint, so a machine that trusts a wrong certificate
-does not see a pass on a replaced exe. A new certificate is a change of the pin and a release of its own, and the
-release notes of that release name the new thumbprint. The test seam is the `M365AEGIS_TEST_RELEASE_THUMBPRINT`
+does not see a pass on a replaced exe. A new certificate is a change of the pin and a release of its own, in that
+order (the release script refuses a certificate the code does not pin, task 095; [The release](#the-release) has the
+steps), and the release notes of that release name the new thumbprint. The test seam is the `M365AEGIS_TEST_RELEASE_THUMBPRINT`
 environment variable: a thumbprint there replaces the pin, and the row's pass then says the certificate the variable
 pins instead of the release's, so the override is never silent. The interop is the one part excluded from the
 coverage ([Coverage](#coverage)); the names, the verdict of each `WinVerifyTrust` code and the pin's rule are tested,
 and `tests/release/sign-release.Tests.ps1` runs the doctor of a signed and of a changed folder in the `windows` job,
 and, in an elevated session (the job's runner), of a folder whose throwaway certificate the machine trusts for the
 length of the test: a warning, and a pass once the variable pins it.
+
+The `consent` check (task 109) compares the permissions each token of the sign-in row carries (the `scopes` that
+`whoami` lists, without the resource prefix and compared without case) with `PermissionMap` (`Auth/PermissionMap.cs`):
+one entry per row of the permissions table of `docs/setup.md` that names a delegated permission, with the row's
+section, its first column as the guide prints it and its permissions, each with its API (Microsoft Graph or Exchange
+Online). The guide is the one list an administrator reads, and the map follows it: `PermissionMapTests` reads the
+tables under "Permissions" back (the `###` heading, the first cell without its backticks, the backticked dotted names
+of the second cell) and holds the map to them row by row in the guide's order, and holds each API's permissions to the
+guide's Azure CLI lists (`Add-DelegatedPermission $graph …` and `$exchange …`), so a row added to the guide or a
+permission renamed in one place fails the test. A table row that names no permission (`call`, the snapshot reads) is
+not in the map. The warning names each row that misses a permission, with the permissions it misses, and its fix line
+names the missing permissions per API for the administrator to consent to, then `login`, since a consent reaches the
+tool with the next sign-in. A resource without a token is named as unread (the `sign-in` row says why) and its rows are
+not weighed. The roles of the table's last column are not checked: no token carries the account's Exchange Online
+roles, and the consent is what a skipped row of the guide leaves out. The check is not required: a permission left out
+costs only its commands, which end with exit code 8.
 
 The `home-access` check (tasks 078 and 088) reads the home folder's access list by SID: an allow entry that carries a
 read right (list the folder, or the generic read or all right of an inheritable entry) for any account but the
@@ -1458,7 +1476,11 @@ does not trust (the CI runner, a contributor's machine) is checked against itsel
 the certificate as the only trusted root, for code signing. The certificate must hold its private key, the code
 signing usage and a date that has not passed. Without `-CertificatePath` the zip is unsigned and the output's
 `signing:` line says so; `-RequireSignature`, which the release job passes, fails before anything is built when no
-certificate or no timestamp server is given. `signtool` comes from the Windows SDK (on `PATH`, or the newest
+certificate or no timestamp server is given, or when the certificate is not the one the doctor pins (task 095): the
+script opens the PFX, reads its thumbprint and compares it with `Authenticode.ReleaseThumbprint` in the Core's source,
+the file the publish compiles, and the refusal names both thumbprints. The doctor's test seam
+`M365AEGIS_TEST_RELEASE_THUMBPRINT` replaces the pin there too, for the tests, and is refused with `-Tag`, so a tagged
+release is always held to the pin in the code. `signtool` comes from the Windows SDK (on `PATH`, or the newest
 `Windows Kits\10\bin\<version>\x64`), which the `windows-latest` runner has. `tests/release/sign-release.Tests.ps1`
 (Pester, in the `windows` job) signs copies of the built files with a throwaway certificate that
 `tests/release/new-test-certificate.ps1` makes in memory and no store holds, checks that a package's assembly and the
@@ -1466,7 +1488,8 @@ sidecar script are left alone, that a wrong password and a missing file are refu
 folder (`signature` names the signer and warns that it is not trusted, with the hint for a signer that is not the
 release's, or, pinned through `M365AEGIS_TEST_RELEASE_THUMBPRINT`, the hint to trust it) and of one with a byte
 changed after the signing (`signature` fails), and that `release.ps1 -RequireSignature` refuses to start without a
-certificate. In an elevated session it also puts the throwaway certificate into the local machine's root store for
+certificate, with the throwaway certificate (both thumbprints named), and with the seam set for a tagged release, and
+gets past the pin to its next check once the seam pins the throwaway certificate. In an elevated session it also puts the throwaway certificate into the local machine's root store for
 two tests and takes it out afterwards (task 093): the doctor of a folder it signed warns that the trusted signer is
 not the release's, and passes once the variable pins it. A shell that is not elevated skips the two, the `windows`
 job's runner runs them.
@@ -1475,13 +1498,23 @@ The certificate lives in the repository's `release` environment, never in the re
 `SIGNING_CERTIFICATE` holds the PFX file in base64 and `SIGNING_CERTIFICATE_PASSWORD` its password. The release job
 writes the file into the runner's temporary folder for the run and removes it afterwards; a tag without the secret
 fails the release. The certificate is a self-signed one the team's machines trust (D-012), and its thumbprint is
-the one the doctor pins (`Authenticode.ReleaseThumbprint`, task 093); a new certificate changes the pin in the same
-change that replaces the secret. It goes in as a PFX file:
+the one the doctor pins (`Authenticode.ReleaseThumbprint`, task 093). It goes in as a PFX file:
 
 ```powershell
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("signing.pfx")) | gh secret set SIGNING_CERTIFICATE --env release
 gh secret set SIGNING_CERTIFICATE_PASSWORD --env release     # asks for the value
 ```
+
+**A new certificate** (a rotation, or one that expires) goes in in this order, pin first and release second, since
+`-RequireSignature` refuses a certificate the code does not pin (task 095):
+
+1. Pin it: `Authenticode.ReleaseThumbprint` gets the new thumbprint (`(Get-PfxCertificate signing.pfx).Thumbprint`),
+   in a pull request of its own, merged to `main`. The releases signed by the old certificate keep their own pin, so
+   their doctors stay green.
+2. Replace the two secrets of the `release` environment with the new PFX and its password, as above.
+3. Tag the release. Its notes name the new thumbprint, and the team's machines get the new `.cer` as D-012 says. A
+   tag pushed between 1 and 2 fails in the release job with both thumbprints named, before anything is built; once
+   the secrets are replaced, the failed job is run again (a `v*` tag is not moved).
 
 Pushing a tag `v<version>` runs every job; when they pass, the `release` job checks that the tag is on `main`,
 runs `release.ps1 -RequireSignature` with the certificate, attests the build provenance of the zip and publishes it

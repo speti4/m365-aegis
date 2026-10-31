@@ -9,7 +9,7 @@ namespace M365Aegis.Cli.Commands;
 
 /// <summary>
 /// <c>m365-aegis doctor</c>: the prerequisites, one line each, a fix line for each warning and failure, and exit code
-/// 10 when a required one is missing (task 008). <c>--offline</c> skips the checks that need the network (the sign-in
+/// 10 when a required one is missing (task 008). <c>--offline</c> skips the checks that need the network (the sign-in, its consent
 /// and the endpoints). The result type is <see cref="DoctorReport"/>; the envelope carries it as it is, the table is
 /// <see cref="DoctorTableView"/>.
 /// </summary>
@@ -19,9 +19,9 @@ internal static class DoctorCommand
     {
         Option<bool> offline = new("--offline")
         {
-            Description = "Skip the checks that need the network (the sign-in and the endpoints).",
+            Description = "Skip the checks that need the network (the sign-in, its consent and the endpoints).",
         };
-        Command command = new("doctor", "Check the prerequisites: pwsh and the Exchange Online module, the sidecar script, the exes' signatures, WebView2, the device, the sign-in, the endpoints.");
+        Command command = new("doctor", "Check the prerequisites: pwsh and the Exchange Online module, the sidecar script, the exes' signatures, WebView2, the device, the sign-in and its consent, the endpoints.");
         command.Options.Add(offline);
         command.SetAction((parsed, cancellationToken) => CommandRunner.RunAsync(
             Program.ResolveMode(parsed, json, table),

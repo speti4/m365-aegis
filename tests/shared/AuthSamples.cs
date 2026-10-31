@@ -18,6 +18,25 @@ internal static class AuthSamples
     /// <summary>A Graph token from the cache and no Exchange Online token: the consent is missing.</summary>
     internal static SignInInfo NoExchangeToken => Read("no-exchange-token.json");
 
+    /// <summary>
+    /// Both tokens with every permission of the setup guide's table (task 109), named here rather than read from the
+    /// map, so a permission the map gains shows in the doctor's tests too.
+    /// </summary>
+    internal static SignInInfo EveryPermission => WithScopes(
+        ["User.Read", "User.ReadBasic.All", "GroupMember.Read.All", "Team.ReadBasic.All", "Sites.Read.All", "AuditLog.Read.All",
+            "Application.Read.All", "ExchangeMessageTrace.Read.All", "Reports.Read.All", "GroupMember.ReadWrite.All", "Group.ReadWrite.All"],
+        ["Exchange.Manage", "Exchange.ManageV2"]);
+
+    /// <summary>The signed-in sample with the given permissions on its Graph and its Exchange Online token.</summary>
+    internal static SignInInfo WithScopes(IReadOnlyList<string> graph, IReadOnlyList<string> exchange)
+    {
+        SignInInfo signedIn = SignedIn;
+        return signedIn with
+        {
+            Tokens = [.. signedIn.Tokens.Select(token => token with { Scopes = token.Resource == Resource.Graph ? graph : exchange })],
+        };
+    }
+
     /// <summary>One account record removed.</summary>
     internal static SignOutInfo SignedOut { get; } = new("default", "alice@contoso.com", 1);
 

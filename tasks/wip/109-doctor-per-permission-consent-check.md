@@ -36,12 +36,12 @@ guide's table. The live run over the maintainer's real token is the main session
 
 ## Steps
 
-1. [ ] The shape: the command-to-permission map in the Core (Graph scopes and the Exchange roles, as `docs/setup.md`'s
+1. [x] The shape: the command-to-permission map in the Core (Graph scopes and the Exchange roles, as `docs/setup.md`'s
        table lists them), a test that reads the table and holds the map to it; the step's design in the Log
-2. [ ] The check in `Doctor.cs`: the permissions of each cached token against the map, a warning that names the
+2. [x] The check in `Doctor.cs`: the permissions of each cached token against the map, a warning that names the
        missing table rows with the consent as the fix line, a pass when every one is consented, a plain line when no
        token is cached (today's `sign-in` row stays)
-3. [ ] The offline tests over scripted tokens: a missing permission warns with the row's name, a full set passes; the
+3. [x] The offline tests over scripted tokens: a missing permission warns with the row's name, a full set passes; the
        output contract's snapshot tests of the doctor
 4. [ ] The live run over the maintainer's token (the main session's) in the Verification; docs under *Docs that move*;
        `tasks_check` without `write` clean apart from the stale index
@@ -49,14 +49,52 @@ guide's table. The live run over the maintainer's real token is the main session
 ## Log
 
 - 2026-10-31 — promoted on `task/109-doctor-consent-and-release-pin` by the main session
+- 2026-10-31 — the design (step 1), decided by the task session:
+  - **The map**: `Auth/PermissionMap.cs` holds one `PermissionRow` per row of `docs/setup.md`'s permissions tables
+    that names a delegated permission (15 rows): the section (the `###` heading), the first column as the guide prints
+    it without the backticks, and the permissions, each a `NeededScope` with its API (`Resource.Graph` or
+    `Resource.Exchange`). Rows that name no permission (`call`, the snapshot reads) are left out.
+  - **The test that holds it**: `PermissionMapTests` reads the tables under `## Permissions` (section, first cell,
+    the backticked dotted names of the second cell, so `--all-types` is not a permission) and compares them with the
+    map row by row in the guide's order; the API of each permission is held by the guide's Azure CLI lists
+    (`Add-DelegatedPermission $graph …` and `$exchange …` equal the map's permissions per resource). The guide needed
+    no new column or anchor: its text stays the administrator's.
+  - **The check**: a `consent` row after `sign-in`, which hands its `SignInInfo` on (no second sign-in). Each
+    acquired token's scopes (as `whoami` lists them: no resource prefix, compared without case) against the map: a
+    pass names every permission per API; a warning names each table row that misses a permission with the ones it
+    misses, and the fix line names the missing permissions per API to consent to, then `login`; a resource without a
+    token is named as unread (the `sign-in` row has the reason and the fix) and its rows are not weighed; skipped
+    offline and when no token was read. Not required.
+  - **Roles are not checked**: the Context asks for what the tokens carry; no token names the account's Exchange
+    Online roles (RBAC lives in Exchange), and the Entra roles would need another claim or call. The consent of the
+    two Exchange scopes is checked like the Graph ones.
+  - **No implied permission**: `GroupMember.ReadWrite.All` is not taken for `GroupMember.Read.All`; the table is the
+    one list, and its Azure CLI block consents to both.
 
 ## Deviations from the plan
 
-- none yet
+- Step 1 named "the Exchange roles": the map holds the two Exchange Online delegated permissions (`Exchange.Manage`,
+  `Exchange.ManageV2`), not the roles of the table's last column, which no token carries (the design above).
+- `docs/setup.md` is unchanged: the test reads the tables as they are, so the guide needed neither a column nor an
+  anchor.
+- `M365Aegis.Cli/Commands/DoctorCommand.cs`: the command's description and `--offline`'s name the consent too.
 
 ## Verification
 
-- <dated, concrete: the two scripted-token runs, the live doctor's consent row>
+- 2026-10-31 — offline, over scripted tokens (`DoctorTests`): every permission of the table consented → `consent`
+  pass naming the 11 Microsoft Graph and 2 Exchange Online permissions; `AuditLog.Read.All` left out → warn
+  `not consented: signin list, audit list (AuditLog.Read.All)`, fix `an administrator consents to AuditLog.Read.All
+  (Microsoft Graph) in the portal (the setup guide's Permissions table), then m365-aegis login`; `Exchange.ManageV2`
+  left out → the four Exchange rows that need it named; no Exchange Online token → named as unread, the Graph rows
+  still checked; no token → skipped; the whole doctor over `AuthService` and `MarkedTokenBroker` (the scopes with
+  their resource prefix, stripped as `whoami` shows them) → warn with the missing rows. `PermissionMapTests`: the 15
+  rows of the guide's tables equal the map, and the Azure CLI lists equal its permissions per API.
+- 2026-10-31 — the local matrix in the worktree: restore `--locked-mode`, format, the full build, `dotnet test`
+  (1545 passed, 0 failed), coverage 100% lines and branches of the Core and the Cli, `changelog.py --check`,
+  `check-fixtures.py --self-test` and the scan (0 findings), `doctor --offline` exit 0 (`consent` skipped, offline
+  run), `whoami` exit 3 on an empty home, the window's `--smoke` exit 0; the doctor's snapshots (envelope and table)
+  carry the new row.
+- LIVE
 
 ## Closing checklist
 
