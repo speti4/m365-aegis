@@ -107,8 +107,8 @@ session; nothing is applied.
   alice@contoso.com --dry-run` exit 0, 1 change, 1 unchanged, 0 warnings, backend `graph+pwsh`; the `--table` form
   lists the change; `--yes` exit 0 with the fake's record of `Set-DistributionGroup -ManagedBy @{Add=dave@contoso.com}`.
 - 2026-10-30 — live, the main session's signed-in round (this branch's build, dry runs only, nothing applied; the
-  tenant has 135 distribution groups, 15 cloud-only and 120 synced, 13 mail-enabled security groups and 434 Microsoft
-  365 groups): `group owners add <cloud-only distribution group> <a non-owner> --dry-run --json` exit 0, 4988 ms wall
+  tenant has a hundred-odd distribution groups, most of them synced, a dozen mail-enabled security groups and a few
+  hundred Microsoft 365 groups): `group owners add <cloud-only distribution group> <a non-owner> --dry-run --json` exit 0, 4988 ms wall
   (4868 ms in the envelope, a sidecar started), backend `graph+pwsh`, mode `dry-run`, 1 change, 0 unchanged, 0
   warnings, 3 request ids, each change with `index` and `key`; the `--table` form exit 0 in 3939 ms, one row `not an
   owner` → `an owner`, `planned`; `group owners add <synced distribution group> <user> --dry-run` exit 0 in 1102 ms,

@@ -36,28 +36,33 @@ passes, and `CHANGELOG.md` is unchanged.
 
 ## Steps
 
-1. [ ] Round the figures in `docs/development.md` and `README.md`
-2. [ ] Round the figures in `tasks/decisions/D-004` and `D-011`
-3. [ ] Round the figures in the done tasks and backlog 100
-4. [ ] The CLAUDE.md clause
-5. [ ] Verification: the grep is empty, `check-fixtures.py` passes, `CHANGELOG.md` unchanged, `tasks_check` green
+1. [x] Round the figures in `docs/development.md` and `README.md`
+2. [x] Round the figures in `tasks/decisions/D-004` and `D-011`
+3. [x] Round the figures in the done tasks and backlog 100 (and the drive-level counts of the 092 spike and task 084, found by the sweep)
+4. [x] The CLAUDE.md clause
+5. [x] Verification: the grep is empty, `check-fixtures.py` passes, `CHANGELOG.md` unchanged, `tasks_check` green
 
 ## Log
 
 - 2026-10-31 — promoted from the backlog as the branch's first commit
+- 2026-10-31 — 23 files: a scripted pass of exact-substring replacements (each asserted to match once), then three sweeps for
+  counts next to the tenant's nouns caught the drive-level figures of the 092 spike, the snapshot row counts of 084 and 087
+  and the group kinds of 089, which the first grep had missed; the per-kind breakdowns became proportions
 
 ## Deviations from the plan
 
-- none yet
+- the sweep reached beyond the 16 files the audit named: 22 files carried a figure once the drive, item and grantee counts
+  of the sharing spike counted too
 
 ## Verification
 
-- pending
+- 2026-10-31 — `git grep` for every known count over `docs/`, `tasks/`, `README.md` and `CLAUDE.md` is empty;
+  `scripts/check-fixtures.py`: 498 files, 0 findings; `scripts/changelog.py --check`: up to date; `tasks_check` green
 
 ## Closing checklist
 
-- [ ] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
+- [x] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log (none found)
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
+- [x] `tasks_check` green, README index regenerated
 - [ ] moved to `done/` with `closed: YYYY-MM-DD`

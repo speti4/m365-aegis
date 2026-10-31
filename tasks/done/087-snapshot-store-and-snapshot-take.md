@@ -161,11 +161,12 @@ the round.
   11 min 8 s, 2,920,448 bytes, but `sharing` partial with 1,036 permission reads answered 429 `activityLimitReached`
   inside `$batch` (the command's throttling budget ran out) and a 259,348-character note carried into every `access`
   answer; both fixed (the Log, the deviation).
-- 2026-10-31, live, second run of the fixed build: exit 0 in 24 min 35 s (`elapsedMs` 1,474,366), 6,803,456 bytes,
-  no failed domain, nothing pruned (both snapshots are today's), no `.partial` left, no warning; users 1021, groups
-  2446, mailboxes 621, members 18,777, userGroups 18,988, owners 524, teams 305, sites 111 (partial: 2 libraries
-  answered 403, the note bounded), sharing 21,340 rows with 0 items failed (nothing throttled past the take's budget),
-  oneDrive skipped, grants 717, folderPermissions 1,461, forwarding 39. `snapshot list`: 2 snapshots, 0 unreadable.
+- 2026-10-31, live, second run of the fixed build: exit 0 in 24 min 35 s (`elapsedMs` 1,474,366), under 7 MB,
+  no failed domain, nothing pruned (both snapshots are today's), no `.partial` left, no warning; about a thousand
+  users, some 2,500 groups, some 600 mailboxes, members and userGroups under twenty thousand each, a few hundred
+  owners and teams, a hundred-odd sites (partial: 2 libraries answered 403, the note bounded), sharing some twenty
+  thousand rows with 0 items failed (nothing throttled past the take's budget), oneDrive skipped, a few hundred
+  grants, over a thousand folderPermissions, a few dozen forwarding rows. `snapshot list`: 2 snapshots, 0 unreadable.
   The 11 minutes against 24.6 are the price of honoring `Retry-After` on about 1,000 permission reads and of the
   permission batches one at a time: fine for a nightly take.
 

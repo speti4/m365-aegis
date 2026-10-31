@@ -91,8 +91,8 @@ it is older than 36 hours. The live timing over a tenant snapshot is the main se
   open to every user, 1 to anonymous; the warnings name the partial `sites` and the skipped `oneDrive`.
 - 2026-10-31: without a snapshot, `access` ends with exit 4, `error: no snapshot of the profile 'contoso' yet` and the
   take as its hint; the whole local matrix as in task 087's Verification.
-- 2026-10-31, live (the main session, over the tenant snapshot of 6,803,456 bytes): `access <the admin's UPN>
-  --json` in a cold process 206, 195 and 201 ms, exit 0: 90 groups, 44 sites, 5,463 shared items, 0 mailboxes, 0
+- 2026-10-31, live (the main session, over the tenant snapshot, under 7 MB): `access <the admin's UPN>
+  --json` in a cold process 206, 195 and 201 ms, exit 0: dozens of groups and sites, a few thousand shared items, 0 mailboxes, 0
   calendars, everyone 3,558 organization-wide links, 0 anonymous, 29 calendars open to every user, 0 to anonymous; age
   0.4 hours; two warnings, both bounded and without names (sites partial, oneDrive skipped). Over the first, throttled
   snapshot (2,920,448 bytes) it was 171 to 176 ms. `access nobody@<the tenant's domain>` exit 4.

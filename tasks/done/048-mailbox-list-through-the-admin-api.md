@@ -73,8 +73,8 @@ sidecar's allow-list and write commands under `mailbox`; this task changes the r
   backend `admin-api` and 6 (or with `--shared` 2) mailboxes; without an Admin API it is `pwsh`; the table snapshot.
   The command line's existing snapshots unchanged. `dotnet test`: 645 passed, 0 failed.
 - 2026-10-30, live (the main session's signed-in round, the broker's cached token): `mailbox list --json --verbose`
-  exit 0, backend `admin-api`, no pwsh child, 621 mailboxes in 7.5 s; `--shared` backend `admin-api`, no pwsh child,
-  219 shared mailboxes in 6.3 s. `mailbox size --top 5` (the report method): backend `graph+admin-api`, no pwsh
+  exit 0, backend `admin-api`, no pwsh child, some 600 mailboxes in 7.5 s; `--shared` backend `admin-api`, no pwsh child,
+  the shared ones in 6.3 s. `mailbox size --top 5` (the report method): backend `graph+admin-api`, no pwsh
   child, 6.5 s; Graph's usage report answered after 1875 ms, the Admin API's mailbox list after 6504 ms (report day
   2026-10-27, 5 sizes, 30 mailboxes not in the report yet). The slow half of the report method is the mailbox list,
   not the usage report; the 16 s of 2026-10-30 (task 043) are 6.5 s now.

@@ -52,8 +52,8 @@ session's signed-in round, `--dry-run` and reads only. The parallel writes bundl
   `DeliverToMailboxAndForward`, and `Get-AcceptedDomain` side by side, matched a `ForwardingAddress` against the list's
   mailboxes and started the sidecar only for a target no mailbox answered to; made-up fixtures of the list with the
   forwarding fields and 8 Core and Cli tests held it offline.
-- 2026-10-30 — the main session's first live run of it: exit 0, backend `admin-api`, 621 mailboxes, 13 accepted
-  domains, 0 forwarders, 11344 ms, no pwsh child, where the sidecar's read of the same tenant finds 38. The Admin
+- 2026-10-30 — the main session's first live run of it: exit 0, backend `admin-api`, some 600 mailboxes, the accepted
+  domains, 0 forwarders, 11344 ms, no pwsh child, where the sidecar's read of the same tenant finds a few dozen. The Admin
   API's `Get-Mailbox` answers the endpoint's core properties only (15–16 names: Alias, DisplayName, EmailAddresses,
   ExternalDirectoryObjectId, GrantSendOnBehalfTo(WithDisplayNames), HiddenFromAddressListsEnabled, Id, Identity,
   MaxSendSize, Name, PrimarySmtpAddress, RecipientType, RecipientTypeDetails, UserPrincipalName), as its
@@ -83,8 +83,8 @@ session's signed-in round, `--dry-run` and reads only. The parallel writes bundl
 ## Verification
 
 - 2026-10-30, live (the main session's round, the broker's cached token, reads only): this branch's first build,
-  `mailbox forwarders`: backend `admin-api`, 621 mailboxes, 0 forwarders, 11344 ms, no pwsh child; the sidecar's read
-  (bundle B's build, `pwsh`): 620 mailboxes, 13 accepted domains, 38 forwarders (15 external, kinds `recipient` and
+  `mailbox forwarders`: backend `admin-api`, some 600 mailboxes, 0 forwarders, 11344 ms, no pwsh child; the sidecar's read
+  (bundle B's build, `pwsh`): the same mailboxes, the accepted domains, a few dozen forwarders (a third external, kinds `recipient` and
   `smtp-address`), 11493 ms. `probe admin-api --mailbox <a forwarding mailbox> --forwarding`: `Mailbox (select)` 200,
   forwarding fields none (shape `value[0].Identity: string`); `Mailbox (properties)` 400 `BadRequest Invalid
   parameter(s) for cmdlet 'Get-Mailbox': Properties`; `Mailbox (property-sets-delivery)` and `(property-sets-all)` 400,

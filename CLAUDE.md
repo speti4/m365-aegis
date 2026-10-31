@@ -31,8 +31,10 @@ lock files, `gui/web` or `.github/` change); a change that closes a task regener
 
 ## Data outside the repo (never commit)
 - The tenant's data never enters the repo: no tenant name or id, client id, user principal name, mailbox
-  address, object id, sign-in record, token or certificate; fixtures are scrubbed to `contoso.com` and
-  `00000000-0000-0000-0000-0000000000NN` ids (`tests/fixtures/README.md`, `scripts/check-fixtures.py` holds it)
+  address, object id, sign-in record, token or certificate, and no exact size figure of the tenant either (a count
+  of its users, groups, mailboxes, sites or rows is written rounded to an order of magnitude; timings and per-item
+  costs may stay); fixtures are scrubbed to `contoso.com` and `00000000-0000-0000-0000-0000000000NN` ids
+  (`tests/fixtures/README.md`, `scripts/check-fixtures.py` holds it)
 - The tenant profiles (`config.json`), the MSAL cache, the WebView2 data folder, the logs and the plan records live
   under `%LOCALAPPDATA%\m365-aegis\` (D-005; `M365AEGIS_HOME` overrides it, the tests point it at a temp folder);
   the maintainer's tenant, app registration ids and local paths stay in the gitignored `CLAUDE.local.md`

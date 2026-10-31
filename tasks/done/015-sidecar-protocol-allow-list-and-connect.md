@@ -90,10 +90,10 @@ runs in the main session's signed-in round.
   findings); with an empty `M365AEGIS_HOME` `doctor --offline` exited 0 (`sidecar-script` passes on the changed
   script), `whoami` 3, `mailbox list` 3; the window's `--smoke` 0; `release.ps1 -DryRun` green. The new test data
   went through the anonymizer scan, which flagged only the made-up contoso, fabrikam and example addresses
-- 2026-10-29 — against the tenant (620 mailboxes), in the main session's signed-in round (evening, UTC+1) from
+- 2026-10-29 — against the tenant (some 600 mailboxes), in the main session's signed-in round (evening, UTC+1) from
   this branch's Release build, ExchangeOnlineManagement 3.10.1, pwsh 7.6.9: the sidecar connected with the
-  broker's token at the first try (task 009); `mailbox list` exit 0 in 5419 ms, 620 mailboxes (381 user, 219
-  shared, 18 room, 2 scheduling); `mailbox list --shared` exit 0 in 4390 ms, 219. The not-found message was cut
+  broker's token at the first try (task 009); `mailbox list` exit 0 in 5419 ms, some 600 mailboxes (user, shared, a
+  few room and scheduling); `mailbox list --shared` exit 0 in 4390 ms, the shared ones. The not-found message was cut
   to one sentence after this round (Log); the code and the hint were right
 - 2026-10-29 — re-checked live from the rebuilt exe (around 22:20, UTC+1): `mailbox access <no such address>`
   exit 4 in 3482 ms, `not-found`, the message `mailbox '<the address as given>' not found` and the hint naming

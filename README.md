@@ -166,7 +166,7 @@ through Graph:
 ```
 
 A folder given with `--folder` is named as the mailbox's own language names it. `mailbox access --user` reads every
-mailbox's permissions with 4 sidecars at once (about 40 s over 620 mailboxes; `--sidecars N`, or `--method piped`
+mailbox's permissions with 4 sidecars at once (about 40 s over some 600 mailboxes; `--sidecars N`, or `--method piped`
 for one). `mailbox size` over every mailbox reads Microsoft 365's mailbox usage report, a few days old, whose day
 is under the table (`Reports.Read.All` for the app registration); `--method piped` or `parallel` reads the live
 sizes instead.

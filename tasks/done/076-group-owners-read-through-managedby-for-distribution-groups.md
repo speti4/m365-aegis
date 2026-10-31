@@ -84,8 +84,8 @@ steps below and may reshape them.
 - 2026-10-31 — live, after the merge: `group owners <a cloud-only distribution group>` answered in 6 s with a cold
   sidecar, backend `graph+pwsh`, `fromExchange: true`, one owner, and the table carried no footer; the maintainer
   confirmed the same single owner in the Exchange admin center. `group owners <a Microsoft 365 group>` answered in
-  1 s from Graph, backend `graph`. The tenant that day: 2446 groups, 135 distribution (120 synced), 13 mail-enabled
-  security (4 synced), 434 Microsoft 365, 1871 security (1798 synced).
+  1 s from Graph, backend `graph`. The tenant that day: some 2,500 groups, a hundred-odd distribution (most synced), a dozen
+  mail-enabled security (a few synced), a few hundred Microsoft 365, the rest security (nearly all synced).
 
 ## Closing checklist
 

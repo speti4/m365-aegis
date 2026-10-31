@@ -126,8 +126,8 @@ may reshape them. The live check runs in the main session's signed-in round.
   name and address). `mailbox folder-permissions <mailbox> --folder Naptár` exit 0 in 1101 ms, backend `admin-api`,
   2 entries; `--folder NoSuchFolder` exit 4 in 1187 ms; without `--folder` exit 4 on the first build, fixed in this
   change (Log). `mailbox group-members <group>` exit 0 in 968 ms, backend
-  `admin-api`, 2 members, 0 hidden. `mailbox organization` exit 0 in 782 ms, backend `admin-api`, 13 accepted
-  domains. A mailbox that does not exist: `nobody@example.invalid` exit 4 `not-found`, backend `admin-api+pwsh`
+  `admin-api`, 2 members, 0 hidden. `mailbox organization` exit 0 in 782 ms, backend `admin-api`, the tenant's
+  accepted domains. A mailbox that does not exist: `nobody@example.invalid` exit 4 `not-found`, backend `admin-api+pwsh`
   (`nobody@<the tenant's domain>` answered exit 0 with no grant: in this tenant that address is an alias of the
   Postmaster mailbox)
 - 2026-10-30 — re-checked live on the fixed Release build (00:52–00:54, the cached token): `mailbox

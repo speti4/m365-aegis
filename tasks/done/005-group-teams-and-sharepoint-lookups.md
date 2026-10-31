@@ -83,16 +83,16 @@ Bundled with 003 and 007 on one branch; the task session owns the steps below an
 ## Verification
 
 - 2026-10-29 — locally, on Windows: `dotnet restore --locked-mode`, `dotnet format --verify-no-changes`, the Release build with and without the front end (0 warnings), `dotnet test` 173 tests green, `changelog.py --check`, `check-fixtures.py` (92 files, 0 findings); with an empty `M365AEGIS_HOME` the exe printed its version, `doctor --offline` exited 0, `whoami` exited 3; `release.ps1 -DryRun` green. The new fixtures were run through the anonymizer scan, which flagged only the made-up contoso addresses and the zero GUIDs
-- 2026-10-29 — against the tenant (a tenant of about 180 ownerless groups and 300 teams), in the main session's
+- 2026-10-29 — against the tenant (a tenant of a couple of hundred ownerless groups and a few hundred teams), in the main session's
   signed-in round on the maintainer's machine over Remote Desktop, after the consent of the five delegated
   permissions and a fresh device-code login (`whoami` listed them on the Graph token), stdout redirected:
   `group members "<a group>"` exit 0 in 0.7 s, 2 request ids, 1 member; `group owners "<the same group>"` exit 0
   in 0.8 s, 2 request ids, 0 owners; an ambiguous word shared by many group names exit 4 `not-found`, "names 10
   groups, and maybe more", the candidates with their ids in the hint; `--json group owners-missing` exit 0 in
-  7.9 s (7889 ms elapsed), 3 request ids, 178 groups plus the left-out count: Graph accepted the `owners/$count
+  7.9 s (7889 ms elapsed), 3 request ids, a couple of hundred groups plus the left-out count: Graph accepted the `owners/$count
   eq 0` advanced query on groups, and the time is three paged requests over Remote Desktop, short of the "well
-  under a second" of the plan (a follow-up); `team list` exit 0 in 1.5 s, 4 request ids, 305 rows; `site list`
-  exit 0 in 2.0 s, 1 request id, 111 rows
+  under a second" of the plan (a follow-up); `team list` exit 0 in 1.5 s, 4 request ids, a few hundred rows; `site list`
+  exit 0 in 2.0 s, 1 request id, a hundred-odd rows
 
 ## Closing checklist
 
