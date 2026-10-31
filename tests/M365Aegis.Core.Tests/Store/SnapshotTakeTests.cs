@@ -32,7 +32,9 @@ public sealed class SnapshotTakeTests
             ["users ok 7", "groups ok 6", "mailboxes ok 6", "members ok 14", "userGroups ok 12", "owners ok 5", "teams ok 2", "sites partial 3", "sharing ok 7",
              "oneDrive skipped 0", "grants ok 7", "folderPermissions ok 14", "forwarding ok 3"],
             take.Domains.Select(domain => $"{domain.Name} {domain.Status.ToString().ToLowerInvariant()} {domain.Rows}"));
-        Assert.StartsWith("1 could not be read: Communication site: Microsoft Graph answered 403", take.Domains.Single(domain => domain.Name == "sites").Note, StringComparison.Ordinal);
+        SnapshotDomain sites = take.Domains.Single(domain => domain.Name == "sites");
+        Assert.StartsWith("1 could not be read (forbidden 1), for example Communication site: Microsoft Graph answered 403", sites.Note, StringComparison.Ordinal);
+        Assert.Equal((1, "forbidden 1"), (sites.ItemsFailed, sites.ItemFailures));
         Assert.Empty(take.Pruned);
         Assert.Empty(take.Snapshot.Failed);
 
@@ -164,6 +166,9 @@ public sealed class SnapshotTakeTests
         Assert.Empty(result.Data.Pruned);
         Assert.True(File.Exists(old));
         Assert.Equal(["folderPermissions"], SnapshotStore.List(home, "contoso").Snapshots[0].Failed);
+        Assert.Contains(
+            "folderPermissions could not be read in this snapshot; `m365-aegis snapshot show` names the failure",
+            SnapshotAccess.ForUser(home, "contoso", "alice@contoso.com", SnapshotSamples.Taken).Warnings);
     }
 
     [Fact]
@@ -178,7 +183,10 @@ public sealed class SnapshotTakeTests
         SnapshotDomain calendars = take.Domains.Single(domain => domain.Name == "folderPermissions");
         Assert.Equal(SnapshotDomainStatus.Partial, calendars.Status);
         Assert.Equal(0, calendars.Rows);
-        Assert.StartsWith("6 could not be read: alice@contoso.com: the Admin API refused; bob@contoso.com:", calendars.Note, StringComparison.Ordinal);
+        // Six failed, three named: a note stays short whatever the count.
+        Assert.Equal(
+            "6 could not be read (forbidden 6), for example alice@contoso.com: the Admin API refused; bob@contoso.com: the Admin API refused; carol@contoso.com: the Admin API refused",
+            calendars.Note);
         Assert.Equal(SnapshotDomainStatus.Ok, take.Domains.Single(domain => domain.Name == "mailboxes").Status);
     }
 

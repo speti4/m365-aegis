@@ -69,6 +69,13 @@ public sealed class GraphClient
     /// <summary>The request ids of every answer so far.</summary>
     public RequestLog RequestLog { get; }
 
+    /// <summary>
+    /// A client over the same transport and request log with another throttling budget, a fresh one, and the same clock
+    /// and jitter: the snapshot's take (task 087) is a long run that may wait where a command would fail.
+    /// </summary>
+    internal GraphClient WithBudget(int maxRetries, TimeSpan maxTotalDelay) =>
+        new(_transport, RequestLog, _options with { MaxRetries = maxRetries, MaxTotalDelay = maxTotalDelay });
+
     /// <summary>How long the client has waited on throttling so far.</summary>
     public TimeSpan Waited
     {

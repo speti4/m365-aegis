@@ -22,7 +22,14 @@ public enum SnapshotDomainStatus
 /// <param name="Read">Which read answered it.</param>
 /// <param name="Rows">The rows it wrote.</param>
 /// <param name="Note">What failed or why it was skipped; null when it was read whole.</param>
-public sealed record SnapshotDomain(string Name, SnapshotDomainStatus Status, string Read, int Rows, string? Note = null);
+public sealed record SnapshotDomain(string Name, SnapshotDomainStatus Status, string Read, int Rows, string? Note = null)
+{
+    /// <summary>How many items of a partial domain could not be read; 0 otherwise.</summary>
+    public int ItemsFailed { get; init; }
+
+    /// <summary>Those items counted by the failure's code (<c>throttled 3, forbidden 2</c>); null when none failed.</summary>
+    public string? ItemFailures { get; init; }
+}
 
 /// <summary>One snapshot file as <c>snapshot list</c> shows it.</summary>
 /// <param name="Name">The file's name, <c>yyyy-MM-ddTHHmmssZ.sqlite</c>, the UTC time of the take.</param>

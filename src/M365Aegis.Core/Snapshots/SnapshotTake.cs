@@ -38,6 +38,18 @@ public static class SnapshotTake
 
     private const string UserPermission = "User.ReadBasic.All";
 
+    /// <summary>
+    /// The retries of one request after a 429 or 503 within the take (a command's are 4): SharePoint answers a busy
+    /// tenant's permission reads with <c>activityLimitReached</c> and a <c>Retry-After</c>, item by item inside a batch.
+    /// </summary>
+    internal const int TakeRetries = 8;
+
+    /// <summary>The longest the take waits on throttling in all (a command's is a minute): a nightly run may wait.</summary>
+    internal static readonly TimeSpan TakeBudget = TimeSpan.FromHours(1);
+
+    /// <summary>The examples of failed items a domain's note names; the rest are counted by their failure.</summary>
+    internal const int NoteExamples = 3;
+
     /// <summary>Takes a snapshot, writes it, and prunes the older ones by the profile's retention when every domain was read.</summary>
     /// <exception cref="AegisException">The sign-in failed, every domain failed, the profile's retention or name is wrong, or the file system refused.</exception>
     public static async Task<CommandResult<SnapshotTakeResult>> RunAsync(ExchangeBackends backends, SnapshotTakeOptions options, CancellationToken cancellationToken)
@@ -156,12 +168,16 @@ public static class SnapshotTake
     }
 
     /// <summary>What one domain's read gave: its rows, the items it could not read, and a remark for the manifest.</summary>
-    private sealed record DomainRead(int Rows, IReadOnlyList<string> Failed, string? Remark = null);
+    private sealed record DomainRead(int Rows, IReadOnlyList<Unread> Failed, string? Remark = null);
+
+    /// <summary>An item a domain could not read: what it is, with the service's message, and the failure's code.</summary>
+    private sealed record Unread(string What, string Code);
 
     /// <summary>The reads of one take, domain by domain, into one <see cref="SnapshotBuilder"/>.</summary>
     private sealed class Reads(ExchangeBackends backends, SnapshotTakeOptions options, CancellationToken cancellationToken)
     {
-        private readonly GraphClient _graph = backends.Graph;
+        // The take's own budget over the command's client: the same transport, the same request log.
+        private readonly GraphClient _graph = backends.Graph.WithBudget(TakeRetries, TakeBudget);
         private List<GroupInfo> _groups = [];
         private IReadOnlyList<MailboxInfo> _mailboxes = [];
 
@@ -209,6 +225,8 @@ public static class SnapshotTake
             try
             {
                 DomainRead result = await work().ConfigureAwait(false);
+                // The note stays short whatever the count: the failures by code, and the first few items as examples.
+                string codes = string.Join(", ", result.Failed.GroupBy(item => item.Code).OrderBy(group => group.Key, StringComparer.Ordinal).Select(group => $"{group.Key} {group.Count()}"));
                 domain = result.Failed.Count == 0
                     ? new SnapshotDomain(name, SnapshotDomainStatus.Ok, read, result.Rows, result.Remark)
                     : new SnapshotDomain(
@@ -216,7 +234,11 @@ public static class SnapshotTake
                         SnapshotDomainStatus.Partial,
                         read,
                         result.Rows,
-                        string.Join("; ", new[] { $"{result.Failed.Count} could not be read: {string.Join("; ", result.Failed)}", result.Remark }.OfType<string>()));
+                        string.Join("; ", new[] { $"{result.Failed.Count} could not be read ({codes}), for example {string.Join("; ", result.Failed.Take(NoteExamples).Select(item => item.What))}", result.Remark }.OfType<string>()))
+                    {
+                        ItemsFailed = result.Failed.Count,
+                        ItemFailures = codes,
+                    };
             }
             catch (AegisException exception) when (exception.Failure.Kind != FailureKind.Auth)
             {
@@ -281,7 +303,7 @@ public static class SnapshotTake
                 AddOwners(groupId, owners, "graph");
             }
 
-            var failed = new List<string>();
+            var failed = new List<Unread>();
             foreach (GroupInfo group in _groups.Where(GroupWrites.ThroughExchange))
             {
                 try
@@ -290,7 +312,7 @@ public static class SnapshotTake
                 }
                 catch (AegisException exception) when (exception.Failure.Kind != FailureKind.Auth)
                 {
-                    failed.Add($"{group.DisplayName}: {exception.Message}");
+                    failed.Add(new Unread($"{group.DisplayName}: {exception.Message}", exception.Failure.Code));
                 }
             }
 
@@ -323,7 +345,7 @@ public static class SnapshotTake
             IReadOnlyList<GraphBatchResponse> answers = await _graph.BatchAsync(
                 sites.Select(site => GraphRequest.Get(GraphQuery.Path($"/sites/{site.SiteId}/drive", ("$select", "id,owner"))) with { Permission = WorkspaceLookups.SitePermission }).ToList(),
                 cancellationToken).ConfigureAwait(false);
-            var failed = new List<string>();
+            var failed = new List<Unread>();
             var noLibrary = new List<string>();
             foreach ((SnapshotSite site, GraphBatchResponse answer) in sites.Zip(answers))
             {
@@ -339,7 +361,7 @@ public static class SnapshotTake
                 }
                 catch (AegisException exception)
                 {
-                    failed.Add($"{site.Name}: {exception.Message}");
+                    failed.Add(new Unread($"{site.Name}: {exception.Message}", exception.Failure.Code));
                     continue;
                 }
 
@@ -357,13 +379,17 @@ public static class SnapshotTake
         /// <summary>
         /// The shared items of every site's library (task 092): the drive's <c>delta</c> with <c>Prefer:
         /// hierarchicalsharing</c> marks the items whose sharing differs from their parent's, and their permissions are
-        /// read twenty to a <c>$batch</c> call. Several drives are read at once; a drive that fails is an item that failed.
+        /// read twenty to a <c>$batch</c> call. Several drives' deltas are read at once, but their permissions one batch at
+        /// a time, which SharePoint throttles first (live: 1,036 of 2,218 items answered 429 with four drives at once); a
+        /// throttled item is sent again after its <c>Retry-After</c> within the take's budget. A drive that fails is an
+        /// item that failed.
         /// </summary>
         private async Task<DomainRead> SharingAsync()
         {
             List<SnapshotSite> sites = Builder.Sites.Where(site => site.DriveId is not null).ToList();
-            DriveRead[] reads = await EachAsync(sites, ReadDriveAsync).ConfigureAwait(false);
-            var failed = new List<string>();
+            using var permissionGate = new SemaphoreSlim(1, 1);
+            DriveRead[] reads = await EachAsync(sites, site => ReadDriveAsync(site, permissionGate)).ConfigureAwait(false);
+            var failed = new List<Unread>();
             foreach (DriveRead read in reads)
             {
                 failed.AddRange(read.Failed);
@@ -381,12 +407,12 @@ public static class SnapshotTake
             return new DomainRead(Builder.Links.Count, failed);
         }
 
-        private sealed record DriveRead(SnapshotSite Site, List<(DriveItem Item, IReadOnlyList<DrivePermission> Permissions)> Items, List<string> Failed, string? DeltaLink);
+        private sealed record DriveRead(SnapshotSite Site, List<(DriveItem Item, IReadOnlyList<DrivePermission> Permissions)> Items, List<Unread> Failed, string? DeltaLink);
 
-        private async Task<DriveRead> ReadDriveAsync(SnapshotSite site)
+        private async Task<DriveRead> ReadDriveAsync(SnapshotSite site, SemaphoreSlim permissionGate)
         {
             var items = new List<(DriveItem, IReadOnlyList<DrivePermission>)>();
-            var failed = new List<string>();
+            var failed = new List<Unread>();
             var shared = new List<DriveItem>();
             string? deltaLink;
             try
@@ -411,13 +437,23 @@ public static class SnapshotTake
             }
             catch (AegisException exception) when (exception.Failure.Kind != FailureKind.Auth)
             {
-                failed.Add($"{site.Name}: {exception.Message}");
+                failed.Add(new Unread($"{site.Name}: {exception.Message}", exception.Failure.Code));
                 return new DriveRead(site, items, failed, null);
             }
 
-            IReadOnlyList<GraphBatchResponse> answers = await _graph.BatchAsync(
-                shared.Select(item => GraphRequest.Get($"/drives/{site.DriveId}/items/{item.Id}/permissions") with { Permission = WorkspaceLookups.SitePermission }).ToList(),
-                cancellationToken).ConfigureAwait(false);
+            IReadOnlyList<GraphBatchResponse> answers;
+            await permissionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                answers = await _graph.BatchAsync(
+                    shared.Select(item => GraphRequest.Get($"/drives/{site.DriveId}/items/{item.Id}/permissions") with { Permission = WorkspaceLookups.SitePermission }).ToList(),
+                    cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                permissionGate.Release();
+            }
+
             foreach ((DriveItem item, GraphBatchResponse answer) in shared.Zip(answers))
             {
                 try
@@ -434,7 +470,7 @@ public static class SnapshotTake
                 }
                 catch (AegisException exception) when (exception.Failure.Kind != FailureKind.Auth)
                 {
-                    failed.Add($"{site.Name}: {item.Name}: {exception.Message}");
+                    failed.Add(new Unread($"{site.Name}: {item.Name}: {exception.Message}", exception.Failure.Code));
                 }
             }
 
@@ -520,7 +556,7 @@ public static class SnapshotTake
                 Builder.Grants.Add((mailbox, JsonNamingPolicy.KebabCaseLower.ConvertName(grant.Right.ToString()), holder.Key));
             }
 
-            return new DomainRead(Builder.Grants.Count, grants.Failed);
+            return new DomainRead(Builder.Grants.Count, grants.Failed.Select(message => new Unread(message, FailureKind.CmdletFailed.ToCode())).ToList());
         }
 
         /// <summary>
@@ -535,7 +571,7 @@ public static class SnapshotTake
                 throw new AegisException(FailureKind.ServiceError, "the calendars' permissions need the Exchange Online Admin API, which this run does not have");
             }
 
-            var failed = new List<string>();
+            var failed = new List<Unread>();
             (MailboxInfo Mailbox, MailboxFolderPermissions? Folder)[] reads = await EachAsync(_mailboxes, async mailbox =>
             {
                 try
@@ -546,7 +582,7 @@ public static class SnapshotTake
                 {
                     lock (failed)
                     {
-                        failed.Add($"{mailbox.PrimarySmtpAddress}: {exception.Message}");
+                        failed.Add(new Unread($"{mailbox.PrimarySmtpAddress}: {exception.Message}", exception.Failure.Code));
                     }
 
                     return (mailbox, null);
@@ -562,7 +598,7 @@ public static class SnapshotTake
                 }
             }
 
-            failed.Sort(StringComparer.Ordinal);
+            failed.Sort((left, right) => string.CompareOrdinal(left.What, right.What));
             return new DomainRead(Builder.FolderPermissions.Count, failed);
         }
 

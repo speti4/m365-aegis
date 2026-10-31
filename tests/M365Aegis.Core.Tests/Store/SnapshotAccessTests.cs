@@ -46,8 +46,9 @@ public sealed class SnapshotAccessTests
         Assert.Equal([new AccessCalendar("Carol Example", "carol@contoso.com", "Calendar", "Reviewer", "Finance Staff")], report.Calendars);
         Assert.Equal(new AccessEveryone(1, 1, 1, 1), report.Everyone);
         Assert.Equal(2, report.Warnings.Count);
-        Assert.StartsWith("sites is partial in this snapshot: 1 could not be read: Communication site", report.Warnings[0], StringComparison.Ordinal);
-        Assert.StartsWith("oneDrive is skipped in this snapshot: other users' OneDrives", report.Warnings[1], StringComparison.Ordinal);
+        // A warning counts, it names no site or file: those stay in `snapshot show`.
+        Assert.Equal("sites is partial in this snapshot: 1 item(s) could not be read (forbidden 1); `m365-aegis snapshot show` names them", report.Warnings[0]);
+        Assert.StartsWith("oneDrive was not read: other users' OneDrives", report.Warnings[1], StringComparison.Ordinal);
     }
 
     [Fact]

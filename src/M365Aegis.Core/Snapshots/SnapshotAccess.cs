@@ -192,9 +192,16 @@ public static class SnapshotAccess
             warnings.Add(string.Format(CultureInfo.InvariantCulture, "the snapshot is {0:0.#} hours old, older than {1}: run `m365-aegis snapshot take` for a fresh one", age, StaleHours));
         }
 
+        // A warning names the domain and counts, never an item: a note's examples (a site's or a file's name) stay in
+        // `snapshot show`.
         warnings.AddRange(detail.Domains
             .Where(domain => domain.Status != SnapshotDomainStatus.Ok)
-            .Select(domain => $"{domain.Name} is {domain.Status.ToString().ToLowerInvariant()} in this snapshot: {domain.Note}"));
+            .Select(domain => domain.Status switch
+            {
+                SnapshotDomainStatus.Partial => $"{domain.Name} is partial in this snapshot: {domain.ItemsFailed} item(s) could not be read ({domain.ItemFailures}); `m365-aegis snapshot show` names them",
+                SnapshotDomainStatus.Failed => $"{domain.Name} could not be read in this snapshot; `m365-aegis snapshot show` names the failure",
+                _ => $"{domain.Name} was not read: {domain.Note}",
+            }));
         return new AccessReport(detail.Snapshot.Name, detail.Snapshot.Taken, age, found, groups, sites, shared, mailboxes, calendars, everyone, warnings);
     }
 

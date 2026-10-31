@@ -30,6 +30,8 @@ public sealed class SnapshotEdgeTests
 
     private static readonly string[] Unified = ["Unified"];
 
+    private static readonly string[] Read = ["read"];
+
     private static readonly DateTimeOffset Now = new(2026, 11, 4, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
@@ -289,9 +291,9 @@ public sealed class SnapshotEdgeTests
 
         Dictionary<string, SnapshotDomain> domains = take.Domains.ToDictionary(domain => domain.Name);
         Assert.Equal(SnapshotDomainStatus.Partial, domains["owners"].Status);
-        Assert.Equal("1 could not be read: List: the group is gone", domains["owners"].Note);
+        Assert.Equal("1 could not be read (cmdlet-failed 1), for example List: the group is gone", domains["owners"].Note);
         Assert.Equal(SnapshotDomainStatus.Partial, domains["sites"].Status);
-        Assert.StartsWith("1 could not be read: Site s4: Microsoft Graph answered 500", domains["sites"].Note, StringComparison.Ordinal);
+        Assert.StartsWith("1 could not be read (service-error 1), for example Site s4: Microsoft Graph answered 500", domains["sites"].Note, StringComparison.Ordinal);
         Assert.EndsWith("; no document library: Site s1", domains["sites"].Note, StringComparison.Ordinal);
         Assert.Equal(SnapshotDomainStatus.Partial, domains["sharing"].Status);
         Assert.Contains("Site s3: Microsoft Graph answered 403", domains["sharing"].Note, StringComparison.Ordinal);
@@ -353,9 +355,9 @@ public sealed class SnapshotEdgeTests
             graph.Answer("/teams", 200, Page());
             graph.Answer("/sites", 200, Page(Site("s1")));
             graph.Answer("/sites/s1/drive", 200, new { id = "d1" });
+            graph.Answer(refused, 401, Error("InvalidAuthenticationToken"));
             graph.Answer("/drives/d1/root/delta", 200, new { value = new object[] { new { id = "i1", name = "A", shared = new { } } } });
             graph.Answer("/drives/d1/items/i1/permissions", 200, Page());
-            graph.Answer(refused, 401, Error("InvalidAuthenticationToken"));
             var backends = new ExchangeBackends(new CannedRunner(_ => new ExoResult([], [])), null, () => graph.Client);
 
             AegisException failure = await Assert.ThrowsAsync<AegisException>(() => SnapshotSamples.TakeAsync(SnapshotSamples.WriteProfile(PlanSamples.TempHome()), Now, backends: backends));
@@ -375,6 +377,66 @@ public sealed class SnapshotEdgeTests
         Assert.Equal(FailureKind.Auth, ownerFailure.Failure.Kind);
     }
 
+    [Fact]
+    public async Task AThrottledPermissionReadIsSentAgainPastACommandsBudget()
+    {
+        var graph = new ScriptedGraph();
+        graph.Answer("/users", 200, Page());
+        graph.Answer("/groups", 200, Page());
+        graph.Answer("/teams", 200, Page());
+        graph.Answer("/sites", 200, Page(Site("s1"), Site("s2")));
+        graph.Answer("/sites/s1/drive", 200, new { id = "d1" });
+        graph.Answer("/sites/s2/drive", 200, new { id = "d2" });
+        graph.Answer("/drives/d1/root/delta", 200, new { value = new object[] { new { id = "i1", name = "A", shared = new { } } } });
+        graph.Answer("/drives/d2/root/delta", 200, new { value = new object[] { new { id = "i2", name = "B", shared = new { } } } });
+        // Five 429s of fifty seconds each: past a command's four retries and its minute, within the take's budget.
+        foreach (int _ in Enumerable.Range(0, 5))
+        {
+            graph.Answer("/drives/d1/items/i1/permissions", 429, Error("activityLimitReached"), retryAfter: "50");
+        }
+
+        graph.Answer("/drives/d1/items/i1/permissions", 200, Page(new { roles = Read, link = new { scope = "organization", type = "view" } }));
+        graph.Answer("/drives/d2/items/i2/permissions", 200, Page());
+        var backends = new ExchangeBackends(new CannedRunner(_ => new ExoResult([], [])), null, () => graph.Client);
+
+        SnapshotTakeResult take = (await SnapshotSamples.TakeAsync(SnapshotSamples.WriteProfile(PlanSamples.TempHome()), Now, backends: backends)).Data!;
+
+        SnapshotDomain sharing = take.Domains.Single(domain => domain.Name == "sharing");
+        Assert.Equal((SnapshotDomainStatus.Ok, 1, 0), (sharing.Status, sharing.Rows, sharing.ItemsFailed));
+        Assert.Equal(6, graph.Asked("/drives/d1/items/i1/permissions"));
+    }
+
+    [Fact]
+    public async Task ADomainOfManyFailedItemsKeepsItsNoteShort()
+    {
+        var graph = new ScriptedGraph();
+        graph.Answer("/groups", 200, Page());
+        graph.Answer("/teams", 200, Page());
+        graph.Answer("/sites", 200, Page(Site("s1")));
+        graph.Answer("/sites/s1/drive", 200, new { id = "d1" });
+        graph.Answer("/users", 200, Page(new { id = U1, displayName = "X", userPrincipalName = "x@contoso.com" }));
+        graph.Answer("/drives/d1/root/delta", 200, new
+        {
+            value = Enumerable.Range(1, 5).Select(index => new { id = $"i{index}", name = $"File {index}.docx", shared = new { } }).ToArray(),
+        });
+        foreach (int index in Enumerable.Range(1, 4))
+        {
+            graph.Answer($"/drives/d1/items/i{index}/permissions", 403, Error("accessDenied"));
+        }
+
+        var backends = new ExchangeBackends(new CannedRunner(_ => new ExoResult([], [])), null, () => graph.Client);
+        string home = SnapshotSamples.WriteProfile(PlanSamples.TempHome());
+
+        SnapshotTakeResult take = (await SnapshotSamples.TakeAsync(home, Now, backends: backends)).Data!;
+
+        SnapshotDomain sharing = take.Domains.Single(domain => domain.Name == "sharing");
+        Assert.Equal((SnapshotDomainStatus.Partial, 5, "forbidden 4, not-found 1"), (sharing.Status, sharing.ItemsFailed, sharing.ItemFailures));
+        Assert.StartsWith("5 could not be read (forbidden 4, not-found 1), for example Site s1: File 1.docx: Microsoft Graph answered 403", sharing.Note, StringComparison.Ordinal);
+        Assert.Contains("; Site s1: File 3.docx: ", sharing.Note, StringComparison.Ordinal);
+        Assert.DoesNotContain("File 4.docx", sharing.Note, StringComparison.Ordinal);
+        Assert.Contains("sharing is partial in this snapshot: 5 item(s) could not be read (forbidden 4, not-found 1); `m365-aegis snapshot show` names them", SnapshotAccess.ForUser(home, "contoso", "x@contoso.com", Now).Warnings);
+    }
+
     private static object Site(string id) => new { id, displayName = $"Site {id}", webUrl = $"https://contoso.sharepoint.com/sites/{id}" };
 
     private static object Page(params object[] value) => new { value };
@@ -387,7 +449,7 @@ public sealed class SnapshotEdgeTests
     /// </summary>
     private sealed class ScriptedGraph
     {
-        private readonly Dictionary<string, (int Status, string Body)> _answers = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, Queue<(int Status, string Body, string? RetryAfter)>> _answers = new(StringComparer.Ordinal);
         private readonly ScriptedTransport _transport;
 
         internal ScriptedGraph()
@@ -400,28 +462,54 @@ public sealed class SnapshotEdgeTests
 
         internal List<GraphHttpRequest> Requests => _transport.Requests;
 
-        internal void Answer(string path, int status, object body) => _answers[path] = (status, JsonSerializer.Serialize(body));
+        /// <summary>The path's answer; a second one for the same path answers after the first, and the last one stays.</summary>
+        internal void Answer(string path, int status, object body, string? retryAfter = null)
+        {
+            if (!_answers.TryGetValue(path, out Queue<(int Status, string Body, string? RetryAfter)>? queue))
+            {
+                queue = new Queue<(int Status, string Body, string? RetryAfter)>();
+                _answers[path] = queue;
+            }
 
-        private (int Status, string Body) For(string url)
+            queue.Enqueue((status, JsonSerializer.Serialize(body), retryAfter));
+        }
+
+        /// <summary>How many times the path was asked for.</summary>
+        internal int Asked(string path) => Requests.Sum(request => request.Uri.AbsolutePath.EndsWith("/$batch", StringComparison.Ordinal)
+            ? JsonNode.Parse(request.Body!)!["requests"]!.AsArray().Count(item => item!["url"]!.GetValue<string>().Split('?')[0] == path)
+            : request.Uri.AbsolutePath == "/v1.0" + path ? 1 : 0);
+
+        private (int Status, string Body, string? RetryAfter) For(string url)
         {
             string path = Uri.UnescapeDataString(url.Split('?')[0]);
             path = path.StartsWith("/v1.0", StringComparison.Ordinal) ? path[5..] : path;
-            return _answers.TryGetValue(path, out (int Status, string Body) answer) ? answer : (404, JsonSerializer.Serialize(Error("fixtureMissing")));
+            if (!_answers.TryGetValue(path, out Queue<(int Status, string Body, string? RetryAfter)>? queue))
+            {
+                return (404, JsonSerializer.Serialize(Error("fixtureMissing")), null);
+            }
+
+            return queue.Count > 1 ? queue.Dequeue() : queue.Peek();
         }
 
         private GraphResponse Send(GraphHttpRequest request)
         {
             if (!request.Uri.AbsolutePath.EndsWith("/$batch", StringComparison.Ordinal))
             {
-                (int status, string body) = For(request.Uri.AbsolutePath);
+                (int status, string body, _) = For(request.Uri.AbsolutePath);
                 return new GraphResponse(status, [], body);
             }
 
             var responses = new JsonArray();
             foreach (JsonNode? item in JsonNode.Parse(request.Body!)!["requests"]!.AsArray())
             {
-                (int status, string body) = For(item!["url"]!.GetValue<string>());
-                responses.Add(new JsonObject { ["id"] = item["id"]!.GetValue<string>(), ["status"] = status, ["body"] = JsonNode.Parse(body) });
+                (int status, string body, string? retryAfter) = For(item!["url"]!.GetValue<string>());
+                var response = new JsonObject { ["id"] = item["id"]!.GetValue<string>(), ["status"] = status, ["body"] = JsonNode.Parse(body) };
+                if (retryAfter is not null)
+                {
+                    response["headers"] = new JsonObject { ["Retry-After"] = retryAfter };
+                }
+
+                responses.Add(response);
             }
 
             return new GraphResponse(200, [], new JsonObject { ["responses"] = responses }.ToJsonString());

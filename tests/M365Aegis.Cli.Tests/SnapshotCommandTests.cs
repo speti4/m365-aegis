@@ -98,7 +98,7 @@ public sealed class SnapshotCommandTests
         Assert.Equal("2026-10-31T060000Z.sqlite", data.GetProperty("snapshot").GetString());
         Assert.Equal(4, data.GetProperty("groups").GetArrayLength());
         Assert.Equal("local", document.RootElement.GetProperty("meta").GetProperty("backend").GetString());
-        Assert.Contains(data.GetProperty("warnings").EnumerateArray(), warning => warning.GetString()!.StartsWith("oneDrive is skipped", StringComparison.Ordinal));
+        Assert.Contains(data.GetProperty("warnings").EnumerateArray(), warning => warning.GetString()!.StartsWith("oneDrive was not read", StringComparison.Ordinal));
         Assert.Matches(@"\ngroup +Finance EU +Security +direct\n", table);
         Assert.Contains("shared    Finance: /Reports", table, StringComparison.Ordinal);
         Assert.Contains("mailbox   Reception <reception@contoso.com>", table, StringComparison.Ordinal);
