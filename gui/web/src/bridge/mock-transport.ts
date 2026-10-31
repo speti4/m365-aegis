@@ -1,4 +1,4 @@
-import { MockWrites } from "./mock-writes";
+import { type MockForwarding, MockWrites, mockForwarding } from "./mock-writes";
 import {
   type BridgeError,
   type BridgeMessage,
@@ -115,9 +115,13 @@ const mockHolders: MailboxAccess[] = [
   { mailbox: bob, holders: [], mailboxLayer: "pwsh" },
 ];
 
+/** The mock's holders as one mock starts with them: its writes change its own copy (task 091). */
+const freshHolders = (): MailboxAccess[] =>
+  mockHolders.map((access) => ({ ...access, holders: access.holders.map((holder) => ({ ...holder })) }));
+
 /** The reverse lookup of a user over the mock's holders; bob's answer is partial, to show the page's warning. */
-function mockGrants(user: MailboxInfo): UserAccess {
-  const grants = mockHolders.flatMap(({ mailbox, holders }) =>
+function mockGrants(holders: readonly MailboxAccess[], user: MailboxInfo): UserAccess {
+  const grants = holders.flatMap(({ mailbox, holders }) =>
     holders
       .filter((holder) => holder.address?.toLowerCase() === user.primarySmtpAddress)
       .map((holder) => ({ right: holder.right, mailbox })),
@@ -157,7 +161,8 @@ export interface MockOptions {
  * waiting state shows: a signed-in account (or a signed-out one, which `login` signs in: through a device code when
  * asked, with the `device-code` notification first), one group, `Finance`, by name, address or id, and the
  * mailboxes of the fake Exchange Online module, and the mailbox writes planned over them and applied only with the
- * confirmation (`MockWrites`, task 082); anything else is not found, an unknown type an error.
+ * confirmation (`MockWrites`, task 082); an apply changes this mock's own holders and forwarding, so a lookup after it
+ * shows the change (task 091). Anything else is not found, an unknown type an error.
  */
 export class MockTransport implements Transport {
   private handlers: Array<(message: BridgeMessage) => void> = [];
@@ -165,8 +170,11 @@ export class MockTransport implements Transport {
   private signedIn: boolean;
   /** The page of the device-code sign-in in flight, which `open-sign-in-page` "opens"; null when none waits. */
   private signInPage: string | null = null;
+  /** The mailboxes' holders and forwarding, which an apply changes. */
+  private readonly holders = freshHolders();
+  private readonly forwarding: MockForwarding = mockForwarding();
   /** The plans waiting for their confirmation; a sign-in or a sign-out drops them, as the host does. */
-  private writes = new MockWrites(find, mockHolders);
+  private writes = this.newWrites();
 
   constructor({ delayMs = 0, signedIn = true }: MockOptions = {}) {
     this.delayMs = delayMs;
@@ -210,6 +218,10 @@ export class MockTransport implements Transport {
     };
   }
 
+  private newWrites(): MockWrites {
+    return new MockWrites(find, this.holders, this.forwarding);
+  }
+
   private deliver(message: BridgeMessage, afterMs: number, before?: () => void): void {
     setTimeout(() => {
       before?.();
@@ -239,7 +251,7 @@ export class MockTransport implements Transport {
             };
       case MessageType.login:
         this.signedIn = true;
-        this.writes = new MockWrites(find, mockHolders);
+        this.writes = this.newWrites();
         return { type: MessageType.signedIn, data: mockSignIn };
       case MessageType.openSignInPage:
         // A plain browser has no host to hand the page to: the mock only answers as the host would.
@@ -255,7 +267,7 @@ export class MockTransport implements Transport {
             };
       case MessageType.logout:
         this.signedIn = false;
-        this.writes = new MockWrites(find, mockHolders);
+        this.writes = this.newWrites();
         return {
           type: MessageType.loggedOut,
           data: { profile: "work", account: "alice@contoso.com", removedAccounts: 1 },
@@ -299,13 +311,14 @@ export class MockTransport implements Transport {
         if (userName !== "") {
           const user = find(userName);
           return user
-            ? { type: MessageType.userGrants, data: mockGrants(user) }
+            ? { type: MessageType.userGrants, data: mockGrants(this.holders, user) }
             : notFound("user", userName, "check the name or the address and try again");
         }
         const found = find(mailboxName);
-        const access = mockHolders.find((candidate) => candidate.mailbox === found);
+        const access = this.holders.find((candidate) => candidate.mailbox === found);
+        // A copy: the page keeps the answer it showed while a later apply changes the mock's holders.
         return access
-          ? { type: MessageType.mailboxHolders, data: access }
+          ? { type: MessageType.mailboxHolders, data: { ...access, holders: [...access.holders] } }
           : notFound("mailbox", mailboxName, "check the name or the address and try again");
       }
       case MessageType.mailboxAccessGrant:

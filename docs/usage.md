@@ -125,7 +125,11 @@ m365-aegis group owners-missing --all-types       # also distribution, mail-enab
 ```
 
 The owners of a distribution group or a mail-enabled security group are read from Exchange Online (their
-"managed by" list), since Microsoft Graph does not keep them.
+"managed by" list), since Microsoft Graph does not keep them. `owners-missing --all-types` judges these groups the
+same way: one is listed only when its "managed by" list in Exchange Online is empty, and the line under the table
+counts the ones left out because it names an owner. A group synced from on-premises Active Directory is listed as
+Microsoft Graph sees it, with a line under the table that says so. Without `--all-types` the command asks Microsoft
+Graph alone, as before.
 
 ### Teams and SharePoint
 
@@ -309,7 +313,9 @@ A group's name, address or object id, then "Look up": the group's type and its d
 "A mailbox" or "A user", then the address and "Look up": who holds FullAccess, Send As and Send on Behalf on the
 mailbox, or the mailboxes the user holds them on, as `m365-aegis mailbox access` reads them. "List the shared
 mailboxes" lists them as buttons; pick one to see its access. A right held by a group is listed as the group. The
-first lookup starts the Exchange Online session, which takes a few seconds.
+first lookup starts the Exchange Online session, which takes a few seconds. When the Mailbox rights card grants or
+revokes a right on the mailbox shown here, the card reads the mailbox again on its own and says "Read again after a
+change on the Mailbox rights card." over the table.
 
 ### Mailbox rights
 
@@ -335,7 +341,8 @@ sign-in says so and waits for the sign-in card.
 
 Forwards a mailbox's mail to an address, or stops it, as `m365-aegis mailbox forwarding set` and `clear` do:
 "Forward" or "Stop forwarding", the mailbox, the address, and "Keep a copy in the mailbox" (ticked by default here;
-on the command line a copy needs `--keep-copy`). Then the same steps as the mailbox rights card.
+on the command line a copy needs `--keep-copy`). Then the same steps as the mailbox rights card; without the copy, the
+plan's "Good to know" says that the mail reaches the address only and that ticking the box keeps one.
 
 The group writes, the CSV batches and a resume are on the command line only. `m365-aegis-gui.exe --verbose` writes
 the window's sign-in log as `--verbose` does on the command line.

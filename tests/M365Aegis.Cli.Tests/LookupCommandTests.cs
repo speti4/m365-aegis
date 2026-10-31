@@ -142,6 +142,48 @@ public sealed class LookupCommandTests
         Assert.DoesNotContain("All Staff", stdout, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void GroupsWithoutAnOwnerByDefaultAskGraphAlone()
+    {
+        (int exitCode, string stdout, _) = CliTests.RunWith(Layers(), "--json", "group", "owners-missing");
+
+        Assert.Equal(0, exitCode);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement data = document.RootElement.GetProperty("data");
+        Assert.False(data.TryGetProperty("managedInExchange", out _));
+        Assert.Equal(3, data.GetProperty("leftOut").GetInt32());
+        Assert.Equal("graph", document.RootElement.GetProperty("meta").GetProperty("backend").GetString());
+    }
+
+    [Fact]
+    public void AllTypesListsADistributionGroupOnlyWhenItsManagedByIsEmpty()
+    {
+        (int exitCode, string stdout, string stderr) = CliTests.RunWith(Layers(), "--json", "group", "owners-missing", "--all-types");
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("", stderr);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement data = document.RootElement.GetProperty("data");
+        string?[] names = data.GetProperty("groups").EnumerateArray().Select(group => group.GetProperty("displayName").GetString()).ToArray();
+        // All Staff's ManagedBy is empty; Sales Managers' names alice; Project Phoenix is Graph's answer.
+        Assert.Equal(["All Staff", "Helpdesk Admins", "HR Synced", "Project Phoenix"], names);
+        Assert.Equal(1, data.GetProperty("managedInExchange").GetInt32());
+        Assert.Equal("graph+pwsh", document.RootElement.GetProperty("meta").GetProperty("backend").GetString());
+    }
+
+    [Fact]
+    public void AllTypesAtATerminalNamesWhatExchangeAndGraphJudged()
+    {
+        (int exitCode, string stdout, _) = CliTests.RunWith(Layers(), "--table", "group", "owners-missing", "--all-types");
+
+        Assert.Equal(0, exitCode);
+        Assert.Matches(@"All Staff +distribution +allstaff@contoso\.com +", stdout);
+        Assert.DoesNotContain("Sales Managers", stdout, StringComparison.Ordinal);
+        Assert.Contains("4 group(s) without an owner", stdout, StringComparison.Ordinal);
+        Assert.Contains("1 distribution or mail-enabled security group(s) left out: their ManagedBy in Exchange Online names an owner", stdout, StringComparison.Ordinal);
+        Assert.Contains("1 synced group(s) as Graph lists them", stdout, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("team", "list")]
     [InlineData("site", "list")]

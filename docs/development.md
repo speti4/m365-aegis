@@ -218,7 +218,15 @@ with its table view in the Cli (task 005, task 007):
   request that accepts only JSON (415), so the client sends `Accept: text/plain` for it (`GraphRequest.Accept`;
   `call` does the same for a path ending in `/$count`). The one wide query, which the left-out kinds filled
   with pages, answers `--all-types`, and answers instead should Graph refuse a narrowed filter or the count (400,
-  406 or 415). Measured on a tenant of 2445 groups, 2117 of them without an owner in Graph (2026-10-29): the wide
+  406 or 415). Under `--all-types` the command runs over the Exchange layers (task 089, `ExchangeRunner`, as
+  `group owners` does; the default list stays on `GraphRunner`): a distribution or mail-enabled security group that is
+  not synced is judged by its `ManagedBy` instead of Graph's empty owners, read with one sidecar call over every such
+  group of the organization, `Get-DistributionGroup -ResultSize Unlimited` with the properties
+  `ExternalDirectoryObjectId` and `ManagedBy` only, matched to Graph's list by the object id; a group whose
+  `ManagedBy` names anyone is left out (the envelope's `managedInExchange` counts them, a line under the table says
+  so), one Exchange does not list stays as Graph lists it, and a synced group stays Graph's judgment with a line under
+  the table. The backend is `graph+pwsh`, or `graph` when Graph listed no group Exchange owns (the sidecar is not
+  started); no cmdlet joined the allow-list. Measured on a tenant of 2445 groups, 2117 of them without an owner in Graph (2026-10-29): the wide
   query is three pages in about 1.35 s, the narrowed Microsoft 365 query one page in about 0.65 s, which is the
   floor of the default; the command answered in 1.25 s warm and 2.1 s cold (four requests: the security query
   took two pages), against 7.9 s for the one wide query of task 005, the rest being the process start and the
@@ -896,13 +904,22 @@ reads it again; "Sign in" and "Sign in with a code" when signed out with a profi
 state, the device code with "Copy the code" and "Open in browser" while it waits, "Sign out" when signed in), the
 group members card with the table, the mailbox access card (a mailbox or a user, the shared mailboxes to pick
 from, the holders or the grants in a table, each holder with the layer that read it, the partial warning, and the
-time of the answer under the table), the write cards (task 082, `components/mailbox-write-cards.tsx`: "Mailbox
-rights" and "Mailbox forwarding"), and a toast (sonner) for every `error` reply of the other cards.
+time of the answer under the table; it reads the mailbox it shows again after a grant or a revoke, below), the write
+cards (task 082, `components/mailbox-write-cards.tsx`: "Mailbox rights" and "Mailbox forwarding"), and a toast
+(sonner) for every `error` reply of the other cards.
 
 **The write cards** follow the sketch below over the core's real `Plan`: Pick › Plan › Confirm › Result, the flow a
 reducer in `components/write-flow.ts` and its parts in `components/plan-view.tsx`. "See the plan" sends the write
 request once every pick has a value; the plan shows each change (its action, the target, what changes, the state now
-→ after), what is left as it is, and the warnings, and a plan with nothing to change offers no confirmation.
+→ after), what is left as it is, and the warnings, and a plan with nothing to change offers no confirmation. A warning
+is the core's sentence, which the command line prints as it is; the card shows one that names a flag in its own words
+(task 090, `components/plan-wording.ts`: the forwarding's "(--keep-copy keeps one)" becomes a sentence that sends to
+"Change the picks" and the "Keep a copy in the mailbox" box), and a warning the list does not know as the core wrote
+it. Of the core's warnings (`PlanBuilder.Warn` and the resume's own) two name a flag: that one and `plan prune`'s
+`--resume`, which no card plans; a Vitest test reads the core's sources and fails on a new one, and another renders
+the plan, the confirmation, the result and an error over the bridge samples with every mailbox write's warning, and
+the forwarding card over the browser mock, without a `--` flag on the card. The confirmation's note says "the window
+sends no change until you confirm" instead of naming `--yes`.
 "Continue to confirm" lists the changes again with a checkbox ("I checked the plan; make these changes."), and
 "Confirm and apply", the one button that sends a write, sends `apply-plan` with `"confirm": true`. "Back to the plan"
 and "Change the picks" send nothing (the host's plan runs out after 15 minutes). The result says "Done", "Partly done"
@@ -911,7 +928,19 @@ shows on the card: "Refused: nothing was changed" for a plan the host could not 
 "Stopped: check the mailbox before you try again" for an apply that broke off otherwise (an internal error, no answer
 in time). The cards wait for a sign-in, and an open plan goes back to the picks at a sign-out. The browser mock
 (`src/bridge/mock-writes.ts`) plans the writes over its made-up holders and forwarding and holds them as the host
-does; its apply changes nothing and fails a Send on Behalf change on Reception, so a partial result shows.
+does; its apply changes its own copy of them (task 091: a grant adds the holder as the host reads it back, a Send on
+Behalf delegate by name where the Admin API reads the mailbox) and fails a Send on Behalf change on Reception, so a
+partial result shows.
+
+**The refresh after an apply** (task 091, `components/applied-writes.ts`): a write card tells the page's
+`AppliedWrites` channel when its apply may have changed the mailbox, a `plan-applied` reply whether every change, some
+or none was made, and an apply that broke off on the way (an `error` other than `usage` or `refused-without-yes`): the
+plan's operation, the mailbox as the card asked for it and the addresses in the changes' targets. The mailbox access
+card listens while it shows a mailbox's holders; after a grant or a revoke whose name or addresses are that mailbox's
+(its name, address, user principal name or object id, in any case), it sends one `mailbox-access` for the mailbox's
+address, says "A change was applied to this mailbox: reading its access again…" while it waits, and "Read again after
+a change on the Mailbox rights card." over the new table. An apply to another mailbox, a forwarding (the card shows no
+forwarding) or a card that shows a user's grants or nothing sends no request; the bridge has no new message.
 
 **The task card design sketch** (task 018, `src/sketch/`): the card list (grant FullAccess on a shared mailbox, add
 a group owner, check a user's access), one card's steps (pick, the plan, the confirmation, the result) and the

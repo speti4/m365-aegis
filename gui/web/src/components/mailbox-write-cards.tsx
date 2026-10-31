@@ -1,5 +1,5 @@
 import { ArrowLeft, CircleX, LogIn, TriangleAlert } from "lucide-react";
-import { type ReactNode, useEffect, useReducer, useState } from "react";
+import { type ReactNode, useEffect, useReducer, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import {
   MessageType,
   type PlanReady,
 } from "../bridge/protocol";
+import { type AppliedWrite, targetAddresses } from "./applied-writes";
 import { rightNames } from "./mailbox-access-card";
 import { ConfirmView, ErrorText, Notice, PlanView, ResultView, Stepper, Working } from "./plan-view";
 import { canConfirm, initialWriteState, type WriteState, writeReducer } from "./write-flow";
@@ -37,7 +38,8 @@ export function splitList(text: string): string[] {
  * A write card (task 082): the picks, then the plan the host computed (`--dry-run`'s, nothing sent), the confirmation
  * (the `apply-plan` with `confirm: true`, which stands for `--yes`) and the result of each change, as the task card
  * sketch of task 018 drew it. Going back before the confirmation sends nothing. Signed out, the card waits for a
- * sign-in and an open plan goes back to the picks.
+ * sign-in and an open plan goes back to the picks. An apply that may have changed the mailbox (a `plan-applied`, or an
+ * apply that broke off on the way) is told to `onApplied` (task 091), so the access card can read the mailbox again.
  */
 export function WriteCard({
   title,
@@ -46,6 +48,7 @@ export function WriteCard({
   signedIn,
   request,
   picks,
+  onApplied,
 }: {
   title: string;
   description: string;
@@ -53,8 +56,11 @@ export function WriteCard({
   signedIn: boolean;
   request: WriteRequest | null;
   picks: ReactNode;
+  onApplied?: (write: AppliedWrite) => void;
 }) {
   const [state, dispatch] = useReducer(writeReducer, initialWriteState);
+  // The mailbox of the request the plan on the card answers: the one an apply touches.
+  const plannedMailbox = useRef("");
   // A plan was read for the account signed in then; signed out, the card starts over.
   useEffect(() => {
     if (!signedIn) {
@@ -63,16 +69,22 @@ export function WriteCard({
   }, [signedIn]);
 
   async function seePlan(asked: WriteRequest): Promise<void> {
+    plannedMailbox.current = asked.data.mailbox;
     dispatch({ type: "request-plan" });
     dispatch({ type: "reply", reply: await client.call(asked.type, asked.data) });
   }
 
   async function apply(ready: PlanReady): Promise<void> {
     dispatch({ type: "confirm" });
-    dispatch({
-      type: "reply",
-      reply: await client.call(MessageType.applyPlan, { planId: ready.planId, confirm: true }),
-    });
+    const reply = await client.call(MessageType.applyPlan, { planId: ready.planId, confirm: true });
+    dispatch({ type: "reply", reply });
+    const mayHaveChanged =
+      reply.type === MessageType.planApplied ||
+      (reply.type === MessageType.error && !nothingSent.includes(reply.data.code));
+    if (mayHaveChanged) {
+      const plan = reply.type === MessageType.planApplied ? reply.data.plan : ready.plan;
+      onApplied?.({ operation: plan.operation, mailbox: plannedMailbox.current, addresses: targetAddresses(plan) });
+    }
   }
 
   return (
@@ -222,7 +234,15 @@ const rights: readonly MailboxRight[] = ["full-access", "send-as", "send-on-beha
  * Grant or revoke FullAccess, Send As or Send on Behalf on a mailbox, as `m365-aegis mailbox access grant|revoke`
  * does (task 082); a FullAccess grant can go without automapping (`--no-automapping`).
  */
-export function MailboxAccessWriteCard({ client, signedIn }: { client: BridgeClient; signedIn: boolean }) {
+export function MailboxAccessWriteCard({
+  client,
+  signedIn,
+  onApplied,
+}: {
+  client: BridgeClient;
+  signedIn: boolean;
+  onApplied?: (write: AppliedWrite) => void;
+}) {
   const [mode, setMode] = useState<"grant" | "revoke">("grant");
   const [mailbox, setMailbox] = useState("");
   const [users, setUsers] = useState("");
@@ -298,6 +318,7 @@ export function MailboxAccessWriteCard({ client, signedIn }: { client: BridgeCli
       signedIn={signedIn}
       request={request}
       picks={picks}
+      onApplied={onApplied}
     />
   );
 }
@@ -306,7 +327,15 @@ export function MailboxAccessWriteCard({ client, signedIn }: { client: BridgeCli
  * Forward a mailbox's mail to an address, or stop it, as `m365-aegis mailbox forwarding set|clear` does (task 082);
  * a forwarding keeps a copy in the mailbox unless the card is told not to (`--keep-copy`).
  */
-export function MailboxForwardingCard({ client, signedIn }: { client: BridgeClient; signedIn: boolean }) {
+export function MailboxForwardingCard({
+  client,
+  signedIn,
+  onApplied,
+}: {
+  client: BridgeClient;
+  signedIn: boolean;
+  onApplied?: (write: AppliedWrite) => void;
+}) {
   const [mode, setMode] = useState<"set" | "clear">("set");
   const [mailbox, setMailbox] = useState("");
   const [to, setTo] = useState("");
@@ -364,6 +393,7 @@ export function MailboxForwardingCard({ client, signedIn }: { client: BridgeClie
       signedIn={signedIn}
       request={request}
       picks={picks}
+      onApplied={onApplied}
     />
   );
 }

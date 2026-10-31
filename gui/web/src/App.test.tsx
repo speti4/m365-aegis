@@ -14,7 +14,7 @@ import {
   parseMessage,
 } from "./bridge/protocol";
 import type { WebViewBridge } from "./bridge/transport";
-import { button, click, hasButton, render, settle } from "./test/dom";
+import { button, click, hasButton, render, settle, submit, type } from "./test/dom";
 
 /** The mock's answer time (createTransport); its device-code sign-in takes ten times as long. */
 const MOCK_MS = 300;
@@ -195,6 +195,33 @@ describe("the window's page", () => {
     await click(button(container, "Open in browser"));
     await settle();
     expect(toasts).toHaveBeenCalledWith("no sign-in waits", { description: "try again" });
+  });
+
+  it("in a plain browser: a grant on the rights card is read again by the access card that shows the mailbox", async () => {
+    const { container } = await render(<App />);
+    await settle(MOCK_MS);
+    const [, , access, rights] = [...container.querySelectorAll('[data-slot="card"]')] as HTMLElement[];
+    const field = (card: HTMLElement, label: string) =>
+      card.querySelector(`input[aria-label="${label}"]`) as HTMLInputElement;
+
+    await type(field(access, "Mailbox"), "finance");
+    await submit(access.querySelector("form") as HTMLFormElement);
+    await settle(MOCK_MS);
+    expect(access.textContent).toContain("· 3 grant(s)");
+
+    await type(field(rights, "Mailbox"), "finance");
+    await type(field(rights, "Users"), "bob@contoso.com");
+    await click(button(rights, "See the plan"));
+    await settle(MOCK_MS);
+    await click(button(rights, "Continue to confirm"));
+    await click(rights.querySelector('input[type="checkbox"]') as HTMLInputElement);
+    await click(button(rights, "Confirm and apply"));
+    await settle(MOCK_MS);
+    expect(access.textContent).toContain("A change was applied to this mailbox: reading its access again…");
+    await settle(MOCK_MS);
+
+    expect(access.textContent).toContain("· 4 grant(s)");
+    expect(access.textContent).toContain("Read again after a change on the Mailbox rights card.");
   });
 
   it("leaves the sign-in as it is on a host notification of another kind", async () => {

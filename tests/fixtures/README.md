@@ -183,6 +183,14 @@ none), so an owner write on a synced distribution group stays on Graph with its 
 Finance Staff come from the fake module's `ManagedBy` (`tests/sidecar/README.md`); the resume tests of task 065
 answer the reads of a hundred made-up users (`…060` to `…0c3`) in code, not from files.
 
+## The owners-missing judgment: distribution groups by ManagedBy
+
+Task 089. The groups the ownerless queries list have ids of their own now, apart from the groups of the writes
+bundles: All Staff (`…03b`, a distribution group), HR Synced (`…03c`, a synced security group) and Sales Managers
+(`…03d`, a mail-enabled security group), in the wide query's two pages and the security groups' narrowed query. The
+fake module's `Get-DistributionGroup` knows All Staff with an empty `ManagedBy` and Sales Managers managed by alice
+(`tests/sidecar/README.md`), so `group owners-missing --all-types` lists the one and leaves out the other.
+
 ## The safety tests bundle: the write guard's samples
 
 Tasks 071 to 075. `csv/mailbox-forwarding-clear.csv` (bob, who forwards to `bob@fabrikam.com`, and carol, who forwards

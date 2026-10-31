@@ -20,10 +20,18 @@ const rightNames: Record<MailboxRight, string> = {
 
 const rights = Object.keys(rightNames) as MailboxRight[];
 
+/** A mailbox's forwarding in the mock, by the mailbox's address. */
+export type MockForwarding = Map<string, { to: string; keepCopy: boolean }>;
+
 /** The mock's forwarding, as the fake Exchange Online module has it: bob forwards to an outside address, keeping a copy. */
-const mockForwarding: Record<string, { to: string; keepCopy: boolean }> = {
-  "bob@contoso.com": { to: "bob@fabrikam.com", keepCopy: true },
-};
+export const mockForwarding = (): MockForwarding =>
+  new Map([["bob@contoso.com", { to: "bob@fabrikam.com", keepCopy: true }]]);
+
+/** A held plan and, per change, what its apply does to the mock's state. */
+interface Held {
+  plan: Plan;
+  steps: Array<() => void>;
+}
 
 const error = (code: string, message: string, hint: string): MockAnswer => ({
   type: MessageType.error,
@@ -42,17 +50,19 @@ const forwarding = (to: string, keepCopy: boolean) =>
 /**
  * The browser mock's writes (task 082): each write request is planned against the mock's made-up holders and
  * forwarding as the core would plan it (only what is not so already, the warnings) and held under an id until an
- * `apply-plan` with `confirm: true` names it; the apply changes nothing in the mock, every change reads applied but a
- * Send on Behalf change on Reception, which fails so the page's partial result shows. Without the confirmation, or
- * for an id the mock does not hold, the apply is refused as the host refuses it.
+ * `apply-plan` with `confirm: true` names it. The apply changes the mock's holders and forwarding as the service
+ * would (task 091), so the access card's next read shows the grant; every change is applied but a Send on Behalf change
+ * on Reception, which fails so the page's partial result shows. Without the confirmation, or for an id the mock does
+ * not hold, the apply is refused as the host refuses it.
  */
 export class MockWrites {
-  private readonly held = new Map<string, Plan>();
+  private readonly held = new Map<string, Held>();
   private next = 0;
 
   constructor(
     private readonly find: (name: string) => MailboxInfo | undefined,
     private readonly holders: readonly MailboxAccess[],
+    private readonly forwardings: MockForwarding,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -70,8 +80,8 @@ export class MockWrites {
   /** The answer to `apply-plan`. */
   apply(payload: Record<string, unknown>): MockAnswer {
     const id = typeof payload.planId === "string" ? payload.planId : "";
-    const plan = this.held.get(id);
-    if (!plan) {
+    const held = this.held.get(id);
+    if (!held) {
       return usage(
         "no plan with this id waits for a confirmation in this window; nothing was sent",
         "see the plan again on the card: a plan is applied once, and a sign-in or a sign-out drops it",
@@ -80,27 +90,30 @@ export class MockWrites {
     if (payload.confirm !== true) {
       return error(
         "refused-without-yes",
-        `${plan.changes.length} change(s) planned; nothing was sent`,
+        `${held.plan.changes.length} change(s) planned; nothing was sent`,
         "nothing was changed; confirm the change in the window to apply it",
       );
     }
     this.held.delete(id);
+    const { plan, steps } = held;
     const started = this.now().toISOString();
-    const changes: PlanChange[] = plan.changes.map((change) =>
-      change.target.startsWith("Reception") && change.detail.startsWith("Send on Behalf")
-        ? {
-            ...change,
-            result: {
-              status: "failed",
-              error: {
-                code: "cmdlet-failed",
-                message: "the mock refuses Send on Behalf on Reception, to show a partial result",
-                hint: "Exchange Online could not do this; try again, and tell the administrator if it persists",
-              },
-            },
-          }
-        : { ...change, result: { status: "applied" } },
-    );
+    const changes: PlanChange[] = plan.changes.map((change, index) => {
+      if (!(change.target.startsWith("Reception") && change.detail.startsWith("Send on Behalf"))) {
+        steps[index]();
+        return { ...change, result: { status: "applied" } };
+      }
+      return {
+        ...change,
+        result: {
+          status: "failed",
+          error: {
+            code: "cmdlet-failed",
+            message: "the mock refuses Send on Behalf on Reception, to show a partial result",
+            hint: "Exchange Online could not do this; try again, and tell the administrator if it persists",
+          },
+        },
+      };
+    });
     const failed = changes.filter((change) => change.result?.status === "failed").length;
     const record = `%LOCALAPPDATA%\\m365-aegis\\plans\\${started.replace(/[-:]/g, "")}-${plan.operation}.json`;
     return {
@@ -149,6 +162,7 @@ export class MockWrites {
       return notFound("mailbox", name, "check the name or the address and try again");
     }
     const changes: PlanChange[] = [];
+    const steps: Array<() => void> = [];
     const unchanged: PlanUnchanged[] = [];
     for (const user of users) {
       const holder = this.find(user);
@@ -171,6 +185,7 @@ export class MockWrites {
         } else {
           const [current, desired] = grant ? [`no ${word}`, `holds ${word}`] : [`holds ${word}`, `no ${word}`];
           changes.push({ action: grant ? "add" : "remove", target: named(access.mailbox), detail, current, desired });
+          steps.push(() => change(access, right, holder, grant));
         }
       }
     }
@@ -181,6 +196,7 @@ export class MockWrites {
       changes,
       unchanged,
       warnings: [],
+      steps,
     });
   }
 
@@ -201,15 +217,18 @@ export class MockWrites {
     if (!mailbox) {
       return notFound("mailbox", name, "check the name or the address and try again");
     }
-    const current = mockForwarding[mailbox.primarySmtpAddress];
+    const address = mailbox.primarySmtpAddress;
+    const current = this.forwardings.get(address);
     const now = current ? forwarding(current.to, current.keepCopy) : "no forwarding";
     const target = named(mailbox);
     const changes: PlanChange[] = [];
+    const steps: Array<() => void> = [];
     const unchanged: PlanUnchanged[] = [];
     const warnings: string[] = [];
     if (!set) {
       if (current) {
         changes.push({ action: "clear", target, detail: "the forwarding", current: now, desired: "no forwarding" });
+        steps.push(() => this.forwardings.delete(address));
       } else {
         unchanged.push({ target, detail: "the forwarding", state: "no forwarding" });
       }
@@ -222,6 +241,9 @@ export class MockWrites {
         detail: `forwarding to ${to}`,
         current: now,
         desired: forwarding(to, keepCopy),
+      });
+      steps.push(() => {
+        this.forwardings.set(address, { to, keepCopy });
       });
       if (!to.toLowerCase().endsWith("@contoso.com")) {
         warnings.push(
@@ -239,20 +261,39 @@ export class MockWrites {
       changes,
       unchanged,
       warnings,
+      steps,
     });
   }
 
-  /** The `plan` reply: held under a new id when it has a change to send. */
-  private ready(plan: Omit<Plan, "mode">): MockAnswer {
+  /** The `plan` reply: held under a new id, with what each change does, when it has a change to send. */
+  private ready({ steps, ...plan }: Omit<Plan, "mode"> & { steps: Array<() => void> }): MockAnswer {
     if (plan.changes.length === 0) {
       return { type: MessageType.plan, data: { plan: { ...plan, mode: "up-to-date" } } };
     }
     this.next += 1;
     const planId = `mock-plan-${this.next}`;
     const ready: Plan = { ...plan, mode: "dry-run" };
-    this.held.set(planId, ready);
+    this.held.set(planId, { plan: ready, steps });
     return { type: MessageType.plan, data: { planId, plan: ready } };
   }
+}
+
+/**
+ * A grant or a revoke of one right in the mock's holders, as the host reads it back: a Send on Behalf delegate by its
+ * name from the Admin API when the mailbox is read there, every other right by its address from the session.
+ */
+function change(access: MailboxAccess, right: MailboxRight, holder: MailboxInfo, grant: boolean): void {
+  const address = holder.primarySmtpAddress;
+  const others = access.holders.filter((entry) => !(entry.right === right && entry.address === address));
+  const delegate = right === "send-on-behalf" && access.mailboxLayer === "admin-api";
+  access.holders = grant
+    ? [
+        ...others,
+        delegate
+          ? { right, holder: holder.displayName, address, layer: "admin-api" }
+          : { right, holder: address, address, layer: "pwsh" },
+      ]
+    : others;
 }
 
 function text(value: unknown): string {
