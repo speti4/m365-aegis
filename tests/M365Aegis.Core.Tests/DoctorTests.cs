@@ -293,11 +293,69 @@ public sealed class DoctorTests
     }
 
     [Fact]
-    public void ExesSignedByATrustedCertificatePass()
+    public void ExesSignedByTheReleaseCertificatePass()
     {
         DoctorCheck check = Doctor.CheckSignature(Fake(ProfileStoreTests.TempHome()));
 
-        Assert.Equal(new DoctorCheck("signature", CheckStatus.Pass, "3 file(s) signed by CN=Contoso Release Signing", Required: false), check);
+        Assert.Equal(new DoctorCheck("signature", CheckStatus.Pass, "3 file(s) signed by CN=Contoso Release Signing, the release's certificate", Required: false), check);
+    }
+
+    [Fact]
+    public void ATrustedCertificateThatIsNotTheReleasesWarnsWithItsSignerAndThumbprint()
+    {
+        // Task 093: a machine that trusts a wrong certificate does not see a pass on a replaced file.
+        DoctorEnvironment environment = Fake(ProfileStoreTests.TempHome()) with
+        {
+            ReadSignatures = () =>
+            [
+                Signed(SignatureState.Valid)[0],
+                new("m365-aegis.dll", SignatureState.Valid, "CN=Fabrikam Code Signing", 0, OtherThumbprint),
+                new("M365Aegis.Core.dll", SignatureState.Valid, "CN=Fabrikam Code Signing", 0),
+                new("m365-aegis-gui.exe", SignatureState.Valid, null, 0),
+            ],
+        };
+
+        DoctorCheck check = Doctor.CheckSignature(environment);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.Equal(
+            $"m365-aegis.dll, M365Aegis.Core.dll, m365-aegis-gui.exe: signed by CN=Fabrikam Code Signing ({OtherThumbprint}); CN=Fabrikam Code Signing (no thumbprint read); an unreadable certificate, not the release's certificate (thumbprint {Authenticode.ReleaseThumbprint})",
+            check.Detail);
+        Assert.Contains("releases page", check.Hint, StringComparison.Ordinal);
+        Assert.False(check.Required);
+    }
+
+    [Fact]
+    public void TheTestSeamPinsAnotherCertificateAndTheRowSaysSo()
+    {
+        // The signing tests pin their throwaway certificate through the variable; spaces and the case do not matter.
+        DoctorEnvironment environment = Fake(ProfileStoreTests.TempHome()) with
+        {
+            ReadSignatures = () => Signed(SignatureState.Valid, OtherThumbprint),
+            PinOverride = $" {OtherThumbprint[..8]} {OtherThumbprint[8..].ToLowerInvariant()} ",
+        };
+
+        DoctorCheck check = Doctor.CheckSignature(environment);
+
+        Assert.Equal(CheckStatus.Pass, check.Status);
+        Assert.Equal("3 file(s) signed by CN=Contoso Release Signing, the certificate M365AEGIS_TEST_RELEASE_THUMBPRINT pins", check.Detail);
+        Assert.Equal(CheckStatus.Warn, Doctor.CheckSignature(environment with { PinOverride = " " }).Status);
+        Assert.Equal(CheckStatus.Pass, Doctor.CheckSignature(environment with { PinOverride = " ", ReadSignatures = () => Signed(SignatureState.Valid) }).Status);
+    }
+
+    [Fact]
+    public void AnUntrustedCertificateThatIsNotTheReleasesIsNotTheOneToTrust()
+    {
+        DoctorEnvironment environment = Fake(ProfileStoreTests.TempHome()) with
+        {
+            ReadSignatures = () => [new("m365-aegis.exe", SignatureState.Untrusted, "CN=Fabrikam Code Signing", Authenticode.UntrustedRoot, OtherThumbprint)],
+        };
+
+        DoctorCheck check = Doctor.CheckSignature(environment);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.Equal("m365-aegis.exe (0x800B0109): signed by CN=Fabrikam Code Signing, which this machine does not trust", check.Detail);
+        Assert.Equal($"the signer is not the release's certificate (thumbprint {Authenticode.ReleaseThumbprint}): unzip the release from the releases page again", check.Hint);
     }
 
     [Fact]
@@ -323,8 +381,8 @@ public sealed class DoctorTests
         {
             ReadSignatures = () =>
             [
-                new("m365-aegis.exe", SignatureState.Untrusted, "CN=Contoso Release Signing", Authenticode.UntrustedRoot),
-                new("m365-aegis.dll", SignatureState.Untrusted, null, Authenticode.UntrustedRoot),
+                new("m365-aegis.exe", SignatureState.Untrusted, "CN=Contoso Release Signing", Authenticode.UntrustedRoot, Authenticode.ReleaseThumbprint),
+                new("m365-aegis.dll", SignatureState.Untrusted, null, Authenticode.UntrustedRoot, Authenticode.ReleaseThumbprint),
             ],
         };
 
@@ -675,12 +733,15 @@ public sealed class DoctorTests
         ]);
 
     /// <summary>The three files of a command line folder, each in the given state, signed by the made-up publisher.</summary>
-    private static FileSignature[] Signed(SignatureState state) =>
+    private static FileSignature[] Signed(SignatureState state, string thumbprint = Authenticode.ReleaseThumbprint) =>
     [
-        new("m365-aegis.exe", state, "CN=Contoso Release Signing", 0),
-        new("m365-aegis.dll", state, "CN=Contoso Release Signing", 0),
-        new("M365Aegis.Core.dll", state, "CN=Contoso Release Signing", 0),
+        new("m365-aegis.exe", state, "CN=Contoso Release Signing", 0, thumbprint),
+        new("m365-aegis.dll", state, "CN=Contoso Release Signing", 0, thumbprint),
+        new("M365Aegis.Core.dll", state, "CN=Contoso Release Signing", 0, thumbprint),
     ];
+
+    /// <summary>A made-up thumbprint of a certificate that is not the release's.</summary>
+    private const string OtherThumbprint = "00000000000000000000000000000000000000AB";
 
     private static string Fixture(string fileName) =>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "doctor", fileName));
@@ -704,6 +765,7 @@ public sealed class DoctorTests
             ReadInstalledSidecar = () => Script,
             ReadBuildSidecar = () => Script,
             ReadSignatures = () => Signed(SignatureState.Valid),
+            PinOverride = null,
             SignIn = signIn ?? ((_, _) => Task.FromResult(AuthSamples.SignedIn)),
             Probe = (_, _) => Task.FromResult(new EndpointAnswer(200, TimeSpan.FromMilliseconds(80), null)),
         };

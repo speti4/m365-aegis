@@ -21,8 +21,11 @@ ways before you run it:
 - **The signature.** The exes and the tool's own assemblies (`m365-aegis*.exe`, `m365-aegis*.dll`,
   `M365Aegis.*.dll`) are Authenticode-signed and timestamped, and the release notes name the signer and the
   certificate's thumbprint. In the unzipped folder `Get-AuthenticodeSignature .\m365-aegis.exe` (or `signtool verify
-  /pa`) shows the signer, and `m365-aegis doctor` checks every signed file in its `signature` row. The signing
-  certificate is a secret of the release workflow, never in the repository.
+  /pa`) shows the signer, `(Get-AuthenticodeSignature .\m365-aegis.exe).SignerCertificate.Thumbprint` its
+  thumbprint, and `m365-aegis doctor` checks every signed file in its `signature` row, which passes only for the
+  certificate whose thumbprint the tool pins, the one the release notes print, and warns with the signer and its
+  thumbprint for any other. The signing certificate's key is a secret of the release workflow, never in the
+  repository.
 
 A file of a release zip whose signature does not hold, a release zip that fails its attestation, or a way to make the
 release workflow sign something other than the build of the tag, is in scope.

@@ -347,11 +347,12 @@ public static class Doctor
     }
 
     /// <summary>
-    /// The Authenticode signatures of the exes and the product's assemblies in the running exe's folder (task 085):
-    /// a pass when every one is signed by a certificate this machine trusts, a warning when one is not signed (a build
-    /// from source, or an unsigned zip) or its certificate is not trusted here, a failure when a signature does not
-    /// hold (the file changed after it was signed). The worst state names its files. Not required: an unsigned build
-    /// runs the same.
+    /// The Authenticode signatures of the exes and the product's assemblies in the running exe's folder (tasks 085 and
+    /// 093): a pass when every one is signed by the release's certificate (<see cref="Authenticode.ReleaseThumbprint"/>,
+    /// D-012) and this machine trusts it, a warning when one is not signed (a build from source, or an unsigned zip),
+    /// its certificate is not trusted here, or a trusted certificate signed it that is not the release's (named with
+    /// its thumbprint), a failure when a signature does not hold (the file changed after it was signed). The worst state
+    /// names its files. Not required: an unsigned build runs the same.
     /// </summary>
     internal static DoctorCheck CheckSignature(DoctorEnvironment environment)
     {
@@ -379,15 +380,33 @@ public static class Doctor
                 "the zip of the releases page is signed; a build from source is not");
         }
 
+        string? overridden = Authenticode.NormalizeThumbprint(environment.PinOverride);
+        string pin = overridden ?? Authenticode.ReleaseThumbprint;
         if (Named(files, SignatureState.Untrusted) is { } untrusted)
         {
+            // Trusting a certificate that is not the release's would make the wrong signer pass on this machine.
             return new(name, CheckStatus.Warn, $"{untrusted}: signed by {Signers(files, SignatureState.Untrusted)}, which this machine does not trust", Required: false,
-                "an administrator trusts the release's signing certificate on this machine (the usage guide, \"Check the download\")");
+                files.Where(file => file.State == SignatureState.Untrusted).All(file => file.Thumbprint == pin)
+                    ? "an administrator trusts the release's signing certificate on this machine (the usage guide, \"Check the download\")"
+                    : $"the signer is not the release's certificate (thumbprint {pin}): unzip the release from the releases page again");
+        }
+
+        List<string> others = [.. files.Where(file => file.Thumbprint != pin).Select(file => file.File)];
+        if (others.Count > 0)
+        {
+            return new(name, CheckStatus.Warn,
+                $"{string.Join(", ", others)}: signed by {OtherSigners(files.Where(file => file.Thumbprint != pin))}, not the release's certificate (thumbprint {pin})",
+                Required: false, "the release zip of the releases page is signed by the release's certificate; unzip it again");
         }
 
         string count = string.Format(CultureInfo.InvariantCulture, "{0} file(s)", files.Count);
-        return new(name, CheckStatus.Pass, $"{count} signed by {Signers(files, SignatureState.Valid)}", Required: false);
+        string pinned = overridden is null ? "the release's certificate" : $"the certificate {Authenticode.PinOverrideVariable} pins";
+        return new(name, CheckStatus.Pass, $"{count} signed by {Signers(files, SignatureState.Valid)}, {pinned}", Required: false);
     }
+
+    /// <summary>The distinct signers of the files with their thumbprints; "an unreadable certificate" where none was read.</summary>
+    private static string OtherSigners(IEnumerable<FileSignature> files) =>
+        string.Join("; ", files.Select(file => file.Signer is null ? "an unreadable certificate" : $"{file.Signer} ({file.Thumbprint ?? "no thumbprint read"})").Distinct(StringComparer.Ordinal));
 
     /// <summary>
     /// The files in a state, or null when none is in it; a broken or untrusted one with its <c>WinVerifyTrust</c> answer,

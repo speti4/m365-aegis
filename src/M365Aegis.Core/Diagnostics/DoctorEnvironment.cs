@@ -84,6 +84,12 @@ public sealed record DoctorEnvironment
     /// </summary>
     public Func<IReadOnlyList<FileSignature>> ReadSignatures { get; init; } = Authenticode.ReadProductFiles;
 
+    /// <summary>
+    /// The thumbprint that replaces the pinned release certificate's for the signing tests (task 093), from
+    /// <see cref="Authenticode.PinOverrideVariable"/>; null for the pin itself.
+    /// </summary>
+    public string? PinOverride { get; init; } = Environment.GetEnvironmentVariable(Authenticode.PinOverrideVariable);
+
     /// <summary>The silent sign-in of <c>whoami</c> for a profile (the profile name, or null for the default).</summary>
     public Func<string?, CancellationToken, Task<SignInInfo>> SignIn { get; init; } =
         (profile, cancellationToken) => AuthService.Create().WhoAmIAsync(profile, cancellationToken);

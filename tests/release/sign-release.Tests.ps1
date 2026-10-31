@@ -9,6 +9,10 @@ network.
 
 BeforeDiscovery {
     $script:skip = -not $IsWindows
+    # Trusting the throwaway certificate takes the local machine's root store, which needs an elevated session: the
+    # `windows` job's runner is one, a contributor's shell usually is not (task 093).
+    $script:elevated = $IsWindows -and
+        ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
 BeforeAll {
@@ -74,6 +78,19 @@ Describe 'sign-release.ps1' -Skip:$skip {
                 Where-Object name -EQ 'signature')
             $check.status | Should -Be 'warn'
             $check.detail | Should -BeLike "*(0x800B0109)*signed by $($script:certificate.Subject), which this machine does not trust"
+            # Not the pinned release certificate either, so the hint does not ask an administrator to trust it (task 093).
+            $check.hint | Should -BeLike "the signer is not the release's certificate (thumbprint *)*"
+
+            # Pinned through the test seam, the same untrusted signer is the one an administrator would trust.
+            $env:M365AEGIS_TEST_RELEASE_THUMBPRINT = $script:certificate.Thumbprint
+            try {
+                $check = ((& (Join-Path $folder 'm365-aegis.exe') --json doctor --offline | ConvertFrom-Json).data.checks |
+                    Where-Object name -EQ 'signature')
+            } finally {
+                Remove-Item Env:\M365AEGIS_TEST_RELEASE_THUMBPRINT
+            }
+            $check.status | Should -Be 'warn'
+            $check.hint | Should -BeLike 'an administrator trusts the release*'
 
             # One byte of the DOS stub's text: covered by the signature, ignored by the loader, so the exe still runs.
             $dll = Join-Path $folder 'm365-aegis.dll'
@@ -120,6 +137,54 @@ Describe 'sign-release.ps1' -Skip:$skip {
         New-Item -ItemType Directory -Force $empty | Out-Null
         { & $script:sign -Folder $empty -CertificatePath $script:pfx -TimestampUrl '' } | Should -Throw '*no m365-aegis exe or assembly*'
         { & $script:sign -Folder $empty -CertificatePath (Join-Path $script:work 'missing.pfx') -TimestampUrl '' } | Should -Throw '*no certificate file*'
+    }
+}
+
+Describe 'the doctor pins the release certificate' -Skip:(-not $elevated) {
+    # Task 093: with the throwaway certificate trusted on this machine (a root of the local machine for the length of
+    # these tests), a signature that holds is a pass only for the pinned certificate. The real one is not on any
+    # developer machine, so the pin is moved to the throwaway certificate through the test seam.
+    BeforeAll {
+        $script:root = [System.Security.Cryptography.X509Certificates.X509Store]::new('Root', 'LocalMachine')
+        $script:root.Open('ReadWrite')
+        $script:root.Add($script:certificate)
+        $script:trusted = Join-Path $script:work 'trusted'
+        Copy-Item -Recurse $script:built $script:trusted
+        $null = & $script:sign -Folder $script:trusted -CertificatePath $script:pfx -TimestampUrl ''
+        $env:M365AEGIS_HOME = Join-Path $script:work 'home'
+
+        function Get-SignatureRow {
+            (& (Join-Path $script:trusted 'm365-aegis.exe') --json doctor --offline | ConvertFrom-Json).data.checks |
+                Where-Object name -EQ 'signature'
+        }
+    }
+
+    AfterAll {
+        if ($script:root) {
+            $script:root.Remove($script:certificate)
+            $script:root.Dispose()
+        }
+        Remove-Item Env:\M365AEGIS_HOME -ErrorAction Ignore
+    }
+
+    It 'warns with the signer and its thumbprint when the trusted certificate is not the pinned one' {
+        $row = Get-SignatureRow
+
+        $row.status | Should -Be 'warn'
+        $row.detail | Should -BeLike ("m365-aegis.dll, m365-aegis.exe, M365Aegis.Core.dll: signed by $($script:certificate.Subject) " +
+            "($($script:certificate.Thumbprint)), not the release's certificate (thumbprint *)")
+    }
+
+    It 'passes when the trusted certificate is the pinned one' {
+        $env:M365AEGIS_TEST_RELEASE_THUMBPRINT = $script:certificate.Thumbprint
+        try {
+            $row = Get-SignatureRow
+        } finally {
+            Remove-Item Env:\M365AEGIS_TEST_RELEASE_THUMBPRINT
+        }
+
+        $row.status | Should -Be 'pass'
+        $row.detail | Should -Be "3 file(s) signed by $($script:certificate.Subject), the certificate M365AEGIS_TEST_RELEASE_THUMBPRINT pins"
     }
 }
 

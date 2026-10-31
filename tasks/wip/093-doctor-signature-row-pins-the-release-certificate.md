@@ -37,30 +37,53 @@ certificate) rather than the real PFX, which is not on a developer machine.
 
 ## Steps
 
-1. [ ] The pin in the Core (the thumbprint D-012 names) and the rule: `pass` only for the pinned signer, `warn` with
+1. [x] The pin in the Core (the thumbprint D-012 names) and the rule: `pass` only for the pinned signer, `warn` with
        the signer for any other valid signature, the existing `warn`/`fail` cases unchanged
-2. [ ] A test seam for the pin so the Pester tests of `tests/release` sign with a throwaway certificate and see both
+2. [x] A test seam for the pin so the Pester tests of `tests/release` sign with a throwaway certificate and see both
        `warn` (not pinned) and `pass` (pinned through the seam) over the built doctor
-3. [ ] Unit tests of the Core's rule; the coverage gate holds (the interop stays excluded as task 085 listed it)
-4. [ ] Docs under *Docs that move*; the Verification dated; `tasks_check` without `write` clean apart from the stale
+3. [x] Unit tests of the Core's rule; the coverage gate holds (the interop stays excluded as task 085 listed it)
+4. [x] Docs under *Docs that move*; the Verification dated; `tasks_check` without `write` clean apart from the stale
        index
 
 ## Log
 
 - 2026-10-31 — promoted on `task/088-doctor-and-fixture-scan` by the main session
+- 2026-10-31 — the pin: D-012 names no thumbprint, the release notes of `v0.1.0` do (`CN=m365-aegis release signing`,
+  `E2F4F13409FB5B3BA437238F0D69EFAF37403619`, read with `gh release view v0.1.0`); it is
+  `Authenticode.ReleaseThumbprint` in the Core, its doc comment naming D-012 and the release notes as the second
+  place. `WinVerifyTrust`'s signer now gives its certificate's thumbprint too (`FileSignature.Thumbprint`).
+- 2026-10-31 — the rule (`Doctor.CheckSignature`): broken, unsigned and untrusted come first as before; then a file
+  whose thumbprint is not the pin is `warn` with the signer and its thumbprint and the pin's thumbprint ("not the
+  release's certificate"); `pass` only when every file carries the pin. The untrusted warning keeps its detail, and
+  its hint asks an administrator to trust the certificate only when the signer is the pinned one; otherwise it says
+  the signer is not the release's and to unzip the release again (trusting it would make the wrong signer pass).
+- 2026-10-31 — the seam: `M365AEGIS_TEST_RELEASE_THUMBPRINT` (`Authenticode.PinOverrideVariable`, read into
+  `DoctorEnvironment.PinOverride`, spaces and case ignored) replaces the pin; the pass then says "the certificate
+  M365AEGIS_TEST_RELEASE_THUMBPRINT pins", so the override is never silent.
+- 2026-10-31 — `tests/release`: the existing doctor test checks the untrusted hint for a signer that is not pinned and,
+  with the variable set, the hint to trust it; a new `Describe` puts the throwaway certificate into
+  `LocalMachine\Root` for its two tests (removed in its `AfterAll`) and runs the built doctor over a folder it signed:
+  `warn` naming the signer and its thumbprint, and `pass` with the variable. It needs an elevated session, which the
+  `windows` job's runner is and this machine's shell is not, so it is skipped here and runs in CI.
 
 ## Deviations from the plan
 
-- none yet
+- The untrusted warning's hint changed for a signer that is not the pinned one (the detail stays as task 085 wrote it).
+- The `pass` and `warn` over a trusted throwaway certificate run only in an elevated session (the CI runner); a
+  developer's shell skips the two.
 
 ## Verification
 
-- <dated, concrete: what was run, what it showed, before/after where a number changed>
+- 2026-10-31 — `dotnet test -c Release`: 1455 passed, the coverage gate 100% lines and branches (Core 5226/5226 lines,
+  2895/2895 branches; Cli 1894/1894, 468/468). `Invoke-Pester tests/release` (Pester 5.7.1, not elevated): 7 passed,
+  2 skipped (the trusted pair, which needs the local machine's root store); the CI run of the pull request runs them.
+  `scripts/release.ps1 -DryRun` signed with a throwaway certificate: exit 0. PSScriptAnalyzer over the four folders
+  of the `sidecar` job: 0 findings.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green (the stale index is the main session's)
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
+- [x] `tasks_check` green (the stale index is the main session's)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge

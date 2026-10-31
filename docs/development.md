@@ -1058,7 +1058,7 @@ that need the network.
 | `pwsh` | yes | 7.6 or later on PATH | the version is unreadable | missing (`winget install Microsoft.PowerShell`) or older |
 | `exchange-online-module` | no | 3.10 or later | older (`Update-Module`) | not installed (`Install-Module … -Scope CurrentUser`); skipped without pwsh |
 | `sidecar-script` | yes | the SHA-256 of `sidecar\aegis-exo-sidecar.ps1` matches the copy compiled into the Core | differs in its line endings only | missing or changed (reinstall the release zip) |
-| `signature` | no | every product file next to the running exe (`m365-aegis*.exe`, `m365-aegis*.dll`, `M365Aegis.*.dll`) is signed by a certificate this machine trusts, with the signer | one is not signed (a build from source, an unsigned zip), or its certificate is not trusted here (an untrusted or distrusted root, expired without a timestamp), each with its `WinVerifyTrust` code | a signature does not hold: the file changed after it was signed (reinstall the release zip); skipped off Windows and without a product file |
+| `signature` | no | every product file next to the running exe (`m365-aegis*.exe`, `m365-aegis*.dll`, `M365Aegis.*.dll`) is signed by the release's certificate (the thumbprint the Core pins, D-012) and this machine trusts it, with the signer | one is not signed (a build from source, an unsigned zip), or its certificate is not trusted here (an untrusted or distrusted root, expired without a timestamp), each with its `WinVerifyTrust` code; or a certificate this machine trusts signed it that is not the release's, with the signer and its thumbprint | a signature does not hold: the file changed after it was signed (reinstall the release zip); skipped off Windows and without a product file |
 | `webview2-runtime` | no | the `pv` of the EdgeUpdate client key, 120 or later | older (Edge Update is blocked) | not installed (`winget install Microsoft.EdgeWebView2Runtime`); skipped off Windows |
 | `config` | no | the profiles and the default | no file (the login command), no profile, or no default (`profile use`) | the file does not parse, or a profile lacks a value |
 | `device` | no | Entra-joined with a primary refresh token | registered only, or joined without a primary refresh token (task 013: the silent sign-in as the Windows account fails, the profile's account signs in instead), or `dsregcmd` unreadable | neither joined nor registered (Settings > Accounts > Access work or school) |
@@ -1074,11 +1074,21 @@ the installed Desktop Runtime versions, the two copies of the script, the signat
 The `signature` check (task 085) asks `WinVerifyTrust` (the Authenticode policy, `Diagnostics/Authenticode.cs`)
 about each product file in `AppContext.BaseDirectory`, the same names `scripts/sign-release.ps1` signs, with no
 revocation check and only the local caches (no download), so `--offline` stays offline, and reads the signer's subject
-from the state it leaves. A signature that holds over an untrusted root is a warning with the signer named, since
-the team's machines may trust a self-signed certificate by hand; the expected publisher is not pinned yet (it waits
-for the certificate decision). The interop is the one part excluded from the coverage ([Coverage](#coverage)); the
-names and the verdict of each `WinVerifyTrust` code are tested, and `tests/release/sign-release.Tests.ps1` runs the
-doctor of a signed and of a changed folder in the `windows` job.
+from the state it leaves, the signer's subject and its certificate's thumbprint. A signature that holds over an
+untrusted root is a warning with the signer named, since the team's machines trust the self-signed certificate of
+D-012 by hand; its hint asks an administrator to trust the release's certificate only when the signer is that
+certificate, and otherwise says the signer is not the release's. A signature that holds and that this machine trusts
+passes only when its certificate is the release's (task 093): `Authenticode.ReleaseThumbprint` pins its thumbprint
+in the Core, and the release notes of every signed release print the same value (the second place it is written);
+any other trusted signer is a warning naming it with its thumbprint, so a machine that trusts a wrong certificate
+does not see a pass on a replaced exe. A new certificate is a change of the pin and a release of its own, and the
+release notes of that release name the new thumbprint. The test seam is the `M365AEGIS_TEST_RELEASE_THUMBPRINT`
+environment variable: a thumbprint there replaces the pin, and the row's pass then says the certificate the variable
+pins instead of the release's, so the override is never silent. The interop is the one part excluded from the
+coverage ([Coverage](#coverage)); the names, the verdict of each `WinVerifyTrust` code and the pin's rule are tested,
+and `tests/release/sign-release.Tests.ps1` runs the doctor of a signed and of a changed folder in the `windows` job,
+and, in an elevated session (the job's runner), of a folder whose throwaway certificate the machine trusts for the
+length of the test: a warning, and a pass once the variable pins it.
 
 The `home-access` check (tasks 078 and 088) reads the home folder's access list by SID: an allow entry that carries a
 read right (list the folder, or the generic read or all right of an inheritable entry) for any account but the
@@ -1320,14 +1330,20 @@ certificate or no timestamp server is given. `signtool` comes from the Windows S
 (Pester, in the `windows` job) signs copies of the built files with a throwaway certificate that
 `tests/release/new-test-certificate.ps1` makes in memory and no store holds, checks that a package's assembly and the
 sidecar script are left alone, that a wrong password and a missing file are refused, runs the doctor of a signed
-folder (`signature` names the signer and warns that it is not trusted) and of one with a byte changed after the
-signing (`signature` fails), and that `release.ps1 -RequireSignature` refuses to start without a certificate.
+folder (`signature` names the signer and warns that it is not trusted, with the hint for a signer that is not the
+release's, or, pinned through `M365AEGIS_TEST_RELEASE_THUMBPRINT`, the hint to trust it) and of one with a byte
+changed after the signing (`signature` fails), and that `release.ps1 -RequireSignature` refuses to start without a
+certificate. In an elevated session it also puts the throwaway certificate into the local machine's root store for
+two tests and takes it out afterwards (task 093): the doctor of a folder it signed warns that the trusted signer is
+not the release's, and passes once the variable pins it. A shell that is not elevated skips the two, the `windows`
+job's runner runs them.
 
 The certificate lives in the repository's `release` environment, never in the repo: the secret
 `SIGNING_CERTIFICATE` holds the PFX file in base64 and `SIGNING_CERTIFICATE_PASSWORD` its password. The release job
 writes the file into the runner's temporary folder for the run and removes it afterwards; a tag without the secret
-fails the release. Which certificate it is (a self-signed one the team's machines trust, a bought one, or Azure
-Trusted Signing) is the decision task 085 drafted; whichever it is, it goes in as a PFX file:
+fails the release. The certificate is a self-signed one the team's machines trust (D-012), and its thumbprint is
+the one the doctor pins (`Authenticode.ReleaseThumbprint`, task 093); a new certificate changes the pin in the same
+change that replaces the secret. It goes in as a PFX file:
 
 ```powershell
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("signing.pfx")) | gh secret set SIGNING_CERTIFICATE --env release
@@ -1473,7 +1489,7 @@ listed here, and a new one is added to this list in the change that adds it:
 | `ConsoleWindow.RootOwner` (Core, `Auth`) | Win32 calls on the console window of a desktop session, which CI's runners do not have. |
 | `BridgeServices.ForWindow` (Core, `Bridge`) | Wires the window's real layers: MSAL over the window, Graph, and an Exchange Online session that a first cmdlet would start against the tenant. The `windows` job's `--smoke` run starts the window with it; each layer it wires is measured on its own. |
 | `Doctor.PwshFileName` (Core, `Diagnostics`) | `pwsh.exe` or `pwsh`: one side per operating system. The search over `PATH` is tested with a made-up file name. |
-| `DoctorEnvironment`: `ReadHomeAccessFromDisk`, `RunDsregcmd`, `ReadDesktopRuntimeVersionsFromDisk`, `ReadWebView2VersionsFromRegistry`, `ReadPv`, the nested `Network` (the endpoint probe and its `HttpClient`) (Core, `Diagnostics`) | They read the real machine (the home folder's access list, `dsregcmd`, the registry, the .NET installation's folders, Microsoft's endpoints), differently on Windows and on Linux. The checks over their answers are tested through the `DoctorEnvironment` seams; the access list reader also runs in the home folder's access list tests of the `windows` job. |
+| `DoctorEnvironment`: `ReadHomeAccessFromDisk`, `AccountName`, `RunDsregcmd`, `ReadDesktopRuntimeVersionsFromDisk`, `ReadWebView2VersionsFromRegistry`, `ReadPv`, the nested `Network` (the endpoint probe and its `HttpClient`) (Core, `Diagnostics`) | They read the real machine (the home folder's access list, `dsregcmd`, the registry, the .NET installation's folders, Microsoft's endpoints), differently on Windows and on Linux. The checks over their answers are tested through the `DoctorEnvironment` seams; the access list reader also runs in the home folder's access list tests of the `windows` job. |
 | `Authenticode`: `ReadProductFiles`, `Verify`, `Signer` (Core, `Diagnostics`) | `WinVerifyTrust` and its state over the files next to the running assembly, Windows only. The names of the product's files and the verdict of each `WinVerifyTrust` code are tested, the check over the answers through the `DoctorEnvironment.ReadSignatures` seam; the interop itself runs in the `windows` job's signing tests, over a signed folder and a changed one. |
 | `SidecarClient.KillQuietly` (Core, `Exchange/Sidecar`) | Its catch runs only when the operating system refuses the kill, or the child ends between the check and the call: a race no test can stage. |
 | `SidecarClient.WriteQuietlyAsync` (Core, `Exchange/Sidecar`) | Its catch runs only when a message reaches a child that has ended and nothing else holds the pipe's read end at that moment; whether the write fails or not, the read after it meets the end of the stream and says the sidecar stopped, which is tested. |
