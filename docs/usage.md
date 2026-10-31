@@ -122,7 +122,11 @@ m365-aegis group owners-missing --all-types       # also distribution, mail-enab
 ```
 
 The owners of a distribution group or a mail-enabled security group are read from Exchange Online (their
-"managed by" list), since Microsoft Graph does not keep them.
+"managed by" list), since Microsoft Graph does not keep them. `owners-missing --all-types` judges these groups the
+same way: one is listed only when its "managed by" list in Exchange Online is empty, and the line under the table
+counts the ones left out because it names an owner. A group synced from on-premises Active Directory is listed as
+Microsoft Graph sees it, with a line under the table that says so. Without `--all-types` the command asks Microsoft
+Graph alone, as before.
 
 ### Teams and SharePoint
 

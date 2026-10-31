@@ -1,6 +1,9 @@
+using M365Aegis.Core.Exchange;
+using M365Aegis.Core.Exchange.Sidecar;
 using M365Aegis.Core.Graph;
 using M365Aegis.Core.Groups;
 using M365Aegis.Core.Output;
+using M365Aegis.Core.Tests.Exchange;
 using M365Aegis.Core.Tests.Graph;
 using M365Aegis.Tests;
 
@@ -269,7 +272,7 @@ public sealed class GroupLookupsTests
             return new GraphResponse(200, [], """
                 {"value":[
                   {"id":"00000000-0000-0000-0000-000000000034","displayName":"Helpdesk Admins","groupTypes":[],"securityEnabled":true},
-                  {"id":"00000000-0000-0000-0000-000000000035","displayName":"All Staff","mail":"allstaff@contoso.com","groupTypes":[],"securityEnabled":false}
+                  {"id":"00000000-0000-0000-0000-00000000003b","displayName":"All Staff","mail":"allstaff@contoso.com","groupTypes":[],"securityEnabled":false}
                 ]}
                 """);
         });
@@ -280,6 +283,53 @@ public sealed class GroupLookupsTests
         Assert.Equal(["Helpdesk Admins"], result.Data!.Groups.Select(group => group.DisplayName));
         Assert.Equal(1, result.Data.LeftOut);
         Assert.StartsWith("?$filter=owners/$count eq 0&", Uri.UnescapeDataString(transport.Requests[^1].Uri.Query), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AllTypesOverExchangeKeepsASyncedGroupAndOneExchangeDoesNotList()
+    {
+        // Task 089: a cloud distribution group Exchange does not list, a synced one whose ManagedBy names an owner, and a
+        // mail-enabled security group managed in Exchange.
+        var transport = new ScriptedTransport(_ => new GraphResponse(200, [], """
+            {"value":[
+              {"id":"00000000-0000-0000-0000-000000000041","displayName":"Unlisted","mail":"unlisted@contoso.com","groupTypes":[],"securityEnabled":false},
+              {"id":"00000000-0000-0000-0000-000000000042","displayName":"Synced List","mail":"synced@contoso.com","groupTypes":[],"securityEnabled":false,"onPremisesSyncEnabled":true},
+              {"id":"00000000-0000-0000-0000-000000000043","displayName":"Managed","mail":"managed@contoso.com","groupTypes":[],"securityEnabled":true}
+            ]}
+            """));
+        var sidecar = new CannedRunner(_ => MailboxEdgeTests.Items(
+            """{"ExternalDirectoryObjectId":"00000000-0000-0000-0000-000000000042","ManagedBy":["alice"]}""",
+            """{"ExternalDirectoryObjectId":"00000000-0000-0000-0000-000000000043","ManagedBy":"carol"}""",
+            """{"ExternalDirectoryObjectId":"00000000-0000-0000-0000-000000000044","ManagedBy":[]}""",
+            """{"ManagedBy":["bob"]}"""));
+        await using var backends = new ExchangeBackends(sidecar, graph: () => new GraphClient(transport));
+
+        CommandResult<OwnerlessGroups> result = await GroupLookups.OwnerlessAsync(backends, allTypes: true, None);
+
+        Assert.Equal(["Synced List", "Unlisted"], result.Data!.Groups.Select(group => group.DisplayName));
+        Assert.Equal(1, result.Data.ManagedInExchange);
+        ExoCommand command = Assert.Single(sidecar.Commands);
+        Assert.Equal(ExoCmdlets.GetDistributionGroup, command.Cmdlet);
+        Assert.Equal("Unlimited", command.Parameters["ResultSize"]);
+        Assert.Equal(["ExternalDirectoryObjectId", "ManagedBy"], command.Properties!);
+        Assert.Equal("graph+pwsh", backends.Backend);
+    }
+
+    [Fact]
+    public async Task AllTypesWithoutAGroupExchangeOwnsAsksNothingOfTheSidecar()
+    {
+        var transport = new ScriptedTransport(_ => new GraphResponse(200, [], """
+            {"value":[{"id":"00000000-0000-0000-0000-000000000034","displayName":"Helpdesk Admins","groupTypes":[],"securityEnabled":true}]}
+            """));
+        var sidecar = new CannedRunner(_ => MailboxEdgeTests.Items());
+        await using var backends = new ExchangeBackends(sidecar, graph: () => new GraphClient(transport));
+
+        CommandResult<OwnerlessGroups> result = await GroupLookups.OwnerlessAsync(backends, allTypes: true, None);
+
+        Assert.Equal(["Helpdesk Admins"], result.Data!.Groups.Select(group => group.DisplayName));
+        Assert.Equal(0, result.Data.ManagedInExchange);
+        Assert.Empty(sidecar.Commands);
+        Assert.Equal("graph", backends.Backend);
     }
 
     [Fact]

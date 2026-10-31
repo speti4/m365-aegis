@@ -218,7 +218,15 @@ with its table view in the Cli (task 005, task 007):
   request that accepts only JSON (415), so the client sends `Accept: text/plain` for it (`GraphRequest.Accept`;
   `call` does the same for a path ending in `/$count`). The one wide query, which the left-out kinds filled
   with pages, answers `--all-types`, and answers instead should Graph refuse a narrowed filter or the count (400,
-  406 or 415). Measured on a tenant of 2445 groups, 2117 of them without an owner in Graph (2026-10-29): the wide
+  406 or 415). Under `--all-types` the command runs over the Exchange layers (task 089, `ExchangeRunner`, as
+  `group owners` does; the default list stays on `GraphRunner`): a distribution or mail-enabled security group that is
+  not synced is judged by its `ManagedBy` instead of Graph's empty owners, read with one sidecar call over every such
+  group of the organization, `Get-DistributionGroup -ResultSize Unlimited` with the properties
+  `ExternalDirectoryObjectId` and `ManagedBy` only, matched to Graph's list by the object id; a group whose
+  `ManagedBy` names anyone is left out (the envelope's `managedInExchange` counts them, a line under the table says
+  so), one Exchange does not list stays as Graph lists it, and a synced group stays Graph's judgment with a line under
+  the table. The backend is `graph+pwsh`, or `graph` when Graph listed no group Exchange owns (the sidecar is not
+  started); no cmdlet joined the allow-list. Measured on a tenant of 2445 groups, 2117 of them without an owner in Graph (2026-10-29): the wide
   query is three pages in about 1.35 s, the narrowed Microsoft 365 query one page in about 0.65 s, which is the
   floor of the default; the command answered in 1.25 s warm and 2.1 s cold (four requests: the security query
   took two pages), against 7.9 s for the one wide query of task 005, the rest being the process start and the

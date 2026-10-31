@@ -1,7 +1,7 @@
 {
   "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#groups(id,displayName,mail,groupTypes,securityEnabled,onPremisesSyncEnabled)",
   "value": [
-    { "id": "00000000-0000-0000-0000-000000000036", "displayName": "HR Synced", "mail": null, "groupTypes": [], "securityEnabled": true, "onPremisesSyncEnabled": true },
-    { "id": "00000000-0000-0000-0000-000000000037", "displayName": "Sales Managers", "mail": "salesmanagers@contoso.com", "groupTypes": [], "securityEnabled": true, "onPremisesSyncEnabled": null }
+    { "id": "00000000-0000-0000-0000-00000000003c", "displayName": "HR Synced", "mail": null, "groupTypes": [], "securityEnabled": true, "onPremisesSyncEnabled": true },
+    { "id": "00000000-0000-0000-0000-00000000003d", "displayName": "Sales Managers", "mail": "salesmanagers@contoso.com", "groupTypes": [], "securityEnabled": true, "onPremisesSyncEnabled": null }
   ]
 }
