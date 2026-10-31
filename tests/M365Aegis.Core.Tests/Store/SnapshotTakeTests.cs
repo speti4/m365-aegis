@@ -1,4 +1,6 @@
 using M365Aegis.Core.Exchange;
+using M365Aegis.Core.Exchange.AdminApi;
+using M365Aegis.Core.Graph;
 using M365Aegis.Core.Output;
 using M365Aegis.Core.Snapshots;
 using M365Aegis.Core.Tests.Exchange;
@@ -99,6 +101,62 @@ public sealed class SnapshotTakeTests
                 from forwarding f join objects m on m.key = f.mailboxKey left join objects t on t.key = f.targetKey order by 1 collate nocase
                 """));
         Assert.Equal(1L, (long)SnapshotStore.Scalar(connection, "pragma user_version")!);
+    }
+
+    [Fact]
+    public async Task ASecondTakeReadsOnlyWhatTheDeltaLinksReportChanged()
+    {
+        string home = SnapshotSamples.WriteProfile(PlanSamples.TempHome());
+        string full = await SnapshotSamples.SeedAsync(home);
+        (GraphClient client, FixtureGraphTransport transport) = GraphFixtures.Client();
+        var backends = new ExchangeBackends(SidecarFixtures.Session(), AdminApiConnection.Fixtures(GraphFixtures.Root), () => client, () => SidecarFixtures.Session());
+
+        SnapshotTakeResult take = (await SnapshotSamples.TakeAsync(home, SnapshotSamples.Taken.AddDays(1), backends: backends)).Data!;
+
+        // The second delta page of Finance names Budget as changed and Reports as removed; Phoenix's names nothing.
+        SnapshotDomain sharing = take.Domains.Single(domain => domain.Name == "sharing");
+        Assert.Equal((SnapshotDomainStatus.Ok, 5), (sharing.Status, sharing.Rows));
+        Assert.Equal("2 of 2 drive(s) read incrementally from 2026-10-31T060000Z.sqlite, 2 changed item(s)", sharing.Note);
+        Assert.Equal(
+            ["/v1.0/drives/drive-finance/items/item-budget/permissions"],
+            transport.BatchItems.Select(request => request.Uri.AbsolutePath).Where(path => path.EndsWith("/permissions", StringComparison.Ordinal)));
+        Assert.DoesNotContain(transport.Requests, request => request.Uri.AbsolutePath.EndsWith("/root/delta", StringComparison.Ordinal) && request.Uri.Query.Contains("top", StringComparison.Ordinal));
+
+        await using var connection = new SqliteConnection($"Data Source={take.Path};Mode=ReadOnly;Pooling=False");
+        await connection.OpenAsync(Ct);
+        await using var before = new SqliteConnection($"Data Source={full};Mode=ReadOnly;Pooling=False");
+        await before.OpenAsync(Ct);
+        // The rows of the full take before without the removed Reports: Budget read again, Roadmap kept as it was.
+        const string Links = """
+            select l.itemName || ' ' || coalesce(l.itemPath, '-') || ' ' || l.kind || ' ' || coalesce(l.scope, '-') || ' ' || coalesce(l.type, '-') || ' ' || l.roles
+                || ' ' || coalesce(l.expires, '-') || ' ' || coalesce(l.hasPassword, '-') || ' ' || s.siteId
+                || ' [' || coalesce((select group_concat(o.kind || ':' || coalesce(o.objectId, o.mail, o.name), ',') from linkGrantees g join objects o on o.key = g.principalKey where g.linkKey = l.key), '') || ']'
+            from links l join sites s on s.key = l.siteKey where l.itemName is not 'Reports' order by 1
+            """;
+        List<string> expected = Strings(before, Links);
+        Assert.Equal(5, expected.Count);
+        Assert.Equal(expected, Strings(connection, Links));
+        Assert.Equal(
+            ["deltaLink.drive-finance https://graph.microsoft.com/v1.0/drives/drive-finance/root/delta?token=delta-finance-2",
+             "deltaLink.drive-phoenix https://graph.microsoft.com/v1.0/drives/drive-phoenix/root/delta?token=delta-phoenix-2",
+             "deltaLinks whole-drives", "incrementalDrives drive-finance,drive-phoenix", "sharingBase 2026-10-31T060000Z.sqlite"],
+            Strings(connection, "select key || ' ' || value from manifest where key like 'delta%' or key in ('incrementalDrives', 'sharingBase') order by key"));
+    }
+
+    [Fact]
+    public async Task AFullTakeReadsEveryDriveWholeWhateverThePreviousSnapshot()
+    {
+        string home = SnapshotSamples.WriteProfile(PlanSamples.TempHome());
+        await SnapshotSamples.SeedAsync(home);
+        await using ExchangeBackends backends = SnapshotSamples.Backends();
+
+        SnapshotTakeResult take = (await SnapshotTake.RunAsync(
+            backends,
+            new SnapshotTakeOptions(home, SnapshotSamples.Profile) { Clock = new SnapshotSamples.FixedClock(SnapshotSamples.Taken.AddDays(1)), Full = true },
+            Ct)).Data!;
+
+        SnapshotDomain sharing = take.Domains.Single(domain => domain.Name == "sharing");
+        Assert.Equal((SnapshotDomainStatus.Ok, 7, null), (sharing.Status, sharing.Rows, sharing.Note));
     }
 
     [Fact]

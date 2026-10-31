@@ -318,6 +318,7 @@ the tenant changes.
 
 ```powershell
 m365-aegis snapshot take                          # read the tenant into a new snapshot, then remove the old ones
+m365-aegis snapshot take --full                   # the same, every library's sharing read whole
 m365-aegis snapshot list                          # the snapshots kept, newest first
 m365-aegis snapshot show                          # the newest one: when, what each part was read from, how long it took, what failed
 m365-aegis snapshot show 2026-10-31T060000Z       # one by its name as the list prints it
@@ -329,6 +330,15 @@ exit code 6 and keeps the older snapshots. After a take that read every part, th
 snapshot of the last two days is kept, then the newest of each day for 14 days and the newest of each week for 8
 weeks. `keepDaily` and `keepWeekly` in the profile of `config.json` change the 14 and the 8. The other users'
 OneDrives are not read: that needs a permission the tool does not ask for.
+
+### Only what changed in the libraries
+
+The shared files are the slow part of a take. So a take starts from the newest snapshot whose sharing was read and
+asks each document library only what changed since then: the files whose sharing changed are read again, the removed
+ones are dropped, and the rest is that snapshot's. A library that snapshot could not read whole, or that cannot say
+what changed (the service forgot the point it was asked from), is read whole, and `snapshot show` names how many were
+read which way. `snapshot take --full` reads every library whole, for example once a week, or when a snapshot looks
+wrong. The groups, the members and the mailbox permissions are read whole every time.
 
 ### What one user reaches
 

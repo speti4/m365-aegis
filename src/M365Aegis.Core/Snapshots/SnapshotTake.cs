@@ -17,6 +17,12 @@ public sealed record SnapshotTakeOptions(string Home, TenantProfile Profile)
     /// <summary>The clock of the snapshot's name and of the retention.</summary>
     public TimeProvider Clock { get; init; } = TimeProvider.System;
 
+    /// <summary>
+    /// Reads every drive's sharing whole (<c>snapshot take --full</c>, task 099) instead of only what changed since the
+    /// previous snapshot's delta links.
+    /// </summary>
+    public bool Full { get; init; }
+
     /// <summary>How many drives, permission lists or mailboxes are read at once.</summary>
     internal int Parallel { get; init; } = 4;
 
@@ -411,20 +417,41 @@ public static class SnapshotTake
         /// read twenty to a <c>$batch</c> call. Several drives' deltas are read at once, but their permissions one batch at
         /// a time, which SharePoint throttles first (live: 1,036 of 2,218 items answered 429 with four drives at once); a
         /// throttled item is sent again after its <c>Retry-After</c> within the take's budget. A drive that fails is an
-        /// item that failed.
+        /// item that failed. Since task 099 a drive the previous snapshot kept a delta link for is read from that link
+        /// (<see cref="SharingBase"/>): only the items changed since come, their permissions are read again, a removed
+        /// item's rows and those of an item that inherits its parent's sharing again are dropped, and the drive's other
+        /// rows are the previous snapshot's. A drive without a link, or whose delta from it fails (a <c>410</c>
+        /// <c>resyncRequired</c> or any other error), is read whole, and <c>--full</c> reads every drive whole. A drive's
+        /// link is kept only when the drive was read whole, so a later take never builds on rows that are missing.
         /// </summary>
         private async Task<DomainRead> SharingAsync()
         {
             List<SnapshotSite> sites = Builder.Sites.Where(site => site.DriveId is not null).ToList();
+            SharingBase? previous = options.Full ? null : SharingBase.Load(SnapshotStore.Folder(options.Home, options.Profile.Name));
+            Extra[SharingBase.WholeDrives] = SharingBase.WholeDrivesValue;
             using var permissionGate = new SemaphoreSlim(1, 1);
-            DriveRead[] reads = await EachAsync(sites, site => ReadDriveAsync(site, permissionGate)).ConfigureAwait(false);
+            DriveRead[] reads = await EachAsync(sites, site => ReadDriveAsync(site, permissionGate, previous?.DeltaLinks.GetValueOrDefault(site.DriveId!))).ConfigureAwait(false);
             var failed = new List<Unread>();
+            var incremental = new List<string>();
+            int changed = 0;
+            int fellBack = 0;
             foreach (DriveRead read in reads)
             {
                 failed.AddRange(read.Failed);
-                if (read.DeltaLink is not null)
+                fellBack += read.FellBack ? 1 : 0;
+                if (read.DeltaLink is not null && read.Failed.Count == 0)
                 {
-                    Extra[$"deltaLink.{read.Site.DriveId}"] = read.DeltaLink;
+                    Extra[SharingBase.DeltaLinkPrefix + read.Site.DriveId] = read.DeltaLink;
+                }
+
+                if (read.Changed is { } changedIds)
+                {
+                    incremental.Add(read.Site.DriveId!);
+                    changed += changedIds.Count;
+                    foreach (BaseLink link in previous!.Links.GetValueOrDefault(read.Site.DriveId!, []).Where(link => !changedIds.Contains(link.ItemId)))
+                    {
+                        AddCarried(read.Site, link);
+                    }
                 }
 
                 foreach ((DriveItem item, IReadOnlyList<DrivePermission> permissions) in read.Items)
@@ -433,41 +460,70 @@ public static class SnapshotTake
                 }
             }
 
-            return new DomainRead(Builder.Links.Count, failed);
+            if (incremental.Count > 0)
+            {
+                Extra["sharingBase"] = previous!.Name;
+                Extra["incrementalDrives"] = string.Join(",", incremental);
+            }
+
+            string remark = string.Join("; ", new[]
+            {
+                incremental.Count == 0 ? null : $"{incremental.Count} of {reads.Length} drive(s) read incrementally from {previous!.Name}, {changed} changed item(s)",
+                fellBack == 0 ? null : $"{fellBack} drive(s) read whole, their delta since the previous snapshot failed",
+            }.OfType<string>());
+            return new DomainRead(Builder.Links.Count, failed, remark.Length == 0 ? null : remark);
         }
 
-        private sealed record DriveRead(SnapshotSite Site, List<(DriveItem Item, IReadOnlyList<DrivePermission> Permissions)> Items, List<Unread> Failed, string? DeltaLink);
+        /// <summary>
+        /// A drive's read: the items whose permissions were read, the items that failed, the delta link for the next take,
+        /// the ids of the items an incremental read found changed (null for a whole read), and whether an incremental
+        /// read failed and the drive was read whole.
+        /// </summary>
+        private sealed record DriveRead(
+            SnapshotSite Site,
+            List<(DriveItem Item, IReadOnlyList<DrivePermission> Permissions)> Items,
+            List<Unread> Failed,
+            string? DeltaLink,
+            HashSet<string>? Changed = null,
+            bool FellBack = false);
 
-        private async Task<DriveRead> ReadDriveAsync(SnapshotSite site, SemaphoreSlim permissionGate)
+        private async Task<DriveRead> ReadDriveAsync(SnapshotSite site, SemaphoreSlim permissionGate, string? since)
         {
             var items = new List<(DriveItem, IReadOnlyList<DrivePermission>)>();
             var failed = new List<Unread>();
-            var shared = new List<DriveItem>();
-            string? deltaLink;
-            try
+            List<DriveItem> shared = [];
+            HashSet<string>? changedIds = null;
+            string? deltaLink = null;
+            bool fellBack = false;
+            if (since is not null)
             {
-                var request = GraphRequest.Get(GraphQuery.Path($"/drives/{site.DriveId}/root/delta", ("$select", "id,name,shared,parentReference"), ("$top", "1000"))) with
+                try
                 {
-                    Permission = WorkspaceLookups.SitePermission,
-                    Prefer = HierarchicalSharing,
-                };
-                while (true)
+                    (List<DriveItem> changed, deltaLink) = await DeltaAsync(new GraphRequest(HttpMethod.Get, since)).ConfigureAwait(false);
+                    // An item may come more than once; its last occurrence is its state.
+                    List<DriveItem> latest = changed.GroupBy(item => item.Id, StringComparer.Ordinal).Select(group => group.Last()).ToList();
+                    changedIds = latest.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+                    shared = latest.Where(item => item.Deleted is null && item.Shared is not null).ToList();
+                }
+                catch (AegisException exception) when (exception.Failure.Kind != FailureKind.Auth)
                 {
-                    DeltaPage page = (await _graph.GetAsync<DeltaPage>(request, cancellationToken).ConfigureAwait(false))!;
-                    shared.AddRange(page.Value.Where(item => item.Shared is not null));
-                    if (page.NextLink is null)
-                    {
-                        deltaLink = page.DeltaLink;
-                        break;
-                    }
-
-                    request = new GraphRequest(HttpMethod.Get, page.NextLink) { Permission = WorkspaceLookups.SitePermission, Prefer = HierarchicalSharing };
+                    fellBack = true;
                 }
             }
-            catch (AegisException exception) when (exception.Failure.Kind != FailureKind.Auth)
+
+            if (changedIds is null)
             {
-                failed.Add(new Unread($"{site.Name}: {exception.Message}", exception.Failure.Code));
-                return new DriveRead(site, items, failed, null);
+                try
+                {
+                    (List<DriveItem> all, deltaLink) = await DeltaAsync(
+                        GraphRequest.Get(GraphQuery.Path($"/drives/{site.DriveId}/root/delta", ("$select", "id,name,shared,parentReference"), ("$top", "1000")))).ConfigureAwait(false);
+                    shared = all.Where(item => item.Shared is not null).ToList();
+                }
+                catch (AegisException exception) when (exception.Failure.Kind != FailureKind.Auth)
+                {
+                    failed.Add(new Unread($"{site.Name}: {exception.Message}", exception.Failure.Code));
+                    return new DriveRead(site, items, failed, null, null, fellBack);
+                }
             }
 
             IReadOnlyList<GraphBatchResponse> answers;
@@ -503,7 +559,36 @@ public static class SnapshotTake
                 }
             }
 
-            return new DriveRead(site, items, failed, deltaLink);
+            return new DriveRead(site, items, failed, deltaLink, changedIds, fellBack);
+        }
+
+        /// <summary>Every page of a drive's delta from its first request: the items, and the last page's delta link.</summary>
+        private async Task<(List<DriveItem> Items, string? DeltaLink)> DeltaAsync(GraphRequest first)
+        {
+            var items = new List<DriveItem>();
+            GraphRequest request = first with { Permission = WorkspaceLookups.SitePermission, Prefer = HierarchicalSharing };
+            while (true)
+            {
+                DeltaPage page = (await _graph.GetAsync<DeltaPage>(request, cancellationToken).ConfigureAwait(false))!;
+                items.AddRange(page.Value);
+                if (page.NextLink is null)
+                {
+                    return (items, page.DeltaLink);
+                }
+
+                request = new GraphRequest(HttpMethod.Get, page.NextLink) { Permission = WorkspaceLookups.SitePermission, Prefer = HierarchicalSharing };
+            }
+        }
+
+        /// <summary>A row of the previous snapshot an incremental read keeps (task 099), with its grantees as the objects they were.</summary>
+        private void AddCarried(SnapshotSite site, BaseLink link)
+        {
+            var row = new SnapshotLink(Builder.Links.Count + 1, site.Key, link.ItemId, link.ItemName, link.ItemPath, link.Kind, link.Scope, link.Type, link.Roles, link.Expires, link.HasPassword);
+            Builder.Links.Add(row);
+            foreach (BaseGrantee grantee in link.Grantees)
+            {
+                Builder.LinkGrantees.Add((row.Key, Builder.Object(grantee.Kind, grantee.ObjectId, null, grantee.Name, grantee.Mail).Key));
+            }
         }
 
         /// <summary>

@@ -49,6 +49,9 @@ internal sealed record DriveItem
 
     public JsonElement? Shared { get; init; }
 
+    /// <summary>Set on an item a later <c>delta</c> reports as removed (task 099): its rows are dropped.</summary>
+    public JsonElement? Deleted { get; init; }
+
     public DriveItemParent ParentReference { get; init; } = new(null);
 }
 

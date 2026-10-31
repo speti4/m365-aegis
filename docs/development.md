@@ -809,7 +809,8 @@ permission batches one at a time: SharePoint answers a busy tenant's permission 
 `activityLimitReached` item by item inside the batch (1,036 of them in the first live take), so the take's Graph
 client has its own budget (`GraphClient.WithBudget`: 8 retries and an hour of waits in all, where a command has 4 and
 a minute) and honors each item's `Retry-After`; a take of the tenant took about 25 minutes with it. The last page's
-delta link of each drive is kept in the manifest for a later incremental take. A partial domain's note counts its
+delta link of each drive is kept in the manifest (`deltaLink.<drive id>`) for a later incremental take, since task
+099 only for a drive read whole (`deltaLinks` = `whole-drives` in the manifest says so). A partial domain's note counts its
 failed items by code and names three as examples, and the `access` warnings count without naming a site or a file.
 
 A domain that fails as a whole is recorded with the service's failure (`failed`), the domains that need it fail with
@@ -819,6 +820,21 @@ open, a mailbox's calendar, a group's `ManagedBy`) makes the domain `partial` wi
 take still succeeds and prunes. A site without a library is named in the note of `sites`. A refused sign-in stops
 the take wherever it happens (exit code 3), and a take whose every domain failed writes nothing and ends with the
 first failure. The take only reads, so it is no plan (D-006).
+
+**The incremental sharing read** (task 099, `SharingBase`). A take starts from the newest readable snapshot of the
+profile whose `sharing` domain is `ok`, or `partial` with the `whole-drives` marker; a snapshot taken before task 099
+with a partial sharing domain cannot tell which drive failed and is passed over. Each drive with a delta link there is
+read from that link (with `Prefer: hierarchicalsharing`, as the whole read): an item the delta names is the item's
+current state, its last occurrence when it comes twice; a removed one (`deleted`) and one without `shared` (it
+inherits its parent's sharing again) lose their rows, one with `shared` has its permissions read again, and every
+other `links` and `linkGrantees` row of the drive is the previous snapshot's, its grantees matched to this take's
+objects by object id, else by kind and address or name. A drive without a link, or whose delta from it fails (`410`
+`resyncRequired` or any other error but the sign-in's), is read whole; `snapshot take --full`
+(`SnapshotTakeOptions.Full`) reads every drive whole. The manifest names the snapshot it started from
+(`sharingBase`) and the drives read incrementally (`incrementalDrives`), and the domain's note counts them, the
+changed items and the drives that fell back. The delta reports what changed under `Sites.Read.All` without
+`Prefer: deltashowsharingchanges`, which needs `Sites.FullControl.All` (D-011 declined it), so a periodic `--full`
+take stays the safety net. The store's format is unchanged: no table or column, only manifest keys.
 
 **The calendar holders.** A `folderPermissions` row names the holder as the service does (`principalName`) and
 links it to `objects` when one answers to it (task 101): by the `PrimarySmtpAddress` of the Admin API's `User` object

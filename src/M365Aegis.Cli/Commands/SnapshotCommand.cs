@@ -21,13 +21,18 @@ internal static class SnapshotCommand
         Command snapshot = new("snapshot", "Take and read the snapshots of the tenant that the access view answers from.");
 
         Command take = new("take", "Read the groups, sites, sharing and mailbox permissions into a new snapshot, then prune the older ones.");
+        Option<bool> full = new("--full")
+        {
+            Description = "Read every library's sharing whole, not only what changed since the previous snapshot (task 099).",
+        };
+        take.Options.Add(full);
         take.SetAction((parsed, cancellationToken) => ExchangeRunner.RunAsync(
             parsed, json, table, profile,
             (ExchangeBackends backends, CancellationToken ct) =>
             {
                 string home = AegisHome.Resolve();
                 TenantProfile tenant = new ProfileStore(home).Resolve(parsed.GetValue(profile));
-                return SnapshotTake.RunAsync(backends, new SnapshotTakeOptions(home, tenant), ct);
+                return SnapshotTake.RunAsync(backends, new SnapshotTakeOptions(home, tenant) { Full = parsed.GetValue(full) }, ct);
             },
             SnapshotTakeTableView.Instance,
             cancellationToken));
