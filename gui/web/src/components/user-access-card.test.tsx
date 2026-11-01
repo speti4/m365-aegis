@@ -83,7 +83,11 @@ describe("the user access card", () => {
     expect(text).toContain(
       "SharePoint sites: read only in part in this snapshot; 1 item(s) could not be read (forbidden 1), so the answer may miss what they hold. The administrator can see which ones in the snapshot's details.",
     );
-    expect(text).toContain("OneDrive: not read in this snapshot; other users' OneDrives need a consent");
+    // The skipped part's note in the window's words (task 118), not the take's.
+    expect(text).toContain(
+      "OneDrive: not read in this snapshot; other people's OneDrive files are not in the snapshot; ask the administrator if you need them.",
+    );
+    expect(text).not.toMatch(/Sites\.Read\.All|task \d{3}/);
     expect(text).not.toContain("`");
     expect(onError).not.toHaveBeenCalled();
   });

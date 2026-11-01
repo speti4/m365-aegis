@@ -14,15 +14,9 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-11-01 — edit the files, not this section._
 
-**State:** 5 backlog (4 ready · 0 blocked · 0 waiting · 1 idea) · 0 in progress · 113 done · 0 dropped · 13 decisions
+**State:** 4 backlog (3 ready · 0 blocked · 0 waiting · 1 idea) · 1 in progress · 113 done · 0 dropped · 13 decisions
 
 ### Ready
-
-#### M4 Window
-
-| # | Task | Size | Created |
-|---|---|---|---|
-| 118 | [A skipped snapshot domain's note in the window's words on the access cards](backlog/118-skipped-domain-note-in-the-windows-words.md) | S | 2026-11-01 |
 
 #### M5 Snapshot and views
 
@@ -55,7 +49,11 @@ _none_
 
 ### In progress
 
-_none_
+#### M4 Window
+
+| # | Task | Started | Plan |
+|---|---|---|---|
+| 118 | [A skipped snapshot domain's note in the window's words on the access cards](wip/118-skipped-domain-note-in-the-windows-words.md) | 2026-11-01 | `none` |
 
 ### Closed – do not reopen
 

@@ -8,7 +8,7 @@ import { type BridgeMessage, type Plan, parseMessage, readReply } from "../bridg
 import { button, click, render, settle, submit, type } from "../test/dom";
 import { MailboxForwardingCard } from "./mailbox-write-cards";
 import { ConfirmView, ErrorText, PlanView, ResultView } from "./plan-view";
-import { snapshotPart, snapshotPartNames, windowWarning } from "./plan-wording";
+import { skippedPartNote, skippedPartNotes, snapshotPart, snapshotPartNames, windowWarning } from "./plan-wording";
 import { AccessReportView, NoSnapshotView, UserAccessCard } from "./user-access-card";
 
 /** A flag of the command line as a card would show it: `--keep-copy`, `(--yes)`. */
@@ -19,6 +19,15 @@ const flag = /(^|[\s("'`])--[a-z]/;
  * backticks as the core writes one into a sentence (`group owners-missing`); the product's name alone is no command.
  */
 const command = /\bm365-aegis\s+[a-z]|`/;
+
+/**
+ * A permission's name as a card would show it (task 118): a Graph scope (`Sites.Read.All`, `User.ReadBasic.All`) or
+ * an Exchange one (`Exchange.Manage`, `Exchange.ManageV2`); the setup guide's word, not the colleague's.
+ */
+const permission = /\b[A-Z][A-Za-z]+\.(?:Read|ReadWrite|ReadBasic|Manage)[A-Za-z0-9.]*/;
+
+/** A reference to a task of this repo as a card would show it (task 118): `task 092`, `(task 092)`. */
+const taskReference = /\btask \d{3}\b/i;
 
 const repo = path.resolve(__dirname, "../../../..");
 
@@ -87,6 +96,17 @@ function takeParts(): string[] {
 }
 
 /**
+ * The parts the take skips (task 118), from its source, each with the take's own note: a `new SnapshotDomain("…",
+ * SnapshotDomainStatus.Skipped, "…", 0, "<note>")`.
+ */
+function skippedParts(): Array<{ part: string; note: string }> {
+  const source = readFileSync(path.join(repo, "src/M365Aegis.Core/Snapshots/SnapshotTake.cs"), "utf8");
+  const skipped =
+    /new SnapshotDomain\(\s*"(\w+)",\s*SnapshotDomainStatus\.Skipped,\s*"[^"]*",\s*\d+,\s*"((?:[^"\\]|\\.)*)"\)/g;
+  return [...source.matchAll(skipped)].map((match) => ({ part: match[1], note: match[2] }));
+}
+
+/**
  * A part of the snapshot named by the store's word as a warning starts with it (task 113): `sites is partial`,
  * `grants could not be read`, `oneDrive was not read`.
  */
@@ -129,9 +149,38 @@ describe("a plan warning in the window's words", () => {
     ).toBe(
       "Mailbox rights: could not be read in this snapshot, so the answer has none of it. The administrator can see why in the snapshot's details.",
     );
-    expect(windowWarning("oneDrive was not read: other users' OneDrives need a consent")).toBe(
-      "OneDrive: not read in this snapshot; other users' OneDrives need a consent.",
+    // A skipped part the map knows gets the window's note, whatever the take wrote (task 118).
+    expect(
+      windowWarning(
+        "oneDrive was not read: other users' OneDrives need a consent the tool does not ask for (Sites.Read.All reads the signed-in account's only; task 092)",
+      ),
+    ).toBe(
+      "OneDrive: not read in this snapshot; other people's OneDrive files are not in the snapshot; ask the administrator if you need them.",
     );
+    // A skipped part the map does not know keeps the take's note, so a new part's reason still reaches the card.
+    expect(windowWarning("constructor was not read: the take left it out")).toBe(
+      "constructor: not read in this snapshot; the take left it out.",
+    );
+  });
+
+  it("names every skipped part's note in the window's words: no permission, no task number (task 118)", () => {
+    const skipped = skippedParts();
+    // A new skipped part of the take fails here: give it a note in `skippedPartNotes` (plan-wording.ts).
+    expect(skipped.map(({ part }) => part).sort()).toEqual(Object.keys(skippedPartNotes).sort());
+    expect(skipped).toHaveLength(1);
+
+    for (const { part, note } of skipped) {
+      // The take's note is the administrator's: it names what the card must not.
+      expect(note).toMatch(permission);
+      expect(note).toMatch(taskReference);
+      expect(skippedPartNote(part, note)).toBe(skippedPartNotes[part]);
+      const worded = windowWarning(`${part} was not read: ${note}`);
+      expect(worded.startsWith(`${snapshotPartNames[part]}: not read in this snapshot; `)).toBe(true);
+      expect(worded).not.toMatch(permission);
+      expect(worded).not.toMatch(taskReference);
+      expect(worded).not.toMatch(bareDomain);
+    }
+    expect(skippedPartNote("constructor", "the take's note")).toBe("the take's note");
   });
 
   it("names every part of the take in the window's words, never the store's identifier (task 113)", () => {
@@ -199,7 +248,7 @@ describe("a plan warning in the window's words", () => {
   });
 });
 
-describe("no card renders a command of the command line (task 104)", () => {
+describe("no card renders a command of the command line (task 104), a permission's name or a task number (task 118)", () => {
   /** Every string of a payload with where it sits, the warnings as the card words them. */
   function shown(value: unknown, at: string): Array<[string, string]> {
     if (typeof value === "string") {
@@ -211,7 +260,13 @@ describe("no card renders a command of the command line (task 104)", () => {
     return [];
   }
 
-  it("over every reply sample of the bridge: no string a card shows names a flag or a command", () => {
+  /**
+   * A token's scopes in the sign-in state (`signed-in.json`, `tokens[].scopes[]`) are permission names by nature and
+   * the protocol's data: no card renders them (task 118).
+   */
+  const tokenScope = /\.tokens\.\d+\.scopes\.\d+$/;
+
+  it("over every reply sample of the bridge: no string a card shows names a flag, a command, a permission or a task", () => {
     const replies = readdirSync(contracts)
       .filter((name) => name.endsWith(".json"))
       .map((name) => [name, parseMessage(readFileSync(path.join(contracts, name), "utf8")) as BridgeMessage] as const)
@@ -222,7 +277,14 @@ describe("no card renders a command of the command line (task 104)", () => {
 
     const offending = replies
       .flatMap(([name, message]) => shown(message.data, name))
-      .filter(([, text]) => flag.test(text) || command.test(text) || bareDomain.test(text));
+      .filter(
+        ([at, text]) =>
+          flag.test(text) ||
+          command.test(text) ||
+          bareDomain.test(text) ||
+          taskReference.test(text) ||
+          (permission.test(text) && !tokenScope.test(at)),
+      );
     expect(offending).toEqual([]);
   });
 
@@ -255,11 +317,16 @@ describe("no card renders a command of the command line (task 104)", () => {
     expect(card.textContent).toContain("The administrator can see which ones in the snapshot's details.");
     // The parts of the snapshot in the window's words (task 113).
     expect(card.textContent).toContain("SharePoint sites: read only in part in this snapshot;");
-    expect(card.textContent).toContain("OneDrive: not read in this snapshot;");
+    // The skipped part's note in the window's words (task 118): the mock carries the take's note, the card the window's.
+    expect(card.textContent).toContain(
+      "OneDrive: not read in this snapshot; other people's OneDrive files are not in the snapshot; ask the administrator if you need them.",
+    );
     for (const view of views) {
       expect(view.container.textContent).not.toMatch(flag);
       expect(view.container.textContent).not.toMatch(command);
       expect(view.container.textContent).not.toMatch(bareDomain);
+      expect(view.container.textContent).not.toMatch(permission);
+      expect(view.container.textContent).not.toMatch(taskReference);
       await view.unmount();
     }
   });

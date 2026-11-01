@@ -1170,9 +1170,19 @@ core's, unchanged.
 the store's word (`sites is partial…`, `oneDrive was not read: …`); the wording map names it as the card does
 (`snapshotPartNames` in `components/plan-wording.ts`: "SharePoint sites", "OneDrive", "Mailbox rights", "Calendar
 permissions", …, one name for each of the take's 13 parts) and words the partial, the failed and the skipped part as
-"SharePoint sites: read only in part in this snapshot; …", the skipped part's note kept as the take wrote it. The
+"SharePoint sites: read only in part in this snapshot; …". The
 Vitest test reads the parts from `SnapshotTake.cs` and fails on a part the map does not name, and forbids a part's
 store word at the head of a warning (`sites is partial`) over the reply samples and the access card.
+
+**A skipped part's note in the window's words** (task 118): the take's note for a part it skips names the permission
+the tool does not ask for and the task that decided it (`other users' OneDrives need a consent … (Sites.Read.All …;
+task 092)`), which the manifest and the command line keep; the card shows the window's note for the part
+(`skippedPartNotes` in `components/plan-wording.ts`: "other people's OneDrive files are not in the snapshot; ask the
+administrator if you need them"), and a skipped part the map has no note for keeps the take's, so a new one still
+reaches the card. The Vitest test reads the skipped parts from `SnapshotTake.cs` with their notes and fails on one
+without a window note, and forbids a permission's name (`Sites.Read.All`, `Exchange.Manage`) and a task reference
+(`task 092`) over every string of the reply samples a card shows (a token's scopes in `signed-in.json` are the
+protocol's data, not a card's text) and over the access views and the browser mock's cards.
 
 **The task card design sketch** (task 018, `src/sketch/`): the card list (grant FullAccess on a shared mailbox, add
 a group owner, check a user's access), one card's steps (pick, the plan, the confirmation, the result) and the

@@ -17,7 +17,10 @@
  *
  * The access view's warnings name a part of the snapshot by the store's word for it (`sites`, `oneDrive`), which the
  * command line shows as it is; the card names the part in the window's words (task 113, `snapshotPartNames`). The same
- * Vitest test reads the parts of the take from its source and fails on a part this list does not name.
+ * Vitest test reads the parts of the take from its source and fails on a part this list does not name. A part the take
+ * skips carries the take's note, written for the administrator (a permission name, a task number); the card shows the
+ * window's note for it (task 118, `skippedPartNotes`), and the test forbids a permission name and a task reference on
+ * a card and fails on a skipped part of the take this list has no note for.
  */
 
 /**
@@ -43,6 +46,20 @@ export const snapshotPartNames: Readonly<Record<string, string>> = {
 /** A part of the snapshot as the card names it; a part the list does not know yet keeps the store's word. */
 export function snapshotPart(part: string): string {
   return Object.hasOwn(snapshotPartNames, part) ? snapshotPartNames[part] : part;
+}
+
+/**
+ * The note of a part the take skips, in the window's words (task 118): the take's own note names the permission the
+ * tool does not ask for and the task that decided it, which are the administrator's; the card says what is missing and
+ * whom to ask. A skipped part this list does not know keeps the take's note, so a new one still reaches the card.
+ */
+export const skippedPartNotes: Readonly<Record<string, string>> = {
+  oneDrive: "other people's OneDrive files are not in the snapshot; ask the administrator if you need them",
+};
+
+/** The note of a skipped part as the card shows it: the window's for a part it knows, else the take's. */
+export function skippedPartNote(part: string, note: string): string {
+  return Object.hasOwn(skippedPartNotes, part) ? skippedPartNotes[part] : note;
 }
 
 /** One user's sections of a snapshot diff (task 114) that are no part of the snapshot by that name: the part each reads. */
@@ -98,9 +115,9 @@ const rewordings: readonly Rewording[] = [
       `${snapshotPart(part)}: could not be read in this snapshot, so the answer has none of it. The administrator can see why in the snapshot's details.`,
   },
   {
-    // SnapshotAccess, a part the take did not read, with the take's own note, which stays the take's (task 113).
+    // SnapshotAccess, a part the take did not read (task 113), with the note in the window's words (task 118).
     core: /^(\w+) was not read: (.+)$/s,
-    window: (part, note) => `${snapshotPart(part)}: not read in this snapshot; ${note}.`,
+    window: (part, note) => `${snapshotPart(part)}: not read in this snapshot; ${skippedPartNote(part, note)}.`,
   },
   {
     // SnapshotDiff, a part read only in part in one of the two snapshots, with the parts whose rows rest on it (task 114).
