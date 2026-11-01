@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-11-01 — edit the files, not this section._
 
-**State:** 4 backlog (3 ready · 0 blocked · 0 waiting · 1 idea) · 0 in progress · 114 done · 0 dropped · 13 decisions
+**State:** 3 backlog (2 ready · 0 blocked · 0 waiting · 1 idea) · 1 in progress · 114 done · 0 dropped · 13 decisions
 
 ### Ready
 
@@ -22,7 +22,6 @@ _Generated 2026-11-01 — edit the files, not this section._
 
 | # | Task | Size | Created |
 |---|---|---|---|
-| 116 | [A periodic full sharing read when the incremental base is older than a configur…](backlog/116-periodic-full-sharing-read-when-the-base-is-old.md) | S | 2026-11-01 |
 | 117 | [The folderPermissions domain of the take reads the calendar permissions in para…](backlog/117-folder-permissions-domain-read-in-parallel.md) | S | 2026-11-01 |
 
 #### M6 Release and team
@@ -49,7 +48,11 @@ _none_
 
 ### In progress
 
-_none_
+#### M5 Snapshot and views
+
+| # | Task | Started | Plan |
+|---|---|---|---|
+| 116 | [A periodic full sharing read when the incremental base is older than a configur…](wip/116-periodic-full-sharing-read-when-the-base-is-old.md) | 2026-11-01 | `none` |
 
 ### Closed – do not reopen
 
