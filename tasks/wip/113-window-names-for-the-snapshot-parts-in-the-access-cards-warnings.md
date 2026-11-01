@@ -67,6 +67,8 @@ them.
   item(s) could not be read (forbidden 1), …" and "OneDrive: not read in this snapshot; other users' OneDrives need a
   consent …"; no reply sample, access view or mock card shows a bare part. The command line's text is the core's,
   unchanged: no C# change for this task, and the Core's `SnapshotAccessTests` still hold the store's words.
+- 2026-11-01 — after `origin/main` was merged (#151, the take's manifest fields and per-domain counters): the test still
+  reads 13 parts from `SnapshotTake.cs`, equal to the map; `npm run test:coverage` 213 tests, 100%.
 
 ## Closing checklist
 
