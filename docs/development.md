@@ -356,8 +356,11 @@ PowerShell error, so `Exchange/Sidecar/SidecarFailures.cs` reads the message for
 pwsh or module, a script that does not match the build, a process that died or stopped answering, and a connect the
 service refused for a reason it did not name as a sign-in or a permission are 11 (`sidecar-unavailable`, with
 `doctor` as the hint); a token the service refused (a 401, an expired token, an `AADSTS` error) is 3; a 403, an
-access denial or a missing role is 8; a cmdlet whose object was not found is 4; throttling (a 429, Server Busy, a
-micro delay, a budget) is 5; a cmdlet off the allow-list is 12; any other cmdlet failure is 13 (`cmdlet-failed`);
+access denial or a missing role is 8, and so is a cmdlet the session does not know ("is not recognized",
+`CommandNotFoundException`; task 108): the connect imports the allow-list by name and Exchange Online leaves out
+what the account's roles do not run, so the shape is a missing role, with a hint that says so; a cmdlet whose object
+was not found is 4; throttling (a 429, Server Busy, a micro delay, a budget) is 5; a cmdlet off the allow-list is
+12; any other cmdlet failure is 13 (`cmdlet-failed`);
 a bulk run with items that failed is 6 with the rest of the answer as the data. An error reply that means the Core
 sent a wrong message (`bad-request`, `not-connected`, `unknown-type`) is a bug, exit code 70. The message of a
 failure is the service's one sentence (the `message` of a REST error's JSON body, without the server name, at most

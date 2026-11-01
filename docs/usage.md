@@ -146,7 +146,8 @@ Microsoft Graph sees it, with a line under the table that says so. Without `--al
 Graph alone, as before.
 
 When your account has no Exchange Online role that may read the distribution groups, Exchange Online refuses that read
-and `owners-missing --all-types` answers with Microsoft Graph's list instead: every distribution and mail-enabled
+(or leaves the cmdlet out of the session, which the tool reads the same way) and `owners-missing --all-types` answers
+with Microsoft Graph's list instead: every distribution and mail-enabled
 security group is listed, since Graph keeps no owners for them, and a warning under the table says so and names the
 refusal. Any other Exchange Online failure (the module missing, a connection that fails) still ends the command with
 its error.

@@ -12,7 +12,9 @@ namespace M365Aegis.Core.Exchange.Sidecar;
 /// <list type="bullet">
 /// <item><c>module-missing</c>, and a <c>connect-failed</c> the service did not name: exit code 11, sidecar unavailable;</item>
 /// <item>a <c>connect-failed</c> or <c>cmdlet-failed</c> that names the token or a 401: 3, auth;</item>
-/// <item>one that names a 403, an access denial or a missing role: 8, forbidden;</item>
+/// <item>one that names a 403, an access denial or a missing role: 8, forbidden; a <c>cmdlet-failed</c> whose cmdlet the
+/// session does not know ("is not recognized", a <c>CommandNotFoundException</c>) too, since Exchange Online imports only
+/// the cmdlets the account's roles allow (task 108);</item>
 /// <item>a <c>cmdlet-failed</c> whose object was not found: 4, not found;</item>
 /// <item>one that names throttling (a 429, Server Busy, a micro delay, a budget): 5, throttled;</item>
 /// <item><c>cmdlet-not-allowed</c>: 12; any other <c>cmdlet-failed</c>: 13;</item>
@@ -24,9 +26,11 @@ public static partial class SidecarFailures
     private const string DoctorHint = "run `m365-aegis doctor`: it checks pwsh, the module and the sidecar script";
     private const string LoginHint = "run `m365-aegis whoami`: the Exchange Online token must be there; `m365-aegis login` renews the sign-in";
     private const string RoleHint = "the account needs an Exchange Online role that runs the cmdlet (View-Only Organization Management or Recipient Management for the mailbox lookups), and the app registration Exchange.Manage with admin consent";
+    private const string HiddenHint = "Exchange Online imports only the cmdlets the account's roles allow, so the session has no such cmdlet; " + RoleHint;
 
     private static readonly string[] AuthWords = ["401", "unauthorized", "token has expired", "token is expired", "expired token", "invalid token", "aadsts", "access token"];
     private static readonly string[] ForbiddenWords = ["403", "forbidden", "access denied", "accessdenied", "is not allowed to", "isn't allowed to", "doesn't have permission", "does not have permission", "insufficient", "write scope"];
+    private static readonly string[] HiddenWords = ["is not recognized", "commandnotfoundexception"];
     private static readonly string[] NotFoundWords = ["couldn't be found", "could not be found", "managementobjectnotfound", "objectnotfound", "httpstatuscode=404", "not found"];
     private static readonly string[] ThrottledWords = ["throttl", "429", "server busy", "serverbusy", "microdelay", "budget", "too many requests", "toomanyrequests"];
 
@@ -65,6 +69,13 @@ public static partial class SidecarFailures
         if (Names(text, ForbiddenWords))
         {
             return new AegisException(FailureKind.Forbidden, $"{what}: {said}", RoleHint);
+        }
+
+        // A cmdlet the session does not know (task 108): the module imported the allow-list by name, and the service left
+        // out what the account's roles do not run, so the shape is a missing role, not a broken cmdlet.
+        if (!connecting && Names(text, HiddenWords))
+        {
+            return new AegisException(FailureKind.Forbidden, $"{what}: {said}", HiddenHint);
         }
 
         if (connecting)
