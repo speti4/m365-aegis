@@ -11,12 +11,14 @@ import { MailboxAccessCard } from "./components/mailbox-access-card";
 import { MailboxAccessWriteCard, MailboxForwardingCard } from "./components/mailbox-write-cards";
 import { SignInCard } from "./components/sign-in-card";
 import { signInReducer } from "./components/sign-in-state";
+import { SnapshotDiffCard } from "./components/snapshot-diff-card";
 import { UserAccessCard } from "./components/user-access-card";
 
 /**
  * The window's page: it tells the host it is ready (the smoke run waits for that), shows the sign-in state and
  * signs in or out from its card (task 040), looks up a group's members (task 017) and a mailbox's access over the
- * window's Exchange Online session (task 045), shows what one user reaches from the newest snapshot (task 102), and
+ * window's Exchange Online session (task 045), shows what one user reaches from the newest snapshot (task 102) and who
+ * gained or lost access between two snapshots (task 115), and
  * grants or revokes mailbox rights and sets or clears a mailbox's forwarding on the write cards (task 082: the plan,
  * the confirmation, the result); an `error` reply of a lookup is a toast, a write card shows its own. A change a write
  * card applied reaches the mailbox access card, which reads the mailbox it shows again (task 091) or marks the user's
@@ -118,6 +120,7 @@ export function App() {
         <GroupMembersCard client={client} onError={showError} />
         <MailboxAccessCard client={client} onError={showError} applied={applied} />
         <UserAccessCard client={client} onError={showError} />
+        <SnapshotDiffCard client={client} onError={showError} />
         <MailboxAccessWriteCard client={client} signedIn={signIn.status === "signed-in"} onApplied={applied.publish} />
         <MailboxForwardingCard client={client} signedIn={signIn.status === "signed-in"} onApplied={applied.publish} />
       </div>

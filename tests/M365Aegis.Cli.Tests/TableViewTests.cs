@@ -559,6 +559,30 @@ public sealed class TableViewTests
         Assert.Contains("\nno change in members\n", none, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AUserDiffHasTheThroughColumnAndNamesTheUser()
+    {
+        var diff = new SnapshotDiffReport(
+            new SnapshotDiffSide("2026-10-29T120000Z.sqlite", Now.AddDays(-1), 24, "yesterday"),
+            new SnapshotDiffSide("2026-10-30T120000Z.sqlite", Now, 0.5, "latest"),
+            [new SnapshotDiffDomain("groups", true, 2, 0)],
+            [
+                new SnapshotDiffEntry("groups", SnapshotChange.Added, "Finance", "bob@contoso.com", "member"),
+                new SnapshotDiffEntry("groups", SnapshotChange.Added, "Finance Staff", "bob@contoso.com", "member") { Through = "Audit" },
+            ],
+            [])
+        {
+            User = new AccessUser(null, "Partner Example", null, "partner@fabrikam.com"),
+        };
+
+        string table = Show(SnapshotDiffTableView.Instance, diff);
+        string byId = Show(SnapshotDiffTableView.Instance, diff with { User = new AccessUser("00000000-0000-0000-0000-000000000003", null, null, null) });
+
+        Assert.StartsWith("section|change|what|who|how|through\ngroups|added|Finance|bob@contoso.com|member|direct\ngroups|added|Finance Staff|bob@contoso.com|member|Audit\n", table, StringComparison.Ordinal);
+        Assert.Contains("\nfor partner@fabrikam.com (Partner Example), nested memberships and what comes through them included\nfrom ", table, StringComparison.Ordinal);
+        Assert.Contains("\nfor 00000000-0000-0000-0000-000000000003, nested memberships", byId, StringComparison.Ordinal);
+    }
+
     private static string Show<T>(ITableView<T> view, T data)
     {
         var lines = new List<string> { string.Join("|", view.HeadersFor(data)) };

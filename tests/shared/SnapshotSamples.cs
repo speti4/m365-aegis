@@ -60,6 +60,9 @@ internal static class SnapshotSamples
     /// The fixture snapshot a day later (task 098), copied under the name of <see cref="ChangedTaken"/> and changed in
     /// place: one row removed and one added in each domain <c>snapshot diff</c> compares, a group renamed, and every
     /// integer key moved by 100, so a diff that matched rows by key or by display name would show changes it must not.
+    /// And a new group, Audit (task 114): bob is its member and it is a member of Finance Staff, so bob gains Finance
+    /// Staff through Audit, and with it what Finance Staff holds; <c>userGroups</c> follows the members as a take
+    /// computes it.
     /// </summary>
     internal static async Task<string> SeedChangedAsync(string home)
     {
@@ -68,6 +71,10 @@ internal static class SnapshotSamples
             update objects set name = 'Finance Team' where objectId = '00000000-0000-0000-0000-000000000031';
             delete from members where groupKey = 9 and memberKey = 14;
             insert into members values (10, 2);
+            insert into userGroups values (2, 10, null);
+            insert into objects values (18, '00000000-0000-0000-0000-000000000037', 'group', null, 'Audit', 'audit@contoso.com', 'Security', null, 0);
+            insert into members values (18, 2), (11, 18);
+            insert into userGroups values (2, 18, null), (2, 11, 18);
             delete from owners where groupKey = 9 and ownerKey = 3;
             insert into owners values (10, 4, 'graph');
             delete from links where key = 1;

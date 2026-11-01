@@ -45,6 +45,14 @@ export const MessageType = {
   access: "access",
   accessReport: "access-report",
   noSnapshot: "no-snapshot",
+  /**
+   * `{ from?, to?, user? }`: what appeared and disappeared between two snapshots of the window's profile (task 115), as
+   * `snapshot diff` reads it, the newest and the one before it unless named, for one user when `user` names one (task
+   * 114); answered with `snapshot-diff-report`, or `too-few-snapshots` when there are not two. No sign-in, no live read.
+   */
+  snapshotDiff: "snapshot-diff",
+  snapshotDiffReport: "snapshot-diff-report",
+  tooFewSnapshots: "too-few-snapshots",
   /** The write requests (task 082): each is answered with `plan`, the plan as `--dry-run` prints it; nothing is sent. */
   mailboxAccessGrant: "mailbox-access-grant",
   mailboxAccessRevoke: "mailbox-access-revoke",
@@ -285,6 +293,54 @@ export interface NoSnapshotInfo {
   hint: string;
 }
 
+/** One snapshot of a diff: its name, when it was taken, its age then, and how it was picked. */
+export interface SnapshotDiffSide {
+  snapshot: string;
+  taken: string;
+  ageHours: number;
+  pick: string;
+}
+
+/** One domain of a diff (one section of a user's diff) with its counts; `compared` false when it was left out. */
+export interface SnapshotDiffDomain {
+  name: string;
+  compared: boolean;
+  added: number;
+  removed: number;
+}
+
+/** A row that appeared or disappeared: who holds what, and how; in a user's diff, the group it comes through. */
+export interface SnapshotDiffEntry {
+  domain: string;
+  change: "added" | "removed";
+  what: string;
+  who: string;
+  how: string;
+  whatId?: string;
+  whoId?: string;
+  through?: string;
+}
+
+/** The result of `snapshot diff` (the core's `SnapshotDiffReport`); `user` only for one user's diff. */
+export interface SnapshotDiffReport {
+  from: SnapshotDiffSide;
+  to: SnapshotDiffSide;
+  domains: SnapshotDiffDomain[];
+  changes: SnapshotDiffEntry[];
+  warnings: string[];
+  added: number;
+  removed: number;
+  user?: AccessUser;
+}
+
+/** The profile has fewer than two snapshots to compare: how many it has, why, and what to do. */
+export interface TooFewSnapshotsInfo {
+  profile: string;
+  snapshots: number;
+  message: string;
+  hint: string;
+}
+
 /** A failure as the envelope's `error` carries it: a stable code, one sentence, and what to do about it. */
 export interface BridgeError {
   code: string;
@@ -383,6 +439,8 @@ export type Reply =
   | { type: typeof MessageType.userGrants; data: UserAccess }
   | { type: typeof MessageType.accessReport; data: AccessReport }
   | { type: typeof MessageType.noSnapshot; data: NoSnapshotInfo }
+  | { type: typeof MessageType.snapshotDiffReport; data: SnapshotDiffReport }
+  | { type: typeof MessageType.tooFewSnapshots; data: TooFewSnapshotsInfo }
   | { type: typeof MessageType.plan; data: PlanReady }
   | { type: typeof MessageType.planApplied; data: PlanApplied }
   | { type: typeof MessageType.error; data: BridgeError };
@@ -445,6 +503,16 @@ export function readReply(message: BridgeMessage): Reply | null {
     case MessageType.noSnapshot:
       return isRecord(data) && isString(data.profile) && isString(data.message) && isString(data.hint)
         ? { type, data: { profile: data.profile, message: data.message, hint: data.hint } }
+        : null;
+    case MessageType.snapshotDiffReport:
+      return isSnapshotDiffReport(data) ? { type, data } : null;
+    case MessageType.tooFewSnapshots:
+      return isRecord(data) &&
+        isString(data.profile) &&
+        typeof data.snapshots === "number" &&
+        isString(data.message) &&
+        isString(data.hint)
+        ? { type, data: { profile: data.profile, snapshots: data.snapshots, message: data.message, hint: data.hint } }
         : null;
     case MessageType.plan:
       return isPlanReady(data) ? { type, data } : null;
@@ -651,7 +719,7 @@ function isAccessReport(value: unknown): value is AccessReport {
     isString(value.snapshot) &&
     isString(value.taken) &&
     typeof value.ageHours === "number" &&
-    ["objectId", "displayName", "userPrincipalName", "mail"].every((name) => isOptionalString(user[name])) &&
+    isUser(user) &&
     Array.isArray(value.groups) &&
     value.groups.every((group) => isRecord(group) && isStrings(group.via) && typeof group.direct === "boolean") &&
     isListOf(value.groups, [], ["id", "displayName", "kind"]) &&
@@ -664,6 +732,48 @@ function isAccessReport(value: unknown): value is AccessReport {
       (name) => typeof everyone[name] === "number",
     ) &&
     isStrings(value.warnings)
+  );
+}
+
+function isUser(value: unknown): value is AccessUser {
+  return (
+    isRecord(value) &&
+    ["objectId", "displayName", "userPrincipalName", "mail"].every((name) => isOptionalString(value[name]))
+  );
+}
+
+function isDiffSide(value: unknown): value is SnapshotDiffSide {
+  return (
+    isRecord(value) &&
+    isString(value.snapshot) &&
+    isString(value.taken) &&
+    typeof value.ageHours === "number" &&
+    isString(value.pick)
+  );
+}
+
+function isSnapshotDiffReport(value: unknown): value is SnapshotDiffReport {
+  return (
+    isRecord(value) &&
+    isDiffSide(value.from) &&
+    isDiffSide(value.to) &&
+    Array.isArray(value.domains) &&
+    value.domains.every(
+      (domain) =>
+        isRecord(domain) &&
+        isString(domain.name) &&
+        typeof domain.compared === "boolean" &&
+        typeof domain.added === "number" &&
+        typeof domain.removed === "number",
+    ) &&
+    isListOf(value.changes, ["domain", "change", "what", "who", "how"], ["whatId", "whoId", "through"]) &&
+    (value.changes as Array<{ change: string }>).every(
+      (entry) => entry.change === "added" || entry.change === "removed",
+    ) &&
+    isStrings(value.warnings) &&
+    typeof value.added === "number" &&
+    typeof value.removed === "number" &&
+    (value.user === undefined || isUser(value.user))
   );
 }
 

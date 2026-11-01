@@ -166,6 +166,8 @@ public sealed class BridgeDispatcher
                     return await MailboxAccessAsync(request, cancellationToken).ConfigureAwait(false);
                 case BridgeMessageType.Access:
                     return Access(request);
+                case BridgeMessageType.SnapshotDiff:
+                    return DiffSnapshots(request);
                 case BridgeMessageType.MailboxAccessGrant:
                     return await AccessWriteAsync(request, grant: true, cancellationToken).ConfigureAwait(false);
                 case BridgeMessageType.MailboxAccessRevoke:
@@ -371,6 +373,38 @@ public sealed class BridgeDispatcher
     /// <summary>What the card says to do without a snapshot: the snapshot is taken on the command line, by the administrator.</summary>
     internal const string NoSnapshotHint =
         "ask the administrator to take a snapshot on this computer, or to schedule one every morning";
+
+    /// <summary>
+    /// <c>snapshot-diff</c> (task 115): what appeared and disappeared between two snapshots of the window's profile, as
+    /// <c>snapshot diff</c> reads it (task 098), for one user when the payload names one (task 114): the newest snapshot
+    /// and the readable one before it unless the payload names them, the files only, the ages on the window's clock.
+    /// Fewer than two snapshots (or none before the one named) is <c>too-few-snapshots</c>, a state of the card; a pick
+    /// or a user that finds nothing is the error of its kind, its hint the window's.
+    /// </summary>
+    private BridgeMessage DiffSnapshots(BridgeMessage request)
+    {
+        string home = _services.Auth.Home;
+        string profile = _services.Auth.Profiles.Resolve(_services.Profile).Name;
+        SnapshotDiffReport? report = Snapshots.SnapshotDiff.CompareWithThePrevious(
+            home, profile, Text(request, "from"), Text(request, "to"), Text(request, "user"), _services.Clock.GetUtcNow());
+        if (report is not null)
+        {
+            return BridgeProtocol.Reply(request, BridgeMessageType.SnapshotDiffReport, report);
+        }
+
+        int count = SnapshotStore.List(home, profile).Snapshots.Count;
+        string message = count switch
+        {
+            0 => $"no snapshot of the profile '{profile}' yet",
+            1 => $"only one snapshot of the profile '{profile}' so far",
+            _ => $"no snapshot of the profile '{profile}' before the one picked",
+        };
+        return BridgeProtocol.Reply(request, BridgeMessageType.TooFewSnapshots, new TooFewSnapshotsInfo(profile, count, message, TooFewSnapshotsHint));
+    }
+
+    /// <summary>What the diff card says to do with fewer than two snapshots: a snapshot every morning gives one to compare with.</summary>
+    internal const string TooFewSnapshotsHint =
+        "the card compares two snapshots: ask the administrator to take one every morning, so there is always the day before to compare with";
 
     /// <summary>
     /// <c>mailbox-access-grant</c> and <c>mailbox-access-revoke</c> (task 082): the rows of the arguments as

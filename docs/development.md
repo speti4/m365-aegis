@@ -845,7 +845,18 @@ a pick that finds no snapshot exit code 4. A domain that either manifest records
 left out with a warning, and one that rests on a partial domain (`sharing` on `sites`) is compared with a warning;
 a manifest key the diff does not know is ignored. `SnapshotDiffTests` and `SnapshotCommandTests` hold it over the
 fixture snapshot and its changed copy (`SnapshotSamples.SeedChangedAsync`: one row removed and one added per domain,
-a group renamed, every integer key moved).
+a group renamed, every integer key moved, and a new group bob reaches Finance Staff through).
+
+**One user's diff.** `snapshot diff --user <x>` (task 114) compares that user's rows only, in the access view's
+sections (`groups` from the `userGroups` closure with the via group, `owners`, `sites`, `sharedItems`, `mailboxes`,
+`calendars`, `forwarding` out of and into the user's mailbox), with the same attach and the same `not in` over keys; a
+row held by one of the user's groups is keyed on that group and carries it as `through`, so a membership gained
+through a new group shows with what comes through it. The user is found by name in the second snapshot (the access
+view's lookup), and then by object id (an external grantee: by address) in the first, so a renamed user principal
+name still matches; a user one snapshot lacks has all their rows of the other added or removed, with a warning. Each
+section rests on the manifest domains it reads (`userGroups` for everything that comes through a group). The window's
+card (task 115) asks `SnapshotDiff.CompareWithThePrevious`: the newest snapshot and the readable one before it unless
+named, null when there are fewer than two.
 
 **The schedule.** A Task Scheduler task with an interactive logon and `-StartWhenAvailable`, as the usage guide's
 "A snapshot every morning" gives it: the take uses the silent sign-in only (D-003), the MSAL cache is the user's DPAPI
@@ -911,6 +922,12 @@ The messages (tasks 017, 040, 045 and 047; `BridgeMessageType` in C#, `MessageTy
   window's hint, which sends to the administrator who takes the snapshots): `SnapshotAccess.ForUser` over the newest
   snapshot of the window's profile, the age on the window's clock. It reads the local file only, so it needs no
   sign-in and starts no session; a user the snapshot does not know is the `not-found` error;
+- `snapshot-diff` with `{"from": …, "to": …, "user": …}`, every field optional (task 115), answered with
+  `snapshot-diff-report` (the core's `SnapshotDiffReport`, as `snapshot diff --json` carries it, with `user` and each
+  row's `through` for one user's diff) or `too-few-snapshots` (the profile, its count of readable snapshots, the
+  sentence and the window's hint): `SnapshotDiff.CompareWithThePrevious` over the window's profile, the newest snapshot
+  and the one before it unless named, the ages on the window's clock; the files only, no sign-in. A pick that is none
+  or a user neither snapshot knows is the error of its kind;
 - the write requests (task 082, [The window's writes](#the-windows-writes)), marked `[BridgeWrite]` in
   `BridgeMessageType` (its `Writes` lists them; `writeRequests` in TypeScript): `mailbox-access-grant` and
   `mailbox-access-revoke` with `{"mailbox": …, "users": […], "rights": ["full-access", "send-as",
@@ -1065,6 +1082,15 @@ the access view's warnings through the wording map below. `no-snapshot` is a pla
 host's hint; an `error` reply is the page's toast. The card does not wait for a sign-in. The browser mock answers dave
 from `src/bridge/mock-access.ts`, which a Vitest test holds equal to the `access-report.json` sample, and
 `?mock=no-snapshot` in the address starts the mock without a snapshot.
+
+**The access changes card** (task 115, `components/snapshot-diff-card.tsx`): "From", "To" and "Only this user", each
+optional and sent only when filled, then `snapshot-diff`; the two snapshots' times and ages with the counts, the
+warnings through the wording map, a table per part of the tenant that changed (change, what, who, how, and `through`
+for one user), a line for the parts without a change and one for the parts left out; the parts' names are the card's
+own (`partName`, a name it does not know shown as the core's). `too-few-snapshots` is a plain "Nothing to compare yet"
+state; an `error` reply is the page's toast. The browser mock answers from `src/bridge/mock-snapshot-diff.ts` (the
+whole diff, bob's, and the plain state under `?mock=no-snapshot`), which a Vitest test holds equal to the
+`snapshot-diff-report.json`, `snapshot-diff-report.user.json` and `too-few-snapshots.json` samples.
 
 **A command on a card** (task 104): the wording map rewords a warning that names a command of the command line too,
 not only a flag: the group owner write's last-owner warning (`` `group owners-missing` lists it ``) becomes "To keep

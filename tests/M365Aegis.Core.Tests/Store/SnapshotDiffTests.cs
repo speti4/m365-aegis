@@ -38,11 +38,13 @@ public sealed class SnapshotDiffTests
         Assert.Equal(new SnapshotDiffSide(First, SnapshotSamples.Taken, 26, "yesterday"), diff.From);
         Assert.Equal(new SnapshotDiffSide(Second, SnapshotSamples.ChangedTaken, 2, "latest"), diff.To);
         Assert.Equal(
-            ["members True +1 -1", "owners True +1 -1", "sharing True +1 -1", "grants True +1 -1", "folderPermissions True +1 -1", "forwarding True +1 -1"],
+            ["members True +3 -1", "owners True +1 -1", "sharing True +1 -1", "grants True +1 -1", "folderPermissions True +1 -1", "forwarding True +1 -1"],
             diff.Domains.Select(domain => $"{domain.Name} {domain.Compared} +{domain.Added} -{domain.Removed}"));
         Assert.Equal(
             [
+                "members added Audit | bob@contoso.com | member",
                 "members removed Finance EU | FIN-KIOSK-01 | member (device)",
+                "members added Finance Staff | Audit | member (group)",
                 "members added Project Phoenix | bob@contoso.com | member",
                 "owners removed Finance EU | carol@contoso.com | owner (graph)",
                 "owners added Project Phoenix | dave@contoso.com | owner (graph)",
@@ -56,11 +58,13 @@ public sealed class SnapshotDiffTests
                 "forwarding removed bob@contoso.com | bob@fabrikam.com | smtp-address, external, keeps a copy",
             ],
             diff.Changes.Select(change => $"{change.Domain} {change.Change.ToString().ToLowerInvariant()} {change.What} | {change.Who} | {change.How}"));
-        Assert.Equal((6, 6), (diff.Added, diff.Removed));
+        Assert.Equal((8, 6), (diff.Added, diff.Removed));
+        Assert.Null(diff.User);
+        Assert.All(diff.Changes, change => Assert.Null(change.Through));
         // The ids: a group and its member by object id; a link to everyone has neither, a calendar's Default no principal.
-        Assert.Equal(("00000000-0000-0000-0000-000000000032", "00000000-0000-0000-0000-000000000006"), (diff.Changes[0].WhatId, diff.Changes[0].WhoId));
-        Assert.Equal((null, null), (diff.Changes[4].WhatId, diff.Changes[4].WhoId));
-        Assert.Equal(("00000000-0000-0000-0000-000000000004", null), (diff.Changes[8].WhatId, diff.Changes[8].WhoId));
+        Assert.Equal(("00000000-0000-0000-0000-000000000032", "00000000-0000-0000-0000-000000000006"), (diff.Changes[1].WhatId, diff.Changes[1].WhoId));
+        Assert.Equal((null, null), (diff.Changes[6].WhatId, diff.Changes[6].WhoId));
+        Assert.Equal(("00000000-0000-0000-0000-000000000004", null), (diff.Changes[10].WhatId, diff.Changes[10].WhoId));
         Assert.Equal([SitesPartial(First), SitesPartial(Second)], diff.Warnings);
     }
 
@@ -111,8 +115,8 @@ public sealed class SnapshotDiffTests
 
         SnapshotDiffReport diff = SnapshotDiff.Compare(home, "contoso", "latest", "yesterday", Now);
 
-        Assert.Equal((6, 6), (diff.Added, diff.Removed));
-        Assert.Equal("members added Finance EU", $"{diff.Changes[0].Domain} {diff.Changes[0].Change.ToString().ToLowerInvariant()} {diff.Changes[0].What}");
+        Assert.Equal((6, 8), (diff.Added, diff.Removed));
+        Assert.Equal("members removed Audit", $"{diff.Changes[0].Domain} {diff.Changes[0].Change.ToString().ToLowerInvariant()} {diff.Changes[0].What}");
         Assert.Equal($"the first snapshot, {Second}, is newer than the second: what appeared since is listed as removed", diff.Warnings[0]);
     }
 

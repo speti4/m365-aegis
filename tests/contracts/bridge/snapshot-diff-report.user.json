@@ -1,0 +1,151 @@
+{
+  "aegis": 1,
+  "id": "17",
+  "type": "snapshot-diff-report",
+  "data": {
+    "from": {
+      "snapshot": "2026-10-31T060000Z.sqlite",
+      "taken": "2026-10-31T06:00:00+00:00",
+      "ageHours": 26,
+      "pick": "2026-10-31T060000Z.sqlite"
+    },
+    "to": {
+      "snapshot": "2026-11-01T060000Z.sqlite",
+      "taken": "2026-11-01T06:00:00+00:00",
+      "ageHours": 2,
+      "pick": "latest"
+    },
+    "domains": [
+      {
+        "name": "groups",
+        "compared": true,
+        "added": 3,
+        "removed": 0
+      },
+      {
+        "name": "owners",
+        "compared": true,
+        "added": 0,
+        "removed": 0
+      },
+      {
+        "name": "sites",
+        "compared": true,
+        "added": 1,
+        "removed": 0
+      },
+      {
+        "name": "sharedItems",
+        "compared": true,
+        "added": 2,
+        "removed": 0
+      },
+      {
+        "name": "mailboxes",
+        "compared": true,
+        "added": 0,
+        "removed": 0
+      },
+      {
+        "name": "calendars",
+        "compared": true,
+        "added": 1,
+        "removed": 0
+      },
+      {
+        "name": "forwarding",
+        "compared": true,
+        "added": 0,
+        "removed": 1
+      }
+    ],
+    "changes": [
+      {
+        "domain": "groups",
+        "change": "added",
+        "what": "Audit",
+        "who": "bob@contoso.com",
+        "how": "member",
+        "whatId": "00000000-0000-0000-0000-000000000037",
+        "whoId": "00000000-0000-0000-0000-000000000003"
+      },
+      {
+        "domain": "groups",
+        "change": "added",
+        "what": "Finance Staff",
+        "who": "bob@contoso.com",
+        "how": "member",
+        "whatId": "00000000-0000-0000-0000-000000000035",
+        "whoId": "00000000-0000-0000-0000-000000000003",
+        "through": "Audit"
+      },
+      {
+        "domain": "groups",
+        "change": "added",
+        "what": "Project Phoenix",
+        "who": "bob@contoso.com",
+        "how": "member",
+        "whatId": "00000000-0000-0000-0000-000000000033",
+        "whoId": "00000000-0000-0000-0000-000000000003"
+      },
+      {
+        "domain": "sites",
+        "change": "added",
+        "what": "Project Phoenix",
+        "who": "bob@contoso.com",
+        "how": "member",
+        "whoId": "00000000-0000-0000-0000-000000000003",
+        "through": "Project Phoenix"
+      },
+      {
+        "domain": "sharedItems",
+        "change": "added",
+        "what": "Project Phoenix: /Plans/Roadmap.pptx",
+        "who": "bob@contoso.com",
+        "how": "link users read",
+        "whoId": "00000000-0000-0000-0000-000000000003"
+      },
+      {
+        "domain": "sharedItems",
+        "change": "added",
+        "what": "Project Phoenix: /Plans/Roadmap.pptx",
+        "who": "Finance Staff",
+        "how": "link users read",
+        "whoId": "00000000-0000-0000-0000-000000000035",
+        "through": "Finance Staff"
+      },
+      {
+        "domain": "calendars",
+        "change": "added",
+        "what": "carol@contoso.com: Calendar",
+        "who": "Finance Staff",
+        "how": "Reviewer",
+        "whatId": "00000000-0000-0000-0000-000000000004",
+        "whoId": "00000000-0000-0000-0000-000000000035",
+        "through": "Finance Staff"
+      },
+      {
+        "domain": "forwarding",
+        "change": "removed",
+        "what": "bob@contoso.com",
+        "who": "bob@fabrikam.com",
+        "how": "smtp-address, external, keeps a copy",
+        "whatId": "00000000-0000-0000-0000-000000000003"
+      }
+    ],
+    "warnings": [
+      "sites is partial in 2026-10-31T060000Z.sqlite (1 item(s) not read): the sites rows of those items may show as removed or added",
+      "sites is partial in 2026-11-01T060000Z.sqlite (1 item(s) not read): the sites rows of those items may show as removed or added",
+      "sites is partial in 2026-10-31T060000Z.sqlite (1 item(s) not read): the sharedItems rows of those items may show as removed or added",
+      "sites is partial in 2026-11-01T060000Z.sqlite (1 item(s) not read): the sharedItems rows of those items may show as removed or added"
+    ],
+    "added": 7,
+    "removed": 1,
+    "user": {
+      "objectId": "00000000-0000-0000-0000-000000000003",
+      "displayName": "Bob Example",
+      "userPrincipalName": "bob@contoso.com",
+      "mail": "bob@contoso.com"
+    }
+  }
+}

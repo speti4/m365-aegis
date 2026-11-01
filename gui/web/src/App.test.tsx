@@ -200,7 +200,7 @@ describe("the window's page", () => {
   it("in a plain browser: a grant on the rights card is read again by the access card that shows the mailbox", async () => {
     const { container } = await render(<App />);
     await settle(MOCK_MS);
-    const [, , access, , rights] = [...container.querySelectorAll('[data-slot="card"]')] as HTMLElement[];
+    const [, , access, , , rights] = [...container.querySelectorAll('[data-slot="card"]')] as HTMLElement[];
     const field = (card: HTMLElement, label: string) =>
       card.querySelector(`input[aria-label="${label}"]`) as HTMLInputElement;
 
@@ -246,6 +246,20 @@ describe("the window's page", () => {
     expect(toasts).toHaveBeenCalledWith("the snapshot 2026-10-31T060000Z.sqlite knows no user 'nobody@contoso.com'", {
       description: "check the name or the address and try again",
     });
+  });
+
+  it("in a plain browser: the access changes card compares the two snapshots under the user access card", async () => {
+    const { container } = await render(<App />);
+    await settle(MOCK_MS);
+    const changes = [...container.querySelectorAll('[data-slot="card"]')][4] as HTMLElement;
+
+    await submit(changes.querySelector("form") as HTMLFormElement);
+    await settle(MOCK_MS);
+
+    expect(changes.textContent).toContain("Access changes");
+    expect(changes.querySelector('[data-testid="snapshots"]')?.textContent).toBe(
+      "From the snapshot taken 2026-10-31 06:00 UTC (26 hour(s) ago) to the one taken 2026-11-01 06:00 UTC (2 hour(s) ago): 8 added, 6 removed.",
+    );
   });
 
   it("leaves the sign-in as it is on a host notification of another kind", async () => {
