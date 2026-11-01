@@ -35,12 +35,12 @@ colleague grants FullAccess on a shared mailbox from the window without touching
 
 ## M5 Snapshot and views
 
-A nightly snapshot of groups, sites, sharing and mailbox permissions, the cross-workload "who can reach what"
-view, and the Teams chat export through an app-only certificate profile. Done when the access view answers
+A nightly snapshot of groups, sites, sharing and mailbox permissions, and the cross-workload "who can reach
+what" view (the Teams chat export once listed here is out of scope, D-013). Done when the access view answers
 for one user from the snapshot in a second.
 
 ## M6 Release and team
 
-Signed exes, the usage guide in the zip, the doctor's full check list, distribution through Intune or winget,
-the team's onboarding, and the decision on publishing the repo. Done when the support team runs a release from
-the zip on their own machines.
+Signed exes, the usage guide in the zip, the doctor's full check list, the team's onboarding, and the decision
+on publishing the repo (a distribution through Intune or winget is not planned for now, D-013). Done when the
+support team runs a release from the zip on their own machines.

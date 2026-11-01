@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-11-01 — edit the files, not this section._
 
-**State:** 5 backlog (4 ready · 0 blocked · 0 waiting · 1 idea) · 0 in progress · 113 done · 0 dropped · 12 decisions
+**State:** 5 backlog (4 ready · 0 blocked · 0 waiting · 1 idea) · 0 in progress · 113 done · 0 dropped · 13 decisions
 
 ### Ready
 
@@ -82,6 +82,7 @@ _103 more in `done/`._
 
 | # | Decision | Status | Date |
 |---|---|---|---|
+| D-013 | [No Teams chat export, and no managed distribution for now](decisions/D-013-no-teams-chat-export-and-no-managed-distribution-for-now.md) | decided | 2026-11-01 |
 | D-011 | [The snapshot store's format, place, query path and retention](decisions/D-011-snapshot-store-format.md) | decided | 2026-10-31 |
 | D-012 | [The release is signed with a self-signed code-signing certificate the team's machines trust](decisions/D-012-self-signed-release-certificate.md) | decided | 2026-10-30 |
 | D-010 | [A public repository with a rewritten history, under the same no-tenant-data rule](decisions/D-010-public-repository-with-a-rewritten-history.md) | decided | 2026-10-30 |

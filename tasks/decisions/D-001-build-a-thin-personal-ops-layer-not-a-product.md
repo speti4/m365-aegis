@@ -26,6 +26,12 @@ Teams chat export, and a confirmation-guarded hand-off of Exchange tasks to the 
 available in the existing tools; the layer wraps the daily ones. The cost is medium: one milestone of work
 before it is useful, and the research stands on its own if the project stops. Decided 2026-10-28.
 
+## Note 2026-11-01 — the Teams chat export is out of scope (D-013)
+
+The "readable Teams chat export" above is no longer part of the layer: reading chat content would put personal
+information in front of the tool, and the maintainer does not take that on from a data-protection standpoint. The
+rest of the integration list stands; D-013 records the decision.
+
 ## Not chosen
 
 - A standalone product for the click-ops side: the admin centers and the Microsoft 365 Admin agent (GA 2026-07,

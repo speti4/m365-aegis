@@ -64,6 +64,12 @@ call answered from the cache in 0.3 s. So the file cache holds the full token se
 only accounts and id tokens, and it is registered for that reason as much as for sharing the cache between the
 command line and the window.
 
+## Note 2026-11-01 — the app-only profile has no planned use (D-013)
+
+The Teams chat export, the one use the "app-only later" bullet named, is out of scope since D-013, so the app-only
+certificate profile is not built until something else needs an application permission; the delegated public client
+stays the only sign-in.
+
 ## Not chosen
 
 - The Graph PowerShell SDK's first-party client id (the earlier draft): not ours to depend on, and useless for the
