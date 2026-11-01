@@ -14,9 +14,22 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-11-01 — edit the files, not this section._
 
-**State:** 11 backlog (2 ready · 0 blocked · 0 waiting · 9 ideas) · 7 in progress · 97 done · 0 dropped · 12 decisions
+**State:** 10 backlog (5 ready · 0 blocked · 0 waiting · 5 ideas) · 0 in progress · 108 done · 0 dropped · 12 decisions
 
 ### Ready
+
+#### M4 Window
+
+| # | Task | Size | Created |
+|---|---|---|---|
+| 118 | [A skipped snapshot domain's note in the window's words on the access cards](backlog/118-skipped-domain-note-in-the-windows-words.md) | S | 2026-11-01 |
+
+#### M5 Snapshot and views
+
+| # | Task | Size | Created |
+|---|---|---|---|
+| 116 | [A periodic full sharing read when the incremental base is older than a configur…](backlog/116-periodic-full-sharing-read-when-the-base-is-old.md) | S | 2026-11-01 |
+| 117 | [The folderPermissions domain of the take reads the calendar permissions in para…](backlog/117-folder-permissions-domain-read-in-parallel.md) | S | 2026-11-01 |
 
 #### M6 Release and team
 
@@ -46,10 +59,6 @@ _none_
 
 | # | Task | Size | Created |
 |---|---|---|---|
-| 097 | [snapshot take reads the Exchange-owned groups' owners in one bulk Get-Distribut…](backlog/097-snapshot-take-reads-exchange-owners-in-one-bulk-call.md) | S | 2026-10-31 |
-| 099 | [An incremental sharing read from the delta links the previous snapshot stored](backlog/099-incremental-sharing-read-from-the-stored-delta-links.md) | M | 2026-10-31 |
-| 100 | [The calendars' folder names in one piped Get-EXOMailboxFolderStatistics call](backlog/100-calendar-names-in-one-piped-folder-statistics-call.md) | S | 2026-10-31 |
-| 101 | [A calendar permission entry's holder is matched by its address, not only by its…](backlog/101-calendar-entry-holder-matched-by-address.md) | S | 2026-10-31 |
 | 114 | [snapshot diff --user <x>: one person's gained and lost access between two snaps…](backlog/114-snapshot-diff-for-one-user.md) | S | 2026-11-01 |
 | 115 | [The snapshot diff as a window card](backlog/115-snapshot-diff-as-a-window-card.md) | M | 2026-11-01 |
 
@@ -61,32 +70,7 @@ _none_
 
 ### In progress
 
-#### M3 Writes with safety
-
-| # | Task | Started | Plan |
-|---|---|---|---|
-| 096 | [group owners-missing --all-types falls back to Graph's list when the account ha…](wip/096-owners-missing-all-types-falls-back-to-graph-without-an-exchange-role.md) | 2026-10-31 | `none` |
-
-#### M4 Window
-
-| # | Task | Started | Plan |
-|---|---|---|---|
-| 103 | [The mailbox access card's user view is marked stale after an apply names that u…](wip/103-user-view-marked-stale-after-an-apply-with-a-read-again-button.md) | 2026-10-31 | `none` |
-| 104 | [The group writes' last-owner warning in the window's words when a group write c…](wip/104-last-owner-warning-in-the-windows-words.md) | 2026-10-31 | `none` |
-
-#### M5 Snapshot and views
-
-| # | Task | Started | Plan |
-|---|---|---|---|
-| 098 | [snapshot diff <a> <b>: who gained or lost access between two snapshots](wip/098-snapshot-diff-who-gained-or-lost-access.md) | 2026-10-31 | `none` |
-| 102 | [The access view as a window card](wip/102-access-view-as-a-window-card.md) | 2026-10-31 | `none` |
-
-#### M6 Release and team
-
-| # | Task | Started | Plan |
-|---|---|---|---|
-| 095 | [release.ps1 -RequireSignature refuses a certificate whose thumbprint is not the…](wip/095-release-refuses-a-certificate-that-is-not-the-pinned-one.md) | 2026-10-31 | `none` |
-| 109 | [Doctor: a per-permission consent check that names the missing row of the setup …](wip/109-doctor-per-permission-consent-check.md) | 2026-10-31 | `none` |
+_none_
 
 ### Closed – do not reopen
 
@@ -96,18 +80,18 @@ _none_
 
 | # | Task | Closed |
 |---|---|---|
-| 107 | [The setup and usage guides, the license and a readme in the release zip](done/107-guides-license-and-readme-in-the-release-zip.md) | 2026-10-31 |
-| 106 | [A user-facing README and a setup guide for another tenant's administrator](done/106-user-facing-readme-and-setup-guide.md) | 2026-10-31 |
-| 105 | [Round the tenant's size figures to an order of magnitude](done/105-round-the-tenants-size-figures.md) | 2026-10-31 |
-| 094 | [scripts/check-fixtures.py catches two-label domains too](done/094-check-fixtures-catches-two-label-domains.md) | 2026-10-31 |
-| 093 | [The doctor's signature row pins the release certificate's thumbprint](done/093-doctor-signature-row-pins-the-release-certificate.md) | 2026-10-31 |
-| 092 | [Spike: the sharing-link read for the snapshot, its consent and its time over th…](done/092-spike-sharing-link-read-for-the-snapshot.md) | 2026-10-31 |
-| 091 | [The mailbox access card refreshes after a write card applies a change to the ma…](done/091-access-card-refreshes-after-a-write-card-applies.md) | 2026-10-31 |
-| 090 | [The window's plan warnings in the window's own words, not the command line's fl…](done/090-window-plan-warnings-in-the-windows-own-words.md) | 2026-10-31 |
-| 089 | [group owners-missing --all-types judges a distribution group by its ManagedBy, …](done/089-group-owners-missing-judges-distribution-groups-by-managedby.md) | 2026-10-31 |
-| 088 | [The home-access doctor check judges every account that is not the user, SYSTEM …](done/088-home-access-check-judges-every-foreign-account.md) | 2026-10-31 |
+| 109 | [Doctor: a per-permission consent check that names the missing row of the setup …](done/109-doctor-per-permission-consent-check.md) | 2026-11-01 |
+| 104 | [The group writes' last-owner warning in the window's words when a group write c…](done/104-last-owner-warning-in-the-windows-words.md) | 2026-11-01 |
+| 103 | [The mailbox access card's user view is marked stale after an apply names that u…](done/103-user-view-marked-stale-after-an-apply-with-a-read-again-button.md) | 2026-11-01 |
+| 102 | [The access view as a window card](done/102-access-view-as-a-window-card.md) | 2026-11-01 |
+| 101 | [A calendar permission entry's holder is matched by its address, not only by its…](done/101-calendar-entry-holder-matched-by-address.md) | 2026-11-01 |
+| 100 | [The calendars' folder names in one piped Get-EXOMailboxFolderStatistics call](done/100-calendar-names-in-one-piped-folder-statistics-call.md) | 2026-11-01 |
+| 099 | [An incremental sharing read from the delta links the previous snapshot stored](done/099-incremental-sharing-read-from-the-stored-delta-links.md) | 2026-11-01 |
+| 098 | [snapshot diff <a> <b>: who gained or lost access between two snapshots](done/098-snapshot-diff-who-gained-or-lost-access.md) | 2026-11-01 |
+| 097 | [snapshot take reads the Exchange-owned groups' owners in one bulk Get-Distribut…](done/097-snapshot-take-reads-exchange-owners-in-one-bulk-call.md) | 2026-11-01 |
+| 096 | [group owners-missing --all-types falls back to Graph's list when the account ha…](done/096-owners-missing-all-types-falls-back-to-graph-without-an-exchange-role.md) | 2026-11-01 |
 
-_87 more in `done/`._
+_98 more in `done/`._
 
 ### Decisions
 

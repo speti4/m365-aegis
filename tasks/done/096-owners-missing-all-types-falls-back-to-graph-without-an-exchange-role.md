@@ -3,6 +3,7 @@ size: S
 origin: wip/089-group-owners-missing-judges-distribution-groups-by-managedby.md
 created: 2026-10-31
 started: 2026-10-31
+closed: 2026-11-01
 plan: none
 milestone: M3 Writes with safety
 ---
@@ -55,6 +56,7 @@ them. No live check: the maintainer's account has the role, so the refusal is th
   backend `graph`), `GroupLookupsTests` (a canned refusal falls back, a canned `sidecar-unavailable` stays the error),
   Cli `LookupCommandTests` (exit 0, the envelope's warning and backend, the table's warning line over the built exe).
   The usage guide's groups section names the fallback in a paragraph of its own.
+- 2026-11-01 — merged in #144 (squash); closed on `main` by the main session: the check with an account without an Exchange role (a hidden cmdlet would be exit 13, which the fallback does not catch) is an Open line of task 108, for its signed-in round
 
 ## Deviations from the plan
 
@@ -76,4 +78,4 @@ them. No live check: the maintainer's account has the role, so the refusal is th
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-11-01` by the main session after the merge

@@ -3,6 +3,7 @@ size: M
 origin: wip/084-access-view-for-one-user-from-the-snapshot.md
 created: 2026-10-31
 started: 2026-10-31
+closed: 2026-11-01
 plan: none
 milestone: M5 Snapshot and views
 ---
@@ -66,6 +67,7 @@ reshape them. The access read of task 084 (`SnapshotAccess`) is used as it is: t
   `?mock=no-snapshot` starts it without a snapshot
 - 2026-10-31 — docs: `docs/usage.md` "### User access" under "The window" (and the card order of `UsageGuideTests`),
   `README.md`'s list of the window's cards, `docs/development.md` (the `access` message, "The user access card")
+- 2026-11-01 — merged in #143 (squash); closed on `main` by the main session: of the pull request's follow-ups, the user picker is task 112 and the window's names for the snapshot parts task 113 (an idea); the README status line was reworded in 85720cb; the maintainer confirmed the card descriptions without command names and the no-snapshot hint
 
 ## Deviations from the plan
 
@@ -103,4 +105,4 @@ reshape them. The access read of task 084 (`SnapshotAccess`) is used as it is: t
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-11-01` by the main session after the merge

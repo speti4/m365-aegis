@@ -3,6 +3,7 @@ size: M
 origin: wip/084-access-view-for-one-user-from-the-snapshot.md
 created: 2026-10-31
 started: 2026-10-31
+closed: 2026-11-01
 plan: none
 milestone: M5 Snapshot and views
 ---
@@ -83,6 +84,7 @@ column, table or manifest field the take writes, and it does not change the acce
 - 2026-10-31 — after the live check: a partial domain whose manifest has no count of its unread items (a take before
   the per-item failure count, as the tenant's first snapshot) is warned as "items not read: unknown" instead of "0
   item(s) not read"; `SnapshotDiffTests` holds the wording.
+- 2026-11-01 — merged in #144 (squash); closed on `main` by the main session: of the pull request's follow-ups, the `--user` filter is task 114 and the window card task 115 (an idea); the check of how a session without an Exchange role refuses the cmdlet is an Open line of task 108; a per-run temp folder for the release dry run is not filed (the maintainer's call: four parallel dry runs ran this round without a collision)
 
 ## Deviations from the plan
 
@@ -122,4 +124,4 @@ column, table or manifest field the take writes, and it does not change the acce
       file as it describes)
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-11-01` by the main session after the merge

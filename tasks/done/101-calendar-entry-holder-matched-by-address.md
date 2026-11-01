@@ -3,6 +3,7 @@ size: S
 origin: wip/087-snapshot-store-and-snapshot-take.md
 created: 2026-10-31
 started: 2026-10-31
+closed: 2026-11-01
 plan: none
 milestone: M5 Snapshot and views
 ---
@@ -57,6 +58,7 @@ reshape them. The live unmatched count before and after is the main session's.
   `address`. The calendar fixtures carry the addresses; `SnapshotEdgeTests` hold two users of one display name matched
   by address, an address no object has falling back to the name, a holder given as an address, and one no object
   answers to, counted in the note
+- 2026-11-01 — merged in #151 (squash); closed on `main` by the main session: the localized `Default`/`Anonymous` follow-up is not filed (the maintainer's call: the live take had 621 `Default` and 616 `Anonymous` entries by their English names and no other shape; a task when another tenant shows one)
 
 ## Deviations from the plan
 
@@ -84,8 +86,8 @@ reshape them. The live unmatched count before and after is the main session's.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`; the main session proposed them and filed the approved ones
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-11-01` by the main session after the merge
