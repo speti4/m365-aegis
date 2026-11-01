@@ -22,6 +22,7 @@ not the list. The summary under a heading is written by hand and kept by the gen
 - The group writes' last-owner warning in the window's words when a group write card arrives ([104](https://github.com/speti4/m365-aegis/blob/main/tasks/done/104-last-owner-warning-in-the-windows-words.md))
 - A user picker shared by the User access and the Mailbox access cards ([112](https://github.com/speti4/m365-aegis/blob/main/tasks/done/112-user-picker-shared-by-the-access-cards.md))
 - The window's own names for the snapshot parts in the access card's warnings ([113](https://github.com/speti4/m365-aegis/blob/main/tasks/done/113-window-names-for-the-snapshot-parts-in-the-access-cards-warnings.md))
+- A skipped snapshot domain's note in the window's words on the access cards ([118](https://github.com/speti4/m365-aegis/blob/main/tasks/done/118-skipped-domain-note-in-the-windows-words.md))
 
 ### M5 Snapshot and views
 

@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-11-01 — edit the files, not this section._
 
-**State:** 4 backlog (3 ready · 0 blocked · 0 waiting · 1 idea) · 1 in progress · 113 done · 0 dropped · 13 decisions
+**State:** 4 backlog (3 ready · 0 blocked · 0 waiting · 1 idea) · 0 in progress · 114 done · 0 dropped · 13 decisions
 
 ### Ready
 
@@ -49,11 +49,7 @@ _none_
 
 ### In progress
 
-#### M4 Window
-
-| # | Task | Started | Plan |
-|---|---|---|---|
-| 118 | [A skipped snapshot domain's note in the window's words on the access cards](wip/118-skipped-domain-note-in-the-windows-words.md) | 2026-11-01 | `none` |
+_none_
 
 ### Closed – do not reopen
 
@@ -63,6 +59,7 @@ _none_
 
 | # | Task | Closed |
 |---|---|---|
+| 118 | [A skipped snapshot domain's note in the window's words on the access cards](done/118-skipped-domain-note-in-the-windows-words.md) | 2026-11-01 |
 | 115 | [The snapshot diff as a window card](done/115-snapshot-diff-as-a-window-card.md) | 2026-11-01 |
 | 114 | [snapshot diff --user <x>: one person's gained and lost access between two snaps…](done/114-snapshot-diff-for-one-user.md) | 2026-11-01 |
 | 113 | [The window's own names for the snapshot parts in the access card's warnings](done/113-window-names-for-the-snapshot-parts-in-the-access-cards-warnings.md) | 2026-11-01 |
@@ -72,9 +69,8 @@ _none_
 | 104 | [The group writes' last-owner warning in the window's words when a group write c…](done/104-last-owner-warning-in-the-windows-words.md) | 2026-11-01 |
 | 103 | [The mailbox access card's user view is marked stale after an apply names that u…](done/103-user-view-marked-stale-after-an-apply-with-a-read-again-button.md) | 2026-11-01 |
 | 102 | [The access view as a window card](done/102-access-view-as-a-window-card.md) | 2026-11-01 |
-| 101 | [A calendar permission entry's holder is matched by its address, not only by its…](done/101-calendar-entry-holder-matched-by-address.md) | 2026-11-01 |
 
-_103 more in `done/`._
+_104 more in `done/`._
 
 ### Decisions
 

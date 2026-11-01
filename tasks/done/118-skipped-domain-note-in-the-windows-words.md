@@ -3,6 +3,7 @@ size: S
 origin: wip/113-window-names-for-the-snapshot-parts-in-the-access-cards-warnings.md
 created: 2026-11-01
 started: 2026-11-01
+closed: 2026-11-01
 plan: none
 milestone: M4 Window
 ---
@@ -58,6 +59,7 @@ Thirteenth round of 2026-11-01, worked in the main session on its own branch (no
   renders; the sweep exempts that one path with a comment.
 - 2026-11-01 — `user-access-card.test.tsx` expects the window's note and no `Sites.Read.All` or `task NNN` on the card;
   `docs/development.md` has the paragraph.
+- 2026-11-01 — merged in #159 (squash, CI green); closed on `main` by the main session: no follow-up of its own
 
 ## Deviations from the plan
 
@@ -74,8 +76,8 @@ Thirteenth round of 2026-11-01, worked in the main session on its own branch (no
 
 ## Closing checklist
 
-- [ ] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log (none)
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
+- [x] `tasks_check` green, README index regenerated
+- [x] moved to `done/` with `closed: 2026-11-01`
