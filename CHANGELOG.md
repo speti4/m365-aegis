@@ -38,6 +38,7 @@ not the list. The summary under a heading is written by hand and kept by the gen
 - `snapshot diff --user <x>`: one person's gained and lost access between two snapshots ([114](https://github.com/speti4/m365-aegis/blob/main/tasks/done/114-snapshot-diff-for-one-user.md))
 - The snapshot diff as a window card ([115](https://github.com/speti4/m365-aegis/blob/main/tasks/done/115-snapshot-diff-as-a-window-card.md))
 - A periodic full sharing read when the incremental base is older than a configured age ([116](https://github.com/speti4/m365-aegis/blob/main/tasks/done/116-periodic-full-sharing-read-when-the-base-is-old.md))
+- The folderPermissions domain of the take reads the calendar permissions in parallel ([117](https://github.com/speti4/m365-aegis/blob/main/tasks/done/117-folder-permissions-domain-read-in-parallel.md))
 
 ### M6 Release and team
 

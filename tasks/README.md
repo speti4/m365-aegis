@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-11-01 — edit the files, not this section._
 
-**State:** 2 backlog (1 ready · 0 blocked · 0 waiting · 1 idea) · 1 in progress · 115 done · 0 dropped · 14 decisions
+**State:** 3 backlog (1 ready · 0 blocked · 0 waiting · 2 ideas) · 0 in progress · 116 done · 0 dropped · 14 decisions
 
 ### Ready
 
@@ -34,6 +34,12 @@ _none_
 
 ### Ideas
 
+#### M5 Snapshot and views
+
+| # | Task | Size | Created |
+|---|---|---|---|
+| 119 | [The take's calendar reads measured at a ceiling of 12 and 16, and a profile set…](backlog/119-calendar-reads-measured-at-a-higher-ceiling.md) | S | 2026-11-01 |
+
 #### M6 Release and team
 
 | # | Task | Size | Created |
@@ -42,11 +48,7 @@ _none_
 
 ### In progress
 
-#### M5 Snapshot and views
-
-| # | Task | Started | Plan |
-|---|---|---|---|
-| 117 | [The folderPermissions domain of the take reads the calendar permissions in para…](wip/117-folder-permissions-domain-read-in-parallel.md) | 2026-11-01 | `none` |
+_none_
 
 ### Closed – do not reopen
 
@@ -57,6 +59,7 @@ _none_
 | # | Task | Closed |
 |---|---|---|
 | 118 | [A skipped snapshot domain's note in the window's words on the access cards](done/118-skipped-domain-note-in-the-windows-words.md) | 2026-11-01 |
+| 117 | [The folderPermissions domain of the take reads the calendar permissions in para…](done/117-folder-permissions-domain-read-in-parallel.md) | 2026-11-01 |
 | 116 | [A periodic full sharing read when the incremental base is older than a configur…](done/116-periodic-full-sharing-read-when-the-base-is-old.md) | 2026-11-01 |
 | 115 | [The snapshot diff as a window card](done/115-snapshot-diff-as-a-window-card.md) | 2026-11-01 |
 | 114 | [snapshot diff --user <x>: one person's gained and lost access between two snaps…](done/114-snapshot-diff-for-one-user.md) | 2026-11-01 |
@@ -65,9 +68,8 @@ _none_
 | 110 | [The setup guide's "Sign in once and check it" points the first run at the docto…](done/110-setup-guide-points-the-first-run-at-the-doctors-consent-row.md) | 2026-11-01 |
 | 109 | [Doctor: a per-permission consent check that names the missing row of the setup …](done/109-doctor-per-permission-consent-check.md) | 2026-11-01 |
 | 104 | [The group writes' last-owner warning in the window's words when a group write c…](done/104-last-owner-warning-in-the-windows-words.md) | 2026-11-01 |
-| 103 | [The mailbox access card's user view is marked stale after an apply names that u…](done/103-user-view-marked-stale-after-an-apply-with-a-read-again-button.md) | 2026-11-01 |
 
-_105 more in `done/`._
+_106 more in `done/`._
 
 ### Decisions
 

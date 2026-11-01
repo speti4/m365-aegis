@@ -3,6 +3,7 @@ size: S
 origin: wip/100-calendar-names-in-one-piped-folder-statistics-call.md
 created: 2026-11-01
 started: 2026-11-01
+closed: 2026-11-01
 plan: none
 milestone: M5 Snapshot and views
 ---
@@ -77,6 +78,8 @@ Fourteenth round of 2026-11-01, worked in the main session on its own branch (no
   lets two more in), the table's new form; `ATakeReadsEveryDomainIntoOneFile` unchanged (`folderPermissions ok 14`,
   `0 6 2`, the same calendar rows). `ScriptedTransport` records under a lock. Full matrix: 1,638 tests, Core and Cli
   100% lines and branches, changelog and fixtures clean.
+- 2026-11-01 — merged in #162 (squash); closed on `main` by the main session: the follow-up (a take measured at a
+  ceiling of 12 and 16, a profile setting if the numbers ask for one) is backlog 119
 
 ## Deviations from the plan
 
@@ -102,8 +105,8 @@ Fourteenth round of 2026-11-01, worked in the main session on its own branch (no
 
 ## Closing checklist
 
-- [ ] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
+- [x] `tasks_check` green, README index regenerated
+- [x] moved to `done/` with `closed: 2026-11-01`
