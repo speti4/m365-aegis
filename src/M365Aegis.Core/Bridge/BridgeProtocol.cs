@@ -97,7 +97,8 @@ public sealed class BridgeWriteAttribute : Attribute;
 /// <summary>
 /// The message types of the protocol. The front end sends <see cref="Ready"/> (a notification) and the requests
 /// <see cref="Ping"/>, <see cref="WhoAmI"/>, <see cref="Login"/>, <see cref="OpenSignInPage"/>, <see cref="Logout"/>,
-/// <see cref="GroupMembers"/>, <see cref="MailboxList"/>, <see cref="MailboxAccess"/> and <see cref="Access"/>, the write requests
+/// <see cref="GroupMembers"/>, <see cref="MailboxList"/>, <see cref="MailboxAccess"/>, <see cref="Access"/> and
+/// <see cref="UserSearch"/>, the write requests
 /// (<see cref="Writes"/>: <see cref="MailboxAccessGrant"/>, <see cref="MailboxAccessRevoke"/>,
 /// <see cref="MailboxForwardingSet"/>, <see cref="MailboxForwardingClear"/>) and <see cref="ApplyPlan"/>; the host
 /// answers each request with one reply of the type named here, or with <see cref="Error"/>, and sends
@@ -214,6 +215,17 @@ public static class BridgeMessageType
     public const string NoSnapshot = "no-snapshot";
 
     /// <summary>
+    /// Asks for the users of the newest snapshot of the window's profile whose name, a word of it, user principal name
+    /// or address starts with a text (task 112): the user picker of the access cards suggests them as the colleague
+    /// types. The local file only, as <see cref="Access"/> reads it; the payload is a <see cref="UserSearchRequest"/>.
+    /// Answered with <see cref="UserMatches"/>, or with <see cref="NoSnapshot"/> when the profile has no snapshot yet.
+    /// </summary>
+    public const string UserSearch = "user-search";
+
+    /// <summary>The matching users: a <see cref="Snapshots.UserMatches"/> as the payload.</summary>
+    public const string UserMatches = "user-matches";
+
+    /// <summary>
     /// Plans a grant of mailbox rights as <c>mailbox access grant</c> does (task 082); the payload is a
     /// <see cref="MailboxAccessWriteRequest"/>. Answered with <see cref="Plan"/>.
     /// </summary>
@@ -279,6 +291,10 @@ public sealed record GroupMembersRequest(string? Group);
 /// <summary>The payload of an <see cref="BridgeMessageType.Access"/> request.</summary>
 /// <param name="User">The user: a user principal name, an address or an object id.</param>
 public sealed record AccessRequest(string? User);
+
+/// <summary>The payload of a <see cref="BridgeMessageType.UserSearch"/> request.</summary>
+/// <param name="Text">The start of a name, of a word of the name, of a user principal name or of an address.</param>
+public sealed record UserSearchRequest(string? Text);
 
 /// <summary>The payload of a <see cref="BridgeMessageType.NoSnapshot"/> reply.</summary>
 /// <param name="Profile">The tenant profile whose snapshots were looked for.</param>

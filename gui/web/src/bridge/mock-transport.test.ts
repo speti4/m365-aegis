@@ -45,6 +45,20 @@ describe("the browser mock", () => {
     });
   });
 
+  it("suggests the snapshot's users by a word of the name or the address, and needs a text (task 112)", async () => {
+    const names = async (text: string) => {
+      const reply = await client().call(MessageType.userSearch, { text });
+      return reply.type === MessageType.userMatches ? reply.data.users.map((user) => user.displayName) : reply.type;
+    };
+    expect(await names("Carol E")).toEqual(["Carol Example"]);
+    expect(await names("EVE@")).toEqual(["Eve Example"]);
+    expect(await names("xample")).toEqual([]);
+    expect(await client().call(MessageType.userSearch, {})).toEqual({
+      type: MessageType.error,
+      data: { code: "usage", message: "no text to search for", hint: "type the start of a name or an address" },
+    });
+  });
+
   it("answers a request type it does not know with an error", async () => {
     const reply = await client().call("frobnicate");
 

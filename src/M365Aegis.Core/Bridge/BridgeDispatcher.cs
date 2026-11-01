@@ -94,7 +94,8 @@ public sealed record BridgeServices(
 /// Routes a front-end request to the core and makes the reply: <c>ping</c>, the sign-in (<c>whoami</c>,
 /// <c>login</c>, <c>logout</c>), a group's members (<c>group-members</c>), the mailbox lookups over the window's
 /// Exchange Online session (<c>mailbox-list</c>, <c>mailbox-access</c>), what one user reaches from the newest snapshot
-/// (<c>access</c>, task 102) and the mailbox writes (task 082), each
+/// (<c>access</c>, task 102), the users of that snapshot whose name or address starts with a text (<c>user-search</c>,
+/// task 112) and the mailbox writes (task 082), each
 /// answered with its reply type or with <c>error</c>. A failure of the core becomes the <c>error</c> reply with the
 /// contract's code, message and hint (D-006), the hint in the window's words where the core's names a command (task 057,
 /// <see cref="SignInHints.ForSurface"/>); an unexpected exception becomes the <c>internal</c> error with the stack
@@ -166,6 +167,8 @@ public sealed class BridgeDispatcher
                     return await MailboxAccessAsync(request, cancellationToken).ConfigureAwait(false);
                 case BridgeMessageType.Access:
                     return Access(request);
+                case BridgeMessageType.UserSearch:
+                    return UserSearch(request);
                 case BridgeMessageType.MailboxAccessGrant:
                     return await AccessWriteAsync(request, grant: true, cancellationToken).ConfigureAwait(false);
                 case BridgeMessageType.MailboxAccessRevoke:
@@ -353,6 +356,33 @@ public sealed class BridgeDispatcher
                 "give the user's user principal name, address or object id"));
         }
 
+        return FromSnapshot(request, (home, profile) =>
+            BridgeProtocol.Reply(request, BridgeMessageType.AccessReport, SnapshotAccess.ForUser(home, profile, user, _services.Clock.GetUtcNow())));
+    }
+
+    /// <summary>
+    /// <c>user-search</c> (task 112): the users of the newest snapshot of the window's profile whose name, a word of it,
+    /// user principal name or address starts with the text, for the access cards' user picker; the local file only, as
+    /// <c>access</c> reads it, and <c>no-snapshot</c> when the profile has none.
+    /// </summary>
+    private BridgeMessage UserSearch(BridgeMessage request)
+    {
+        string? text = Text(request, "text");
+        if (text is null)
+        {
+            return Error(request, new AegisFailure(FailureKind.Usage, "no text to search for", "type the start of a name or an address"));
+        }
+
+        return FromSnapshot(request, (home, profile) =>
+            BridgeProtocol.Reply(request, BridgeMessageType.UserMatches, SnapshotAccess.FindUsers(home, profile, text)));
+    }
+
+    /// <summary>
+    /// A reply read from the newest snapshot of the window's profile, or <c>no-snapshot</c> when the profile has none: a
+    /// state of the card, not an error.
+    /// </summary>
+    private BridgeMessage FromSnapshot(BridgeMessage request, Func<string, string, BridgeMessage> read)
+    {
         string home = _services.Auth.Home;
         string profile = _services.Auth.Profiles.Resolve(_services.Profile).Name;
         try
@@ -364,8 +394,7 @@ public sealed class BridgeDispatcher
             return BridgeProtocol.Reply(request, BridgeMessageType.NoSnapshot, new NoSnapshotInfo(profile, exception.Failure.Message, NoSnapshotHint));
         }
 
-        AccessReport report = SnapshotAccess.ForUser(home, profile, user, _services.Clock.GetUtcNow());
-        return BridgeProtocol.Reply(request, BridgeMessageType.AccessReport, report);
+        return read(home, profile);
     }
 
     /// <summary>What the card says to do without a snapshot: the snapshot is taken on the command line, by the administrator.</summary>

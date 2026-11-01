@@ -95,6 +95,47 @@ public sealed class BridgeAccessTests
     }
 
     [Fact]
+    public async Task AUserSearchIsTheUserMatchesSampleWithoutASignIn()
+    {
+        var broker = new FakeTokenBroker();
+        (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
+        string home = await HomeWithTheFixtureSnapshotAsync();
+
+        BridgeMessage? reply = await Dispatcher(home, broker, graph).DispatchAsync(BridgeWindow.Sample(BridgeMessageType.UserSearch), None);
+
+        AssertIs(BridgeWindow.SampleNode(BridgeMessageType.UserMatches), reply);
+        Assert.Empty(broker.Calls);
+        Assert.Empty(transport.Requests);
+    }
+
+    [Fact]
+    public async Task AUserSearchWithoutASnapshotIsTheNoSnapshotState()
+    {
+        string home = SnapshotSamples.WriteProfile(PlanSamples.TempHome());
+
+        BridgeMessage? reply = await Dispatcher(home).DispatchAsync(BridgeWindow.Sample(BridgeMessageType.UserSearch), None);
+
+        // The access card's state, with the user search's own id.
+        Assert.Equal((BridgeMessageType.NoSnapshot, "17"), (reply?.Type, reply?.Id));
+        Assert.True(JsonNode.DeepEquals(BridgeWindow.SampleNode(BridgeMessageType.NoSnapshot)["data"], reply!.Data));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("""{}""")]
+    [InlineData("""{"text":"  "}""")]
+    [InlineData("""{"text":42}""")]
+    public async Task AUserSearchWithoutATextIsAUsageError(string? data)
+    {
+        string home = await HomeWithTheFixtureSnapshotAsync();
+        BridgeMessage request = new(BridgeProtocol.Version, "17", BridgeMessageType.UserSearch, data is null ? null : JsonNode.Parse(data));
+
+        BridgeMessage? reply = await Dispatcher(home).DispatchAsync(request, None);
+
+        AssertError(reply, "usage", "type the start of a name or an address");
+    }
+
+    [Fact]
     public async Task TheGroupOwnerPlanSampleIsTheCoresPlanOfALastOwnersRemoval()
     {
         (GraphClient graph, _) = GraphFixtures.Client();

@@ -1,4 +1,4 @@
-import type { AccessReport, BridgeError, NoSnapshotInfo } from "./protocol";
+import type { AccessReport, AccessUser, BridgeError, NoSnapshotInfo, UserMatches } from "./protocol";
 
 /**
  * The browser mock's snapshot (task 102): dave's access view as the core answers it over the fixture snapshot, two
@@ -153,4 +153,51 @@ export function mockAccess(
           hint: "check the name or the address and try again",
         },
       };
+}
+
+const snapshotUser = (name: string, id: string): Required<AccessUser> => ({
+  objectId: `00000000-0000-0000-0000-0000000000${id}`,
+  displayName: `${name} Example`,
+  userPrincipalName: `${name.toLowerCase()}@contoso.com`,
+  mail: `${name.toLowerCase()}@contoso.com`,
+});
+
+/**
+ * The users of the mock's snapshot (task 112), as the fixture snapshot holds them; a Vitest test holds the mock's
+ * answer to the `user-search` sample (`exa`, a word of every name) equal to the `user-matches` sample.
+ */
+export const mockSnapshotUsers: Required<AccessUser>[] = [
+  snapshotUser("Alice", "01"),
+  snapshotUser("Bob", "03"),
+  snapshotUser("Carol", "04"),
+  snapshotUser("Dave", "05"),
+  snapshotUser("Eve", "07"),
+];
+
+/**
+ * The mock's `user-search` answer, as the core's prefix search gives it: a missing text is a usage error, a profile
+ * without a snapshot `no-snapshot`, else the users whose name, a word of it, user principal name or address starts
+ * with the text, in any case.
+ */
+export function mockUserSearch(
+  text: string,
+  snapshot: boolean,
+): { type: string; data: UserMatches | NoSnapshotInfo | BridgeError } {
+  if (text === "") {
+    return {
+      type: "error",
+      data: { code: "usage", message: "no text to search for", hint: "type the start of a name or an address" },
+    };
+  }
+  if (!snapshot) {
+    return { type: "no-snapshot", data: mockNoSnapshot };
+  }
+  const prefix = text.toLowerCase();
+  // The start of the name or of a word of it (" " before the name stands for its start), of the principal name or address.
+  const users = mockSnapshotUsers.filter(
+    ({ displayName, userPrincipalName, mail }) =>
+      ` ${displayName.toLowerCase()}`.includes(` ${prefix}`) ||
+      [userPrincipalName, mail].some((name) => name.startsWith(prefix)),
+  );
+  return { type: "user-matches", data: { snapshot: mockDaveAccess.snapshot, users, more: false } };
 }

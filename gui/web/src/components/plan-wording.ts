@@ -14,7 +14,36 @@
  * plan it (task 104). The access view's warnings (task 084) name `snapshot take` for an old snapshot and `snapshot
  * show` for a part a snapshot could not read; the snapshot is the administrator's. The Vitest test of this file reads
  * the core's sources and fails when a new warning names a flag, and checks every bridge sample for a flag or a command.
+ *
+ * The access view's warnings name a part of the snapshot by the store's word for it (`sites`, `oneDrive`), which the
+ * command line shows as it is; the card names the part in the window's words (task 113, `snapshotPartNames`). The same
+ * Vitest test reads the parts of the take from its source and fails on a part this list does not name.
  */
+
+/**
+ * The parts of a snapshot (its domains, as `snapshot take` reads them and `snapshot show` lists them) in the window's
+ * words (task 113): what the colleague at the card knows them as, never the store's identifier.
+ */
+export const snapshotPartNames: Readonly<Record<string, string>> = {
+  users: "Users",
+  groups: "Groups",
+  mailboxes: "Mailboxes",
+  members: "Group members",
+  userGroups: "Nested group memberships",
+  owners: "Group owners",
+  teams: "Teams",
+  sites: "SharePoint sites",
+  sharing: "Shared files",
+  oneDrive: "OneDrive",
+  grants: "Mailbox rights",
+  folderPermissions: "Calendar permissions",
+  forwarding: "Mail forwarding",
+};
+
+/** A part of the snapshot as the card names it; a part the list does not know yet keeps the store's word. */
+export function snapshotPart(part: string): string {
+  return Object.hasOwn(snapshotPartNames, part) ? snapshotPartNames[part] : part;
+}
 
 interface Rewording {
   /** The core's sentence, its variable parts captured in order. */
@@ -43,16 +72,21 @@ const rewordings: readonly Rewording[] = [
       `The snapshot is ${age} hours old, older than ${limit} hours, so what it shows may have changed since. Ask the administrator for a fresh one.`,
   },
   {
-    // SnapshotAccess, a part of the snapshot read only in part.
-    core: /^(.+) is partial in this snapshot: (.+) item\(s\) could not be read \((.+)\); `m365-aegis snapshot show` names them$/s,
+    // SnapshotAccess, a part of the snapshot read only in part: the part in the window's words (task 113).
+    core: /^(\w+) is partial in this snapshot: (.+) item\(s\) could not be read \((.+)\); `m365-aegis snapshot show` names them$/s,
     window: (part, count, why) =>
-      `${part} is partial in this snapshot: ${count} item(s) could not be read (${why}), so the answer may miss what they hold. The administrator can see which ones in the snapshot's details.`,
+      `${snapshotPart(part)}: read only in part in this snapshot; ${count} item(s) could not be read (${why}), so the answer may miss what they hold. The administrator can see which ones in the snapshot's details.`,
   },
   {
     // SnapshotAccess, a part of the snapshot that could not be read at all.
-    core: /^(.+) could not be read in this snapshot; `m365-aegis snapshot show` names the failure$/s,
+    core: /^(\w+) could not be read in this snapshot; `m365-aegis snapshot show` names the failure$/s,
     window: (part) =>
-      `${part} could not be read in this snapshot, so the answer has none of it. The administrator can see why in the snapshot's details.`,
+      `${snapshotPart(part)}: could not be read in this snapshot, so the answer has none of it. The administrator can see why in the snapshot's details.`,
+  },
+  {
+    // SnapshotAccess, a part the take did not read, with the take's own note, which stays the take's (task 113).
+    core: /^(\w+) was not read: (.+)$/s,
+    window: (part, note) => `${snapshotPart(part)}: not read in this snapshot; ${note}.`,
   },
 ];
 

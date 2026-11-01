@@ -6,6 +6,7 @@ import { type MailboxAccess, MessageType, PROTOCOL_VERSION, type UserAccess } fr
 import { button, click, render, settle, submit, type } from "../test/dom";
 import { type Answer, ScriptedTransport } from "../test/scripted-transport";
 import { MailboxAccessCard } from "./mailbox-access-card";
+import { DEBOUNCE_MS } from "./user-picker";
 
 async function card(transport: MockTransport | ScriptedTransport = new MockTransport()) {
   const onError = vi.fn();
@@ -61,7 +62,8 @@ describe("the mailbox access card", () => {
     await click(byUser);
     expect(byUser.getAttribute("aria-checked")).toBe("true");
     expect(input().getAttribute("aria-label")).toBe("User");
-    expect(input().placeholder).toBe("User principal name");
+    expect(input().placeholder).toBe("Start typing a name, or a full address");
+    expect(input().getAttribute("role")).toBe("combobox");
     await lookUp("bob@contoso.com");
 
     const text = container.textContent ?? "";
@@ -73,6 +75,24 @@ describe("the mailbox access card", () => {
 
     await click(button(container, "A mailbox"));
     expect(input().getAttribute("aria-label")).toBe("Mailbox");
+  });
+
+  it("looks up the user picked from the suggestions, and suggests no user for a mailbox (task 112)", async () => {
+    const { container, input } = await card();
+    await type(input(), "bob");
+    await settle(DEBOUNCE_MS);
+    expect(container.querySelector('[role="option"]')).toBeNull();
+
+    await click(button(container, "A user"));
+    // The text typed for the mailbox stays; the field suggests once the colleague types on.
+    await type(input(), "bob ex");
+    await settle(DEBOUNCE_MS);
+    await click(container.querySelector('[role="option"]') as HTMLElement);
+    await settle();
+
+    expect(input().value).toBe("bob@contoso.com");
+    expect(container.textContent).toContain("Bob Example");
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(3);
   });
 
   it("looks a user up without a display name, a holder without an address, and nothing to list", async () => {
