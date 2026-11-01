@@ -21,13 +21,18 @@ internal static class SnapshotCommand
         Command snapshot = new("snapshot", "Take and read the snapshots of the tenant that the access view answers from.");
 
         Command take = new("take", "Read the groups, sites, sharing and mailbox permissions into a new snapshot, then prune the older ones.");
+        Option<bool> full = new("--full")
+        {
+            Description = "Read every library's sharing whole, not only what changed since the previous snapshot (task 099).",
+        };
+        take.Options.Add(full);
         take.SetAction((parsed, cancellationToken) => ExchangeRunner.RunAsync(
             parsed, json, table, profile,
             (ExchangeBackends backends, CancellationToken ct) =>
             {
                 string home = AegisHome.Resolve();
                 TenantProfile tenant = new ProfileStore(home).Resolve(parsed.GetValue(profile));
-                return SnapshotTake.RunAsync(backends, new SnapshotTakeOptions(home, tenant), ct);
+                return SnapshotTake.RunAsync(backends, new SnapshotTakeOptions(home, tenant) { Full = parsed.GetValue(full) }, ct);
             },
             SnapshotTakeTableView.Instance,
             cancellationToken));
@@ -105,14 +110,43 @@ internal static class SnapshotCommand
         return diff;
     }
 
-    /// <summary>A domain's row: its name, how it was read, its rows, and its note.</summary>
+    /// <summary>A domain's row: its name, how it was read, its rows, its time, the requests it sent, and its note.</summary>
     internal static IReadOnlyList<string> DomainRow(SnapshotDomain domain) =>
     [
         domain.Name,
         domain.Status.ToString().ToLowerInvariant(),
         domain.Rows.ToString(CultureInfo.InvariantCulture),
+        string.Format(CultureInfo.InvariantCulture, "{0:0.0} s", domain.ElapsedMs / 1000.0),
+        Requests(domain),
         domain.Note ?? "",
     ];
+
+    /// <summary>
+    /// The requests a domain sent, by layer, the ones it sent none to left out (<c>12 graph (throttled 3.5 s), 1 pwsh</c>);
+    /// <c>-</c> for none (task 097).
+    /// </summary>
+    internal static string Requests(SnapshotDomain domain)
+    {
+        var parts = new List<string>();
+        if (domain.GraphRequests > 0)
+        {
+            parts.Add(domain.ThrottledMs > 0
+                ? string.Format(CultureInfo.InvariantCulture, "{0} graph (throttled {1:0.0} s)", domain.GraphRequests, domain.ThrottledMs / 1000.0)
+                : string.Create(CultureInfo.InvariantCulture, $"{domain.GraphRequests} graph"));
+        }
+
+        if (domain.AdminApiCalls > 0)
+        {
+            parts.Add(string.Create(CultureInfo.InvariantCulture, $"{domain.AdminApiCalls} admin-api"));
+        }
+
+        if (domain.SidecarCalls > 0)
+        {
+            parts.Add(string.Create(CultureInfo.InvariantCulture, $"{domain.SidecarCalls} pwsh"));
+        }
+
+        return parts.Count == 0 ? "-" : string.Join(", ", parts);
+    }
 }
 
 /// <summary>The table of <c>snapshot take</c>: a row per domain; the file, the prune and the warnings under it.</summary>
@@ -124,7 +158,7 @@ internal sealed class SnapshotTakeTableView : ITableView<SnapshotTakeResult>
     {
     }
 
-    public IReadOnlyList<string> Headers => ["domain", "status", "rows", "note"];
+    public IReadOnlyList<string> Headers => ["domain", "status", "rows", "time", "requests", "note"];
 
     public IEnumerable<IReadOnlyList<string>> Rows(SnapshotTakeResult data) => data.Domains.Select(SnapshotCommand.DomainRow);
 
@@ -202,12 +236,12 @@ internal sealed class SnapshotDetailTableView : ITableView<SnapshotDetail>
     {
     }
 
-    public IReadOnlyList<string> Headers => ["domain", "status", "rows", "read", "note"];
+    public IReadOnlyList<string> Headers => ["domain", "status", "rows", "time", "requests", "read", "note"];
 
     public IEnumerable<IReadOnlyList<string>> Rows(SnapshotDetail data) => data.Domains.Select(domain =>
     {
         IReadOnlyList<string> row = SnapshotCommand.DomainRow(domain);
-        return (IReadOnlyList<string>)[row[0], row[1], row[2], domain.Read, row[3]];
+        return (IReadOnlyList<string>)[row[0], row[1], row[2], row[3], row[4], domain.Read, row[5]];
     });
 
     public IEnumerable<string> Footer(SnapshotDetail data)
