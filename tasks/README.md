@@ -14,15 +14,9 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-11-01 — edit the files, not this section._
 
-**State:** 3 backlog (2 ready · 0 blocked · 0 waiting · 1 idea) · 0 in progress · 115 done · 0 dropped · 14 decisions
+**State:** 2 backlog (1 ready · 0 blocked · 0 waiting · 1 idea) · 1 in progress · 115 done · 0 dropped · 14 decisions
 
 ### Ready
-
-#### M5 Snapshot and views
-
-| # | Task | Size | Created |
-|---|---|---|---|
-| 117 | [The folderPermissions domain of the take reads the calendar permissions in para…](backlog/117-folder-permissions-domain-read-in-parallel.md) | S | 2026-11-01 |
 
 #### M6 Release and team
 
@@ -48,7 +42,11 @@ _none_
 
 ### In progress
 
-_none_
+#### M5 Snapshot and views
+
+| # | Task | Started | Plan |
+|---|---|---|---|
+| 117 | [The folderPermissions domain of the take reads the calendar permissions in para…](wip/117-folder-permissions-domain-read-in-parallel.md) | 2026-11-01 | `none` |
 
 ### Closed – do not reopen
 
