@@ -1229,9 +1229,13 @@ The front end's packages, with their reasons (`package.json` carries no comments
 (the UI); `vite` and `@vitejs/plugin-react` (the build and the dev server); `typescript` (strict types; the 7.x
 native compiler, which dropped `baseUrl`, so the `@/*` mapping in `tsconfig.json` is relative to the config and
 Vite's `resolve.alias` resolves it at build time); `tailwindcss` and `@tailwindcss/vite` (the utility CSS the shadcn
-components are written in); `shadcn`, `@base-ui/react`, `class-variance-authority`, `cn`, `lucide-react`,
+components are written in); `@base-ui/react`, `class-variance-authority`, `cn`, `lucide-react`,
 `tw-animate-css` and `@fontsource-variable/geist` (what `shadcn init` and its components import: the component
-primitives, variant classes, the class-name helper, the icons, the animations, the font); `sonner` and
+primitives, variant classes, the class-name helper, the icons, the animations, the font; the `shadcn` package itself
+is not a dependency since 2026-11-01: its CLI's dependency tree carried two npm advisories with no fix, so its one
+build-time file, `tailwind.css`, is vendored as `src/styles/shadcn-tailwind.css` with its MIT notice in the header,
+and a component is added with `npx shadcn@4.23.0 add <component>` from `gui/web`, with `components.json` as its
+config; a newer release replaces the vendored file whole); `sonner` and
 `next-themes` (the toast of shadcn's `sonner` component, which reads the theme through `next-themes`; without a
 theme provider it follows the system's light or dark mode, as the page does); `vitest` (the tests);
 `@biomejs/biome` (lint and format in one pinned binary); `@types/*` (the type definitions).
