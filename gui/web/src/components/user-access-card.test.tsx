@@ -6,9 +6,10 @@ import { BridgeClient } from "../bridge/client";
 import { mockDaveAccess } from "../bridge/mock-access";
 import { MockTransport } from "../bridge/mock-transport";
 import { type AccessReport, MessageType, parseMessage, readReply } from "../bridge/protocol";
-import { button, render, settle, submit, type } from "../test/dom";
+import { button, click, render, settle, submit, type } from "../test/dom";
 import { ScriptedTransport } from "../test/scripted-transport";
 import { AccessReportView, describeAge, describeTaken, UserAccessCard } from "./user-access-card";
+import { DEBOUNCE_MS } from "./user-picker";
 
 const contracts = path.resolve(__dirname, "../../../../tests/contracts/bridge");
 
@@ -80,10 +81,32 @@ describe("the user access card", () => {
       "Reaches everyone, this user too: 1 link(s) anyone in the organization can open, 1 link(s) anyone can open, 1 calendar(s) open beyond free/busy to every user and 1 to anonymous.",
     );
     expect(text).toContain(
-      "sites is partial in this snapshot: 1 item(s) could not be read (forbidden 1), so the answer may miss what they hold. The administrator can see which ones in the snapshot's details.",
+      "SharePoint sites: read only in part in this snapshot; 1 item(s) could not be read (forbidden 1), so the answer may miss what they hold. The administrator can see which ones in the snapshot's details.",
     );
-    expect(text).toContain("oneDrive was not read: other users' OneDrives need a consent");
+    expect(text).toContain("OneDrive: not read in this snapshot; other users' OneDrives need a consent");
     expect(text).not.toContain("`");
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("looks up the user picked from the suggestions by the user principal name (task 112)", async () => {
+    const transport = new MockTransport();
+    const sent: string[] = [];
+    const record = transport.send.bind(transport);
+    transport.send = (message) => {
+      sent.push(`${message.type} ${JSON.stringify(message.data)}`);
+      record(message);
+    };
+    const { container, onError } = await card(transport);
+
+    await type(container.querySelector('input[aria-label="User"]') as HTMLInputElement, "Dav");
+    await settle(DEBOUNCE_MS);
+    const option = container.querySelector('[role="option"]') as HTMLElement;
+    expect(option.textContent).toBe("Dave Exampledave@contoso.com");
+    await click(option);
+    await settle();
+
+    expect(sent).toEqual(['user-search {"text":"Dav"}', 'access {"user":"dave@contoso.com"}']);
+    expect(container.querySelector('[data-testid="snapshot"]')).not.toBeNull();
     expect(onError).not.toHaveBeenCalled();
   });
 

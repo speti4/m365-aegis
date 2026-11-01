@@ -8,7 +8,8 @@ import { MockTransport } from "../bridge/mock-transport";
 import { MessageType, parseMessage, readReply, type SnapshotDiffReport } from "../bridge/protocol";
 import { button, render, settle, submit, type } from "../test/dom";
 import { ScriptedTransport } from "../test/scripted-transport";
-import { partName, SnapshotDiffCard, SnapshotDiffView } from "./snapshot-diff-card";
+import { diffPart } from "./plan-wording";
+import { SnapshotDiffCard, SnapshotDiffView } from "./snapshot-diff-card";
 
 const contracts = path.resolve(__dirname, "../../../../tests/contracts/bridge");
 
@@ -63,8 +64,8 @@ describe("the access changes card", () => {
       "Group owners · 1 added, 1 removed",
       "Shared files · 1 added, 1 removed",
       "Mailbox rights · 1 added, 1 removed",
-      "Calendars · 1 added, 1 removed",
-      "Forwarding · 1 added, 1 removed",
+      "Calendar permissions · 1 added, 1 removed",
+      "Mail forwarding · 1 added, 1 removed",
     ]);
     expect(rows(container, "Group members")).toEqual([
       ["added", "Audit", "bob@contoso.com", "member"],
@@ -77,7 +78,7 @@ describe("the access changes card", () => {
       ["removed", "reception@contoso.com", "Finance Staff", "FullAccess"],
     ]);
     expect(container.textContent).toContain(
-      "sites is partial in 2026-10-31T060000Z.sqlite (1 item(s) not read): the sharing rows of those items may show as removed or added",
+      "SharePoint sites: read only in part in the snapshot 2026-10-31T060000Z.sqlite (1 item(s) not read), so rows of Shared files may show as added or removed without a change.",
     );
     expect(container.querySelector('[data-testid="user"]')).toBeNull();
     expect(container.querySelector('[data-testid="unchanged"]')).toBeNull();
@@ -96,7 +97,7 @@ describe("the access changes card", () => {
       ["added", "Finance Staff", "bob@contoso.com", "member", "Audit"],
       ["added", "Project Phoenix", "bob@contoso.com", "member", "direct"],
     ]);
-    expect(rows(container, "Calendars")).toEqual([
+    expect(rows(container, "Calendar permissions")).toEqual([
       ["added", "carol@contoso.com: Calendar", "Finance Staff", "Reviewer", "Finance Staff"],
     ]);
     expect(container.querySelector('[data-testid="unchanged"]')?.textContent).toBe(
@@ -167,9 +168,19 @@ describe("the changes view", () => {
         { name: "licenses", compared: true, added: 1, removed: 0 },
       ],
       changes: [{ domain: "licenses", change: "added", what: "E5", who: "bob@contoso.com", how: "assigned" }],
-      warnings: [],
+      warnings: [
+        "groups is left out: userGroups was not read in 2026-11-01T060000Z.sqlite; members was not read in 2026-10-31T060000Z.sqlite",
+        "userGroups is partial in 2026-11-01T060000Z.sqlite (items not read: unknown): the groups, sites, sharedItems, mailboxes and calendars rows of those items may show as removed or added",
+      ],
     };
     const { container } = await render(<SnapshotDiffView report={report} />);
+
+    expect(container.textContent).toContain(
+      "Groups: not compared; Nested group memberships not read in the snapshot 2026-11-01T060000Z.sqlite; Group members not read in the snapshot 2026-10-31T060000Z.sqlite.",
+    );
+    expect(container.textContent).toContain(
+      "Nested group memberships: read only in part in the snapshot 2026-11-01T060000Z.sqlite (items not read: unknown), so rows of Groups, SharePoint sites, Shared files, Mailboxes, Calendar permissions may show as added or removed without a change.",
+    );
 
     expect(container.querySelector('[data-testid="user"]')?.textContent).toBe("00000000-0000-0000-0000-000000000003");
     expect(titles(container)).toEqual(["licenses · 1 added, 0 removed"]);
@@ -177,7 +188,6 @@ describe("the changes view", () => {
     expect(container.querySelector('[data-testid="left-out"]')?.textContent).toBe(
       'Not compared: Groups (see "Good to know").',
     );
-    expect(container.textContent).not.toContain("Good to know:");
   });
 
   it("names an address no directory account stands for by the address, and says when nothing changed", async () => {
@@ -196,10 +206,14 @@ describe("the changes view", () => {
 
     expect(container.querySelector('[data-testid="user"]')?.textContent).toBe("Partner Examplepartner@fabrikam.com");
     expect(container.querySelector('[data-testid="unchanged"]')?.textContent).toBe(
-      "No change in: Groups, Group owners, Sites, Shared files, Mailboxes, Calendars, Forwarding.",
+      "No change in: Groups, Group owners, SharePoint sites, Shared files, Mailboxes, Calendar permissions, Mail forwarding.",
     );
     expect(container.querySelector("section")).toBeNull();
     expect(second.container.querySelector('[data-testid="user"]')?.textContent).toBe("Nobody");
-    expect(partName("sharing")).toBe("Shared files");
+    expect([diffPart("sharing"), diffPart("sharedItems"), diffPart("calendars")]).toEqual([
+      "Shared files",
+      "Shared files",
+      "Calendar permissions",
+    ]);
   });
 });

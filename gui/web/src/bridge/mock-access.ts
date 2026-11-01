@@ -1,4 +1,4 @@
-import type { AccessReport, BridgeError, NoSnapshotInfo } from "./protocol";
+import type { AccessReport, AccessUser, BridgeError, NoSnapshotInfo, UserMatches } from "./protocol";
 
 /**
  * The browser mock's snapshot (task 102): dave's access view as the core answers it over the fixture snapshot, two
@@ -153,4 +153,60 @@ export function mockAccess(
           hint: "check the name or the address and try again",
         },
       };
+}
+
+/** A user of the mock's directory: the fixtures' `* Example` users; a user without an address has none in Graph. */
+const directoryUser = (
+  name: string,
+  id: string,
+  mail = true,
+): AccessUser & { displayName: string; userPrincipalName: string } => ({
+  objectId: `00000000-0000-0000-0000-0000000000${id}`,
+  displayName: `${name} Example`,
+  userPrincipalName: `${name.toLowerCase()}@contoso.com`,
+  ...(mail ? { mail: `${name.toLowerCase()}@contoso.com` } : {}),
+});
+
+/**
+ * The users of the mock's directory and snapshot (task 112), as the recorded Graph answers hold them (Carol has no
+ * address there); a Vitest test holds the mock's answer to the `user-search` sample (`exa`, a word of every name),
+ * signed in, equal to the `user-matches` sample.
+ */
+export const mockDirectoryUsers = [
+  directoryUser("Alice", "01"),
+  directoryUser("Bob", "03"),
+  directoryUser("Carol", "04", false),
+  directoryUser("Dave", "05"),
+  directoryUser("Eve", "07"),
+];
+
+/**
+ * The mock's `user-search` answer, as the host gives it: a missing text is a usage error; signed in, the directory
+ * answers; signed out, the snapshot (its name and time), or `no-snapshot` without one. A user matches when the start
+ * of the name or of a word of it, of the principal name or of the address is the text, in any case.
+ */
+export function mockUserSearch(
+  text: string,
+  { signedIn, snapshot }: { signedIn: boolean; snapshot: boolean },
+): { type: string; data: UserMatches | NoSnapshotInfo | BridgeError } {
+  if (text === "") {
+    return {
+      type: "error",
+      data: { code: "usage", message: "no text to search for", hint: "type the start of a name or an address" },
+    };
+  }
+  if (!signedIn && !snapshot) {
+    return { type: "no-snapshot", data: mockNoSnapshot };
+  }
+  const prefix = text.toLowerCase();
+  // The start of the name or of a word of it (" " before the name stands for its start), of the principal name or address.
+  const users = mockDirectoryUsers.filter(
+    ({ displayName, userPrincipalName, mail }) =>
+      ` ${displayName.toLowerCase()}`.includes(` ${prefix}`) ||
+      [userPrincipalName, mail ?? ""].some((name) => name.startsWith(prefix)),
+  );
+  const source = signedIn
+    ? { source: "graph" as const }
+    : { source: "snapshot" as const, snapshot: mockDaveAccess.snapshot, taken: mockDaveAccess.taken };
+  return { type: "user-matches", data: { ...source, users, more: false } };
 }

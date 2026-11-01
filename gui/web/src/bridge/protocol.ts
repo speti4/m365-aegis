@@ -46,6 +46,12 @@ export const MessageType = {
   accessReport: "access-report",
   noSnapshot: "no-snapshot",
   /**
+   * `{ text }`: the users of the newest snapshot whose name, a word of it, user principal name or address starts with
+   * the text (task 112), for the access cards' user picker; answered with `user-matches`, or `no-snapshot`.
+   */
+  userSearch: "user-search",
+  userMatches: "user-matches",
+  /**
    * `{ from?, to?, user? }`: what appeared and disappeared between two snapshots of the window's profile (task 115), as
    * `snapshot diff` reads it, the newest and the one before it unless named, for one user when `user` names one (task
    * 114); answered with `snapshot-diff-report`, or `too-few-snapshots` when there are not two. No sign-in, no live read.
@@ -53,6 +59,7 @@ export const MessageType = {
   snapshotDiff: "snapshot-diff",
   snapshotDiffReport: "snapshot-diff-report",
   tooFewSnapshots: "too-few-snapshots",
+
   /** The write requests (task 082): each is answered with `plan`, the plan as `--dry-run` prints it; nothing is sent. */
   mailboxAccessGrant: "mailbox-access-grant",
   mailboxAccessRevoke: "mailbox-access-revoke",
@@ -214,6 +221,21 @@ export interface AccessUser {
   displayName?: string;
   userPrincipalName?: string;
   mail?: string;
+}
+
+/** Where the user picker's suggestions come from: the directory, live, or the snapshot on this computer. */
+export type UserSource = "graph" | "snapshot";
+
+/**
+ * The users whose name or address starts with a text (task 112), from the source the reply names: the directory, or
+ * the snapshot (its name and time) when the directory could not answer; `more` when the list is cut short.
+ */
+export interface UserMatches {
+  source: UserSource;
+  snapshot?: string;
+  taken?: string;
+  users: AccessUser[];
+  more: boolean;
 }
 
 /** A group the user is a member of; `via` names the member groups a nested membership comes through. */
@@ -439,6 +461,7 @@ export type Reply =
   | { type: typeof MessageType.userGrants; data: UserAccess }
   | { type: typeof MessageType.accessReport; data: AccessReport }
   | { type: typeof MessageType.noSnapshot; data: NoSnapshotInfo }
+  | { type: typeof MessageType.userMatches; data: UserMatches }
   | { type: typeof MessageType.snapshotDiffReport; data: SnapshotDiffReport }
   | { type: typeof MessageType.tooFewSnapshots; data: TooFewSnapshotsInfo }
   | { type: typeof MessageType.plan; data: PlanReady }
@@ -504,6 +527,8 @@ export function readReply(message: BridgeMessage): Reply | null {
       return isRecord(data) && isString(data.profile) && isString(data.message) && isString(data.hint)
         ? { type, data: { profile: data.profile, message: data.message, hint: data.hint } }
         : null;
+    case MessageType.userMatches:
+      return isUserMatches(data) ? { type, data } : null;
     case MessageType.snapshotDiffReport:
       return isSnapshotDiffReport(data) ? { type, data } : null;
     case MessageType.tooFewSnapshots:
@@ -514,6 +539,7 @@ export function readReply(message: BridgeMessage): Reply | null {
         isString(data.hint)
         ? { type, data: { profile: data.profile, snapshots: data.snapshots, message: data.message, hint: data.hint } }
         : null;
+
     case MessageType.plan:
       return isPlanReady(data) ? { type, data } : null;
     case MessageType.planApplied:
@@ -710,6 +736,19 @@ function isListOf(value: unknown, required: readonly string[], optional: readonl
   );
 }
 
+const userNames: readonly string[] = ["objectId", "displayName", "userPrincipalName", "mail"];
+
+function isUserMatches(value: unknown): value is UserMatches {
+  return (
+    isRecord(value) &&
+    (value.source === "graph" || value.source === "snapshot") &&
+    isOptionalString(value.snapshot) &&
+    isOptionalString(value.taken) &&
+    typeof value.more === "boolean" &&
+    isListOf(value.users, [], userNames)
+  );
+}
+
 function isAccessReport(value: unknown): value is AccessReport {
   if (!isRecord(value) || !isRecord(value.user) || !isRecord(value.everyone)) {
     return false;
@@ -736,10 +775,7 @@ function isAccessReport(value: unknown): value is AccessReport {
 }
 
 function isUser(value: unknown): value is AccessUser {
-  return (
-    isRecord(value) &&
-    ["objectId", "displayName", "userPrincipalName", "mail"].every((name) => isOptionalString(value[name]))
-  );
+  return isRecord(value) && userNames.every((name) => isOptionalString(value[name]));
 }
 
 function isDiffSide(value: unknown): value is SnapshotDiffSide {

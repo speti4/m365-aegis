@@ -67,6 +67,8 @@ describe("the bridge protocol", () => {
       "snapshot-diff.json",
       "too-few-snapshots.json",
       "user-grants.json",
+      "user-matches.json",
+      "user-search.json",
       "whoami.json",
     ]);
   });
@@ -411,6 +413,38 @@ describe("the bridge protocol", () => {
       type: MessageType.noSnapshot,
       data: JSON.parse(sample("no-snapshot.json")).data,
     });
+  });
+
+  it("writes the user search as its sample, and reads the user-matches sample (task 112)", () => {
+    expect(JSON.parse(writeMessage(request(MessageType.userSearch, { text: "exa" }, "17")))).toEqual(
+      JSON.parse(sample("user-search.json")),
+    );
+    const matches = readReply(parsed("user-matches.json"));
+    expect(matches?.type).toBe(MessageType.userMatches);
+    if (matches?.type !== MessageType.userMatches) return;
+    expect(matches.data.more).toBe(false);
+    expect(matches.data.source).toBe("graph");
+    expect(matches.data.users.map((user) => user.displayName)).toEqual([
+      "Alice Example",
+      "Bob Example",
+      "Carol Example",
+      "Dave Example",
+      "Eve Example",
+    ]);
+  });
+
+  it("refuses a user-matches reply whose payload does not have its type's shape", () => {
+    const reply = (data: unknown) => readReply({ aegis: PROTOCOL_VERSION, id: "17", type: "user-matches", data });
+    const matches = JSON.parse(sample("user-matches.json")).data;
+    expect(reply(null)).toBeNull();
+    expect(reply({ ...matches, snapshot: 1 })).toBeNull();
+    expect(reply({ ...matches, source: "live" })).toBeNull();
+    expect(reply({ ...matches, source: "snapshot", taken: 1 })).toBeNull();
+    expect(reply({ ...matches, source: "snapshot", snapshot: "s", taken: "t" })?.type).toBe(MessageType.userMatches);
+    expect(reply({ ...matches, more: "no" })).toBeNull();
+    expect(reply({ ...matches, users: {} })).toBeNull();
+    expect(reply({ ...matches, users: [{ mail: 7 }] })).toBeNull();
+    expect(reply({ ...matches, users: [] })?.type).toBe(MessageType.userMatches);
   });
 
   it("refuses an access reply whose payload does not have its type's shape", () => {

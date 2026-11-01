@@ -16,31 +16,8 @@ import {
 } from "../bridge/protocol";
 import { rightNames } from "./mailbox-access-card";
 import { Notice } from "./plan-view";
-import { windowWarning } from "./plan-wording";
+import { diffPart, windowWarning } from "./plan-wording";
 import { describeAge, describeTaken } from "./user-access-card";
-
-/**
- * The parts of the tenant a diff compares, in the card's words: the whole tenant's domains (task 098) and one user's
- * sections (task 114). A part the core names and this list does not is shown by the core's name.
- */
-const partNames: Readonly<Record<string, string>> = {
-  members: "Group members",
-  owners: "Group owners",
-  sharing: "Shared files",
-  grants: "Mailbox rights",
-  folderPermissions: "Calendars",
-  forwarding: "Forwarding",
-  groups: "Groups",
-  sites: "Sites",
-  sharedItems: "Shared files",
-  mailboxes: "Mailboxes",
-  calendars: "Calendars",
-};
-
-/** A part of the tenant as the card names it. */
-export function partName(name: string): string {
-  return partNames[name] ?? name;
-}
 
 /** How a row holds what it holds, a mailbox right in the window's words. */
 const howShown = (entry: SnapshotDiffEntry) => (rightNames as Record<string, string>)[entry.how] ?? entry.how;
@@ -178,7 +155,7 @@ export function SnapshotDiffView({ report }: { report: SnapshotDiffReport }) {
       {changed.map((domain) => (
         <section key={domain.name} className="space-y-1">
           <h3 className="font-medium">
-            {partName(domain.name)}{" "}
+            {diffPart(domain.name)}{" "}
             <span className="text-muted-foreground">
               · {domain.added} added, {domain.removed} removed
             </span>
@@ -213,12 +190,12 @@ export function SnapshotDiffView({ report }: { report: SnapshotDiffReport }) {
       ))}
       {unchanged.length > 0 ? (
         <p className="text-sm text-muted-foreground" data-testid="unchanged">
-          No change in: {unchanged.map((domain) => partName(domain.name)).join(", ")}.
+          No change in: {unchanged.map((domain) => diffPart(domain.name)).join(", ")}.
         </p>
       ) : null}
       {leftOut.length > 0 ? (
         <p className="text-sm text-muted-foreground" data-testid="left-out">
-          Not compared: {leftOut.map((domain) => partName(domain.name)).join(", ")} (see "Good to know").
+          Not compared: {leftOut.map((domain) => diffPart(domain.name)).join(", ")} (see "Good to know").
         </p>
       ) : null}
     </div>

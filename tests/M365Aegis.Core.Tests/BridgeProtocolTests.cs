@@ -500,7 +500,9 @@ public sealed class BridgeProtocolTests
                 "mailbox-list.json", "mailboxes.json", "members.json", "no-snapshot.json", "open-sign-in-page.json", "ping.json",
                 "plan-applied.json", "plan.group-owners-remove.json", "plan.json", "pong.json", "ready.json",
                 "sign-in-page-opened.json", "signed-in.json", "signed-out.json", "snapshot-diff-report.json",
-                "snapshot-diff-report.user.json", "snapshot-diff.json", "too-few-snapshots.json", "user-grants.json", "whoami.json",
+                "snapshot-diff-report.user.json", "snapshot-diff.json", "too-few-snapshots.json", "user-grants.json",
+                "user-matches.json", "user-search.json", "whoami.json",
+
             ],
             samples.Select(Path.GetFileName).Order(StringComparer.Ordinal));
         Assert.All(samples, path => Assert.NotNull(BridgeProtocol.TryParse(File.ReadAllText(path))));

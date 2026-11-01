@@ -71,6 +71,14 @@ bundles to merge resolves the overlap.
 - 2026-11-01 — docs: `docs/usage.md` "### Access changes" under "The window" (and the card order of
   `UsageGuideTests`), `README.md`'s list of the window's cards, `docs/development.md` (the `snapshot-diff` message,
   "The access changes card").
+- 2026-11-01 — after merging `origin/main` (#151, the close commit 443d956 and #152, the window bundle): the six
+  bridge lists that both bundles extended keep both (`user-search` and `snapshot-diff`); `isUser` reuses #152's
+  `userNames`. The card's own part names are gone: `diffPart` in `plan-wording.ts` names a part by task 113's
+  `snapshotPart` and one user's `sharedItems` and `calendars` by the part they read. #152's check that no card warning
+  starts with a store identifier caught the diff's warnings, so the wording map now rewords the diff's partial warning
+  ("SharePoint sites: read only in part in the snapshot … so rows of Shared files may show as added or removed without
+  a change") and its left-out warning ("Groups: not compared; Nested group memberships not read in the snapshot …").
+  Git's rename detection carried 114 and 115 into `done/` with the closed tasks; they are back in `wip/`.
 
 ## Deviations from the plan
 
@@ -78,10 +86,8 @@ bundles to merge resolves the overlap.
   so it cost one field and one sample.
 - The picks are text fields (a snapshot's name, `latest`, `yesterday` or a date), not a list of the snapshots: a list
   needs a request of its own (a follow-up).
-- The parts' names are the card's own map, not the window's wording map, which the parallel window bundle extends
-  with the domain names; the two can be merged once both landed.
-- The diff's warnings name the snapshot files and the core's domain names; no rewording was added to the shared
-  wording map in this change (a follow-up).
+- The parts' names come from the window bundle's map (task 113) once it landed, not from a map of the card's own; the
+  diff's warnings are reworded in the same wording map, which this change extends by two rewordings and `diffPart`.
 
 ## Verification
 
