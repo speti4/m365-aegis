@@ -416,7 +416,9 @@ A group's name, address or object id, then "Look up": the group's type and its d
 ### Mailbox access
 
 "A mailbox" or "A user", then the address and "Look up": who holds FullAccess, Send As and Send on Behalf on the
-mailbox, or the mailboxes the user holds them on, as `m365-aegis mailbox access` reads them. "List the shared
+mailbox, or the mailboxes the user holds them on, as `m365-aegis mailbox access` reads them. For "A user" the field
+is the user picker of the [User access](#user-access) card: type three letters of a name and pick the user, which looks
+the user up at once. "List the shared
 mailboxes" lists them as buttons; pick one to see its access. A right held by a group is listed as the group. The
 first lookup starts the Exchange Online session, which takes a few seconds. When the Mailbox rights card grants or
 revokes a right on the mailbox shown here, the card reads the mailbox again on its own and says "Read again after a
@@ -427,6 +429,14 @@ rights card grants or revokes a right for the user shown here, the card marks th
 offers "Read again", which looks the user up once more; a change for another user marks nothing.
 
 ### User access
+
+The user field is a picker: type three letters of a name, a surname or an address, and it lists the matching users
+(eight at most, with "More users match" when there are more); the arrow keys and Enter, or a click, pick one and look
+the user up. Signed in, the suggestions come from the directory, live (with the `User.ReadBasic.All` permission the
+group lookups already use), and the line under the list says "From the directory.". Signed out, or when the directory
+does not answer, they come from the newest snapshot on this computer and the line names the snapshot's time; a user
+created since then is not among them. Signed out and without a snapshot the picker says it has nothing to suggest
+from. A full principal name or address typed by hand, then "Look up", always works.
 
 A user's principal name, address or object id, then "Look up": what the user reaches, from the newest snapshot (see
 [What one user reaches](#what-one-user-reaches)): the groups, and for a nested membership the group it comes through;

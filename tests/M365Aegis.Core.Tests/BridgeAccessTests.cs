@@ -95,6 +95,77 @@ public sealed class BridgeAccessTests
     }
 
     [Fact]
+    public async Task AUserSearchAsksTheDirectoryFirstAndIsTheUserMatchesSample()
+    {
+        (GraphClient graph, FixtureGraphTransport transport) = GraphFixtures.Client();
+        string home = await HomeWithTheFixtureSnapshotAsync();
+
+        BridgeMessage? reply = await Dispatcher(home, graph: graph).DispatchAsync(BridgeWindow.Sample(BridgeMessageType.UserSearch), None);
+
+        AssertIs(BridgeWindow.SampleNode(BridgeMessageType.UserMatches), reply);
+        Assert.Equal("graph", reply!.Data!["source"]!.GetValue<string>());
+        Assert.Single(transport.Requests);
+    }
+
+    [Fact]
+    public async Task WithoutASignInTheSnapshotAnswersAndSaysSo()
+    {
+        string home = await HomeWithTheFixtureSnapshotAsync();
+        var transport = new FailingTransport(new AegisException(FailureKind.Auth, "no silent sign-in for alice@contoso.com", "choose Sign in"));
+
+        BridgeMessage? reply = await Dispatcher(home, graph: new GraphClient(transport)).DispatchAsync(BridgeWindow.Sample(BridgeMessageType.UserSearch), None);
+
+        Assert.Equal(BridgeMessageType.UserMatches, reply?.Type);
+        JsonNode data = reply!.Data!;
+        Assert.Equal(("snapshot", "2026-10-31T060000Z.sqlite", "2026-10-31T06:00:00+00:00", false), (
+            data["source"]!.GetValue<string>(), data["snapshot"]!.GetValue<string>(), data["taken"]!.GetValue<string>(), data["more"]!.GetValue<bool>()));
+        Assert.Equal(
+            ["Alice Example", "Bob Example", "Carol Example", "Dave Example", "Eve Example"],
+            data["users"]!.AsArray().Select(user => user!["displayName"]!.GetValue<string>()));
+        Assert.Equal(1, transport.Calls);
+    }
+
+    [Fact]
+    public async Task AGraphFailureFallsBackToTheSnapshot()
+    {
+        string home = await HomeWithTheFixtureSnapshotAsync();
+        var transport = new FailingTransport(answer: new GraphResponse(403, [], """{"error":{"code":"Authorization_RequestDenied","message":"Insufficient privileges to complete the operation."}}"""));
+
+        BridgeMessage? reply = await Dispatcher(home, graph: new GraphClient(transport)).DispatchAsync(BridgeWindow.Sample(BridgeMessageType.UserSearch), None);
+
+        Assert.Equal("snapshot", reply?.Data?["source"]?.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task SignedOutWithoutASnapshotIsTheNoSnapshotState()
+    {
+        string home = SnapshotSamples.WriteProfile(PlanSamples.TempHome());
+        var transport = new FailingTransport(new AegisException(FailureKind.Auth, "no silent sign-in for alice@contoso.com", "choose Sign in"));
+
+        BridgeMessage? reply = await Dispatcher(home, graph: new GraphClient(transport)).DispatchAsync(BridgeWindow.Sample(BridgeMessageType.UserSearch), None);
+
+        // The access card's state, with the user search's own id.
+        Assert.Equal((BridgeMessageType.NoSnapshot, "17"), (reply?.Type, reply?.Id));
+        Assert.True(JsonNode.DeepEquals(BridgeWindow.SampleNode(BridgeMessageType.NoSnapshot)["data"], reply!.Data));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("""{}""")]
+    [InlineData("""{"text":"  "}""")]
+    [InlineData("""{"text":42}""")]
+    [InlineData("""{"text":"\"\"\""}""")]
+    public async Task AUserSearchWithoutATextIsAUsageError(string? data)
+    {
+        string home = await HomeWithTheFixtureSnapshotAsync();
+        BridgeMessage request = new(BridgeProtocol.Version, "17", BridgeMessageType.UserSearch, data is null ? null : JsonNode.Parse(data));
+
+        BridgeMessage? reply = await Dispatcher(home).DispatchAsync(request, None);
+
+        AssertError(reply, "usage", "type the start of a name or an address");
+    }
+
+    [Fact]
     public async Task TheGroupOwnerPlanSampleIsTheCoresPlanOfALastOwnersRemoval()
     {
         (GraphClient graph, _) = GraphFixtures.Client();
@@ -108,6 +179,18 @@ public sealed class BridgeAccessTests
         AssertIs(sample, reply);
         // The warning names a command of the command line: the window's wording map (plan-wording.ts) rewords it.
         Assert.Contains("`group owners-missing`", sample["data"]!["plan"]!["warnings"]![0]!.GetValue<string>(), StringComparison.Ordinal);
+    }
+
+    /// <summary>A Graph transport that throws the given failure, as a silent sign-in that has no token does, or gives the given answer.</summary>
+    private sealed class FailingTransport(AegisException? failure = null, GraphResponse? answer = null) : IGraphTransport
+    {
+        public int Calls { get; private set; }
+
+        public Task<GraphResponse> SendAsync(GraphHttpRequest request, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return failure is null ? Task.FromResult(answer!) : throw failure;
+        }
     }
 
     private static async Task<string> HomeWithTheFixtureSnapshotAsync()

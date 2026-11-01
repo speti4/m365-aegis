@@ -15,6 +15,7 @@ import {
   type UserAccess,
 } from "../bridge/protocol";
 import { type AppliedWrites, namesUser, touches } from "./applied-writes";
+import { UserPicker } from "./user-picker";
 
 export const rightNames: Record<MailboxRight, string> = {
   "full-access": "FullAccess",
@@ -67,7 +68,8 @@ type Result =
 /**
  * The window's first mailbox page (task 045): who holds FullAccess, Send As and Send on Behalf on a mailbox, or
  * which mailboxes a user holds them on, as `m365-aegis mailbox access` reads them, and the shared mailboxes to pick
- * one from. The window keeps one Exchange Online session: the first lookup starts it (a few seconds), the later
+ * one from. The user is picked from the suggestions (the directory, else the snapshot) as the colleague types a name (the user picker, task 112), or
+ * typed in full. The window keeps one Exchange Online session: the first lookup starts it (a few seconds), the later
  * ones answer in the cmdlet's own time, which the line under the table shows. A mailbox's grants come over the
  * layers as on the command line (task 063): each row names the layer that read it. When the mailbox rights card applies a
  * grant or a revoke to the mailbox the card shows (`applied`, task 091), the card reads it again with one
@@ -196,14 +198,24 @@ export function MailboxAccessCard({
             List the shared mailboxes
           </Button>
         </div>
-        <form className="flex gap-2" onSubmit={lookUp}>
-          <Input
-            aria-label={mode === "mailbox" ? "Mailbox" : "User"}
-            placeholder={mode === "mailbox" ? "Mailbox address, name or object id" : "User principal name"}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            disabled={busy}
-          />
+        <form className="flex items-start gap-2" onSubmit={lookUp}>
+          {mode === "mailbox" ? (
+            <Input
+              aria-label="Mailbox"
+              placeholder="Mailbox address, name or object id"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              disabled={busy}
+            />
+          ) : (
+            <UserPicker
+              client={client}
+              value={query}
+              onChange={setQuery}
+              onPick={(user) => void run(MessageType.mailboxAccess, { user })}
+              disabled={busy}
+            />
+          )}
           <Button type="submit" disabled={busy || query.trim() === ""}>
             {busy ? "Looking up…" : "Look up"}
           </Button>

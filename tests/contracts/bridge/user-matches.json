@@ -1,0 +1,16 @@
+{
+  "aegis": 1,
+  "id": "17",
+  "type": "user-matches",
+  "data": {
+    "source": "graph",
+    "users": [
+      { "objectId": "00000000-0000-0000-0000-000000000001", "displayName": "Alice Example", "userPrincipalName": "alice@contoso.com", "mail": "alice@contoso.com" },
+      { "objectId": "00000000-0000-0000-0000-000000000003", "displayName": "Bob Example", "userPrincipalName": "bob@contoso.com", "mail": "bob@contoso.com" },
+      { "objectId": "00000000-0000-0000-0000-000000000004", "displayName": "Carol Example", "userPrincipalName": "carol@contoso.com" },
+      { "objectId": "00000000-0000-0000-0000-000000000005", "displayName": "Dave Example", "userPrincipalName": "dave@contoso.com", "mail": "dave@contoso.com" },
+      { "objectId": "00000000-0000-0000-0000-000000000007", "displayName": "Eve Example", "userPrincipalName": "eve@contoso.com", "mail": "eve@contoso.com" }
+    ],
+    "more": false
+  }
+}

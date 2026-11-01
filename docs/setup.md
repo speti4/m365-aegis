@@ -159,9 +159,24 @@ m365-aegis group members Finance
 ```
 
 `whoami` lists the account and one token for Microsoft Graph and one for Exchange Online, each with its expiry and the
-permissions it carries: compare them with what you consented to. A permission consented after the sign-in reaches the
-tool with the next `login`. `doctor` checks the machine, the sign-in and the endpoints, and one lookup proves the
-whole path.
+permissions it carries. A permission consented after the sign-in reaches the tool with the next `login`. `doctor`
+checks the machine, the sign-in and the endpoints, and one lookup proves the whole path.
+
+**Check the consent with the doctor's `consent` row.** You need not compare the tokens with the table by hand: the row
+reads the permissions each token carries and weighs them against the [permissions table](#permissions). It passes when
+every permission of the table is consented. When one is missing it warns, names each table row that lacks a
+permission with the permissions it lacks, and its `fix` line under the table names what to consent to:
+
+```text
+consent  warn  not consented: signin list, audit list (AuditLog.Read.All)
+fix consent: an administrator consents to AuditLog.Read.All (Microsoft Graph) in the portal (the setup guide's Permissions table), then `m365-aegis login`
+```
+
+A row you left out on purpose (a command your team will not use) can stay a warning. For one you want, add the
+permission as in step 7 or 8 of [the registration](#in-the-microsoft-entra-admin-center) (or the `Add-DelegatedPermission`
+lines of [the Azure CLI block](#with-the-azure-cli)), grant the admin consent again (step 9, or `az ad app permission
+admin-consent`), then `m365-aegis login` and `m365-aegis doctor` once more. A row that says a resource has no token, so
+its permissions are not read, points at the `sign-in` row above it, which says why.
 
 **The tenant value.** Give the tenant as its `.onmicrosoft.com` name (`contoso.onmicrosoft.com`), the form Exchange
 Online connects with as it is. The Directory (tenant) ID or another verified domain works too: the tool then asks

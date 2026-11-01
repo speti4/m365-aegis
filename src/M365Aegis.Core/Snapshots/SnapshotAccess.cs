@@ -87,6 +87,24 @@ public sealed record AccessReport(
     AccessEveryone Everyone,
     IReadOnlyList<string> Warnings);
 
+/// <summary>Where the window's user picker found its users (task 112).</summary>
+public enum UserSource
+{
+    /// <summary>The directory, live: Microsoft Graph's <c>/users</c> search with the window's sign-in.</summary>
+    Graph,
+
+    /// <summary>The newest snapshot on this computer: no sign-in, or Graph did not answer.</summary>
+    Snapshot,
+}
+
+/// <summary>The users whose name or address starts with a text (task 112), for the window's user picker.</summary>
+/// <param name="Source">Which source answered: the directory, or the snapshot when Graph could not.</param>
+/// <param name="Snapshot">The snapshot's name when it answered, else null.</param>
+/// <param name="Taken">When that snapshot was taken, else null.</param>
+/// <param name="Users">The matching users, by name, the limit at most.</param>
+/// <param name="More">Whether more users match than the list holds: a longer text narrows it.</param>
+public sealed record UserMatches(UserSource Source, string? Snapshot, DateTimeOffset? Taken, IReadOnlyList<AccessUser> Users, bool More);
+
 /// <summary>
 /// <c>access &lt;user&gt;</c> (task 084): which groups, sites, shared items, mailboxes and calendars one user reaches,
 /// from the newest snapshot of the profile (D-011's query path), opened read-only; one statement per section, no
@@ -203,6 +221,53 @@ public static class SnapshotAccess
                 _ => $"{domain.Name} was not read: {domain.Note}",
             }));
         return new AccessReport(detail.Snapshot.Name, detail.Snapshot.Taken, age, found, groups, sites, shared, mailboxes, calendars, everyone, warnings);
+    }
+
+    /// <summary>How many users <see cref="FindUsers"/> lists at most.</summary>
+    public const int MatchLimit = 8;
+
+    /// <summary>
+    /// The users of the newest snapshot whose display name, a word of it, user principal name or address starts with
+    /// the text, in any case (task 112): the window's user picker suggests them when the directory cannot be searched
+    /// live (no sign-in, or Graph did not answer, <c>UserSearch</c>). A prefix search
+    /// over the snapshot's <c>objects</c>, the local file only, opened read-only as <see cref="ForUser"/> opens it;
+    /// <c>%</c>, <c>_</c> and <c>\</c> in the text match themselves.
+    /// </summary>
+    /// <exception cref="AegisException">A <see cref="FailureKind.NotFound"/> failure when the profile has no snapshot, a <see cref="FailureKind.Usage"/> one for an empty text.</exception>
+    public static UserMatches FindUsers(string home, string profile, string text, int limit = MatchLimit)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        string prefix = text.Trim();
+        if (prefix.Length == 0)
+        {
+            throw new AegisException(FailureKind.Usage, "no text to search for", "type the start of a name or an address");
+        }
+
+        (string file, SnapshotDetail detail) = SnapshotStore.Newest(home, profile);
+        using SqliteConnection connection = SnapshotStore.OpenRead(file)!;
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = """
+            select objectId, name, userPrincipalName, mail from objects
+            where kind = 'user' and (
+                name like $prefix escape '\' or name like '% ' || $prefix escape '\'
+                or userPrincipalName like $prefix escape '\' or mail like $prefix escape '\')
+            order by name collate nocase, userPrincipalName collate nocase, key
+            limit $limit
+            """;
+        string escaped = prefix
+            .Replace(@"\", @"\\", StringComparison.Ordinal)
+            .Replace("%", @"\%", StringComparison.Ordinal)
+            .Replace("_", @"\_", StringComparison.Ordinal);
+        command.Parameters.AddWithValue("$prefix", escaped + "%");
+        command.Parameters.AddWithValue("$limit", limit + 1);
+        using SqliteDataReader reader = command.ExecuteReader();
+        var users = new List<AccessUser>();
+        while (reader.Read())
+        {
+            users.Add(new AccessUser(Text(reader, 0), Text(reader, 1), Text(reader, 2), Text(reader, 3)));
+        }
+
+        return new UserMatches(UserSource.Snapshot, detail.Snapshot.Name, detail.Snapshot.Taken, users.Take(limit).ToList(), users.Count > limit);
     }
 
     private static List<T> Rows<T>(SqliteConnection connection, long user, string sql, Func<SqliteDataReader, T> read)

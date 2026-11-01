@@ -45,6 +45,12 @@ export const MessageType = {
   access: "access",
   accessReport: "access-report",
   noSnapshot: "no-snapshot",
+  /**
+   * `{ text }`: the users of the newest snapshot whose name, a word of it, user principal name or address starts with
+   * the text (task 112), for the access cards' user picker; answered with `user-matches`, or `no-snapshot`.
+   */
+  userSearch: "user-search",
+  userMatches: "user-matches",
   /** The write requests (task 082): each is answered with `plan`, the plan as `--dry-run` prints it; nothing is sent. */
   mailboxAccessGrant: "mailbox-access-grant",
   mailboxAccessRevoke: "mailbox-access-revoke",
@@ -206,6 +212,21 @@ export interface AccessUser {
   displayName?: string;
   userPrincipalName?: string;
   mail?: string;
+}
+
+/** Where the user picker's suggestions come from: the directory, live, or the snapshot on this computer. */
+export type UserSource = "graph" | "snapshot";
+
+/**
+ * The users whose name or address starts with a text (task 112), from the source the reply names: the directory, or
+ * the snapshot (its name and time) when the directory could not answer; `more` when the list is cut short.
+ */
+export interface UserMatches {
+  source: UserSource;
+  snapshot?: string;
+  taken?: string;
+  users: AccessUser[];
+  more: boolean;
 }
 
 /** A group the user is a member of; `via` names the member groups a nested membership comes through. */
@@ -383,6 +404,7 @@ export type Reply =
   | { type: typeof MessageType.userGrants; data: UserAccess }
   | { type: typeof MessageType.accessReport; data: AccessReport }
   | { type: typeof MessageType.noSnapshot; data: NoSnapshotInfo }
+  | { type: typeof MessageType.userMatches; data: UserMatches }
   | { type: typeof MessageType.plan; data: PlanReady }
   | { type: typeof MessageType.planApplied; data: PlanApplied }
   | { type: typeof MessageType.error; data: BridgeError };
@@ -446,6 +468,8 @@ export function readReply(message: BridgeMessage): Reply | null {
       return isRecord(data) && isString(data.profile) && isString(data.message) && isString(data.hint)
         ? { type, data: { profile: data.profile, message: data.message, hint: data.hint } }
         : null;
+    case MessageType.userMatches:
+      return isUserMatches(data) ? { type, data } : null;
     case MessageType.plan:
       return isPlanReady(data) ? { type, data } : null;
     case MessageType.planApplied:
@@ -642,6 +666,19 @@ function isListOf(value: unknown, required: readonly string[], optional: readonl
   );
 }
 
+const userNames: readonly string[] = ["objectId", "displayName", "userPrincipalName", "mail"];
+
+function isUserMatches(value: unknown): value is UserMatches {
+  return (
+    isRecord(value) &&
+    (value.source === "graph" || value.source === "snapshot") &&
+    isOptionalString(value.snapshot) &&
+    isOptionalString(value.taken) &&
+    typeof value.more === "boolean" &&
+    isListOf(value.users, [], userNames)
+  );
+}
+
 function isAccessReport(value: unknown): value is AccessReport {
   if (!isRecord(value) || !isRecord(value.user) || !isRecord(value.everyone)) {
     return false;
@@ -651,7 +688,7 @@ function isAccessReport(value: unknown): value is AccessReport {
     isString(value.snapshot) &&
     isString(value.taken) &&
     typeof value.ageHours === "number" &&
-    ["objectId", "displayName", "userPrincipalName", "mail"].every((name) => isOptionalString(user[name])) &&
+    userNames.every((name) => isOptionalString(user[name])) &&
     Array.isArray(value.groups) &&
     value.groups.every((group) => isRecord(group) && isStrings(group.via) && typeof group.direct === "boolean") &&
     isListOf(value.groups, [], ["id", "displayName", "kind"]) &&

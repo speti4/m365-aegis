@@ -944,6 +944,16 @@ The messages (tasks 017, 040, 045 and 047; `BridgeMessageType` in C#, `MessageTy
   window's hint, which sends to the administrator who takes the snapshots): `SnapshotAccess.ForUser` over the newest
   snapshot of the window's profile, the age on the window's clock. It reads the local file only, so it needs no
   sign-in and starts no session; a user the snapshot does not know is the `not-found` error;
+- `user-search` with `{"text": "<the start of a name, a word of it, a principal name or an address>"}` (task 112),
+  answered with `user-matches` (the core's `UserMatches`: the `source` that answered, `graph` or `snapshot`, the
+  snapshot's name and time when it was the snapshot, the users as `access-report` names its user, and `more` when over
+  eight match) or `no-snapshot`. The directory answers first: `UserSearch.FindAsync`, one `/users` request through the
+  window's Graph client and silent sign-in, `$search` over `displayName` (tokenized: a word's start matches),
+  `userPrincipalName` and `mail` (their start), `ConsistencyLevel: eventual` with `$count`, `$orderby=displayName` and
+  `$top=9`, under `User.ReadBasic.All`. Any failure but a usage one (no sign-in, the permission not consented, the
+  network) falls back to `SnapshotAccess.FindUsers`, a prefix search over the `objects` of the newest snapshot of the
+  window's profile, users only, in any case, `%`, `_` and `\` matched as themselves, and `no-snapshot` without one.
+  The command line has no such command: it is the user picker's;
 - the write requests (task 082, [The window's writes](#the-windows-writes)), marked `[BridgeWrite]` in
   `BridgeMessageType` (its `Writes` lists them; `writeRequests` in TypeScript): `mailbox-access-grant` and
   `mailbox-access-revoke` with `{"mailbox": …, "users": […], "rights": ["full-access", "send-as",
@@ -1099,6 +1109,19 @@ host's hint; an `error` reply is the page's toast. The card does not wait for a 
 from `src/bridge/mock-access.ts`, which a Vitest test holds equal to the `access-report.json` sample, and
 `?mock=no-snapshot` in the address starts the mock without a snapshot.
 
+**The user picker** (task 112, `components/user-picker.tsx`): the user field of the user access card and of the
+mailbox access card's "A user". Once three letters are typed it sends `user-search` after a pause of 250 ms, so a word
+typed at speed sends one request, and drops an answer to an older text; the list is an ARIA combobox (the arrow keys,
+Enter and Escape on the field, a click on an option), and a pick hands the user principal name (else the address, else
+the object id) to the card, which looks the user up at once. Enter with no option highlighted submits the text as
+typed, so a full address still works. A line under the list names the source ("From the directory.", or "From the
+snapshot taken …: the directory cannot be searched now") and says when nothing matches or more do; `no-snapshot` says
+there is nothing to suggest from, and a failed search shows nothing (the card's own lookup reports the error). The
+browser mock answers from the five `* Example` users of the recorded Graph answers (`mockUserSearch` in
+`src/bridge/mock-access.ts`), from the directory signed in and from its snapshot signed out; a Vitest test holds its
+signed-in answer equal to the `user-matches.json` sample, which a Core test holds to the search over the recorded
+answer.
+
 **A command on a card** (task 104): the wording map rewords a warning that names a command of the command line too,
 not only a flag: the group owner write's last-owner warning (`` `group owners-missing` lists it ``) becomes "To keep
 it managed, add another owner first; otherwise the administrator's list of groups without an owner names it", for
@@ -1110,6 +1133,14 @@ command (`m365-aegis` and a command word, or anything in backticks): over every 
 recorded answers) and of the access samples, and over the cards of the browser mock; it fails on a new warning of the
 core that names a command. The cards' descriptions name no command either. The command line's sentences are the
 core's, unchanged.
+
+**The snapshot's parts in the window's words** (task 113): the access view's warnings name a part of the snapshot by
+the store's word (`sites is partial…`, `oneDrive was not read: …`); the wording map names it as the card does
+(`snapshotPartNames` in `components/plan-wording.ts`: "SharePoint sites", "OneDrive", "Mailbox rights", "Calendar
+permissions", …, one name for each of the take's 13 parts) and words the partial, the failed and the skipped part as
+"SharePoint sites: read only in part in this snapshot; …", the skipped part's note kept as the take wrote it. The
+Vitest test reads the parts from `SnapshotTake.cs` and fails on a part the map does not name, and forbids a part's
+store word at the head of a warning (`sites is partial`) over the reply samples and the access card.
 
 **The task card design sketch** (task 018, `src/sketch/`): the card list (grant FullAccess on a shared mailbox, add
 a group owner, check a user's access), one card's steps (pick, the plan, the confirmation, the result) and the

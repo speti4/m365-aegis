@@ -8,7 +8,7 @@ import { type BridgeMessage, type Plan, parseMessage, readReply } from "../bridg
 import { button, click, render, settle, submit, type } from "../test/dom";
 import { MailboxForwardingCard } from "./mailbox-write-cards";
 import { ConfirmView, ErrorText, PlanView, ResultView } from "./plan-view";
-import { windowWarning } from "./plan-wording";
+import { snapshotPart, snapshotPartNames, windowWarning } from "./plan-wording";
 import { AccessReportView, NoSnapshotView, UserAccessCard } from "./user-access-card";
 
 /** A flag of the command line as a card would show it: `--keep-copy`, `(--yes)`. */
@@ -80,6 +80,18 @@ function accessWarnings(): string[] {
   return [...source.matchAll(added), ...source.matchAll(switched)].map((match) => match[1]);
 }
 
+/** The parts of the take (task 113), from its source: each `DomainAsync("…"` and the skipped part's `new SnapshotDomain("…"`. */
+function takeParts(): string[] {
+  const source = readFileSync(path.join(repo, "src/M365Aegis.Core/Snapshots/SnapshotTake.cs"), "utf8");
+  return [...source.matchAll(/(?:DomainAsync|new SnapshotDomain)\(\s*"(\w+)"/g)].map((match) => match[1]);
+}
+
+/**
+ * A part of the snapshot named by the store's word as a warning starts with it (task 113): `sites is partial`,
+ * `grants could not be read`, `oneDrive was not read`.
+ */
+const bareDomain = new RegExp(`\\b(${takeParts().join("|")}) (is partial|could not be read|was not read)\\b`);
+
 describe("a plan warning in the window's words", () => {
   it("rewords the forwarding without a copy for the card's box", () => {
     expect(
@@ -110,13 +122,34 @@ describe("a plan warning in the window's words", () => {
         "sharing is partial in this snapshot: 3 item(s) could not be read (forbidden 2, throttled 1); `m365-aegis snapshot show` names them",
       ),
     ).toBe(
-      "sharing is partial in this snapshot: 3 item(s) could not be read (forbidden 2, throttled 1), so the answer may miss what they hold. The administrator can see which ones in the snapshot's details.",
+      "Shared files: read only in part in this snapshot; 3 item(s) could not be read (forbidden 2, throttled 1), so the answer may miss what they hold. The administrator can see which ones in the snapshot's details.",
     );
     expect(
       windowWarning("grants could not be read in this snapshot; `m365-aegis snapshot show` names the failure"),
     ).toBe(
-      "grants could not be read in this snapshot, so the answer has none of it. The administrator can see why in the snapshot's details.",
+      "Mailbox rights: could not be read in this snapshot, so the answer has none of it. The administrator can see why in the snapshot's details.",
     );
+    expect(windowWarning("oneDrive was not read: other users' OneDrives need a consent")).toBe(
+      "OneDrive: not read in this snapshot; other users' OneDrives need a consent.",
+    );
+  });
+
+  it("names every part of the take in the window's words, never the store's identifier (task 113)", () => {
+    const parts = takeParts();
+    // A new part of the take fails here: name it in `snapshotPartNames` (plan-wording.ts).
+    expect([...parts].sort()).toEqual(Object.keys(snapshotPartNames).sort());
+    expect(parts).toHaveLength(13);
+    expect(snapshotPart("sites")).toBe("SharePoint sites");
+    expect(snapshotPart("oneDrive")).toBe("OneDrive");
+    expect(snapshotPart("constructor")).toBe("constructor");
+
+    for (const part of parts) {
+      for (const template of accessWarnings().filter((warning) => warning.startsWith("{domain.Name}"))) {
+        const worded = windowWarning(filled(template.replace("{domain.Name}", part)));
+        expect(worded.startsWith(`${snapshotPartNames[part]}: `)).toBe(true);
+        expect(worded).not.toMatch(bareDomain);
+      }
+    }
   });
 
   it("passes a warning it does not know through unchanged", () => {
@@ -189,7 +222,7 @@ describe("no card renders a command of the command line (task 104)", () => {
 
     const offending = replies
       .flatMap(([name, message]) => shown(message.data, name))
-      .filter(([, text]) => flag.test(text) || command.test(text));
+      .filter(([, text]) => flag.test(text) || command.test(text) || bareDomain.test(text));
     expect(offending).toEqual([]);
   });
 
@@ -220,9 +253,13 @@ describe("no card renders a command of the command line (task 104)", () => {
     expect(views[0].container.textContent).toContain("To keep it managed, add another owner first");
     expect(views[2].container.textContent).toContain("Ask the administrator for a fresh one.");
     expect(card.textContent).toContain("The administrator can see which ones in the snapshot's details.");
+    // The parts of the snapshot in the window's words (task 113).
+    expect(card.textContent).toContain("SharePoint sites: read only in part in this snapshot;");
+    expect(card.textContent).toContain("OneDrive: not read in this snapshot;");
     for (const view of views) {
       expect(view.container.textContent).not.toMatch(flag);
       expect(view.container.textContent).not.toMatch(command);
+      expect(view.container.textContent).not.toMatch(bareDomain);
       await view.unmount();
     }
   });

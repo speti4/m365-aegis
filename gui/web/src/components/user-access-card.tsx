@@ -3,19 +3,16 @@ import { type FormEvent, type ReactNode, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { BridgeClient } from "../bridge/client";
 import { type AccessReport, type BridgeError, MessageType, type NoSnapshotInfo } from "../bridge/protocol";
 import { rightNames } from "./mailbox-access-card";
 import { Notice } from "./plan-view";
 import { windowWarning } from "./plan-wording";
+import { describeTaken } from "./snapshot-time";
+import { UserPicker } from "./user-picker";
 
-/** When a snapshot was taken, as the card writes it: the UTC minute, or the core's text when it is not a time. */
-export function describeTaken(taken: string): string {
-  const time = Date.parse(taken);
-  return Number.isNaN(time) ? taken : `${new Date(time).toISOString().slice(0, 16).replace("T", " ")} UTC`;
-}
+export { describeTaken };
 
 /** A snapshot's age as the card writes it: hours under two days, days from then on. */
 export function describeAge(hours: number): string {
@@ -31,7 +28,8 @@ type Result = { kind: "report"; data: AccessReport } | { kind: "none"; data: NoS
  * What one user reaches (task 102), as `access <user>` answers it from the newest snapshot (task 084): the groups and
  * the member groups a nested membership comes through, the sites of those groups, the shared items, the mailbox rights
  * and the calendar permissions held directly or through a group, the counts of what reaches everyone, the snapshot's
- * time and age, and its warnings in the window's words. The host reads the snapshot file on this computer only: no
+ * time and age, and its warnings in the window's words. The user is picked from the suggestions (the directory, else the snapshot) as the colleague
+ * types a name (the user picker, task 112), or typed in full. The host reads the snapshot file on this computer only: no
  * sign-in, no request to Microsoft 365, so the card works signed out too. Without a snapshot the card says so plainly
  * and names who takes one; an `error` reply is the page's toast.
  */
@@ -40,11 +38,10 @@ export function UserAccessCard({ client, onError }: { client: BridgeClient; onEr
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
 
-  async function lookUp(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function lookUp(user: string) {
     setBusy(true);
     try {
-      const reply = await client.call(MessageType.access, { user: query.trim() });
+      const reply = await client.call(MessageType.access, { user: user.trim() });
       switch (reply.type) {
         case MessageType.accessReport:
           setResult({ kind: "report", data: reply.data });
@@ -71,12 +68,18 @@ export function UserAccessCard({ client, onError }: { client: BridgeClient; onEr
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <form className="flex gap-2" onSubmit={(event) => void lookUp(event)}>
-          <Input
-            aria-label="User"
-            placeholder="User principal name, address or object id"
+        <form
+          className="flex items-start gap-2"
+          onSubmit={(event: FormEvent<HTMLFormElement>) => {
+            event.preventDefault();
+            void lookUp(query);
+          }}
+        >
+          <UserPicker
+            client={client}
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={setQuery}
+            onPick={(user) => void lookUp(user)}
             disabled={busy}
           />
           <Button type="submit" disabled={busy || query.trim() === ""}>
