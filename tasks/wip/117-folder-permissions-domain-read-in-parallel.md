@@ -52,7 +52,7 @@ Fourteenth round of 2026-11-01, worked in the main session on its own branch (no
 5. [x] Tests: the budgeted client's shared counters and a 429 past a command's minute; the gate's bounds; a throttled
        calendar read in the take (the Graph test's Admin API twin); an in-flight probe (at most eight, half after a
        throttled answer); the take's rows and counts unchanged; the table's new form
-6. [ ] Docs under *Docs that move*; the local matrix; the live before/after in the Verification
+6. [x] Docs under *Docs that move*; the local matrix; the live before/after in the Verification
 
 ## Log
 
@@ -80,11 +80,25 @@ Fourteenth round of 2026-11-01, worked in the main session on its own branch (no
 
 ## Deviations from the plan
 
-- none yet
+- The throttled answers of a read are counted by an `AsyncLocal` witness the client notes into, not by a counter on
+  the backends as planned: a shared counter attributed one read's 429 to every read in flight (the take test halved the
+  gate twice), and a flag on the result would have reached into the public mailbox model.
 
 ## Verification
 
-- <dated, concrete: what was run, what it showed, before/after where a number changed>
+- 2026-11-01 — live, the main session, cached token (tenant counts rounded): **before**, task 100's after-take (build
+  `46118d7`, four at a time, a command's Admin API budget): the folderPermissions domain took 227,317 ms with some 620
+  Admin API calls and 3 sidecar calls, about 1.45 s per call. **After**, build `d4ecafb` (the gate of eight, the take's
+  budget): 155,830 ms with some 620 Admin API calls and 3 sidecar calls, no wait on throttling (`admin-api` without a
+  throttled part) and no back-off (the note names none, so the limit stayed at eight), about 2.0 s per call at eight in
+  flight, so the domain is 31% faster, not twice: the service answers a mailbox read slower when more are in flight.
+  The rows stayed at some 1,500; `snapshot diff` of the previous take against this one shows folderPermissions with 0
+  added and 0 removed (the two changes are memberships). The whole take took 20.7 minutes because the base predates
+  task 116 and the sharing domain was read whole (the note says so), 15.3 minutes of it the sharing domain's Graph waits.
+- 2026-11-01 — local: `dotnet restore --locked-mode`, `dotnet format --verify-no-changes`, `dotnet build -c Release
+  -p:SkipFrontendBuild=true`, `dotnet test` (1,638 passed), the coverage gate (Core and Cli 100% lines and branches),
+  `changelog.py --check`, `check-fixtures.py --self-test` and `check-fixtures.py` clean; the two take tests run three
+  times in a row, green each time.
 
 ## Closing checklist
 
