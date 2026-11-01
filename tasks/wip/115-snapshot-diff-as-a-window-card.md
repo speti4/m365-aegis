@@ -91,12 +91,31 @@ bundles to merge resolves the overlap.
 
 ## Verification
 
-- <dated, concrete: the card over the mock transport, the Vitest run, the smoke run>
+- 2026-11-01 — Core: `BridgeSnapshotDiffTests` 7 green (the default request is the `snapshot-diff-report.json` sample
+  with no broker call and no Graph request, bob's the `.user` variant, no snapshot the `too-few-snapshots.json`
+  sample, one snapshot and nothing before a named one with their counts, two named picks, the errors with the window's
+  hints, no profile); `BridgeProtocolTests` green with the four new samples.
+- 2026-11-01 — Vitest: `snapshot-diff-card.test.tsx` over `MockTransport` (the two snapshots "2026-10-31 06:00 UTC
+  (26 hour(s) ago)" and "2026-11-01 06:00 UTC (2 hour(s) ago)", 8 added and 6 removed, a table for each of the six
+  parts with one added and one removed row or more, the partial warning reworded; bob's changes with "through Audit";
+  "Nothing to compare yet" over `MockTransport({ snapshot: false })`; an unknown user as the toast's error; only the
+  filled picks sent), the mock held equal to the three samples, `App.test.tsx` (the card on the page),
+  `protocol.test.ts`; 224 tests, 100% statements, branches, functions and lines; Biome and `tsc` clean.
+- 2026-11-01 — the whole local matrix in the worktree on the tree merged with `origin/main` (#151, 443d956, #152):
+  restore `--locked-mode`, format, `npm ci`, lint, typecheck, `test:coverage`, the front end's build, the full build
+  (0 warnings), `dotnet test` with coverlet 1630 passed, `check-coverage.py` 100% (Core 6662/6662 lines, 3433/3433
+  branches; Cli 2157/2157, 548/548), `changelog.py --check`, `check-fixtures.py` self-test (17 cases) and scan (527
+  files, 0 findings), `doctor --offline` exit 0, `whoami` exit 3 on an empty home, `release.ps1 -DryRun` with a
+  throwaway certificate exit 0, and `m365-aegis-gui.exe --smoke` exit 0 in three runs of its own (ready in about
+  0.5 s). Two flakes of this machine while other sessions built in parallel, neither in this change's code: the
+  sidecar's `AChildThatHangsTimesOut…` test (a 3 s budget for a scripted pwsh child) failed in three full runs and
+  passed alone and in the last full run, and CI's `dotnet` job on the branch was green; `--smoke` inside a batch with
+  every stream redirected to a file exited 3 twice and passed once.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green (the stale index is the main session's)
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
+- [x] `tasks_check` green (the stale index is the main session's)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge

@@ -100,13 +100,13 @@ changes no table, column or manifest key.
   snapshot's sharing read was partial by one throttled drive), every other section 0/0; 5 warnings, all partial ones,
   of which the per-section near-duplicates are folded since (Log); `--table` exit 0; self-diff `latest latest` 0/0;
   an unknown user exit code 4. Well within the budget of a second.
-- 2026-11-01 — the local matrix in the worktree after merging `origin/main` (#151 and 443d956): see task 115's
-  Verification, the same runs.
+- 2026-11-01 — the local matrix in the worktree after merging `origin/main` (#151, 443d956 and #152): see task 115's
+  Verification, the same runs (1630 tests, the coverage gate at 100%).
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green (the stale index is the main session's)
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
+- [x] `tasks_check` green (the stale index is the main session's)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
