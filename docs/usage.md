@@ -319,8 +319,9 @@ A snapshot is a copy of who can reach what in the tenant, read in one run and ke
 `%LOCALAPPDATA%\m365-aegis\snapshots\<profile>\`: the users and groups with their members (nested ones too) and
 owners, the teams, the SharePoint sites with the group behind each one and their shared files, and the Exchange Online
 mailboxes with FullAccess, Send As, Send on Behalf, the calendars' permissions and the forwarding. Reading all of it
-takes minutes in a large tenant; a question to a snapshot takes well under a second. Taking one only reads: nothing in
-the tenant changes.
+takes minutes in a large tenant; a question to a snapshot takes well under a second. Take one before you ask, or let
+a scheduled task take one every morning (below): an answer is as old as the snapshot it comes from, and the window
+says when that was. Taking one only reads: nothing in the tenant changes.
 
 ```powershell
 m365-aegis snapshot take                          # read the tenant into a new snapshot, then remove the old ones
@@ -343,8 +344,11 @@ The shared files are the slow part of a take. So a take starts from the newest s
 asks each document library only what changed since then: the files whose sharing changed are read again, the removed
 ones are dropped, and the rest is that snapshot's. A library that snapshot could not read whole, or that cannot say
 what changed (the service forgot the point it was asked from), is read whole, and `snapshot show` names how many were
-read which way. `snapshot take --full` reads every library whole, for example once a week, or when a snapshot looks
-wrong. The groups, the members and the mailbox permissions are read whole every time.
+read which way. The service does not report every change of a permission this way, so the take reads every library
+whole again on its own when the last whole read was a week or more ago, and `snapshot show` says so; `fullSharingDays`
+in the profile of `config.json` changes the 7 (a whole number of days, 1 or more). `snapshot take --full` reads every
+library whole now, for when a snapshot looks wrong. The groups, the members and the mailbox permissions are read whole
+every time.
 
 ### What one user reaches
 
@@ -391,7 +395,9 @@ snapshot knows ends with exit code 4.
 
 ### A snapshot every morning
 
-A Task Scheduler task takes the snapshot while you are logged on; the sign-in it uses is the one of your Windows
+A snapshot taken by hand before a question is the usual way; a schedule is for a computer that is on every morning
+anyway, and gives the access changes card a snapshot of the day before to compare with. A Task Scheduler task takes
+the snapshot while you are logged on; the sign-in it uses is the one of your Windows
 session, so it runs only while you are logged on and never asks for a password:
 
 ```powershell

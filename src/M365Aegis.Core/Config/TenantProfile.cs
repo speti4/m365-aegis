@@ -24,6 +24,12 @@ public sealed record TenantProfile(string Name, string Tenant, string ClientId, 
 
     /// <summary>The ISO weeks for which the newest snapshot of each week is kept: <c>keepWeekly</c>; null for the default, 8.</summary>
     public int? KeepWeekly { get; init; }
+
+    /// <summary>
+    /// The days after which <c>snapshot take</c> reads every library's sharing whole again instead of only what changed
+    /// (task 116): <c>fullSharingDays</c> of the profile in <c>config.json</c>, written by hand; null for the default, 7.
+    /// </summary>
+    public int? FullSharingDays { get; init; }
 }
 
 /// <summary>One profile as <c>profile list</c> shows it.</summary>
@@ -190,12 +196,13 @@ public sealed class ProfileStore
     {
         ArgumentNullException.ThrowIfNull(profile);
         ConfigFile file = Load();
-        // The retention is written by hand, and a login that writes the profile again keeps it.
+        // The retention and the whole-read age are written by hand, and a login that writes the profile again keeps them.
         ProfileEntry? before = file.Profiles.GetValueOrDefault(profile.Name);
         file.Profiles[profile.Name] = ProfileEntry.From(profile) with
         {
             KeepDaily = profile.KeepDaily ?? before?.KeepDaily,
             KeepWeekly = profile.KeepWeekly ?? before?.KeepWeekly,
+            FullSharingDays = profile.FullSharingDays ?? before?.FullSharingDays,
         };
         if (makeDefault || file.Default is null)
         {
@@ -268,8 +275,12 @@ public sealed class ProfileStore
         /// <summary>The weeks of snapshots the profile keeps (task 087), by hand; null for the default.</summary>
         public int? KeepWeekly { get; init; }
 
+        /// <summary>The days after which a take reads the sharing whole again (task 116), by hand; null for the default.</summary>
+        public int? FullSharingDays { get; init; }
+
         public static ProfileEntry From(TenantProfile profile) => new(profile.Tenant, profile.ClientId, profile.Account);
 
-        public TenantProfile ToProfile(string name) => new(name, Tenant, ClientId, Account) { KeepDaily = KeepDaily, KeepWeekly = KeepWeekly };
+        public TenantProfile ToProfile(string name) =>
+            new(name, Tenant, ClientId, Account) { KeepDaily = KeepDaily, KeepWeekly = KeepWeekly, FullSharingDays = FullSharingDays };
     }
 }

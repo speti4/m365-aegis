@@ -50,7 +50,7 @@ public static class SnapshotTake
     /// </summary>
     internal const int TakeRetries = 8;
 
-    /// <summary>The longest the take waits on throttling in all (a command's is a minute): a nightly run may wait.</summary>
+    /// <summary>The longest the take waits on throttling in all (a command's is a minute): a scheduled run may wait.</summary>
     internal static readonly TimeSpan TakeBudget = TimeSpan.FromHours(1);
 
     /// <summary>The examples of failed items a domain's note names; the rest are counted by their failure.</summary>
@@ -63,6 +63,7 @@ public static class SnapshotTake
         ArgumentNullException.ThrowIfNull(backends);
         ArgumentNullException.ThrowIfNull(options);
         SnapshotRetention retention = RetentionOf(options.Profile);
+        int fullSharingDays = FullSharingDaysOf(options.Profile);
         string folder = SnapshotStore.Folder(options.Home, options.Profile.Name);
         AegisHome.Create(options.Home);
         Directory.CreateDirectory(folder);
@@ -70,7 +71,7 @@ public static class SnapshotTake
         DateTimeOffset started = options.Clock.GetUtcNow();
         var clock = Stopwatch.StartNew();
 
-        var take = new Reads(backends, options, cancellationToken);
+        var take = new Reads(backends, options, started, fullSharingDays, cancellationToken);
         await take.ReadAllAsync().ConfigureAwait(false);
         if (!take.Domains.Any(domain => domain.Status is SnapshotDomainStatus.Ok or SnapshotDomainStatus.Partial))
         {
@@ -135,6 +136,28 @@ public static class SnapshotTake
         return retention;
     }
 
+    /// <summary>The default of <see cref="FullSharingDaysOf"/>: a week.</summary>
+    internal const int DefaultFullSharingDays = 7;
+
+    /// <summary>
+    /// The days after which the take reads every drive's sharing whole again (task 116): the profile's
+    /// <c>fullSharingDays</c> in <c>config.json</c>, else <see cref="DefaultFullSharingDays"/>.
+    /// </summary>
+    /// <exception cref="AegisException">A usage error for a value below 1.</exception>
+    internal static int FullSharingDaysOf(TenantProfile profile)
+    {
+        int days = profile.FullSharingDays ?? DefaultFullSharingDays;
+        if (days < 1)
+        {
+            throw new AegisException(
+                FailureKind.Usage,
+                $"the profile '{profile.Name}' reads the shared files whole every {days} day(s); it is 1 or more",
+                $"set fullSharingDays of the profile in config.json to a whole number of 1 or more, or remove it for {DefaultFullSharingDays}");
+        }
+
+        return days;
+    }
+
     /// <summary>The kind of object a mailbox grant's recipient is: a group, a mailbox's user, or another recipient.</summary>
     internal static string KindOf(string? recipientType) =>
         recipientType switch
@@ -180,7 +203,7 @@ public static class SnapshotTake
     private sealed record Unread(string What, string Code);
 
     /// <summary>The reads of one take, domain by domain, into one <see cref="SnapshotBuilder"/>.</summary>
-    private sealed class Reads(ExchangeBackends backends, SnapshotTakeOptions options, CancellationToken cancellationToken)
+    private sealed class Reads(ExchangeBackends backends, SnapshotTakeOptions options, DateTimeOffset started, int fullSharingDays, CancellationToken cancellationToken)
     {
         // The take's own budget over the command's client: the same transport, the same request log.
         private readonly GraphClient _graph = backends.Graph.WithBudget(TakeRetries, TakeBudget);
@@ -422,13 +445,22 @@ public static class SnapshotTake
         /// item's rows and those of an item that inherits its parent's sharing again are dropped, and the drive's other
         /// rows are the previous snapshot's. A drive without a link, or whose delta from it fails (a <c>410</c>
         /// <c>resyncRequired</c> or any other error), is read whole, and <c>--full</c> reads every drive whole. A drive's
-        /// link is kept only when the drive was read whole, so a later take never builds on rows that are missing.
+        /// link is kept only when the drive was read whole, so a later take never builds on rows that are missing. Since
+        /// task 116 the take also reads every drive whole on its own when the last whole read, which the manifest carries
+        /// from take to take (<see cref="SharingBase.WholeReadKey"/>), is <c>fullSharingDays</c> or more days old, or
+        /// when the base cannot say when that was; the manifest names the reason (<see cref="SharingBase.WholeReasonKey"/>).
         /// </summary>
         private async Task<DomainRead> SharingAsync()
         {
             List<SnapshotSite> sites = Builder.Sites.Where(site => site.DriveId is not null).ToList();
-            SharingBase? previous = options.Full ? null : SharingBase.Load(SnapshotStore.Folder(options.Home, options.Profile.Name));
+            (SharingBase? previous, SharingBase? loaded, string? wholeReason) = BaseOf();
             Extra[SharingBase.WholeDrives] = SharingBase.WholeDrivesValue;
+            Extra[SharingBase.WholeReadKey] = (previous?.WholeRead ?? started).UtcDateTime.ToString("O", CultureInfo.InvariantCulture);
+            if (wholeReason is not null)
+            {
+                Extra[SharingBase.WholeReasonKey] = wholeReason;
+            }
+
             using var permissionGate = new SemaphoreSlim(1, 1);
             DriveRead[] reads = await EachAsync(sites, site => ReadDriveAsync(site, permissionGate, previous?.DeltaLinks.GetValueOrDefault(site.DriveId!))).ConfigureAwait(false);
             var failed = new List<Unread>();
@@ -468,10 +500,43 @@ public static class SnapshotTake
 
             string remark = string.Join("; ", new[]
             {
+                wholeReason switch
+                {
+                    "age" => $"every drive read whole: the last whole read is {(int)(started - loaded!.WholeRead!.Value).TotalDays} day(s) old, and the profile reads whole every {fullSharingDays} day(s)",
+                    "unknown" => $"every drive read whole: {loaded!.Name} does not say when its drives were last read whole",
+                    _ => null,
+                },
                 incremental.Count == 0 ? null : $"{incremental.Count} of {reads.Length} drive(s) read incrementally from {previous!.Name}, {changed} changed item(s)",
                 fellBack == 0 ? null : $"{fellBack} drive(s) read whole, their delta since the previous snapshot failed",
             }.OfType<string>());
             return new DomainRead(Builder.Links.Count, failed, remark.Length == 0 ? null : remark);
+        }
+
+        /// <summary>
+        /// What the sharing read starts from (task 116): the base to read incrementally from, or null for a whole read of
+        /// every drive; the snapshot that was loaded, for the note; and why every drive is read whole, null when it is
+        /// not. <c>--full</c> reads whole; no snapshot to start from reads whole; a base without a whole-read time (taken
+        /// before task 116) reads whole; a base whose last whole read is <c>fullSharingDays</c> or more days old reads whole.
+        /// </summary>
+        private (SharingBase? Previous, SharingBase? Loaded, string? WholeReason) BaseOf()
+        {
+            if (options.Full)
+            {
+                return (null, null, "full");
+            }
+
+            SharingBase? loaded = SharingBase.Load(SnapshotStore.Folder(options.Home, options.Profile.Name));
+            if (loaded is null)
+            {
+                return (null, null, "no-base");
+            }
+
+            if (loaded.WholeRead is null)
+            {
+                return (null, loaded, "unknown");
+            }
+
+            return (started - loaded.WholeRead.Value).TotalDays >= fullSharingDays ? (null, loaded, "age") : (loaded, loaded, null);
         }
 
         /// <summary>

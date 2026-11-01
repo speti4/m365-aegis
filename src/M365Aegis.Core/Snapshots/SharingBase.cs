@@ -23,15 +23,32 @@ internal sealed class SharingBase
     /// <summary>The value of <see cref="WholeDrives"/>.</summary>
     internal const string WholeDrivesValue = "whole-drives";
 
-    private SharingBase(string name, Dictionary<string, string> deltaLinks, Dictionary<string, List<BaseLink>> links)
+    /// <summary>
+    /// The manifest's key of the time of the last take that read every drive whole (task 116): the take's own when it
+    /// did, else carried from the snapshot it started from.
+    /// </summary>
+    internal const string WholeReadKey = "sharingWholeRead";
+
+    /// <summary>
+    /// The manifest's key of why a take read every drive whole (task 116): <c>full</c> (<c>--full</c>), <c>no-base</c>
+    /// (no snapshot to start from), <c>age</c> (the last whole read is <c>fullSharingDays</c> or more days old) or
+    /// <c>unknown</c> (the base does not say when its drives were last read whole); absent in an incremental take.
+    /// </summary>
+    internal const string WholeReasonKey = "sharingWholeReason";
+
+    private SharingBase(string name, DateTimeOffset? wholeRead, Dictionary<string, string> deltaLinks, Dictionary<string, List<BaseLink>> links)
     {
         Name = name;
+        WholeRead = wholeRead;
         DeltaLinks = deltaLinks;
         Links = links;
     }
 
     /// <summary>The snapshot's file name.</summary>
     internal string Name { get; }
+
+    /// <summary>When every drive was last read whole, as the snapshot's manifest says; null in a snapshot taken before task 116.</summary>
+    internal DateTimeOffset? WholeRead { get; }
 
     /// <summary>Each drive's delta link, by the drive's id.</summary>
     internal IReadOnlyDictionary<string, string> DeltaLinks { get; }
@@ -58,7 +75,10 @@ internal sealed class SharingBase
                 Dictionary<string, string> deltaLinks = manifest
                     .Where(pair => pair.Key.StartsWith(DeltaLinkPrefix, StringComparison.Ordinal))
                     .ToDictionary(pair => pair.Key[DeltaLinkPrefix.Length..], pair => pair.Value, StringComparer.OrdinalIgnoreCase);
-                return new SharingBase(Path.GetFileName(file), deltaLinks, LinksOf(connection, deltaLinks));
+                DateTimeOffset? wholeRead = manifest.TryGetValue(WholeReadKey, out string? at)
+                    ? DateTimeOffset.Parse(at, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal)
+                    : null;
+                return new SharingBase(Path.GetFileName(file), wholeRead, deltaLinks, LinksOf(connection, deltaLinks));
             }
         }
 
