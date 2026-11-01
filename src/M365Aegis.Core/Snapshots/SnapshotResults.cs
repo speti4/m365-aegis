@@ -39,8 +39,11 @@ public sealed record SnapshotDomain(string Name, SnapshotDomainStatus Status, st
     /// <summary>How long the domain waited on Graph's throttling (<c>Retry-After</c>) within its <see cref="ElapsedMs"/>.</summary>
     public long ThrottledMs { get; init; }
 
-    /// <summary>The cmdlets the domain sent to the Exchange Online Admin API.</summary>
+    /// <summary>The cmdlets the domain sent to the Exchange Online Admin API (a retry after throttling is the same cmdlet).</summary>
     public long AdminApiCalls { get; init; }
+
+    /// <summary>How long the domain waited on the Admin API's throttling (<c>Retry-After</c>) within its <see cref="ElapsedMs"/> (task 117).</summary>
+    public long AdminApiThrottledMs { get; init; }
 
     /// <summary>The cmdlets the domain sent to the Exchange Online sidecars.</summary>
     public long SidecarCalls { get; init; }

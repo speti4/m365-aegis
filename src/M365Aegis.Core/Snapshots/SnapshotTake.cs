@@ -23,8 +23,15 @@ public sealed record SnapshotTakeOptions(string Home, TenantProfile Profile)
     /// </summary>
     public bool Full { get; init; }
 
-    /// <summary>How many drives, permission lists or mailboxes are read at once.</summary>
+    /// <summary>How many drives or permission lists are read at once.</summary>
     internal int Parallel { get; init; } = 4;
+
+    /// <summary>
+    /// How many mailboxes' calendar permissions are read at once over the Admin API at the most (task 117): the
+    /// <see cref="AdaptiveGate"/> starts here, halves on a throttled answer and grows back after a round without one.
+    /// Eight, twice the four of the first takes, which measured about 1.45 s per call and no visible throttling.
+    /// </summary>
+    internal int AdminApiParallel { get; init; } = 8;
 
     /// <summary>How the prune removes a file (a test's refuses).</summary>
     internal Action<string> Delete { get; init; } = File.Delete;
@@ -205,8 +212,9 @@ public static class SnapshotTake
     /// <summary>The reads of one take, domain by domain, into one <see cref="SnapshotBuilder"/>.</summary>
     private sealed class Reads(ExchangeBackends backends, SnapshotTakeOptions options, DateTimeOffset started, int fullSharingDays, CancellationToken cancellationToken)
     {
-        // The take's own budget over the command's client: the same transport, the same request log.
-        private readonly GraphClient _graph = backends.Graph.WithBudget(TakeRetries, TakeBudget);
+        // The take's own budget over the command's clients: the same transport, the same request log; the Admin API's
+        // through the backends, which hand the lookups the budgeted client (task 117).
+        private readonly GraphClient _graph = Budgeted(backends);
         private List<GroupInfo> _groups = [];
         private IReadOnlyList<MailboxInfo> _mailboxes = [];
 
@@ -218,6 +226,12 @@ public static class SnapshotTake
         internal Dictionary<string, string> Extra { get; } = new(StringComparer.Ordinal);
 
         internal AegisFailure? FirstFailure { get; private set; }
+
+        private static GraphClient Budgeted(ExchangeBackends backends)
+        {
+            backends.BudgetAdminApi(TakeRetries, TakeBudget);
+            return backends.Graph.WithBudget(TakeRetries, TakeBudget);
+        }
 
         internal async Task ReadAllAsync()
         {
@@ -243,7 +257,7 @@ public static class SnapshotTake
                 0,
                 "other users' OneDrives need a consent the tool does not ask for (Sites.Read.All reads the signed-in account's only; task 092)"));
             await DomainAsync("grants", "pwsh Get-EXOMailboxPermission (split across sidecars), Get-EXORecipientPermission, GrantSendOnBehalfTo", GrantsAsync).ConfigureAwait(false);
-            await DomainAsync("folderPermissions", "pwsh Get-EXOMailbox | Get-EXOMailboxFolderStatistics -FolderScope Calendar (the calendars' names, piped); admin-api Get-MailboxFolderPermission of each mailbox's calendar", () => After(mailboxes, FolderPermissionsAsync)).ConfigureAwait(false);
+            await DomainAsync("folderPermissions", "pwsh Get-EXOMailbox | Get-EXOMailboxFolderStatistics -FolderScope Calendar (the calendars' names, piped); admin-api Get-MailboxFolderPermission of each mailbox's calendar, up to eight at once", () => After(mailboxes, FolderPermissionsAsync)).ConfigureAwait(false);
             await DomainAsync("forwarding", "pwsh Get-EXOMailbox ForwardingSmtpAddress, ForwardingAddress", ForwardingAsync).ConfigureAwait(false);
         }
 
@@ -255,7 +269,8 @@ public static class SnapshotTake
         private async Task<SnapshotDomain> DomainAsync(string name, string read, Func<Task<DomainRead>> work)
         {
             var clock = Stopwatch.StartNew();
-            (long graph, TimeSpan waited, long adminApi, long sidecar) = (_graph.RequestsSent, _graph.Waited, backends.AdminApiCalls, backends.SidecarCalls);
+            (long graph, TimeSpan waited, long adminApi, TimeSpan adminApiWaited, long sidecar) =
+                (_graph.RequestsSent, _graph.Waited, backends.AdminApiCalls, backends.AdminApiWaited, backends.SidecarCalls);
             SnapshotDomain domain;
             try
             {
@@ -287,6 +302,7 @@ public static class SnapshotTake
                 GraphRequests = _graph.RequestsSent - graph,
                 ThrottledMs = (long)(_graph.Waited - waited).TotalMilliseconds,
                 AdminApiCalls = backends.AdminApiCalls - adminApi,
+                AdminApiThrottledMs = (long)(backends.AdminApiWaited - adminApiWaited).TotalMilliseconds,
                 SidecarCalls = backends.SidecarCalls - sidecar,
             };
             Domains.Add(domain);
@@ -739,8 +755,9 @@ public static class SnapshotTake
         }
 
         /// <summary>
-        /// Each mailbox's calendar permissions over the Admin API (task 042), several mailboxes at once; a mailbox that
-        /// fails is an item that failed. An entry's holder is named as the service names it, and matched to an object by
+        /// Each mailbox's calendar permissions over the Admin API (task 042), up to <see cref="SnapshotTakeOptions.AdminApiParallel"/>
+        /// mailboxes at once through a gate that backs off on a throttled answer (task 117); a mailbox that fails is an
+        /// item that failed. An entry's holder is named as the service names it, and matched to an object by
         /// the address the service gives with it first (task 101), else by the name as a user principal name, an address
         /// or a display name only one object carries; <c>Default</c> and <c>Anonymous</c> are everyone's and match none.
         /// The note counts the holders no object matched.
@@ -757,7 +774,10 @@ public static class SnapshotTake
             IReadOnlyDictionary<string, string> calendars = await MailboxLookups.CalendarPathsAsync(backends.Sidecar, cancellationToken).ConfigureAwait(false);
             var failed = new List<Unread>();
             int oneByOne = 0;
-            (MailboxInfo Mailbox, MailboxFolderPermissions? Folder)[] reads = await EachAsync(_mailboxes, async mailbox =>
+            // Up to AdminApiParallel at once through the gate, which halves on a throttled answer (task 117): one the
+            // client retried is the read's witness's, one past the budget the failure's kind.
+            using var gate = new AdaptiveGate(options.AdminApiParallel);
+            (MailboxInfo Mailbox, MailboxFolderPermissions? Folder)[] reads = await EachAsync(_mailboxes, gate, async mailbox =>
             {
                 string? calendar = (mailbox.ObjectId is { } id ? calendars.GetValueOrDefault(id) : null) ?? calendars.GetValueOrDefault(mailbox.PrimarySmtpAddress);
                 if (calendar is null)
@@ -765,9 +785,11 @@ public static class SnapshotTake
                     Interlocked.Increment(ref oneByOne);
                 }
 
+                ThrottleWitness witness = ThrottleWitness.Begin();
                 try
                 {
-                    return (mailbox, (await MailboxLookups.FolderPermissionsAsync(backends, mailbox.PrimarySmtpAddress, calendar, cancellationToken).ConfigureAwait(false)).Data);
+                    MailboxFolderPermissions? folder = (await MailboxLookups.FolderPermissionsAsync(backends, mailbox.PrimarySmtpAddress, calendar, cancellationToken).ConfigureAwait(false)).Data;
+                    return ((mailbox, folder), witness.Count > 0);
                 }
                 catch (AegisException exception) when (exception.Failure.Kind != FailureKind.Auth)
                 {
@@ -776,7 +798,7 @@ public static class SnapshotTake
                         failed.Add(new Unread($"{mailbox.PrimarySmtpAddress}: {exception.Message}", exception.Failure.Code));
                     }
 
-                    return (mailbox, null);
+                    return ((mailbox, null), exception.Failure.Kind == FailureKind.Throttled || witness.Count > 0);
                 }
             }).ConfigureAwait(false);
             Dictionary<string, SnapshotObject?> names = Builder.NameIndex();
@@ -801,6 +823,7 @@ public static class SnapshotTake
             failed.Sort((left, right) => string.CompareOrdinal(left.What, right.What));
             string remark = string.Join("; ", new[]
             {
+                gate.Lowest == gate.Max ? null : $"read up to {gate.Max} calendars at once, backed off to {gate.Lowest} on throttled answers",
                 oneByOne == 0 ? null : $"{oneByOne} calendar name(s) read one mailbox at a time, the piped read did not name them",
                 unmatched == 0 ? null : $"{unmatched} holder(s) matched no object: {unmatched - unmatchedAddress} without an address, {unmatchedAddress} with an address outside the snapshot",
             }.OfType<string>());
@@ -852,6 +875,29 @@ public static class SnapshotTake
                 finally
                 {
                     gate.Release();
+                }
+            })).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Reads each item through an <see cref="AdaptiveGate"/> (task 117), the answers in the items' order; a read says
+        /// whether its answer was throttled, which the gate backs off from. A read that throws releases as throttled: the
+        /// take's reads catch their own failures, so a throw is a cancellation or a bug.
+        /// </summary>
+        private async Task<TResult[]> EachAsync<TItem, TResult>(IEnumerable<TItem> items, AdaptiveGate gate, Func<TItem, Task<(TResult Result, bool Throttled)>> read)
+        {
+            return await Task.WhenAll(items.Select(async item =>
+            {
+                await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                bool throttled = true;
+                try
+                {
+                    (TResult result, throttled) = await read(item).ConfigureAwait(false);
+                    return result;
+                }
+                finally
+                {
+                    gate.Release(throttled);
                 }
             })).ConfigureAwait(false);
         }

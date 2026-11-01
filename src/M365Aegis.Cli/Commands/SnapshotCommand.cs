@@ -122,8 +122,8 @@ internal static class SnapshotCommand
     ];
 
     /// <summary>
-    /// The requests a domain sent, by layer, the ones it sent none to left out (<c>12 graph (throttled 3.5 s), 1 pwsh</c>);
-    /// <c>-</c> for none (task 097).
+    /// The requests a domain sent, by layer, the ones it sent none to left out (<c>12 graph (throttled 3.5 s), 6 admin-api
+    /// (throttled 1.2 s), 1 pwsh</c>); <c>-</c> for none (task 097; the Admin API's waits since task 117).
     /// </summary>
     internal static string Requests(SnapshotDomain domain)
     {
@@ -137,7 +137,9 @@ internal static class SnapshotCommand
 
         if (domain.AdminApiCalls > 0)
         {
-            parts.Add(string.Create(CultureInfo.InvariantCulture, $"{domain.AdminApiCalls} admin-api"));
+            parts.Add(domain.AdminApiThrottledMs > 0
+                ? string.Format(CultureInfo.InvariantCulture, "{0} admin-api (throttled {1:0.0} s)", domain.AdminApiCalls, domain.AdminApiThrottledMs / 1000.0)
+                : string.Create(CultureInfo.InvariantCulture, $"{domain.AdminApiCalls} admin-api"));
         }
 
         if (domain.SidecarCalls > 0)

@@ -153,6 +153,34 @@ public sealed class AdminApiTests
     }
 
     [Fact]
+    public async Task ABudgetedCopyWaitsPastACommandsMinuteAndSharesTheCounts()
+    {
+        // Five 429s of fifty seconds each: past a command's four retries and its minute, within the take's budget (task 117).
+        int sent = 0;
+        var transport = new ScriptedTransport(_ => Interlocked.Increment(ref sent) <= 5
+            ? new GraphResponse(429, new Dictionary<string, string> { ["Retry-After"] = "50" }, """{"error":{"code":"TooManyRequests","message":"busy"}}""")
+            : new GraphResponse(200, [], """{"value":[{"User":"Default","AccessRights":["AvailabilityOnly"]}]}"""));
+        var delays = new List<TimeSpan>();
+        var options = new GraphClientOptions { Delay = (delay, _) => { delays.Add(delay); return Task.CompletedTask; }, Jitter = () => 0 };
+        var command = new AdminApiClient(transport, _ => Task.FromResult(new AdminApiTarget(AdminApiConnection.TestTenantId, AdminApiConnection.TestAccount)), null, options);
+        AdminApiClient take = command.WithBudget(8, TimeSpan.FromHours(1));
+        var read = new ExoCommand(AdminApiCmdlets.GetMailboxFolderPermission) { Parameters = new Dictionary<string, object?> { ["Identity"] = "alice:\\Calendar" } };
+
+        ExoResult result = await take.InvokeAsync(read, Ct);
+
+        Assert.Single(result.Items);
+        Assert.Equal(Enumerable.Repeat(TimeSpan.FromSeconds(50), 5), delays);
+        // The counts are one across the command's client and the take's copy; the request log too.
+        Assert.Equal((6, 6, TimeSpan.FromSeconds(250), 5L, 5L), (command.Calls, take.Calls, command.Waited, command.ThrottledAnswers, take.ThrottledAnswers));
+        Assert.Same(command.RequestLog, take.RequestLog);
+
+        // The command's own budget is spent by the shared waits: its next throttled answer fails at once.
+        sent = 0;
+        AegisException exception = await Assert.ThrowsAsync<AegisException>(() => command.InvokeAsync(read, Ct));
+        Assert.Equal((FailureKind.Throttled, 7, 5), (exception.Failure.Kind, command.Calls, delays.Count));
+    }
+
+    [Fact]
     public async Task PipedInputIsABug()
     {
         (AdminApiClient client, _, _) = Client();

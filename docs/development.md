@@ -769,9 +769,11 @@ it, its rows, its status and its note, and each drive's delta link). Since task 
 its time (`elapsedMs`) and what it sent: `graphRequests` (HTTP requests, a `$batch` call one and a retry another,
 counted by `GraphClient.RequestsSent` across the clients `WithBudget` makes), `throttledMs` (the waits on Graph's
 `Retry-After`), `adminApiCalls` and `sidecarCalls` (the cmdlets `ExchangeBackends` counted per layer, the split
-read's extra sidecars included); the domains run one after the other, so the counters' difference is the domain's
-own. `snapshot take` and `snapshot show` print them as the `time` and `requests` columns; a snapshot taken before
-has zeros there, and no schema change was needed (the manifest is key and value). An object is the same object when its object id
+read's extra sidecars included) and, since task 117, `adminApiThrottledMs` (the waits on the Admin API's
+`Retry-After`, `AdminApiClient.Waited`); the domains run one after the other, so the counters' difference is the
+domain's own. `snapshot take` and `snapshot show` print them as the `time` and `requests` columns (`620 admin-api
+(throttled 12.0 s)`); a snapshot taken before has zeros there, and no schema change was needed (the manifest is key
+and value). An object is the same object when its object id
 or its user principal name is: the mailboxes are read third, after the users and the groups, so the user principal
 name of each ties Exchange's object id to the user Graph read, and an owner or a holder read later is that user. A
 principal with neither (a role group in `ManagedBy`, an external address of a sharing link) is one object per kind
@@ -794,7 +796,7 @@ rest of the home.
 | `sharing` | each drive's `GET /drives/{id}/root/delta?$select=id,name,shared,parentReference&$top=1000` with `Prefer: hierarchicalsharing`, then the `permissions` of every item it marks, in `$batch` | `Sites.Read.All` |
 | `oneDrive` | skipped: another user's OneDrive needs a consent the tool does not ask for (task 092) | |
 | `grants` | the reverse lookup's table of `mailbox access --user` (FullAccess split across sidecars, Send As, Send on Behalf), each holder resolved to its recipient | Exchange |
-| `folderPermissions` | each mailbox's calendar through the Admin API (`mailbox folder-permissions`' read), four at a time; the calendars' names in the mailboxes' languages first, in two sidecar calls whatever the count (task 100): `Get-EXOMailbox` with each mailbox's `ExchangeGuid`, then the mailboxes' object ids piped into one `Get-EXOMailboxFolderStatistics -FolderScope Calendar` (the sidecar's `input`, no new request shape, the allow-list unchanged), each folder matched to its mailbox by `ContentMailboxGuid` or `MailboxGuid`, else by its `Identity` up to the backslash; a mailbox the piped read did not name has its calendar's name read on its own, as `mailbox folder-permissions` does, and the domain's note counts those | Exchange (Admin API), Exchange |
+| `folderPermissions` | each mailbox's calendar through the Admin API (`mailbox folder-permissions`' read), up to eight at once through an adaptive gate (task 117, below); the calendars' names in the mailboxes' languages first, in two sidecar calls whatever the count (task 100): `Get-EXOMailbox` with each mailbox's `ExchangeGuid`, then the mailboxes' object ids piped into one `Get-EXOMailboxFolderStatistics -FolderScope Calendar` (the sidecar's `input`, no new request shape, the allow-list unchanged), each folder matched to its mailbox by `ContentMailboxGuid` or `MailboxGuid`, else by its `Identity` up to the backslash; a mailbox the piped read did not name has its calendar's name read on its own, as `mailbox folder-permissions` does, and the domain's note counts those | Exchange (Admin API), Exchange |
 | `forwarding` | `mailbox forwarders`' read | Exchange |
 
 The sharing read is the route the spike of task 092 measured under `Sites.Read.All` (the maintainer declined
@@ -808,7 +810,13 @@ address only (an external user) is an `external` object. Up to four drives' delt
 permission batches one at a time: SharePoint answers a busy tenant's permission reads with 429
 `activityLimitReached` item by item inside the batch (1,036 of them in the first live take), so the take's Graph
 client has its own budget (`GraphClient.WithBudget`: 8 retries and an hour of waits in all, where a command has 4 and
-a minute) and honors each item's `Retry-After`; a take of the tenant took about 25 minutes with it. The last page's
+a minute) and honors each item's `Retry-After`; a take of the tenant took about 25 minutes with it. The Admin API
+client gets the same budget since task 117 (`AdminApiClient.WithBudget`, through `ExchangeBackends.BudgetAdminApi`;
+the command's own client shares the counts): some 600 calendar reads a take shared a command's minute of waits
+before, after which every 429 was a failed item. The calendar reads go through an `AdaptiveGate` of eight: a read
+whose answer was throttled (its `ThrottleWitness`, an `AsyncLocal` counter the client notes a 429 into, so reads in
+flight at once are told apart; or a `throttled` failure past the budget) halves the limit, down to one, and a round
+of reads without one grows it by one again; the domain's note says how far it backed off, when it did. The last page's
 delta link of each drive is kept in the manifest (`deltaLink.<drive id>`) for a later incremental take, since task
 099 only for a drive read whole (`deltaLinks` = `whole-drives` in the manifest says so). A partial domain's note counts its
 failed items by code and names three as examples, and the `access` warnings count without naming a site or a file.
