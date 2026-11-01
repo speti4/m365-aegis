@@ -45,26 +45,63 @@ Fifteenth round of 2026-11-01, worked in the main session on its own branch (no 
 
 ## Steps
 
-1. [ ] `SidecarFailures`: a `cmdlet-failed` that names a cmdlet the session does not know ("is not recognized",
+1. [x] `SidecarFailures`: a `cmdlet-failed` that names a cmdlet the session does not know ("is not recognized",
        `CommandNotFoundException`) is `forbidden` (8) with a hint that says why the cmdlet is missing; the mapping test's
        new rows, the Pester test pins the reply's error id, the docs under *Docs that move*
-2. [ ] The Azure CLI block of `docs/setup.md` run end to end against a throwaway registration (the maintainer's hand,
+2. [x] The Azure CLI block of `docs/setup.md` run end to end against a throwaway registration (the maintainer's hand,
        the tool's harness refuses tenant writes), each step's result checked, the registration deleted; the doc
        corrected where the run differed
-3. [ ] The role probe with the everyday account: `trace` without a role, the hidden-cmdlet shape of
+3. [x] The role probe with the everyday account: `trace` without a role, the hidden-cmdlet shape of
        `group owners-missing --all-types --verbose`, then `trace` in Recipient Management; the role taken out, the
        profile's account restored
-4. [ ] `docs/setup.md`: the `trace` row names the role; the `MessageTraceLookup` hint names the role next to the
+4. [x] `docs/setup.md`: the `trace` row names the role; the `MessageTraceLookup` hint names the role next to the
        service principal if the live refusal is the same for both
 5. [ ] The Verification dated; the local matrix with the sidecar Pester tests
 
 ## Log
 
 - 2026-11-01 — promoted on `task/108-verify-the-setup-guide-in-a-live-round` by the main session
+- 2026-11-01 — Core: `SidecarFailures` reads a `cmdlet-failed` that names a cmdlet the session does not know ("is not
+  recognized", `CommandNotFoundException`) as `forbidden` (8) with a hint that says Exchange Online imports only the
+  cmdlets the account's roles allow; a connect that says so stays 11. The mapping theory gained three rows and a test
+  of the message and the hint; the Pester test of a cmdlet the fake module lacks pins the reply's error id
+  (`CommandNotFoundException`), so the C# shape is the script's. `docs/development.md` (the exit codes) and
+  `docs/usage.md` (the fallback paragraph) say so.
+- 2026-11-01 — live, the Azure CLI block (the maintainer's hand: the session's harness refuses a tenant write), Azure
+  CLI 2.71.0 signed in as the administrator: every line of the block ran as written against a throwaway registration
+  `m365-aegis-setup-check` (create 3.1 s, update 2.0 s, sp create 1.5 s, the two permission adds 3.7 s and 3.3 s, the
+  consent 3.0 s); `az ad app show` gave `isFallbackPublicClient` true, `AzureADMyOrg`, the two redirect URIs, 11 Graph
+  and 2 Exchange scopes of type `Scope`; `az ad app permission list-grants` gave both grants with `AllPrincipals` and
+  every scope named. The one thing the guide did not say: each `permission add` ends with a warning that a
+  `permission grant` is needed, which the `admin-consent` line is; the guide says so now. The registration and its
+  service principal were deleted (`az ad app delete`; both lists empty afterwards).
+- 2026-11-01 — live, the everyday account (no Exchange Online role group), signed in once through the broker:
+  `group owners-missing --all-types --verbose` exits 0 with backend `graph+pwsh`, the sidecar's `Get-DistributionGroup`
+  answered (some 10 groups Exchange manages among some 2,100), so a plain mailbox user is not refused that read and
+  the hidden-cmdlet shape did not show live; the mapping stays for a session that does hide a cmdlet (the fake module's
+  test shows the shape). `mailbox list` exits 0 with backend `admin-api` and one mailbox, the account's own, with no
+  warning: the Admin API scopes the list to what the account may see instead of refusing. `trace --recipient <own
+  address> --days 2` exits 9: Microsoft Graph answered 500 to `/admin/exchange/tracing/messageTraces`,
+  `InternalServerError: Failed parsing error response`, the same on eight runs. The account was then put into
+  Recipient Management (15:01) and the trace still answered the 500 on six runs over the next eight minutes; the role
+  was taken out again. Every Global Administrator of the tenant was notified of the privilege change, so no role is
+  changed in the tenant from a session again (a memory note holds it); the probe is inconclusive, and the table's
+  role cell is the Learn reference's (the Message Tracking role's role groups), with the 500 as the live shape of a
+  missing role.
+- 2026-11-01 — Core: the trace's `ProvisioningHint` names the role next to the service principal and points to
+  `docs/setup.md`; a 500 whose message is "Failed parsing error response" keeps exit code 9 (the service did not say
+  the account was refused) with a hint that names the role (`MessageTraceLookup.IsRoleShaped`, both lookups); tests
+  for the shaped and a plain 500. `docs/setup.md`: the `trace` row's role cell, the troubleshooting line for the 500.
 
 ## Deviations from the plan
 
-- none yet
+- The trace role is the Learn reference's, not a live-confirmed least role: the probe with the everyday account in
+  Recipient Management did not answer within the round (Exchange RBAC propagation), and the privilege change notified
+  every Global Administrator, so it is not repeated.
+- The hidden-cmdlet shape did not show live (a plain mailbox user may run `Get-DistributionGroup`); the mapping is
+  kept as the fake module's test shows the shape for a cmdlet the session lacks.
+- The trace's 500 for an account without the role got a hint of its own (not planned): the live shape was a service
+  error, not the 8 the plan expected.
 
 ## Verification
 

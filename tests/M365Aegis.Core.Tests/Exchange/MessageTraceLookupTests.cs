@@ -1,6 +1,7 @@
 using M365Aegis.Core.Exchange;
 using M365Aegis.Core.Graph;
 using M365Aegis.Core.Output;
+using M365Aegis.Core.Tests.Graph;
 using M365Aegis.Tests;
 
 namespace M365Aegis.Core.Tests.Exchange;
@@ -158,5 +159,24 @@ public sealed class MessageTraceLookupTests
         Assert.Equal(FailureKind.Forbidden, exception.Failure.Kind);
         Assert.Contains("service principal", exception.Failure.Hint, StringComparison.Ordinal);
         Assert.Contains(MessageTraceLookup.Permission, exception.Failure.Hint, StringComparison.Ordinal);
+        Assert.Contains("Recipient Management or Organization Management", exception.Failure.Hint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheServicesUnrenderedErrorNamesTheRoleInItsHintAndStaysAServiceError()
+    {
+        // Live, 2026-11-01 (task 108): an account without a role that runs a message trace gets this 500, not a 403; any other 500 keeps the plain hint.
+        var roleShaped = new GraphClient(new ScriptedTransport(_ => new GraphResponse(500, [], """{"error":{"code":"InternalServerError","message":"Failed parsing error response"}}""")));
+        var other = new GraphClient(new ScriptedTransport(_ => new GraphResponse(500, [], """{"error":{"code":"InternalServerError","message":"something else"}}""")));
+        var query = new MessageTraceQuery(null, "bob@contoso.com", null, null);
+
+        AegisException shaped = await Assert.ThrowsAsync<AegisException>(() => MessageTraceLookup.RunAsync(roleShaped, query, Now, None));
+        AegisException plain = await Assert.ThrowsAsync<AegisException>(() => MessageTraceLookup.RunAsync(other, query, Now, None));
+
+        Assert.Equal((FailureKind.ServiceError, 500), (shaped.Failure.Kind, shaped.HttpStatus));
+        Assert.Contains("Microsoft Graph answered 500", shaped.Message, StringComparison.Ordinal);
+        Assert.StartsWith("a service error on Microsoft's side, which the message trace also answers for an account without an Exchange Online role", shaped.Failure.Hint, StringComparison.Ordinal);
+        Assert.Equal(FailureKind.ServiceError, plain.Failure.Kind);
+        Assert.DoesNotContain("role", plain.Failure.Hint, StringComparison.Ordinal);
     }
 }

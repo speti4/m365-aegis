@@ -109,6 +109,10 @@ public static class MessageTraceDetailsLookup
         {
             throw MessageTraceLookup.SetupFailure(exception);
         }
+        catch (AegisException exception) when (MessageTraceLookup.IsRoleShaped(exception))
+        {
+            throw MessageTraceLookup.RoleShaped(exception);
+        }
     }
 
     /// <summary>The request of one recipient's steps: the function with the address as its parameter.</summary>
