@@ -52,6 +52,7 @@ public sealed class GraphClient
     private readonly IGraphTransport _transport;
     private readonly GraphClientOptions _options;
     private readonly Lock _lock = new();
+    private readonly SentCount _sent;
     private TimeSpan _waited;
 
     /// <summary>A client over a transport (<see cref="GraphConnection"/> makes the product's).</summary>
@@ -64,6 +65,13 @@ public sealed class GraphClient
         _transport = transport;
         RequestLog = requestLog ?? new RequestLog();
         _options = options ?? new GraphClientOptions();
+        _sent = new SentCount();
+    }
+
+    private GraphClient(IGraphTransport transport, RequestLog requestLog, GraphClientOptions options, SentCount sent)
+        : this(transport, requestLog, options)
+    {
+        _sent = sent;
     }
 
     /// <summary>The request ids of every answer so far.</summary>
@@ -74,7 +82,13 @@ public sealed class GraphClient
     /// and jitter: the snapshot's take (task 087) is a long run that may wait where a command would fail.
     /// </summary>
     internal GraphClient WithBudget(int maxRetries, TimeSpan maxTotalDelay) =>
-        new(_transport, RequestLog, _options with { MaxRetries = maxRetries, MaxTotalDelay = maxTotalDelay });
+        new(_transport, RequestLog, _options with { MaxRetries = maxRetries, MaxTotalDelay = maxTotalDelay }, _sent);
+
+    /// <summary>
+    /// The HTTP requests sent so far, this client's and those of every client <see cref="WithBudget"/> made from it or it
+    /// from: a <c>$batch</c> call is one, a retry after throttling another (the snapshot's per-domain counts, task 097).
+    /// </summary>
+    public long RequestsSent => Interlocked.Read(ref _sent.Value);
 
     /// <summary>How long the client has waited on throttling so far.</summary>
     public TimeSpan Waited
@@ -327,6 +341,7 @@ public sealed class GraphClient
     {
         for (int attempt = 0; ; attempt++)
         {
+            Interlocked.Increment(ref _sent.Value);
             GraphResponse response = await _transport.SendAsync(request, cancellationToken).ConfigureAwait(false);
             RequestLog.Add(response.RequestId);
             if (!IsThrottled(response.StatusCode) || NextDelay(response.Headers, attempt) is not { } delay || !TryReserve(delay))
@@ -520,6 +535,12 @@ public sealed class GraphClient
     private sealed record BatchBody(IReadOnlyList<BatchItem> Responses);
 
     private sealed record BatchItem(string Id, int Status, Dictionary<string, string>? Headers, JsonElement? Body);
+
+    /// <summary>The count of requests sent, shared by a client and the clients made from it.</summary>
+    private sealed class SentCount
+    {
+        internal long Value;
+    }
 }
 
 /// <summary>One answer of a <c>$batch</c> call, next to the request it answers.</summary>

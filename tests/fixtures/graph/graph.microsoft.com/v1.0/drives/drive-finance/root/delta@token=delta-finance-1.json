@@ -1,0 +1,26 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(driveItem)",
+  "@odata.deltaLink": "https://graph.microsoft.com/v1.0/drives/drive-finance/root/delta?token=delta-finance-2",
+  "value": [
+    {
+      "id": "item-budget",
+      "name": "Budget.xlsx",
+      "parentReference": {
+        "driveId": "drive-finance",
+        "path": "/drives/drive-finance/root:"
+      },
+      "shared": {
+        "scope": "users"
+      }
+    },
+    {
+      "id": "item-reports",
+      "parentReference": {
+        "driveId": "drive-finance"
+      },
+      "deleted": {
+        "state": "deleted"
+      }
+    }
+  ]
+}

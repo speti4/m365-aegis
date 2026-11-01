@@ -263,6 +263,12 @@ function Get-EXOMailboxFolderStatistics {
             $folders += [pscustomobject]@{ Name = 'Holidays'; FolderPath = '/Calendar/Holidays'; FolderType = 'User Created' }
         }
         if ($FolderScope -eq 'Calendar') { $folders = @($folders | Where-Object { $_.FolderType -ne 'Inbox' }) }
+        # Each folder names its mailbox as the service's folder statistics do (task 100): the identity, the mailbox's name
+        # before the folder's path, and the mailbox's GUID, so a piped read over many mailboxes can tell them apart.
+        foreach ($folder in $folders) {
+            $folder | Add-Member -NotePropertyName Identity -NotePropertyValue ($mailbox.Name + '\' + $folder.FolderPath.Trim('/').Replace('/', '\'))
+            $folder | Add-Member -NotePropertyName ContentMailboxGuid -NotePropertyValue $mailbox.ExchangeGuid
+        }
         $folders
     }
 }

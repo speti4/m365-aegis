@@ -303,6 +303,18 @@ Describe 'invoke against the fake module (<Mode>)' -ForEach $script:Modes {
         @($run.Lines[1].data.items | Where-Object { $_.FolderType -eq 'Calendar' }).FolderPath | Should -Be '/Kalender'
     }
 
+    It 'names every piped mailbox''s calendars in one call, each folder with its mailbox (task 100)' {
+        $invoke = Get-InvokeLine -Cmdlet 'Get-EXOMailboxFolderStatistics' -Parameters @{ FolderScope = 'Calendar' } `
+            -InputObject @('00000000-0000-0000-0000-000000000016', 'finance@contoso.com', 'nobody') -Properties @('Identity', 'ContentMailboxGuid', 'FolderPath', 'FolderType')
+        $run = Invoke-Sidecar -Lines @($script:Connect, $invoke)
+        $run.Lines[1].type | Should -Be 'result'
+        $calendars = @($run.Lines[1].data.items | Where-Object { $_.FolderType -eq 'Calendar' })
+        $calendars.Identity | Should -Be @('reception\Kalender', 'finance\Calendar')
+        $calendars.ContentMailboxGuid | Should -Be @('00000000-0000-0000-0000-000000000046', '00000000-0000-0000-0000-000000000045')
+        @($run.Lines[1].data.items).Count | Should -Be 3
+        @($run.Lines[1].data.errors).Count | Should -Be 1
+    }
+
     It 'refuses a cmdlet that is not on the allow-list' {
         $run = Invoke-Sidecar -Lines @($script:Connect, (Get-InvokeLine -Cmdlet 'Remove-Mailbox' -Parameters @{ Identity = 'alice' }))
         $run.Lines[1].type | Should -Be 'error'

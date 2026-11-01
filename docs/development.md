@@ -765,7 +765,13 @@ closure computed at take time from the direct members, a row per via group as `g
 `owners` (`graph` or `managedBy`), `sites` (the drive and the group behind it), `teams`, `links` and `linkGrantees`,
 `grants`, `folderPermissions`, `forwarding`; and `manifest` (key and value: the schema version, the time, the
 profile, the tenant, the tool's version, the elapsed time, each domain's record as JSON with the read that answered
-it, its rows, its status and its note, and each drive's delta link). An object is the same object when its object id
+it, its rows, its status and its note, and each drive's delta link). Since task 097 a domain's record also carries
+its time (`elapsedMs`) and what it sent: `graphRequests` (HTTP requests, a `$batch` call one and a retry another,
+counted by `GraphClient.RequestsSent` across the clients `WithBudget` makes), `throttledMs` (the waits on Graph's
+`Retry-After`), `adminApiCalls` and `sidecarCalls` (the cmdlets `ExchangeBackends` counted per layer, the split
+read's extra sidecars included); the domains run one after the other, so the counters' difference is the domain's
+own. `snapshot take` and `snapshot show` print them as the `time` and `requests` columns; a snapshot taken before
+has zeros there, and no schema change was needed (the manifest is key and value). An object is the same object when its object id
 or its user principal name is: the mailboxes are read third, after the users and the groups, so the user principal
 name of each ties Exchange's object id to the user Graph read, and an owner or a holder read later is that user. A
 principal with neither (a role group in `ManagedBy`, an external address of a sharing link) is one object per kind
@@ -782,13 +788,13 @@ rest of the home.
 | `mailboxes` | `mailbox list`'s read: the Admin API's `Get-Mailbox`, the sidecar's when it cannot answer | Exchange |
 | `members` | each group's `members`, twenty to a `$batch` call | `GroupMember.Read.All` |
 | `userGroups` | computed from `members` | |
-| `owners` | each group's `owners` in `$batch`; `ManagedBy` through the sidecar for a distribution or mail-enabled security group that is not synced (task 076's read) | `GroupMember.Read.All`, Exchange |
+| `owners` | each group's `owners` in `$batch`; for the distribution and mail-enabled security groups that are not synced, `ManagedBy` of every group in one `Get-DistributionGroup -ResultSize Unlimited` (task 089's read) and every owner's name resolved in one piped `Get-EXORecipient`, two sidecar calls whatever the count (task 097; it was two per group); a group Exchange does not list is a `not-found` item | `GroupMember.Read.All`, Exchange |
 | `teams` | `team list`'s read | `Team.ReadBasic.All` |
 | `sites` | `site list`'s read, then `GET /sites/{id}/drive?$select=id,owner` in `$batch`: `owner.group` is the Microsoft 365 group behind a group-connected site | `Sites.Read.All` |
 | `sharing` | each drive's `GET /drives/{id}/root/delta?$select=id,name,shared,parentReference&$top=1000` with `Prefer: hierarchicalsharing`, then the `permissions` of every item it marks, in `$batch` | `Sites.Read.All` |
 | `oneDrive` | skipped: another user's OneDrive needs a consent the tool does not ask for (task 092) | |
 | `grants` | the reverse lookup's table of `mailbox access --user` (FullAccess split across sidecars, Send As, Send on Behalf), each holder resolved to its recipient | Exchange |
-| `folderPermissions` | each mailbox's calendar through the Admin API (`mailbox folder-permissions`' read), four at a time | Exchange (Admin API) |
+| `folderPermissions` | each mailbox's calendar through the Admin API (`mailbox folder-permissions`' read), four at a time; the calendars' names in the mailboxes' languages first, in two sidecar calls whatever the count (task 100): `Get-EXOMailbox` with each mailbox's `ExchangeGuid`, then the mailboxes' object ids piped into one `Get-EXOMailboxFolderStatistics -FolderScope Calendar` (the sidecar's `input`, no new request shape, the allow-list unchanged), each folder matched to its mailbox by `ContentMailboxGuid` or `MailboxGuid`, else by its `Identity` up to the backslash; a mailbox the piped read did not name has its calendar's name read on its own, as `mailbox folder-permissions` does, and the domain's note counts those | Exchange (Admin API), Exchange |
 | `forwarding` | `mailbox forwarders`' read | Exchange |
 
 The sharing read is the route the spike of task 092 measured under `Sites.Read.All` (the maintainer declined
@@ -803,7 +809,8 @@ permission batches one at a time: SharePoint answers a busy tenant's permission 
 `activityLimitReached` item by item inside the batch (1,036 of them in the first live take), so the take's Graph
 client has its own budget (`GraphClient.WithBudget`: 8 retries and an hour of waits in all, where a command has 4 and
 a minute) and honors each item's `Retry-After`; a take of the tenant took about 25 minutes with it. The last page's
-delta link of each drive is kept in the manifest for a later incremental take. A partial domain's note counts its
+delta link of each drive is kept in the manifest (`deltaLink.<drive id>`) for a later incremental take, since task
+099 only for a drive read whole (`deltaLinks` = `whole-drives` in the manifest says so). A partial domain's note counts its
 failed items by code and names three as examples, and the `access` warnings count without naming a site or a file.
 
 A domain that fails as a whole is recorded with the service's failure (`failed`), the domains that need it fail with
@@ -813,6 +820,32 @@ open, a mailbox's calendar, a group's `ManagedBy`) makes the domain `partial` wi
 take still succeeds and prunes. A site without a library is named in the note of `sites`. A refused sign-in stops
 the take wherever it happens (exit code 3), and a take whose every domain failed writes nothing and ends with the
 first failure. The take only reads, so it is no plan (D-006).
+
+**The incremental sharing read** (task 099, `SharingBase`). A take starts from the newest readable snapshot of the
+profile whose `sharing` domain is `ok`, or `partial` with the `whole-drives` marker; a snapshot taken before task 099
+with a partial sharing domain cannot tell which drive failed and is passed over. Each drive with a delta link there is
+read from that link (with `Prefer: hierarchicalsharing`, as the whole read): an item the delta names is the item's
+current state, its last occurrence when it comes twice; a removed one (`deleted`) and one without `shared` (it
+inherits its parent's sharing again) lose their rows, one with `shared` has its permissions read again, and every
+other `links` and `linkGrantees` row of the drive is the previous snapshot's, its grantees matched to this take's
+objects by object id, else by kind and address or name. A drive without a link, or whose delta from it fails (`410`
+`resyncRequired` or any other error but the sign-in's), is read whole; `snapshot take --full`
+(`SnapshotTakeOptions.Full`) reads every drive whole. The manifest names the snapshot it started from
+(`sharingBase`) and the drives read incrementally (`incrementalDrives`), and the domain's note counts them, the
+changed items and the drives that fell back. The delta reports what changed under `Sites.Read.All` without
+`Prefer: deltashowsharingchanges`, which needs `Sites.FullControl.All` (D-011 declined it), so a periodic `--full`
+take stays the safety net. The store's format is unchanged: no table or column, only manifest keys.
+
+**The calendar holders.** A `folderPermissions` row names the holder as the service does (`principalName`) and
+links it to `objects` when one answers to it (task 101): by the `PrimarySmtpAddress` of the Admin API's `User` object
+first (`FolderPermissionEntry.Address`), so two people of one display name, or a renamed account, land on the right
+object; by the name as a user principal name, an address or a display name only one object carries when the entry has
+no address or no object has it. `Default` and `Anonymous` carry no address and match nothing: they are everyone's, and
+the access view counts them. The domain's note counts the holders no object matched, split by whether the service gave an
+address (`N holder(s) matched no object: X without an address, Y with an address outside the snapshot`), so a take
+can be compared with an earlier one and the administrator knows what to look for: live (2026-11-01) the holders
+without an address were display names the Admin API gives no `PrimarySmtpAddress` (most likely removed accounts whose
+entries linger), and the addresses were ones no user or group of the snapshot has (externals or other recipients).
 
 **The retention.** After a take that read every domain, `SnapshotStore.Prune` removes every snapshot the retention
 does not keep: every one of the last two days, the newest of each of the last 14 UTC days and the newest of each of

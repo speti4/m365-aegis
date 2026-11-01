@@ -404,6 +404,240 @@ public sealed class SnapshotEdgeTests
         SnapshotDomain sharing = take.Domains.Single(domain => domain.Name == "sharing");
         Assert.Equal((SnapshotDomainStatus.Ok, 1, 0), (sharing.Status, sharing.Rows, sharing.ItemsFailed));
         Assert.Equal(6, graph.Asked("/drives/d1/items/i1/permissions"));
+        // Two deltas, the first drive's batch six times and the second's once (task 097); the five waits of fifty seconds are the domain's.
+        Assert.Equal((9L, 250_000L), (sharing.GraphRequests, sharing.ThrottledMs));
+    }
+
+    [Fact]
+    public async Task TheOwnersOfTheGroupsExchangeOwnsAreReadInOneBulkCall()
+    {
+        ScriptedGraph Tenant()
+        {
+            var graph = new ScriptedGraph();
+            graph.Answer("/users", 200, Page());
+            graph.Answer("/groups", 200, Page(
+                new { id = G1, displayName = "List", mail = "list@contoso.com", groupTypes = Array.Empty<string>(), securityEnabled = false },
+                new { id = G2, displayName = "Gone", mail = "gone@contoso.com", groupTypes = Array.Empty<string>(), securityEnabled = false }));
+            graph.Answer($"/groups/{G1}/members", 200, Page());
+            graph.Answer($"/groups/{G2}/members", 200, Page());
+            return graph;
+        }
+
+        // Exchange lists a group without an object id, List without an owner, and not Gone: no name to resolve.
+        var unowned = new CannedRunner(command => command.Cmdlet == ExoCmdlets.GetDistributionGroup
+            ? MailboxEdgeTests.Items("""{"ManagedBy":["someone"]}""", $$"""{"ExternalDirectoryObjectId":"{{G1}}","ManagedBy":[]}""")
+            : new ExoResult([], []));
+        SnapshotTakeResult first = (await SnapshotSamples.TakeAsync(SnapshotSamples.WriteProfile(PlanSamples.TempHome()), Now, backends: new ExchangeBackends(unowned, null, () => Tenant().Client))).Data!;
+
+        SnapshotDomain owners = first.Domains.Single(domain => domain.Name == "owners");
+        Assert.Equal((SnapshotDomainStatus.Partial, 0, "1 could not be read (not-found 1), for example Gone: not among the groups Get-DistributionGroup lists"), (owners.Status, owners.Rows, owners.Note));
+        Assert.Equal("Unlimited", Assert.Single(unowned.Commands, command => command.Cmdlet == ExoCmdlets.GetDistributionGroup).Parameters["ResultSize"]);
+        Assert.DoesNotContain(unowned.Commands, command => command.Cmdlet == ExoCmdlets.GetRecipient);
+
+        // Both groups listed, their owners a role group no recipient answers to: listed by its name, one call each way.
+        var roles = new CannedRunner(command => command.Cmdlet switch
+        {
+            ExoCmdlets.GetDistributionGroup => MailboxEdgeTests.Items(
+                $$"""{"ExternalDirectoryObjectId":"{{G1}}","ManagedBy":["Organization Management"]}""",
+                $$"""{"ExternalDirectoryObjectId":"{{G2}}","ManagedBy":["Organization Management"]}"""),
+            ExoCmdlets.GetRecipient => throw new AegisException(FailureKind.CmdletFailed, "no such recipient"),
+            _ => new ExoResult([], []),
+        });
+        string home = SnapshotSamples.WriteProfile(PlanSamples.TempHome());
+        SnapshotTakeResult second = (await SnapshotSamples.TakeAsync(home, Now, backends: new ExchangeBackends(roles, null, () => Tenant().Client))).Data!;
+
+        Assert.Equal((SnapshotDomainStatus.Ok, 2), (second.Domains.Single(domain => domain.Name == "owners").Status, second.Domains.Single(domain => domain.Name == "owners").Rows));
+        Assert.Equal(
+            [(ExoCmdlets.GetDistributionGroup, 1), (ExoCmdlets.GetRecipient, 1)],
+            roles.Commands.Where(command => command.Cmdlet is ExoCmdlets.GetDistributionGroup or ExoCmdlets.GetRecipient).GroupBy(command => command.Cmdlet).Select(group => (group.Key, group.Count())));
+        Assert.Equal(["Organization Management"], Assert.Single(roles.Commands, command => command.Cmdlet == ExoCmdlets.GetRecipient).Input);
+    }
+
+    [Fact]
+    public async Task ACalendarHolderIsMatchedByItsAddressFirstAndOneNoObjectAnswersToIsCounted()
+    {
+        var graph = new ScriptedGraph();
+        graph.Answer("/users", 200, Page(
+            new { id = U1, displayName = "Alice", userPrincipalName = "alice@contoso.com" },
+            new { id = U2, displayName = "Sam Same", userPrincipalName = "sam1@contoso.com" },
+            new { id = "00000000-0000-0000-0000-0000000000d3", displayName = "Sam Same", userPrincipalName = "sam2@contoso.com" }));
+        graph.Answer("/groups", 200, Page());
+        graph.Answer("/teams", 200, Page());
+        graph.Answer("/sites", 200, Page());
+        var sidecar = new CannedRunner(command => command.Cmdlet switch
+        {
+            ExoCmdlets.GetMailbox => MailboxEdgeTests.Items("""{"DisplayName":"Alice","PrimarySmtpAddress":"alice@contoso.com","UserPrincipalName":"alice@contoso.com"}"""),
+            ExoCmdlets.GetMailboxFolderStatistics => MailboxEdgeTests.Items("""{"Name":"Calendar","FolderPath":"/Calendar","FolderType":"Calendar"}"""),
+            _ => new ExoResult([], []),
+        });
+        // Default and Anonymous are everyone's (no address, as the service answers them); the second Sam Same is told
+        // from the first by the address; an address no object has falls back to the display name; Ghost, without an
+        // address, and the two partners, whose addresses no object has, are counted apart in the note.
+        var admin = new CannedRunner(command => command.Cmdlet == AdminApiCmdlets.GetMailbox
+            ? throw new AegisException(FailureKind.Forbidden, "refused")
+            : MailboxEdgeTests.Items(
+                """{"User":{"DisplayName":"Default","Name":"Default","PrimarySmtpAddress":null},"AccessRights":["AvailabilityOnly"]}""",
+                """{"User":"Anonymous","AccessRights":["None"]}""",
+                """{"User":{"DisplayName":"Sam Same","PrimarySmtpAddress":"sam2@contoso.com"},"AccessRights":["Editor"]}""",
+                """{"User":{"DisplayName":"Alice","PrimarySmtpAddress":"alice.old@contoso.com"},"AccessRights":["Reviewer"]}""",
+                """{"User":"sam1@contoso.com","AccessRights":["Reviewer"]}""",
+                """{"User":{"DisplayName":"Alice"},"AccessRights":["Reviewer"]}""",
+                """{"User":{"DisplayName":"Ghost","PrimarySmtpAddress":""},"AccessRights":["Reviewer"]}""",
+                """{"User":"partner@fabrikam.com","AccessRights":["Reviewer"]}""",
+                """{"User":{"DisplayName":"Partner Two","PrimarySmtpAddress":"two@fabrikam.com"},"AccessRights":["Reviewer"]}"""));
+        var backends = new ExchangeBackends(sidecar, admin, () => graph.Client);
+
+        SnapshotTakeResult take = (await SnapshotSamples.TakeAsync(SnapshotSamples.WriteProfile(PlanSamples.TempHome()), Now, backends: backends)).Data!;
+
+        SnapshotDomain calendars = take.Domains.Single(domain => domain.Name == "folderPermissions");
+        Assert.Equal((SnapshotDomainStatus.Ok, 9), (calendars.Status, calendars.Rows));
+        // The canned folder names no mailbox, so its calendar's name was read on its own.
+        Assert.Equal("1 calendar name(s) read one mailbox at a time, the piped read did not name them; 3 holder(s) matched no object: 1 without an address, 2 with an address outside the snapshot", calendars.Note);
+        await using var connection = new SqliteConnection($"Data Source={take.Path};Mode=ReadOnly;Pooling=False");
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        using SqliteCommand query = connection.CreateCommand();
+        query.CommandText = "select f.principalName || ' ' || coalesce(p.userPrincipalName, '-') from folderPermissions f left join objects p on p.key = f.principalKey order by f.rowid";
+        using SqliteDataReader reader = await query.ExecuteReaderAsync(TestContext.Current.CancellationToken);
+        var rows = new List<string>();
+        while (await reader.ReadAsync(TestContext.Current.CancellationToken))
+        {
+            rows.Add(reader.GetString(0));
+        }
+
+        Assert.Equal(["Default -", "Anonymous -", "Sam Same sam2@contoso.com", "Alice alice@contoso.com", "sam1@contoso.com sam1@contoso.com", "Alice alice@contoso.com", "Ghost -", "partner@fabrikam.com -", "Partner Two -"], rows);
+    }
+
+    [Fact]
+    public async Task AnIncrementalTakeGivesTheRowsOfAFullTakeAndReadsADriveWholeWhenItsDeltaFails()
+    {
+        var graph = new ScriptedGraph();
+        graph.Answer("/users", 200, Page(
+            new { id = U1, displayName = "Alice", userPrincipalName = "alice@contoso.com" },
+            new { id = U2, displayName = "Bob", userPrincipalName = "bob@contoso.com" }));
+        graph.Answer("/groups", 200, Page());
+        graph.Answer("/teams", 200, Page());
+        graph.Answer("/sites", 200, Page(Site("s1"), Site("s2")));
+        graph.Answer("/sites/s1/drive", 200, new { id = "d1" });
+        graph.Answer("/sites/s2/drive", 200, new { id = "d2" });
+        // The first take (whole): A and B shared in d1, C not; E shared in d2.
+        graph.Answer("/drives/d1/root/delta", 200, Delta("d1", "t1", Item("i1", "A.docx", shared: true), Item("i2", "B.docx", shared: true), Item("i3", "C.docx", shared: false)));
+        graph.Answer("/drives/d2/root/delta", 200, Delta("d2", "t1", Item("i5", "E.docx", shared: true)));
+        graph.Answer("/drives/d1/items/i1/permissions", 200, Page(new { roles = Read, link = new { scope = "organization", type = "view" } }));
+        graph.Answer("/drives/d1/items/i2/permissions", 200, Page(new { roles = Read, grantedToV2 = new { user = new { id = U1, displayName = "Alice" } } }));
+        graph.Answer("/drives/d2/items/i5/permissions", 200, Page(new { roles = Read, link = new { scope = "anonymous", type = "view" } }));
+        // Then A's link becomes anonymous, B is removed, D is shared with Bob: d1's delta names A twice (the last one
+        // counts), B and D; d2's delta link is gone (410), so d2 is read whole, as it now is.
+        graph.Answer("/drives/d1/root/delta(token='t1')", 200, Delta("d1", "t2", Item("i1", "A.docx", shared: false), Item("i1", "A.docx", shared: true), Deleted("i2"), Item("i4", "D.docx", shared: true)));
+        graph.Answer("/drives/d2/root/delta(token='t1')", 410, Error("resyncRequired"));
+        graph.Answer("/drives/d1/items/i1/permissions", 200, Page(new { roles = Read, link = new { scope = "anonymous", type = "view" } }));
+        graph.Answer("/drives/d1/items/i4/permissions", 200, Page(new { roles = Read, link = new { scope = "users", type = "view" }, grantedToIdentitiesV2 = new[] { new { user = new { id = U2, displayName = "Bob" } } } }));
+        graph.Answer("/drives/d1/root/delta", 200, Delta("d1", "t2", Item("i1", "A.docx", shared: true), Item("i3", "C.docx", shared: false), Item("i4", "D.docx", shared: true)));
+        graph.Answer("/drives/d2/root/delta", 200, Delta("d2", "t2", Item("i5", "E.docx", shared: true)));
+        string home = SnapshotSamples.WriteProfile(PlanSamples.TempHome());
+        ExchangeBackends Backends() => new(new CannedRunner(_ => new ExoResult([], [])), null, () => graph.Client);
+
+        SnapshotTakeResult first = (await SnapshotSamples.TakeAsync(home, Now, backends: Backends())).Data!;
+        int asked = graph.Requests.Count;
+        SnapshotTakeResult incremental = (await SnapshotSamples.TakeAsync(home, Now.AddHours(1), backends: Backends())).Data!;
+        List<string> incrementalAsked = graph.Requests.Skip(asked).Select(request => Uri.UnescapeDataString(request.Uri.AbsolutePath)).ToList();
+        await using ExchangeBackends fullBackends = Backends();
+        SnapshotTakeResult full = (await SnapshotTake.RunAsync(
+            fullBackends,
+            new SnapshotTakeOptions(home, SnapshotSamples.Profile) { Clock = new SnapshotSamples.FixedClock(Now.AddHours(2)), Full = true },
+            TestContext.Current.CancellationToken)).Data!;
+
+        SnapshotDomain sharing = incremental.Domains.Single(domain => domain.Name == "sharing");
+        Assert.Equal(
+            $"1 of 2 drive(s) read incrementally from {first.Snapshot.Name}, 3 changed item(s); 1 drive(s) read whole, their delta since the previous snapshot failed",
+            sharing.Note);
+        Assert.Contains("/v1.0/drives/d1/root/delta(token='t1')", incrementalAsked);
+        Assert.Contains("/v1.0/drives/d2/root/delta", incrementalAsked);
+        Assert.DoesNotContain("/v1.0/drives/d1/root/delta", incrementalAsked);
+        Assert.Equal(3, graph.Asked("/drives/d1/items/i1/permissions"));
+        Assert.Equal(1, graph.Asked("/drives/d1/items/i2/permissions"));
+        Assert.Null(full.Domains.Single(domain => domain.Name == "sharing").Note);
+        Assert.Equal(["A.docx anonymous -", "D.docx users bob@contoso.com", "E.docx anonymous -"], LinkRows(incremental.Path));
+        Assert.Equal(LinkRows(full.Path), LinkRows(incremental.Path));
+    }
+
+    [Fact]
+    public async Task AnIncrementalTakeStartsFromTheNewestSnapshotWhoseDrivesItCanTrust()
+    {
+        var graph = new ScriptedGraph();
+        graph.Answer("/users", 200, Page(new { id = U1, displayName = "Alice", userPrincipalName = "alice@contoso.com" }));
+        graph.Answer("/groups", 200, Page());
+        graph.Answer("/teams", 200, Page());
+        graph.Answer("/sites", 200, Page(Site("s1"), Site("s2")));
+        graph.Answer("/sites/s1/drive", 200, new { id = "d1" });
+        graph.Answer("/sites/s2/drive", 200, new { id = "d2" });
+        graph.Answer("/drives/d1/root/delta", 200, Delta("d1", "t1", Item("i1", "A.docx", shared: true)));
+        // d2 is read in part: F's permissions fail, so d2 keeps no delta link and the next take reads it whole.
+        graph.Answer("/drives/d2/root/delta", 200, Delta("d2", "t1", Item("i5", "E.docx", shared: true), Item("i6", "F.docx", shared: true)));
+        graph.Answer("/drives/d1/items/i1/permissions", 200, Page(new { roles = Read, link = new { scope = "organization", type = "view" } }));
+        graph.Answer("/drives/d2/items/i5/permissions", 200, Page(new { roles = Read, link = new { scope = "anonymous", type = "view" } }));
+        graph.Answer("/drives/d2/items/i6/permissions", 403, Error("accessDenied"));
+        graph.Answer("/drives/d1/root/delta(token='t1')", 200, Delta("d1", "t2"));
+        string home = SnapshotSamples.WriteProfile(PlanSamples.TempHome());
+        ExchangeBackends Backends(ScriptedGraph tenant) => new(new CannedRunner(_ => new ExoResult([], [])), null, () => tenant.Client);
+
+        SnapshotTakeResult partial = (await SnapshotSamples.TakeAsync(home, Now.AddHours(-4), backends: Backends(graph))).Data!;
+        Assert.Equal(SnapshotDomainStatus.Partial, partial.Domains.Single(domain => domain.Name == "sharing").Status);
+        // A copy of it without the marker reads as a snapshot taken before task 099: a partial sharing domain it cannot trust.
+        string folder = Path.GetDirectoryName(partial.Path)!;
+        string old = Path.Combine(folder, SnapshotStore.NameFor(Now.AddHours(-3)));
+        File.Copy(partial.Path, old);
+        await using (var connection = new SqliteConnection($"Data Source={old};Pooling=False"))
+        {
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+            using SqliteCommand command = connection.CreateCommand();
+            command.CommandText = $"delete from manifest where key = '{SharingBase.WholeDrives}'";
+            await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        // A take whose sites, and so its sharing, failed, and a file that is no snapshot, both newer still.
+        var broken = new ScriptedGraph();
+        broken.Answer("/users", 200, Page());
+        broken.Answer("/groups", 200, Page());
+        broken.Answer("/teams", 200, Page());
+        broken.Answer("/sites", 500, Error("generalException"));
+        Assert.Equal(SnapshotDomainStatus.Failed, (await SnapshotSamples.TakeAsync(home, Now.AddHours(-2), backends: Backends(broken))).Data!.Domains.Single(domain => domain.Name == "sharing").Status);
+        await File.WriteAllTextAsync(Path.Combine(folder, SnapshotStore.NameFor(Now.AddHours(-1))), "not a snapshot", TestContext.Current.CancellationToken);
+
+        SnapshotTakeResult take = (await SnapshotSamples.TakeAsync(home, Now, backends: Backends(graph))).Data!;
+
+        SnapshotDomain sharing = take.Domains.Single(domain => domain.Name == "sharing");
+        Assert.StartsWith("1 could not be read (forbidden 1), for example Site s2: F.docx: Microsoft Graph answered 403", sharing.Note, StringComparison.Ordinal);
+        Assert.EndsWith($"; 1 of 2 drive(s) read incrementally from {partial.Snapshot.Name}, 0 changed item(s)", sharing.Note, StringComparison.Ordinal);
+        Assert.Equal(["A.docx organization -", "E.docx anonymous -"], LinkRows(take.Path));
+    }
+
+    private static object Item(string id, string name, bool shared) => shared
+        ? new { id, name, shared = new { scope = "users" }, parentReference = new { path = "/drives/d/root:" } }
+        : new { id, name, parentReference = new { path = "/drives/d/root:" } };
+
+    private static object Deleted(string id) => new { id, deleted = new { state = "deleted" } };
+
+    private static Dictionary<string, object> Delta(string drive, string token, params object[] items) =>
+        new Dictionary<string, object> { ["value"] = items, ["@odata.deltaLink"] = $"https://graph.microsoft.com/v1.0/drives/{drive}/root/delta(token='{token}')" };
+
+    /// <summary>The sharing rows of a snapshot: the item, the link's scope and the grantees' user principal names.</summary>
+    private static List<string> LinkRows(string file)
+    {
+        using var connection = new SqliteConnection($"Data Source={file};Mode=ReadOnly;Pooling=False");
+        connection.Open();
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = """
+            select l.itemName || ' ' || coalesce(l.scope, l.kind) || ' ' || coalesce((select group_concat(o.userPrincipalName, ',') from linkGrantees g join objects o on o.key = g.principalKey where g.linkKey = l.key), '-')
+            from links l order by 1
+            """;
+        using SqliteDataReader reader = command.ExecuteReader();
+        var rows = new List<string>();
+        while (reader.Read())
+        {
+            rows.Add(reader.GetString(0));
+        }
+
+        return rows;
     }
 
     [Fact]

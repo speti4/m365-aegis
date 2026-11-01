@@ -336,13 +336,59 @@ public static class GroupWrites
         }
 
         List<Listed> owners = recipients.Select(Listed.FromExchange).ToList();
-        foreach (string name in names.Where(name => !owners.Any(owner => owner.Names.Contains(name))))
+        owners.AddRange(Unresolved(names, owners));
+        return owners;
+    }
+
+    /// <summary>
+    /// The owners of every distribution and mail-enabled security group in two sidecar calls (task 097), by the group's
+    /// object id: one <c>Get-DistributionGroup -ResultSize Unlimited</c> (the read of task 089) names each group's
+    /// <c>ManagedBy</c>, and one piped <c>Get-EXORecipient</c> resolves every name of them at once; each group's owners are
+    /// the recipients its names resolve to, and a name no recipient answers to (a role group) is listed as it is, as
+    /// <see cref="ExchangeOwnersAsync"/> lists one group's. A group Exchange does not list is not in the answer.
+    /// </summary>
+    internal static async Task<IReadOnlyDictionary<string, IReadOnlyList<GroupMember>>> ExchangeOwnerListsAsync(ExchangeBackends exchange, CancellationToken cancellationToken)
+    {
+        ExoResult found = await exchange.Sidecar.InvokeAsync(
+            new ExoCommand(ExoCmdlets.GetDistributionGroup)
+            {
+                Parameters = new Dictionary<string, object?> { ["ResultSize"] = "Unlimited" },
+                Properties = ["ExternalDirectoryObjectId", "ManagedBy"],
+            },
+            cancellationToken).ConfigureAwait(false);
+        List<(string Id, List<string> Names)> groups = found.Items
+            .Where(item => item.Text("ExternalDirectoryObjectId") is not null)
+            .Select(item => (item.Text("ExternalDirectoryObjectId")!, item.Texts("ManagedBy").Where(name => !string.IsNullOrWhiteSpace(name)).Distinct(StringComparer.OrdinalIgnoreCase).ToList()))
+            .ToList();
+        List<string> names = groups.SelectMany(group => group.Names).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        IReadOnlyList<ExoObject> recipients = [];
+        if (names.Count > 0)
         {
-            owners.Add(new Listed(new GroupMember("recipient", name, null, null, name), [name], name));
+            try
+            {
+                recipients = (await exchange.Sidecar.InvokeAsync(new ExoCommand(ExoCmdlets.GetRecipient) { Input = names, Properties = OwnerProperties }, cancellationToken).ConfigureAwait(false)).Items;
+            }
+            catch (AegisException exception) when (exception.Failure.Kind is FailureKind.NotFound or FailureKind.CmdletFailed)
+            {
+                // No name resolved: the owners are still listed as ManagedBy names them.
+            }
+        }
+
+        List<Listed> resolved = recipients.Select(Listed.FromExchange).ToList();
+        var owners = new Dictionary<string, IReadOnlyList<GroupMember>>(StringComparer.OrdinalIgnoreCase);
+        foreach ((string id, List<string> groupNames) in groups)
+        {
+            List<Listed> listed = resolved.Where(owner => groupNames.Any(owner.Names.Contains)).ToList();
+            listed.AddRange(Unresolved(groupNames, listed));
+            owners[id] = listed.Select(owner => owner.Member).ToList();
         }
 
         return owners;
     }
+
+    /// <summary>The names of <c>ManagedBy</c> no resolved owner answers to, each listed as it is (a role group).</summary>
+    private static List<Listed> Unresolved(IEnumerable<string> names, List<Listed> owners) =>
+        names.Where(name => !owners.Any(owner => owner.Names.Contains(name))).Select(name => new Listed(new GroupMember("recipient", name, null, null, name), [name], name)).ToList();
 
     /// <summary>The owners of <see cref="ExchangeOwnersAsync"/> as <c>group owners</c> lists them (task 076).</summary>
     internal static async Task<IReadOnlyList<GroupMember>> ExchangeOwnerListAsync(ExchangeBackends exchange, GroupInfo group, CancellationToken cancellationToken) =>

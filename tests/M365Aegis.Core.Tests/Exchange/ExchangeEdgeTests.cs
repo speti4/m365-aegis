@@ -96,7 +96,10 @@ public sealed class ExchangeEdgeTests
         Assert.Throws<InvalidOperationException>(() => backends.Graph);
         Assert.Throws<InvalidOperationException>(() => backends.StartSidecar());
         Assert.Null(backends.AdminApi);
-        Assert.Same(sidecar, backends.Sidecar);
+        await backends.Sidecar.InvokeAsync(new ExoCommand(ExoCmdlets.GetMailbox), TestContext.Current.CancellationToken);
+        // The cmdlet reaches the run's sidecar through the layer's count (the snapshot's per-domain counts, task 097).
+        Assert.Equal(1, sidecar.Calls);
+        Assert.Equal((1L, 0L), (backends.SidecarCalls, backends.AdminApiCalls));
         Assert.Equal(Backend.Pwsh, backends.Backend);
     }
 
@@ -471,8 +474,13 @@ public sealed class ExchangeEdgeTests
 
     private sealed class RecordingRunner : IExoCmdletRunner
     {
-        public Task<ExoResult> InvokeAsync(ExoCommand command, CancellationToken cancellationToken) =>
-            Task.FromResult(new ExoResult([], []));
+        public int Calls { get; private set; }
+
+        public Task<ExoResult> InvokeAsync(ExoCommand command, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult(new ExoResult([], []));
+        }
     }
 
     /// <summary>No network for the <c>UPN:</c> anchor, an empty object for the <c>AAD-UPN:</c> one.</summary>

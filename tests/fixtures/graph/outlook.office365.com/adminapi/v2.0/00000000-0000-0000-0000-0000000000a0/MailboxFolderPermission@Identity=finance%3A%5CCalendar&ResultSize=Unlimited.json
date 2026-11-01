@@ -27,7 +27,8 @@
       "FolderName": "Calendar",
       "User": {
         "DisplayName": "Alice Example",
-        "UserType": "Internal"
+        "UserType": "Internal",
+        "PrimarySmtpAddress": "alice@contoso.com"
       },
       "AccessRights": [
         "Editor"

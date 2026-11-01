@@ -29,6 +29,21 @@ public sealed record SnapshotDomain(string Name, SnapshotDomainStatus Status, st
 
     /// <summary>Those items counted by the failure's code (<c>throttled 3, forbidden 2</c>); null when none failed.</summary>
     public string? ItemFailures { get; init; }
+
+    /// <summary>How long the domain's read took (task 097); 0 for a skipped domain and in a snapshot taken before it was kept.</summary>
+    public long ElapsedMs { get; init; }
+
+    /// <summary>The HTTP requests the domain sent to Microsoft Graph: a <c>$batch</c> call is one, a retry after throttling another.</summary>
+    public long GraphRequests { get; init; }
+
+    /// <summary>How long the domain waited on Graph's throttling (<c>Retry-After</c>) within its <see cref="ElapsedMs"/>.</summary>
+    public long ThrottledMs { get; init; }
+
+    /// <summary>The cmdlets the domain sent to the Exchange Online Admin API.</summary>
+    public long AdminApiCalls { get; init; }
+
+    /// <summary>The cmdlets the domain sent to the Exchange Online sidecars.</summary>
+    public long SidecarCalls { get; init; }
 }
 
 /// <summary>One snapshot file as <c>snapshot list</c> shows it.</summary>
