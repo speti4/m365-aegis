@@ -13,8 +13,6 @@ forwarding   removed  bob@contoso.com                       bob@fabrikam.com  sm
 for bob@contoso.com (Bob Example), nested memberships and what comes through them included
 from 2026-10-31T060000Z.sqlite (taken 2026-10-31 06:00:00 UTC, 26 hours ago) to 2026-11-01T060000Z.sqlite (taken 2026-11-01 06:00:00 UTC, 2 hours ago)
 7 added, 1 removed: groups +3 -0, owners +0 -0, sites +1 -0, sharedItems +2 -0, mailboxes +0 -0, calendars +1 -0, forwarding +0 -1
-warning: sites is partial in 2026-10-31T060000Z.sqlite (1 item(s) not read): the sites rows of those items may show as removed or added
-warning: sites is partial in 2026-11-01T060000Z.sqlite (1 item(s) not read): the sites rows of those items may show as removed or added
-warning: sites is partial in 2026-10-31T060000Z.sqlite (1 item(s) not read): the sharedItems rows of those items may show as removed or added
-warning: sites is partial in 2026-11-01T060000Z.sqlite (1 item(s) not read): the sharedItems rows of those items may show as removed or added
+warning: sites is partial in 2026-10-31T060000Z.sqlite (1 item(s) not read): the sites and sharedItems rows of those items may show as removed or added
+warning: sites is partial in 2026-11-01T060000Z.sqlite (1 item(s) not read): the sites and sharedItems rows of those items may show as removed or added
 --- stderr ---

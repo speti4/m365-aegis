@@ -57,10 +57,8 @@ public sealed class SnapshotUserDiffTests
         Assert.Equal(("00000000-0000-0000-0000-000000000035", "00000000-0000-0000-0000-000000000003"), (diff.Changes[1].WhatId, diff.Changes[1].WhoId));
         Assert.Equal(
             [
-                "sites is partial in 2026-10-31T060000Z.sqlite (1 item(s) not read): the sites rows of those items may show as removed or added",
-                "sites is partial in 2026-11-01T060000Z.sqlite (1 item(s) not read): the sites rows of those items may show as removed or added",
-                "sites is partial in 2026-10-31T060000Z.sqlite (1 item(s) not read): the sharedItems rows of those items may show as removed or added",
-                "sites is partial in 2026-11-01T060000Z.sqlite (1 item(s) not read): the sharedItems rows of those items may show as removed or added",
+                "sites is partial in 2026-10-31T060000Z.sqlite (1 item(s) not read): the sites and sharedItems rows of those items may show as removed or added",
+                "sites is partial in 2026-11-01T060000Z.sqlite (1 item(s) not read): the sites and sharedItems rows of those items may show as removed or added",
             ],
             diff.Warnings);
     }
@@ -181,6 +179,12 @@ public sealed class SnapshotUserDiffTests
             ["groups False", "owners True", "sites False", "sharedItems False", "mailboxes False", "calendars False", "forwarding True"],
             diff.Domains.Select(domain => $"{domain.Name} {domain.Compared}"));
         Assert.Contains($"groups is left out: userGroups was not read in {Second}", diff.Warnings);
+        SnapshotSamples.Execute(Second_(home), """
+            update manifest set value = replace(value, '"status":"failed"', '"status":"partial"') where key = 'domain.userGroups';
+            """);
+        Assert.Contains(
+            $"userGroups is partial in {Second} (items not read: unknown): the groups, sites, sharedItems, mailboxes and calendars rows of those items may show as removed or added",
+            SnapshotDiff.Compare(home, "contoso", "yesterday", "latest", Now, "bob@contoso.com").Warnings);
         Assert.Equal(["forwarding"], diff.Changes.Select(change => change.Domain).Distinct());
     }
 

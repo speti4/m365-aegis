@@ -887,7 +887,9 @@ row held by one of the user's groups is keyed on that group and carries it as `t
 through a new group shows with what comes through it. The user is found by name in the second snapshot (the access
 view's lookup), and then by object id (an external grantee: by address) in the first, so a renamed user principal
 name still matches; a user one snapshot lacks has all their rows of the other added or removed, with a warning. Each
-section rests on the manifest domains it reads (`userGroups` for everything that comes through a group). The window's
+section rests on the manifest domains it reads (`userGroups` for everything that comes through a group), and a domain
+read in part is one warning per snapshot naming every section that rests on it ("the sites and sharedItems rows").
+The window's
 card (task 115) asks `SnapshotDiff.CompareWithThePrevious`: the newest snapshot and the readable one before it unless
 named, null when there are fewer than two.
 

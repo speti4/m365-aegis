@@ -270,10 +270,27 @@ public static class SnapshotDiff
             sections = UserSections;
         }
 
+        // One warning per snapshot and partial domain, at its first place, naming every section that rests on it.
+        var partials = new Dictionary<(string Snapshot, string Domain), (int At, SnapshotDomain Read, List<string> Sections)>();
         foreach ((string name, string[] restsOn, Func<string, string> rows) in sections)
         {
             List<string> unread = [.. Unread(fromDetail, restsOn), .. Unread(toDetail, restsOn)];
-            warnings.AddRange(Partial(fromDetail, restsOn, name).Concat(Partial(toDetail, restsOn, name)));
+            foreach ((SnapshotDetail detail, SnapshotDomain read) in Partial(fromDetail, restsOn).Concat(Partial(toDetail, restsOn)))
+            {
+                if (!partials.TryGetValue((detail.Snapshot.Name, read.Name), out var partial))
+                {
+                    partial = (warnings.Count, read, []);
+                    partials[(detail.Snapshot.Name, read.Name)] = partial;
+                    warnings.Add("");
+                }
+
+                if (!partial.Sections.Contains(name))
+                {
+                    // A snapshot compared with itself names the section once.
+                    partial.Sections.Add(name);
+                }
+            }
+
             if (unread.Count > 0)
             {
                 warnings.Add($"{name} is left out: {string.Join("; ", unread.Distinct(StringComparer.Ordinal))}");
@@ -284,6 +301,11 @@ public static class SnapshotDiff
             List<SnapshotDiffEntry> rowsFound = Rows(connection, name, rows, parameters);
             changes.AddRange(rowsFound);
             domains.Add(new SnapshotDiffDomain(name, true, rowsFound.Count(entry => entry.Change == SnapshotChange.Added), rowsFound.Count(entry => entry.Change == SnapshotChange.Removed)));
+        }
+
+        foreach (((string snapshot, _), (int at, SnapshotDomain read, List<string> rested)) in partials)
+        {
+            warnings[at] = PartialWarning(snapshot, read, rested);
         }
 
         return new SnapshotDiffReport(
@@ -412,12 +434,22 @@ public static class SnapshotDiff
     /// A domain read in part: a change among the items it could not read shows as removed or added. A manifest written
     /// before the take counted the unread items has none to give, so the warning says the count is unknown.
     /// </summary>
-    private static IEnumerable<string> Partial(SnapshotDetail detail, string[] restsOn, string domain) =>
+    private static IEnumerable<(SnapshotDetail Detail, SnapshotDomain Read)> Partial(SnapshotDetail detail, string[] restsOn) =>
         detail.Domains
             .Where(read => read.Status == SnapshotDomainStatus.Partial && restsOn.Contains(read.Name))
-            .Select(read => string.Create(
-                CultureInfo.InvariantCulture,
-                $"{read.Name} is partial in {detail.Snapshot.Name} ({(read.ItemsFailed > 0 ? $"{read.ItemsFailed} item(s) not read" : "items not read: unknown")}): the {domain} rows of those items may show as removed or added"));
+            .Select(read => (detail, read));
+
+    /// <summary>
+    /// The warning of a domain read in part in one snapshot, naming the sections that rest on it (task 114: one warning,
+    /// not one per section): "the sites and sharedItems rows of those items may show as removed or added".
+    /// </summary>
+    private static string PartialWarning(string snapshot, SnapshotDomain read, List<string> sections)
+    {
+        string named = sections.Count == 1 ? sections[0] : $"{string.Join(", ", sections[..^1])} and {sections[^1]}";
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{read.Name} is partial in {snapshot} ({(read.ItemsFailed > 0 ? $"{read.ItemsFailed} item(s) not read" : "items not read: unknown")}): the {named} rows of those items may show as removed or added");
+    }
 
     private static SnapshotDiffSide Side(SnapshotDetail detail, string pick, DateTimeOffset now) =>
         new(detail.Snapshot.Name, detail.Snapshot.Taken, Math.Round((now - detail.Snapshot.Taken).TotalHours, 1), pick.Trim());

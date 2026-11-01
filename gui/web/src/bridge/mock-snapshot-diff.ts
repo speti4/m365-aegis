@@ -320,10 +320,8 @@ export const mockBobSnapshotDiff: SnapshotDiffReport = {
     },
   ],
   warnings: [
-    "sites is partial in 2026-10-31T060000Z.sqlite (1 item(s) not read): the sites rows of those items may show as removed or added",
-    "sites is partial in 2026-11-01T060000Z.sqlite (1 item(s) not read): the sites rows of those items may show as removed or added",
-    "sites is partial in 2026-10-31T060000Z.sqlite (1 item(s) not read): the sharedItems rows of those items may show as removed or added",
-    "sites is partial in 2026-11-01T060000Z.sqlite (1 item(s) not read): the sharedItems rows of those items may show as removed or added",
+    "sites is partial in 2026-10-31T060000Z.sqlite (1 item(s) not read): the sites and sharedItems rows of those items may show as removed or added",
+    "sites is partial in 2026-11-01T060000Z.sqlite (1 item(s) not read): the sites and sharedItems rows of those items may show as removed or added",
   ],
   added: 7,
   removed: 1,
