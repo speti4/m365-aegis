@@ -601,6 +601,8 @@ Describe 'the fake module and the machine''s real one (task 050, <Mode>)' -ForEa
         $run.Lines[1].type | Should -Be 'error'
         $run.Lines[1].data.code | Should -Be 'cmdlet-failed'
         $run.Lines[1].data.message | Should -Match "Get-EXOMailboxFolderStatistics' is not recognized"
+        # The shape the Core reads as a missing role (task 108): a session without the role has the cmdlet left out the same way.
+        $run.Lines[1].data.errorId | Should -Be 'CommandNotFoundException'
     }
 }
 

@@ -130,4 +130,17 @@ public sealed class MessageTraceDetailsLookupTests
         Assert.Equal(FailureKind.Forbidden, exception.Failure.Kind);
         Assert.Contains("service principal", exception.Failure.Hint, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task TheServicesUnrenderedErrorNamesTheRoleInItsHint()
+    {
+        // Task 108: the 500 an account without a role that runs a message trace gets, the same as the trace's.
+        var transport = new ScriptedTransport(_ => new GraphResponse(500, [], """{"error":{"code":"InternalServerError","message":"Failed parsing error response"}}"""));
+
+        AegisException exception = await Assert.ThrowsAsync<AegisException>(() =>
+            MessageTraceDetailsLookup.RunAsync(new GraphClient(transport), new MessageTraceDetailsQuery(Report, "bob@contoso.com"), None));
+
+        Assert.Equal((FailureKind.ServiceError, 500), (exception.Failure.Kind, exception.HttpStatus));
+        Assert.Contains("without an Exchange Online role that runs a message trace", exception.Failure.Hint, StringComparison.Ordinal);
+    }
 }

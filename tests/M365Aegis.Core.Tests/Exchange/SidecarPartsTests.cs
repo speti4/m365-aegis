@@ -24,6 +24,9 @@ public sealed class SidecarPartsTests
     [InlineData("invoke", "cmdlet-failed", "HttpStatusCode=403 Forbidden", null, FailureKind.Forbidden)]
     [InlineData("invoke", "cmdlet-failed", "UnAuthorized (401): the token has expired", null, FailureKind.Auth)]
     [InlineData("invoke", "cmdlet-failed", "A parameter cannot be found that matches parameter name 'Frobnicate'.", null, FailureKind.CmdletFailed)]
+    [InlineData("invoke", "cmdlet-failed", "The term 'Get-DistributionGroup' is not recognized as a name of a cmdlet, function, script file, or executable program.", "CommandNotFoundException", FailureKind.Forbidden)]
+    [InlineData("invoke", "cmdlet-failed", "something", "CommandNotFoundException", FailureKind.Forbidden)]
+    [InlineData("connect", "connect-failed", "The term 'Connect-ExchangeOnline' is not recognized as a name of a cmdlet, function, script file, or executable program.", "CommandNotFoundException", FailureKind.SidecarUnavailable)]
     [InlineData("invoke", "cmdlet-not-allowed", "'Remove-Mailbox' is not on the sidecar's allow-list", null, FailureKind.CmdletNotAllowed)]
     [InlineData("connect", "connect-failed", "AADSTS50013: Assertion failed signature validation", null, FailureKind.Auth)]
     [InlineData("connect", "connect-failed", "Access denied: the user has no Exchange role", null, FailureKind.Forbidden)]
@@ -35,6 +38,21 @@ public sealed class SidecarPartsTests
         Exception exception = SidecarFailures.For(type, new SidecarError(code, message, errorId, null), "");
 
         Assert.Equal(kind, Assert.IsType<AegisException>(exception).Failure.Kind);
+    }
+
+    [Fact]
+    public void AHiddenCmdletIsARefusedRoleWithTheReasonInTheHint()
+    {
+        // Task 108: a session without an Exchange Online role has the cmdlet left out, which task 096's fallback catches as a refusal.
+        Exception exception = SidecarFailures.For(
+            "invoke",
+            new SidecarError("cmdlet-failed", "The term 'Get-DistributionGroup' is not recognized as a name of a cmdlet, function, script file, or executable program.", "CommandNotFoundException", "ObjectNotFound"),
+            "");
+
+        AegisFailure failure = Assert.IsType<AegisException>(exception).Failure;
+        Assert.Equal((FailureKind.Forbidden, ExitCode.Forbidden), (failure.Kind, failure.ExitCode));
+        Assert.Equal("the Exchange Online cmdlet failed: The term 'Get-DistributionGroup' is not recognized as a name of a cmdlet, function, script file, or executable program.", failure.Message);
+        Assert.StartsWith("Exchange Online imports only the cmdlets the account's roles allow, so the session has no such cmdlet; the account needs an Exchange Online role", failure.Hint, StringComparison.Ordinal);
     }
 
     [Fact]

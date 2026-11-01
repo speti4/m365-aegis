@@ -14,15 +14,11 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-11-01 — edit the files, not this section._
 
-**State:** 3 backlog (1 ready · 0 blocked · 0 waiting · 2 ideas) · 0 in progress · 116 done · 0 dropped · 14 decisions
+**State:** 2 backlog (0 ready · 0 blocked · 0 waiting · 2 ideas) · 1 in progress · 116 done · 0 dropped · 14 decisions
 
 ### Ready
 
-#### M6 Release and team
-
-| # | Task | Size | Created |
-|---|---|---|---|
-| 108 | [Verify the setup guide in a live round: the Azure CLI registration block and th…](backlog/108-verify-the-setup-guide-in-a-live-round.md) | S | 2026-10-31 |
+_none_
 
 ### Needs decision
 
@@ -48,7 +44,11 @@ _none_
 
 ### In progress
 
-_none_
+#### M6 Release and team
+
+| # | Task | Started | Plan |
+|---|---|---|---|
+| 108 | [Verify the setup guide in a live round: the Azure CLI registration block and th…](wip/108-verify-the-setup-guide-in-a-live-round.md) | 2026-11-01 | `none` |
 
 ### Closed – do not reopen
 

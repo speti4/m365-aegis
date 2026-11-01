@@ -80,9 +80,12 @@ $appId                                              # the application id to hand
 ```
 
 `--is-fallback-public-client true` is "Allow public client flows"; `--public-client-redirect-uris` sets the "Mobile and
-desktop applications" platform's redirect URIs. The parameters are those of the Azure CLI reference for
+desktop applications" platform's redirect URIs. Each `az ad app permission add` ends with a warning that a
+`permission grant` is needed to make the change effective: the `admin-consent` line is that grant, for every
+permission at once, so nothing else is needed. The parameters are those of the Azure CLI reference for
 [`az ad app`](https://learn.microsoft.com/cli/azure/ad/app) and
-[`az ad app permission`](https://learn.microsoft.com/cli/azure/ad/app/permission).
+[`az ad app permission`](https://learn.microsoft.com/cli/azure/ad/app/permission); the block was run end to end
+against a throwaway registration with Azure CLI 2.71 on 2026-11-01.
 
 ## Permissions
 
@@ -102,7 +105,7 @@ carries.
 | `site list` | `Sites.Read.All` | Microsoft Graph | none; the list holds the sites the account can open |
 | `signin list`, `audit list` | `AuditLog.Read.All` | Microsoft Graph | Reports Reader, Security Reader or Global Reader; the sign-in log also needs a Microsoft Entra ID P1 or P2 license in the tenant |
 | `secrets expiring` | `Application.Read.All` | Microsoft Graph | none |
-| `trace`, `trace details` | `ExchangeMessageTrace.Read.All`, and the [message trace service principal](#the-message-trace-service-principal) once per tenant | Microsoft Graph | an Exchange Online admin role that may run a message trace |
+| `trace`, `trace details` | `ExchangeMessageTrace.Read.All`, and the [message trace service principal](#the-message-trace-service-principal) once per tenant | Microsoft Graph | an Exchange Online role group that carries the Message Tracking role: Recipient Management or Organization Management (also Records Management and Compliance Management; View-Only Organization Management does not carry it), per the [Exchange Online permissions reference](https://learn.microsoft.com/exchange/permissions-exo/permissions-exo#role-based-permissions); without one the service answers a 500 (exit code 9), not a refusal |
 | `mailbox list`, `mailbox access`, `mailbox forwarders`, `mailbox folder-permissions`, `mailbox group-members`, `mailbox organization`, `mailbox size <mailbox>`, the window's mailbox cards | `Exchange.Manage` (the PowerShell sidecar) and `Exchange.ManageV2` (the Exchange Online Admin API); `GroupMember.Read.All` (Microsoft Graph) for `--expand-groups` | Exchange Online | View-Only Organization Management or Recipient Management (Exchange Administrator and Global Administrator include them) |
 | `mailbox size` over every mailbox | `Reports.Read.All` (Microsoft 365's mailbox usage report) | Microsoft Graph | Reports Reader, or another role that reads the usage reports |
 | `call` | what the endpoint's Microsoft Graph reference page names | Microsoft Graph | what that page names |
@@ -226,6 +229,9 @@ Every failure ends with an `error:` line, a `hint:` line with the fix, and an ex
   account lacks the role in the [table](#permissions). `whoami` shows which permissions each token carries; after a
   new consent, `login` once. `trace` answers 8 for hours after the message trace service principal was created, and
   `signin list` answers 8 in a tenant without a Microsoft Entra ID P1 or P2 license; both say so in the hint.
+- **`trace` answers exit code 9 (`service-error`) with "Failed parsing error response".** The message trace service
+  answers this way for an account without a role group that carries the Message Tracking role (the [table](#permissions);
+  seen on 2026-11-01), instead of a refusal; the hint says so. Check the role before trying again later.
 
 `m365-aegis doctor` checks the rest (the runtimes, PowerShell and the Exchange Online module, the endpoints through
 the proxy and the firewall); the usage guide's [The doctor](usage.md#the-doctor) explains each row. When you ask for

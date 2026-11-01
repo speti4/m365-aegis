@@ -80,7 +80,18 @@ public static class MessageTraceLookup
 
     private const string ProvisioningHint =
         "the tenant needs, once, the service principal of the message trace application and the delegated permission " + Permission +
-        " with admin consent (docs/development.md, \"The sign-in and the home folder\"); provisioning can take several hours, then run `m365-aegis login` for a fresh token";
+        " with admin consent, and the account an Exchange Online role that runs a message trace (Recipient Management or Organization Management; docs/setup.md, \"Permissions\");"
+        + " provisioning can take several hours, then run `m365-aegis login` for a fresh token";
+
+    /// <summary>
+    /// The shape the service gave an account without a role that runs a message trace (live, 2026-11-01, task 108): a 500
+    /// whose message says the service could not render its own error, not a 403.
+    /// </summary>
+    private const string RoleShapedServiceError = "Failed parsing error response";
+
+    private const string RoleShapedHint =
+        "a service error on Microsoft's side, which the message trace also answers for an account without an Exchange Online role that runs a message trace"
+        + " (Recipient Management or Organization Management; docs/setup.md, \"Permissions\"): check the role, then run the command again later";
 
     /// <summary>The query as the request's window and filter, or a usage error.</summary>
     internal static (DateTimeOffset From, DateTimeOffset Until, string Filter) Describe(MessageTraceQuery query, DateTimeOffset now)
@@ -224,6 +235,10 @@ public static class MessageTraceLookup
         {
             throw SetupFailure(exception);
         }
+        catch (AegisException exception) when (IsRoleShaped(exception))
+        {
+            throw RoleShaped(exception);
+        }
 
         IReadOnlyList<MessageTraceEntry> messages = traces
             .Select(trace => new MessageTraceEntry(
@@ -260,6 +275,15 @@ public static class MessageTraceLookup
     /// <summary>The setup failure as exit code 8 with the consent and the provisioning step as the hint.</summary>
     internal static AegisException SetupFailure(AegisException exception) =>
         new(FailureKind.Forbidden, exception.Message, ProvisioningHint, exception);
+
+    /// <summary>True for the 500 the service answers an account without a role that runs a message trace (task 108).</summary>
+    internal static bool IsRoleShaped(AegisException exception) =>
+        exception.Failure.Kind == FailureKind.ServiceError && exception.HttpStatus == 500
+        && exception.Message.Contains(RoleShapedServiceError, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The same service error (exit code 9: the service did not say the account was refused) with the role in the hint.</summary>
+    internal static AegisException RoleShaped(AegisException exception) =>
+        new AegisException(FailureKind.ServiceError, exception.Message, RoleShapedHint, exception) { HttpStatus = exception.HttpStatus };
 
     private static DateTimeOffset Truncate(DateTimeOffset time)
     {
