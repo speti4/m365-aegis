@@ -419,6 +419,7 @@ describe("the bridge protocol", () => {
     expect(matches?.type).toBe(MessageType.userMatches);
     if (matches?.type !== MessageType.userMatches) return;
     expect(matches.data.more).toBe(false);
+    expect(matches.data.source).toBe("graph");
     expect(matches.data.users.map((user) => user.displayName)).toEqual([
       "Alice Example",
       "Bob Example",
@@ -433,6 +434,9 @@ describe("the bridge protocol", () => {
     const matches = JSON.parse(sample("user-matches.json")).data;
     expect(reply(null)).toBeNull();
     expect(reply({ ...matches, snapshot: 1 })).toBeNull();
+    expect(reply({ ...matches, source: "live" })).toBeNull();
+    expect(reply({ ...matches, source: "snapshot", taken: 1 })).toBeNull();
+    expect(reply({ ...matches, source: "snapshot", snapshot: "s", taken: "t" })?.type).toBe(MessageType.userMatches);
     expect(reply({ ...matches, more: "no" })).toBeNull();
     expect(reply({ ...matches, users: {} })).toBeNull();
     expect(reply({ ...matches, users: [{ mail: 7 }] })).toBeNull();

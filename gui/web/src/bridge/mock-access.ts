@@ -155,33 +155,39 @@ export function mockAccess(
       };
 }
 
-const snapshotUser = (name: string, id: string): Required<AccessUser> => ({
+/** A user of the mock's directory: the fixtures' `* Example` users; a user without an address has none in Graph. */
+const directoryUser = (
+  name: string,
+  id: string,
+  mail = true,
+): AccessUser & { displayName: string; userPrincipalName: string } => ({
   objectId: `00000000-0000-0000-0000-0000000000${id}`,
   displayName: `${name} Example`,
   userPrincipalName: `${name.toLowerCase()}@contoso.com`,
-  mail: `${name.toLowerCase()}@contoso.com`,
+  ...(mail ? { mail: `${name.toLowerCase()}@contoso.com` } : {}),
 });
 
 /**
- * The users of the mock's snapshot (task 112), as the fixture snapshot holds them; a Vitest test holds the mock's
- * answer to the `user-search` sample (`exa`, a word of every name) equal to the `user-matches` sample.
+ * The users of the mock's directory and snapshot (task 112), as the recorded Graph answers hold them (Carol has no
+ * address there); a Vitest test holds the mock's answer to the `user-search` sample (`exa`, a word of every name),
+ * signed in, equal to the `user-matches` sample.
  */
-export const mockSnapshotUsers: Required<AccessUser>[] = [
-  snapshotUser("Alice", "01"),
-  snapshotUser("Bob", "03"),
-  snapshotUser("Carol", "04"),
-  snapshotUser("Dave", "05"),
-  snapshotUser("Eve", "07"),
+export const mockDirectoryUsers = [
+  directoryUser("Alice", "01"),
+  directoryUser("Bob", "03"),
+  directoryUser("Carol", "04", false),
+  directoryUser("Dave", "05"),
+  directoryUser("Eve", "07"),
 ];
 
 /**
- * The mock's `user-search` answer, as the core's prefix search gives it: a missing text is a usage error, a profile
- * without a snapshot `no-snapshot`, else the users whose name, a word of it, user principal name or address starts
- * with the text, in any case.
+ * The mock's `user-search` answer, as the host gives it: a missing text is a usage error; signed in, the directory
+ * answers; signed out, the snapshot (its name and time), or `no-snapshot` without one. A user matches when the start
+ * of the name or of a word of it, of the principal name or of the address is the text, in any case.
  */
 export function mockUserSearch(
   text: string,
-  snapshot: boolean,
+  { signedIn, snapshot }: { signedIn: boolean; snapshot: boolean },
 ): { type: string; data: UserMatches | NoSnapshotInfo | BridgeError } {
   if (text === "") {
     return {
@@ -189,15 +195,18 @@ export function mockUserSearch(
       data: { code: "usage", message: "no text to search for", hint: "type the start of a name or an address" },
     };
   }
-  if (!snapshot) {
+  if (!signedIn && !snapshot) {
     return { type: "no-snapshot", data: mockNoSnapshot };
   }
   const prefix = text.toLowerCase();
   // The start of the name or of a word of it (" " before the name stands for its start), of the principal name or address.
-  const users = mockSnapshotUsers.filter(
+  const users = mockDirectoryUsers.filter(
     ({ displayName, userPrincipalName, mail }) =>
       ` ${displayName.toLowerCase()}`.includes(` ${prefix}`) ||
-      [userPrincipalName, mail].some((name) => name.startsWith(prefix)),
+      [userPrincipalName, mail ?? ""].some((name) => name.startsWith(prefix)),
   );
-  return { type: "user-matches", data: { snapshot: mockDaveAccess.snapshot, users, more: false } };
+  const source = signedIn
+    ? { source: "graph" as const }
+    : { source: "snapshot" as const, snapshot: mockDaveAccess.snapshot, taken: mockDaveAccess.taken };
+  return { type: "user-matches", data: { ...source, users, more: false } };
 }

@@ -215,10 +215,12 @@ public static class BridgeMessageType
     public const string NoSnapshot = "no-snapshot";
 
     /// <summary>
-    /// Asks for the users of the newest snapshot of the window's profile whose name, a word of it, user principal name
-    /// or address starts with a text (task 112): the user picker of the access cards suggests them as the colleague
-    /// types. The local file only, as <see cref="Access"/> reads it; the payload is a <see cref="UserSearchRequest"/>.
-    /// Answered with <see cref="UserMatches"/>, or with <see cref="NoSnapshot"/> when the profile has no snapshot yet.
+    /// Asks for the users whose name, a word of it, user principal name or address starts with a text (task 112): the
+    /// user picker of the access cards suggests them as the colleague types. The directory answers live through the
+    /// window's sign-in; without one, or when Graph fails, the newest snapshot of the window's profile answers, as
+    /// <see cref="Access"/> reads it. The payload is a <see cref="UserSearchRequest"/>. Answered with
+    /// <see cref="UserMatches"/>, which names its source, or with <see cref="NoSnapshot"/> when the snapshot had to
+    /// answer and the profile has none.
     /// </summary>
     public const string UserSearch = "user-search";
 

@@ -87,11 +87,23 @@ public sealed record AccessReport(
     AccessEveryone Everyone,
     IReadOnlyList<string> Warnings);
 
-/// <summary>The users of a snapshot whose name or address starts with a text (task 112), for the window's user picker.</summary>
-/// <param name="Snapshot">The snapshot's name.</param>
+/// <summary>Where the window's user picker found its users (task 112).</summary>
+public enum UserSource
+{
+    /// <summary>The directory, live: Microsoft Graph's <c>/users</c> search with the window's sign-in.</summary>
+    Graph,
+
+    /// <summary>The newest snapshot on this computer: no sign-in, or Graph did not answer.</summary>
+    Snapshot,
+}
+
+/// <summary>The users whose name or address starts with a text (task 112), for the window's user picker.</summary>
+/// <param name="Source">Which source answered: the directory, or the snapshot when Graph could not.</param>
+/// <param name="Snapshot">The snapshot's name when it answered, else null.</param>
+/// <param name="Taken">When that snapshot was taken, else null.</param>
 /// <param name="Users">The matching users, by name, the limit at most.</param>
 /// <param name="More">Whether more users match than the list holds: a longer text narrows it.</param>
-public sealed record UserMatches(string Snapshot, IReadOnlyList<AccessUser> Users, bool More);
+public sealed record UserMatches(UserSource Source, string? Snapshot, DateTimeOffset? Taken, IReadOnlyList<AccessUser> Users, bool More);
 
 /// <summary>
 /// <c>access &lt;user&gt;</c> (task 084): which groups, sites, shared items, mailboxes and calendars one user reaches,
@@ -216,7 +228,8 @@ public static class SnapshotAccess
 
     /// <summary>
     /// The users of the newest snapshot whose display name, a word of it, user principal name or address starts with
-    /// the text, in any case (task 112): the window's user picker suggests them as the colleague types. A prefix search
+    /// the text, in any case (task 112): the window's user picker suggests them when the directory cannot be searched
+    /// live (no sign-in, or Graph did not answer, <c>UserSearch</c>). A prefix search
     /// over the snapshot's <c>objects</c>, the local file only, opened read-only as <see cref="ForUser"/> opens it;
     /// <c>%</c>, <c>_</c> and <c>\</c> in the text match themselves.
     /// </summary>
@@ -254,7 +267,7 @@ public static class SnapshotAccess
             users.Add(new AccessUser(Text(reader, 0), Text(reader, 1), Text(reader, 2), Text(reader, 3)));
         }
 
-        return new UserMatches(detail.Snapshot.Name, users.Take(limit).ToList(), users.Count > limit);
+        return new UserMatches(UserSource.Snapshot, detail.Snapshot.Name, detail.Snapshot.Taken, users.Take(limit).ToList(), users.Count > limit);
     }
 
     private static List<T> Rows<T>(SqliteConnection connection, long user, string sql, Func<SqliteDataReader, T> read)

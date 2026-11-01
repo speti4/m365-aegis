@@ -28,7 +28,7 @@ public sealed class SnapshotUserSearchTests
         UserMatches first = SnapshotAccess.FindUsers(home, "contoso", "dav");
         UserMatches word = SnapshotAccess.FindUsers(home, "contoso", " EXAM ");
 
-        Assert.Equal("2026-10-31T060000Z.sqlite", first.Snapshot);
+        Assert.Equal((UserSource.Snapshot, "2026-10-31T060000Z.sqlite", SnapshotSamples.Taken), (first.Source, first.Snapshot, first.Taken));
         Assert.Equal([new AccessUser("00000000-0000-0000-0000-000000000005", "Dave Example", "dave@contoso.com", "dave@contoso.com")], first.Users);
         Assert.False(first.More);
         Assert.Equal(["Alice Example", "Bob Example", "Carol Example", "Dave Example", "Eve Example"], Names(word));

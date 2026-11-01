@@ -431,10 +431,12 @@ offers "Read again", which looks the user up once more; a change for another use
 ### User access
 
 The user field is a picker: type three letters of a name, a surname or an address, and it lists the matching users
-of the newest snapshot (eight at most, with "More users match" when there are more); the arrow keys and Enter, or a
-click, pick one and look the user up. The suggestions come from the snapshot on this computer, so they need no
-sign-in, and a user created since the snapshot is not among them. A full principal name or address typed by hand, then
-"Look up", works as before.
+(eight at most, with "More users match" when there are more); the arrow keys and Enter, or a click, pick one and look
+the user up. Signed in, the suggestions come from the directory, live (with the `User.ReadBasic.All` permission the
+group lookups already use), and the line under the list says "From the directory.". Signed out, or when the directory
+does not answer, they come from the newest snapshot on this computer and the line names the snapshot's time; a user
+created since then is not among them. Signed out and without a snapshot the picker says it has nothing to suggest
+from. A full principal name or address typed by hand, then "Look up", always works.
 
 A user's principal name, address or object id, then "Look up": what the user reaches, from the newest snapshot (see
 [What one user reaches](#what-one-user-reaches)): the groups, and for a nested membership the group it comes through;

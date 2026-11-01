@@ -214,9 +214,17 @@ export interface AccessUser {
   mail?: string;
 }
 
-/** The users of a snapshot whose name or address starts with a text (task 112); `more` when the list is cut short. */
+/** Where the user picker's suggestions come from: the directory, live, or the snapshot on this computer. */
+export type UserSource = "graph" | "snapshot";
+
+/**
+ * The users whose name or address starts with a text (task 112), from the source the reply names: the directory, or
+ * the snapshot (its name and time) when the directory could not answer; `more` when the list is cut short.
+ */
 export interface UserMatches {
-  snapshot: string;
+  source: UserSource;
+  snapshot?: string;
+  taken?: string;
   users: AccessUser[];
   more: boolean;
 }
@@ -663,7 +671,9 @@ const userNames: readonly string[] = ["objectId", "displayName", "userPrincipalN
 function isUserMatches(value: unknown): value is UserMatches {
   return (
     isRecord(value) &&
-    isString(value.snapshot) &&
+    (value.source === "graph" || value.source === "snapshot") &&
+    isOptionalString(value.snapshot) &&
+    isOptionalString(value.taken) &&
     typeof value.more === "boolean" &&
     isListOf(value.users, [], userNames)
   );

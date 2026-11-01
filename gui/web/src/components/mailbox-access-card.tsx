@@ -68,7 +68,7 @@ type Result =
 /**
  * The window's first mailbox page (task 045): who holds FullAccess, Send As and Send on Behalf on a mailbox, or
  * which mailboxes a user holds them on, as `m365-aegis mailbox access` reads them, and the shared mailboxes to pick
- * one from. The user is picked from the snapshot's users as the colleague types a name (the user picker, task 112), or
+ * one from. The user is picked from the suggestions (the directory, else the snapshot) as the colleague types a name (the user picker, task 112), or
  * typed in full. The window keeps one Exchange Online session: the first lookup starts it (a few seconds), the later
  * ones answer in the cmdlet's own time, which the line under the table shows. A mailbox's grants come over the
  * layers as on the command line (task 063): each row names the layer that read it. When the mailbox rights card applies a

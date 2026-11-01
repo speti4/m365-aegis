@@ -166,7 +166,7 @@ export interface MockOptions {
  * mailboxes of the fake Exchange Online module, and the mailbox writes planned over them and applied only with the
  * confirmation (`MockWrites`, task 082); an apply changes this mock's own holders and forwarding, so a lookup after it
  * shows the change (task 091), and dave's access from the snapshot (`mock-access.ts`, task 102), signed in or not, or the
- * answer without a snapshot, and the snapshot's users for the user picker (task 112). Anything else is not found, an unknown type an error.
+ * answer without a snapshot, and the user picker's search, from the directory signed in and from the snapshot signed out (task 112). Anything else is not found, an unknown type an error.
  */
 export class MockTransport implements Transport {
   private handlers: Array<(message: BridgeMessage) => void> = [];
@@ -330,7 +330,7 @@ export class MockTransport implements Transport {
       case MessageType.access:
         return mockAccess(text("user"), this.snapshot);
       case MessageType.userSearch:
-        return mockUserSearch(text("text"), this.snapshot);
+        return mockUserSearch(text("text"), { signedIn: this.signedIn, snapshot: this.snapshot });
       case MessageType.mailboxAccessGrant:
       case MessageType.mailboxAccessRevoke:
       case MessageType.mailboxForwardingSet:

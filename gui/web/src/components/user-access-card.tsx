@@ -9,13 +9,10 @@ import { type AccessReport, type BridgeError, MessageType, type NoSnapshotInfo }
 import { rightNames } from "./mailbox-access-card";
 import { Notice } from "./plan-view";
 import { windowWarning } from "./plan-wording";
+import { describeTaken } from "./snapshot-time";
 import { UserPicker } from "./user-picker";
 
-/** When a snapshot was taken, as the card writes it: the UTC minute, or the core's text when it is not a time. */
-export function describeTaken(taken: string): string {
-  const time = Date.parse(taken);
-  return Number.isNaN(time) ? taken : `${new Date(time).toISOString().slice(0, 16).replace("T", " ")} UTC`;
-}
+export { describeTaken };
 
 /** A snapshot's age as the card writes it: hours under two days, days from then on. */
 export function describeAge(hours: number): string {
@@ -31,7 +28,7 @@ type Result = { kind: "report"; data: AccessReport } | { kind: "none"; data: NoS
  * What one user reaches (task 102), as `access <user>` answers it from the newest snapshot (task 084): the groups and
  * the member groups a nested membership comes through, the sites of those groups, the shared items, the mailbox rights
  * and the calendar permissions held directly or through a group, the counts of what reaches everyone, the snapshot's
- * time and age, and its warnings in the window's words. The user is picked from the snapshot's users as the colleague
+ * time and age, and its warnings in the window's words. The user is picked from the suggestions (the directory, else the snapshot) as the colleague
  * types a name (the user picker, task 112), or typed in full. The host reads the snapshot file on this computer only: no
  * sign-in, no request to Microsoft 365, so the card works signed out too. Without a snapshot the card says so plainly
  * and names who takes one; an `error` reply is the page's toast.

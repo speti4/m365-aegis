@@ -2,7 +2,8 @@ import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { BridgeClient } from "../bridge/client";
-import { type AccessUser, MessageType } from "../bridge/protocol";
+import { type AccessUser, MessageType, type UserMatches } from "../bridge/protocol";
+import { describeTaken } from "./snapshot-time";
 
 /** How many letters the picker waits for before it suggests: fewer match too many users to help. */
 export const SUGGEST_AFTER = 3;
@@ -16,19 +17,17 @@ export function pickedAddress(user: AccessUser): string {
 }
 
 /** What the list under the field shows: nothing, the matching users, or a line why there is none. */
-type Suggestions =
-  | { kind: "none" }
-  | { kind: "users"; text: string; users: AccessUser[]; more: boolean }
-  | { kind: "no-snapshot" };
+type Suggestions = { kind: "none" } | { kind: "users"; text: string; matches: UserMatches } | { kind: "no-snapshot" };
 
 /**
- * The user picker of the access cards (task 112): a text field that suggests the users of the newest snapshot whose
- * name, a word of it, user principal name or address starts with what the colleague types, once three letters are
- * typed (`user-search`, the snapshot on this computer, no sign-in). A keystroke starts a wait of `DEBOUNCE_MS`, and only
+ * The user picker of the access cards (task 112): a text field that suggests the users whose name, a word of it, user
+ * principal name or address starts with what the colleague types, once three letters are typed (`user-search`): from
+ * the directory, live, when the window is signed in, else from the newest snapshot on this computer, and a line under
+ * the list says which one answered. A keystroke starts a wait of `DEBOUNCE_MS`, and only
  * the last one asks, so a word typed at speed sends one request; an answer to an older text is dropped. The arrow keys
  * move through the list, Enter or a click picks a user and hands the user's address to the card (`onPick`); Escape
  * closes the list. Enter without a highlighted user submits the card's form with the text as typed, so a full address
- * still works, and so does a user the snapshot does not know yet. A failed search shows no list: the card's own lookup
+ * still works, and so does a user the suggestions do not know. A failed search shows no list: the card's own lookup
  * reports the error.
  */
 export function UserPicker({
@@ -72,7 +71,7 @@ export function UserPicker({
     }
     switch (reply.type) {
       case MessageType.userMatches:
-        setSuggestions({ kind: "users", text, users: reply.data.users, more: reply.data.more });
+        setSuggestions({ kind: "users", text, matches: reply.data });
         break;
       case MessageType.noSnapshot:
         setSuggestions({ kind: "no-snapshot" });
@@ -108,18 +107,18 @@ export function UserPicker({
     onPick(address);
   }
 
-  const users = open && suggestions.kind === "users" ? suggestions.users : [];
+  const users = open && suggestions.kind === "users" ? suggestions.matches.users : [];
   const shown = open && suggestions.kind !== "none";
 
   function key(event: KeyboardEvent<HTMLInputElement>) {
     switch (event.key) {
       case "ArrowDown":
       case "ArrowUp": {
-        if (suggestions.kind !== "users" || suggestions.users.length === 0) {
+        if (suggestions.kind !== "users" || suggestions.matches.users.length === 0) {
           return;
         }
         event.preventDefault();
-        const count = suggestions.users.length;
+        const count = suggestions.matches.users.length;
         // The list opens on the first press with nothing highlighted, and wraps at either end.
         const from = open ? active : -1;
         setActive(event.key === "ArrowDown" ? (from + 1) % count : (from - 1 + count) % count);
@@ -155,7 +154,7 @@ export function UserPicker({
         onBlur={() => setOpen(false)}
         disabled={disabled}
       />
-      {shown ? (
+      {open && suggestions.kind !== "none" ? (
         // In the flow under the field, not floating over the card: the card clips what overflows it.
         <div className="mt-1 rounded-lg border bg-popover text-popover-foreground shadow-sm">
           <div id={listId} role="listbox" aria-label="Matching users" className="max-h-72 overflow-auto py-1">
@@ -186,15 +185,36 @@ export function UserPicker({
   );
 }
 
-/** The line under the list: no match, more matches than shown, or no snapshot to suggest from. */
-function SuggestionNote({ suggestions }: { suggestions: Suggestions }) {
-  let note: string | null = null;
-  if (suggestions.kind === "no-snapshot") {
-    note = "No snapshot on this computer to suggest from: type the full address.";
-  } else if (suggestions.kind === "users" && suggestions.users.length === 0) {
-    note = `No user in the snapshot starts with "${suggestions.text}": a full address still works.`;
-  } else if (suggestions.kind === "users" && suggestions.more) {
-    note = "More users match: type more of the name.";
+/** Where the suggestions came from, as the line under the list says it. */
+export function describeSource(matches: UserMatches): string {
+  if (matches.source === "graph") {
+    return "From the directory.";
   }
-  return note ? <p className="border-t px-2.5 py-1.5 text-xs text-muted-foreground">{note}</p> : null;
+  const taken = matches.taken ? ` taken ${describeTaken(matches.taken)}` : "";
+  return `From the snapshot${taken}: the directory cannot be searched now (signed out, or it did not answer).`;
+}
+
+/** The lines under the list: where the users came from, then no match or more matches than shown; or no source at all. */
+function SuggestionNote({ suggestions }: { suggestions: Exclude<Suggestions, { kind: "none" }> }) {
+  const lines: string[] = [];
+  if (suggestions.kind === "no-snapshot") {
+    lines.push(
+      "No suggestions: the directory cannot be searched now and this computer has no snapshot. Type the full address.",
+    );
+  } else {
+    const { matches, text } = suggestions;
+    if (matches.users.length === 0) {
+      lines.push(`No user starts with "${text}": a full address still works.`);
+    } else if (matches.more) {
+      lines.push("More users match: type more of the name.");
+    }
+    lines.push(describeSource(matches));
+  }
+  return (
+    <div className="border-t px-2.5 py-1.5 text-xs text-muted-foreground" data-testid="suggestion-note">
+      {lines.map((line) => (
+        <p key={line}>{line}</p>
+      ))}
+    </div>
+  );
 }

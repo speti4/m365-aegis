@@ -45,7 +45,7 @@ describe("the browser mock", () => {
     });
   });
 
-  it("suggests the snapshot's users by a word of the name or the address, and needs a text (task 112)", async () => {
+  it("suggests the directory's users by a word of the name or the address, and needs a text (task 112)", async () => {
     const names = async (text: string) => {
       const reply = await client().call(MessageType.userSearch, { text });
       return reply.type === MessageType.userMatches ? reply.data.users.map((user) => user.displayName) : reply.type;

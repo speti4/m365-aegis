@@ -9,7 +9,7 @@ import { MockTransport } from "../bridge/mock-transport";
 import { type BridgeMessage, MessageType, PROTOCOL_VERSION, parseMessage, readReply } from "../bridge/protocol";
 import { render, settle, type } from "../test/dom";
 import { ScriptedTransport } from "../test/scripted-transport";
-import { DEBOUNCE_MS, pickedAddress, UserPicker } from "./user-picker";
+import { DEBOUNCE_MS, describeSource, pickedAddress, UserPicker } from "./user-picker";
 
 const contracts = path.resolve(__dirname, "../../../../tests/contracts/bridge");
 
@@ -55,7 +55,11 @@ async function picker(transport: MockTransport | ScriptedTransport = new MockTra
   const input = () => rendered.container.querySelector("input") as HTMLInputElement;
   const options = () =>
     [...rendered.container.querySelectorAll('[role="option"]')].map((option) => option.textContent ?? "");
-  const note = () => rendered.container.querySelector("p")?.textContent ?? null;
+  /** The lines under the list, or null when there is none. */
+  const note = () => {
+    const shown = rendered.container.querySelector('[data-testid="suggestion-note"]');
+    return shown ? [...shown.querySelectorAll("p")].map((line) => line.textContent) : null;
+  };
   /** Presses a key in the field; true when the picker took it (the default prevented). */
   const press = async (key: string) => {
     const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
@@ -94,7 +98,11 @@ describe("the user picker", () => {
 
   it("is answered from the bridge sample: the mock's search for 'exa' is the user-matches sample", () => {
     const text = (sample("user-search.json").data as { text: string }).text;
-    const answer = readReply({ aegis: PROTOCOL_VERSION, id: "17", ...mockUserSearch(text, true) });
+    const answer = readReply({
+      aegis: PROTOCOL_VERSION,
+      id: "17",
+      ...mockUserSearch(text, { signedIn: true, snapshot: true }),
+    });
     expect(answer).toEqual(readReply(sample("user-matches.json")));
   });
 
@@ -102,7 +110,7 @@ describe("the user picker", () => {
     const transport = new ScriptedTransport(() => ({
       type: MessageType.userMatches,
       data: {
-        snapshot: "s",
+        source: "graph",
         users: [{ displayName: "Carol Example", userPrincipalName: "carol@contoso.com" }],
         more: false,
       },
@@ -194,24 +202,41 @@ describe("the user picker", () => {
     expect(onPick).not.toHaveBeenCalled();
   });
 
-  it("says when nothing matches, and when the computer has no snapshot", async () => {
+  it("says when nothing matches, and that the directory answered", async () => {
     const empty = await picker();
     await typeAndWait(empty.input(), "zzz");
     expect(empty.options()).toEqual([]);
-    expect(empty.note()).toBe('No user in the snapshot starts with "zzz": a full address still works.');
-    await empty.unmount();
+    expect(empty.note()).toEqual(['No user starts with "zzz": a full address still works.', "From the directory."]);
+  });
 
-    const none = await picker(new MockTransport({ snapshot: false }));
+  it("signed out, suggests from the snapshot and says so, or says there is no source at all", async () => {
+    const offline = await picker(new MockTransport({ signedIn: false }));
+    await typeAndWait(offline.input(), "dav");
+    expect(offline.options()).toEqual(["Dave Exampledave@contoso.com"]);
+    expect(offline.note()).toEqual([
+      "From the snapshot taken 2026-10-31 06:00 UTC: the directory cannot be searched now (signed out, or it did not answer).",
+    ]);
+    await offline.unmount();
+
+    const none = await picker(new MockTransport({ signedIn: false, snapshot: false }));
     await typeAndWait(none.input(), "dav");
-    expect(none.note()).toBe("No snapshot on this computer to suggest from: type the full address.");
+    expect(none.note()).toEqual([
+      "No suggestions: the directory cannot be searched now and this computer has no snapshot. Type the full address.",
+    ]);
     expect(await none.press("ArrowDown")).toBe(false);
+  });
+
+  it("names the snapshot without its time when the reply gives none", () => {
+    expect(describeSource({ source: "snapshot", users: [], more: false })).toBe(
+      "From the snapshot: the directory cannot be searched now (signed out, or it did not answer).",
+    );
   });
 
   it("says when more users match than it lists, and names a user without a display name by the address", async () => {
     const transport = new ScriptedTransport(() => ({
       type: MessageType.userMatches,
       data: {
-        snapshot: "s",
+        source: "graph",
         users: [{ mail: "room@contoso.com" }, { objectId: "00000000-0000-0000-0000-000000000099" }],
         more: true,
       },
@@ -221,7 +246,7 @@ describe("the user picker", () => {
     await typeAndWait(input(), "roo");
 
     expect(options()).toEqual(["room@contoso.com", "00000000-0000-0000-0000-000000000099"]);
-    expect(note()).toBe("More users match: type more of the name.");
+    expect(note()).toEqual(["More users match: type more of the name.", "From the directory."]);
   });
 
   it("drops the answer to an older text, shows no list after a failed search, and clears it under three letters", async () => {
@@ -231,7 +256,7 @@ describe("the user picker", () => {
       settleAfter(() => transport.push({ aegis: PROTOCOL_VERSION, id: transport.sent[index].id, ...reply }));
     const matches = (name: string) => ({
       type: MessageType.userMatches,
-      data: { snapshot: "s", users: [{ displayName: name, userPrincipalName: `${name}@contoso.com` }], more: false },
+      data: { source: "graph", users: [{ displayName: name, userPrincipalName: `${name}@contoso.com` }], more: false },
     });
 
     await typeAndWait(input(), "abc");

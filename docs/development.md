@@ -945,10 +945,15 @@ The messages (tasks 017, 040, 045 and 047; `BridgeMessageType` in C#, `MessageTy
   snapshot of the window's profile, the age on the window's clock. It reads the local file only, so it needs no
   sign-in and starts no session; a user the snapshot does not know is the `not-found` error;
 - `user-search` with `{"text": "<the start of a name, a word of it, a principal name or an address>"}` (task 112),
-  answered with `user-matches` (the core's `UserMatches`: the snapshot's name, the users as `access-report` names its
-  user, and `more` when over eight match) or `no-snapshot`: `SnapshotAccess.FindUsers`, a prefix search over the
-  `objects` of the newest snapshot of the window's profile, users only, in any case, `%`, `_` and `\` matched as
-  themselves; like `access`, the local file only. The command line has no such command: it is the user picker's;
+  answered with `user-matches` (the core's `UserMatches`: the `source` that answered, `graph` or `snapshot`, the
+  snapshot's name and time when it was the snapshot, the users as `access-report` names its user, and `more` when over
+  eight match) or `no-snapshot`. The directory answers first: `UserSearch.FindAsync`, one `/users` request through the
+  window's Graph client and silent sign-in, `$search` over `displayName` (tokenized: a word's start matches),
+  `userPrincipalName` and `mail` (their start), `ConsistencyLevel: eventual` with `$count`, `$orderby=displayName` and
+  `$top=9`, under `User.ReadBasic.All`. Any failure but a usage one (no sign-in, the permission not consented, the
+  network) falls back to `SnapshotAccess.FindUsers`, a prefix search over the `objects` of the newest snapshot of the
+  window's profile, users only, in any case, `%`, `_` and `\` matched as themselves, and `no-snapshot` without one.
+  The command line has no such command: it is the user picker's;
 - the write requests (task 082, [The window's writes](#the-windows-writes)), marked `[BridgeWrite]` in
   `BridgeMessageType` (its `Writes` lists them; `writeRequests` in TypeScript): `mailbox-access-grant` and
   `mailbox-access-revoke` with `{"mailbox": …, "users": […], "rights": ["full-access", "send-as",
@@ -1109,10 +1114,13 @@ mailbox access card's "A user". Once three letters are typed it sends `user-sear
 typed at speed sends one request, and drops an answer to an older text; the list is an ARIA combobox (the arrow keys,
 Enter and Escape on the field, a click on an option), and a pick hands the user principal name (else the address, else
 the object id) to the card, which looks the user up at once. Enter with no option highlighted submits the text as
-typed, so a full address still works; `no-snapshot` and an empty list are a line under the field, and a failed search
-shows nothing (the card's own lookup reports the error). The browser mock answers from the five users of the fixture
-snapshot (`mockUserSearch` in `src/bridge/mock-access.ts`), which a Vitest test holds equal to the `user-matches.json`
-sample.
+typed, so a full address still works. A line under the list names the source ("From the directory.", or "From the
+snapshot taken …: the directory cannot be searched now") and says when nothing matches or more do; `no-snapshot` says
+there is nothing to suggest from, and a failed search shows nothing (the card's own lookup reports the error). The
+browser mock answers from the five `* Example` users of the recorded Graph answers (`mockUserSearch` in
+`src/bridge/mock-access.ts`), from the directory signed in and from its snapshot signed out; a Vitest test holds its
+signed-in answer equal to the `user-matches.json` sample, which a Core test holds to the search over the recorded
+answer.
 
 **A command on a card** (task 104): the wording map rewords a warning that names a command of the command line too,
 not only a flag: the group owner write's last-owner warning (`` `group owners-missing` lists it ``) becomes "To keep
