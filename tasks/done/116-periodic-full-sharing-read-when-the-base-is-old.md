@@ -3,6 +3,7 @@ size: S
 origin: wip/099-incremental-sharing-read-from-the-stored-delta-links.md
 created: 2026-11-01
 started: 2026-11-01
+closed: 2026-11-01
 plan: none
 milestone: M5 Snapshot and views
 ---
@@ -78,6 +79,8 @@ incremental take may start from a base weeks old.
 - 2026-11-01 — the docs: the usage guide's snapshot intro ("take one before you ask"), the age rule and the setting in
   "Only what changed in the libraries", the schedule section framed as the option; the development guide's incremental
   paragraph; the roadmap's M5; the take's budget comment says "a scheduled run". D-011 untouched (no manifest key list).
+- 2026-11-01 — merged in #160 (squash, CI green); closed on `main` by the main session: no follow-up of its own (the
+  live observation of the first `unknown` whole read belongs to the signed-in round of tasks 117 and 108)
 
 ## Deviations from the plan
 
@@ -95,8 +98,8 @@ incremental take may start from a base weeks old.
 
 ## Closing checklist
 
-- [ ] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log (none)
+- [x] every doc under *Docs that move* changed in this change (D-011 named as unchanged on purpose)
+- [x] Verification written, dated
+- [x] `tasks_check` green, README index regenerated
+- [x] moved to `done/` with `closed: 2026-11-01`

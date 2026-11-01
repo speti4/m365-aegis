@@ -37,6 +37,7 @@ not the list. The summary under a heading is written by hand and kept by the gen
 - The access view as a window card ([102](https://github.com/speti4/m365-aegis/blob/main/tasks/done/102-access-view-as-a-window-card.md))
 - `snapshot diff --user <x>`: one person's gained and lost access between two snapshots ([114](https://github.com/speti4/m365-aegis/blob/main/tasks/done/114-snapshot-diff-for-one-user.md))
 - The snapshot diff as a window card ([115](https://github.com/speti4/m365-aegis/blob/main/tasks/done/115-snapshot-diff-as-a-window-card.md))
+- A periodic full sharing read when the incremental base is older than a configured age ([116](https://github.com/speti4/m365-aegis/blob/main/tasks/done/116-periodic-full-sharing-read-when-the-base-is-old.md))
 
 ### M6 Release and team
 
