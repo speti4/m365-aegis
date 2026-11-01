@@ -12,25 +12,36 @@ not the list. The summary under a heading is written by hand and kept by the gen
 ### M3 Writes with safety
 
 - `group owners-missing --all-types` judges a distribution group by its `ManagedBy`, not by Graph's empty list ([089](https://github.com/speti4/m365-aegis/blob/main/tasks/done/089-group-owners-missing-judges-distribution-groups-by-managedby.md))
+- `group owners-missing --all-types` falls back to Graph's list when the account has no Exchange role ([096](https://github.com/speti4/m365-aegis/blob/main/tasks/done/096-owners-missing-all-types-falls-back-to-graph-without-an-exchange-role.md))
 
 ### M4 Window
 
 - The window's plan warnings in the window's own words, not the command line's flags ([090](https://github.com/speti4/m365-aegis/blob/main/tasks/done/090-window-plan-warnings-in-the-windows-own-words.md))
 - The mailbox access card refreshes after a write card applies a change to the mailbox it shows ([091](https://github.com/speti4/m365-aegis/blob/main/tasks/done/091-access-card-refreshes-after-a-write-card-applies.md))
+- The mailbox access card's user view is marked stale after an apply names that user, with a "Read again" button ([103](https://github.com/speti4/m365-aegis/blob/main/tasks/done/103-user-view-marked-stale-after-an-apply-with-a-read-again-button.md))
+- The group writes' last-owner warning in the window's words when a group write card arrives ([104](https://github.com/speti4/m365-aegis/blob/main/tasks/done/104-last-owner-warning-in-the-windows-words.md))
 
 ### M5 Snapshot and views
 
 - `access <user>`: which groups, sites and mailboxes one user reaches, from the snapshot ([084](https://github.com/speti4/m365-aegis/blob/main/tasks/done/084-access-view-for-one-user-from-the-snapshot.md))
 - The snapshot store and `snapshot take`: groups, sites, sharing and mailbox permissions under the home folder ([087](https://github.com/speti4/m365-aegis/blob/main/tasks/done/087-snapshot-store-and-snapshot-take.md))
 - Spike: the sharing-link read for the snapshot, its consent and its time over the tenant ([092](https://github.com/speti4/m365-aegis/blob/main/tasks/done/092-spike-sharing-link-read-for-the-snapshot.md))
+- `snapshot take` reads the Exchange-owned groups' owners in one bulk `Get-DistributionGroup` ([097](https://github.com/speti4/m365-aegis/blob/main/tasks/done/097-snapshot-take-reads-exchange-owners-in-one-bulk-call.md))
+- `snapshot diff <a> <b>`: who gained or lost access between two snapshots ([098](https://github.com/speti4/m365-aegis/blob/main/tasks/done/098-snapshot-diff-who-gained-or-lost-access.md))
+- An incremental sharing read from the delta links the previous snapshot stored ([099](https://github.com/speti4/m365-aegis/blob/main/tasks/done/099-incremental-sharing-read-from-the-stored-delta-links.md))
+- The calendars' folder names in one piped `Get-EXOMailboxFolderStatistics` call ([100](https://github.com/speti4/m365-aegis/blob/main/tasks/done/100-calendar-names-in-one-piped-folder-statistics-call.md))
+- A calendar permission entry's holder is matched by its address, not only by its display name ([101](https://github.com/speti4/m365-aegis/blob/main/tasks/done/101-calendar-entry-holder-matched-by-address.md))
+- The access view as a window card ([102](https://github.com/speti4/m365-aegis/blob/main/tasks/done/102-access-view-as-a-window-card.md))
 
 ### M6 Release and team
 
 - The `home-access` doctor check judges every account that is not the user, SYSTEM or Administrators ([088](https://github.com/speti4/m365-aegis/blob/main/tasks/done/088-home-access-check-judges-every-foreign-account.md))
 - The doctor's `signature` row pins the release certificate's thumbprint ([093](https://github.com/speti4/m365-aegis/blob/main/tasks/done/093-doctor-signature-row-pins-the-release-certificate.md))
 - `scripts/check-fixtures.py` catches two-label domains too ([094](https://github.com/speti4/m365-aegis/blob/main/tasks/done/094-check-fixtures-catches-two-label-domains.md))
+- `release.ps1 -RequireSignature` refuses a certificate whose thumbprint is not the pinned one ([095](https://github.com/speti4/m365-aegis/blob/main/tasks/done/095-release-refuses-a-certificate-that-is-not-the-pinned-one.md))
 - A user-facing README and a setup guide for another tenant's administrator ([106](https://github.com/speti4/m365-aegis/blob/main/tasks/done/106-user-facing-readme-and-setup-guide.md))
 - The setup and usage guides, the license and a readme in the release zip ([107](https://github.com/speti4/m365-aegis/blob/main/tasks/done/107-guides-license-and-readme-in-the-release-zip.md))
+- Doctor: a per-permission consent check that names the missing row of the setup guide's table ([109](https://github.com/speti4/m365-aegis/blob/main/tasks/done/109-doctor-per-permission-consent-check.md))
 
 ### Project housekeeping
 

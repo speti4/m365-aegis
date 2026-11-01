@@ -3,6 +3,7 @@ size: M
 origin: wip/106-user-facing-readme-and-setup-guide.md
 created: 2026-10-31
 started: 2026-10-31
+closed: 2026-11-01
 plan: none
 milestone: M6 Release and team
 ---
@@ -70,6 +71,7 @@ guide's table. The live run over the maintainer's real token is the main session
     two Exchange scopes is checked like the Graph ones.
   - **No implied permission**: `GroupMember.ReadWrite.All` is not taken for `GroupMember.Read.All`; the table is the
     one list, and its Azure CLI block consents to both.
+- 2026-11-01 — merged in #142 (squash); closed on `main` by the main session: of the pull request's follow-ups, the guide's first-run section is task 110 and the roles from the token's `wids` claim task 111 (an idea); the live consent warning (two Graph write permissions not consented) is the maintainer's step in the portal
 
 ## Deviations from the plan
 
@@ -108,4 +110,4 @@ guide's table. The live run over the maintainer's real token is the main session
 - [x] every doc under *Docs that move* changed in this change (`docs/setup.md` not needed: its tables are read as they are)
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-11-01` by the main session after the merge

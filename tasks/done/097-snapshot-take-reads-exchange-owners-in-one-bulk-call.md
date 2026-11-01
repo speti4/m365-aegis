@@ -3,6 +3,7 @@ size: S
 origin: wip/087-snapshot-store-and-snapshot-take.md
 created: 2026-10-31
 started: 2026-10-31
+closed: 2026-11-01
 plan: none
 milestone: M5 Snapshot and views
 ---
@@ -54,6 +55,7 @@ read); the task session owns the steps below and may reshape them. The live befo
   does not list is a `not-found` item, a failed bulk read makes each Exchange-owned group an item that failed. Over the
   fixtures: 2 sidecar calls, the same 5 owner rows (`SnapshotTakeTests`); `SnapshotEdgeTests` hold the missing group,
   the empty `ManagedBy`, the unresolved role group and the failed bulk read
+- 2026-11-01 — merged in #151 (squash); closed on `main` by the main session: no follow-up of its own
 
 ## Deviations from the plan
 
@@ -73,8 +75,8 @@ read); the task session owns the steps below and may reshape them. The live befo
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every follow-up is listed in the pull request under `## Follow-ups`; the main session proposed them and filed the approved ones
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-11-01` by the main session after the merge

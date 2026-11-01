@@ -3,6 +3,7 @@ size: S
 origin: wip/093-doctor-signature-row-pins-the-release-certificate.md
 created: 2026-10-31
 started: 2026-10-31
+closed: 2026-11-01
 plan: none
 milestone: M6 Release and team
 ---
@@ -58,6 +59,7 @@ No live check: the signed dry run with a throwaway certificate is the local matr
   timestamp check; another thumbprint in the seam refused; the seam with `-Tag` refused); the former "without a
   timestamp server" test is the seam's pass now. `docs/development.md`: the `-RequireSignature` sentence, the
   signing tests' list, the rotation steps (pin, secrets, tag) and the doctor section's pointer to them.
+- 2026-11-01 — merged in #142 (squash); closed on `main` by the main session: the ci.yml `windows` job comment now names the pin refusal too (the add commit of 2026-11-01, 85720cb); no other follow-up
 
 ## Deviations from the plan
 
@@ -86,4 +88,4 @@ No live check: the signed dry run with a throwaway certificate is the local matr
 - [x] every doc under *Docs that move* changed in this change (`CONTRIBUTING.md` not needed: the invocation is unchanged)
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-11-01` by the main session after the merge
