@@ -31,28 +31,47 @@ them.
 
 ## Steps
 
-1. [ ] The domain names in the wording map (`plan-wording.ts` or its sibling for the access card), every domain of the
+1. [x] The domain names in the wording map (`plan-wording.ts` or its sibling for the access card), every domain of the
        take covered, the access card's warnings reworded through it
-2. [ ] The Vitest dictionary test of task 104 forbids a bare domain identifier on a card and holds the new entries;
+2. [x] The Vitest dictionary test of task 104 forbids a bare domain identifier on a card and holds the new entries;
        100% coverage held; Biome and the typecheck clean
-3. [ ] The Verification dated; `tasks_check` without `write` clean apart from the stale index
+3. [x] The Verification dated; `tasks_check` without `write` clean apart from the stale index
 
 ## Log
 
 - 2026-11-01 — promoted on `task/112-user-picker-and-window-words` by the main session
+- 2026-11-01 — `snapshotPartNames` in `components/plan-wording.ts`, exported so a later card can name the parts the
+  same way: users "Users", groups "Groups", mailboxes "Mailboxes", members "Group members", userGroups "Nested group
+  memberships", owners "Group owners", teams "Teams", sites "SharePoint sites", sharing "Shared files" (the card's own
+  section title), oneDrive "OneDrive", grants "Mailbox rights", folderPermissions "Calendar permissions", forwarding
+  "Mail forwarding"; `snapshotPart` keeps the store's word for a part the map does not know (an own-property check, so
+  `constructor` is no part).
+- 2026-11-01 — the rewordings: the partial and the failed part start with the window's name ("SharePoint sites: read
+  only in part in this snapshot; …"), and the skipped part (`<part> was not read: <note>`), which passed through
+  unchanged before, becomes "OneDrive: not read in this snapshot; <the take's note>."; the part is captured as a word
+  (`\w+`), so no other warning is taken for one.
+- 2026-11-01 — the test (`plan-wording.test.tsx`) reads the parts from `SnapshotTake.cs` (each `DomainAsync("…"` and
+  the skipped `new SnapshotDomain("…"`): 13, equal to the map's keys; each part through each of the three access
+  warnings starts with its window name; a part's store word before "is partial", "could not be read" or "was not
+  read" is forbidden over every reply sample, the access views and the browser mock's card, beside the flag and the
+  command of task 104.
 
 ## Deviations from the plan
 
-- none yet
+- none
 
 ## Verification
 
-- <dated, concrete: the Vitest run over the samples>
+- 2026-11-01 — `npm run test:coverage` (211 tests, 100% statements, branches, functions, lines), `npm run lint`,
+  `npm run typecheck`: the access card over the mock shows "SharePoint sites: read only in part in this snapshot; 1
+  item(s) could not be read (forbidden 1), …" and "OneDrive: not read in this snapshot; other users' OneDrives need a
+  consent …"; no reply sample, access view or mock card shows a bare part. The command line's text is the core's,
+  unchanged: no C# change for this task, and the Core's `SnapshotAccessTests` still hold the store's words.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green (the stale index is the main session's)
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every doc under *Docs that move* changed in this change (none; `docs/development.md` names the map)
+- [x] Verification written, dated
+- [x] `tasks_check` green (the stale index is the main session's)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge

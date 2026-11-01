@@ -32,27 +32,37 @@ them. The permission map's test (task 109) reads the guide's permissions tables:
 
 ## Steps
 
-1. [ ] The section names the `consent` row as the full-consent check, shows the warn's shape in one line and points at
+1. [x] The section names the `consent` row as the full-consent check, shows the warn's shape in one line and points at
        the table and the consent step of the registration section
-2. [ ] `python -I scripts/check-fixtures.py` passes; the 109 permission map test still passes (the tables unchanged)
-3. [ ] The Verification dated; `tasks_check` without `write` clean apart from the stale index
+2. [x] `python -I scripts/check-fixtures.py` passes; the 109 permission map test still passes (the tables unchanged)
+3. [x] The Verification dated; `tasks_check` without `write` clean apart from the stale index
 
 ## Log
 
 - 2026-11-01 — promoted on `task/112-user-picker-and-window-words` by the main session
+- 2026-11-01 — `docs/setup.md`, "Sign in once and check it": the `whoami` paragraph no longer asks to compare the
+  tokens with the table by hand; a new paragraph, "Check the consent with the doctor's `consent` row", says what the
+  row weighs (each token's permissions against the permissions table), when it passes and when it warns, shows the
+  warn line and its `fix` line as the doctor prints them (the renderer snapshot's example, `AuditLog.Read.All`
+  missing), and leads back to steps 7 to 9 of the portal registration and the Azure CLI block's
+  `Add-DelegatedPermission` and `admin-consent`, then `login` and `doctor` again; a row left out on purpose may stay a
+  warning, and the "no token" part points at the `sign-in` row.
+- 2026-11-01 — `docs/usage.md` unchanged: its doctor table's `consent` row already links the permissions table.
 
 ## Deviations from the plan
 
-- none yet
+- none
 
 ## Verification
 
-- <dated, concrete: the section's lines, the scan and the map test>
+- 2026-11-01 — `python -I scripts/check-fixtures.py` (515 files, 0 findings) and `--self-test`; `dotnet test` with
+  `PermissionMapTests` (task 109) green over the unchanged permissions tables (1590 tests, 0 failed); the anchors
+  `#permissions`, `#in-the-microsoft-entra-admin-center` and `#with-the-azure-cli` are the guide's own headings.
 
 ## Closing checklist
 
-- [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green (the stale index is the main session's)
+- [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
+- [x] every doc under *Docs that move* changed in this change (`docs/usage.md` needed none)
+- [x] Verification written, dated
+- [x] `tasks_check` green (the stale index is the main session's)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
