@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-11-01 — edit the files, not this section._
 
-**State:** 3 backlog (2 ready · 0 blocked · 0 waiting · 1 idea) · 1 in progress · 114 done · 0 dropped · 13 decisions
+**State:** 3 backlog (2 ready · 0 blocked · 0 waiting · 1 idea) · 1 in progress · 114 done · 0 dropped · 14 decisions
 
 ### Ready
 
@@ -79,6 +79,7 @@ _104 more in `done/`._
 
 | # | Decision | Status | Date |
 |---|---|---|---|
+| D-014 | [The snapshot is taken on demand; a schedule is an option, not the model](decisions/D-014-snapshot-on-demand-not-nightly.md) | decided | 2026-11-01 |
 | D-013 | [No Teams chat export, and no managed distribution for now](decisions/D-013-no-teams-chat-export-and-no-managed-distribution-for-now.md) | decided | 2026-11-01 |
 | D-011 | [The snapshot store's format, place, query path and retention](decisions/D-011-snapshot-store-format.md) | decided | 2026-10-31 |
 | D-012 | [The release is signed with a self-signed code-signing certificate the team's machines trust](decisions/D-012-self-signed-release-certificate.md) | decided | 2026-10-30 |

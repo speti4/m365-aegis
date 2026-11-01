@@ -833,8 +833,16 @@ objects by object id, else by kind and address or name. A drive without a link, 
 (`SnapshotTakeOptions.Full`) reads every drive whole. The manifest names the snapshot it started from
 (`sharingBase`) and the drives read incrementally (`incrementalDrives`), and the domain's note counts them, the
 changed items and the drives that fell back. The delta reports what changed under `Sites.Read.All` without
-`Prefer: deltashowsharingchanges`, which needs `Sites.FullControl.All` (D-011 declined it), so a periodic `--full`
-take stays the safety net. The store's format is unchanged: no table or column, only manifest keys.
+`Prefer: deltashowsharingchanges`, which needs `Sites.FullControl.All` (D-011 declined it), so a periodic whole read
+is the safety net, and since task 116 the take runs it on its own: the manifest carries the time of the last take that
+read every drive whole (`sharingWholeRead`, the take's own time after a whole read, else the base's), and a take whose
+base's time is `fullSharingDays` or more days old (`TenantProfile.FullSharingDays`, `SnapshotTake.FullSharingDaysOf`:
+the profile's `fullSharingDays` in `config.json`, default 7, 1 or more, validated with the retention before any
+network call) reads every drive whole, as does one whose base has no such time (taken before task 116). The reason
+of a whole read is `sharingWholeReason` (`full`, `no-base`, `age`, `unknown`; absent in an incremental take), and the
+domain's note says it for `age` and `unknown`, so `snapshot take` and `snapshot show` show it. The chain is ad hoc by
+design (D-014): a base weeks old is the case the age catches. The store's format is unchanged: no table or column,
+only manifest keys.
 
 **The calendar holders.** A `folderPermissions` row names the holder as the service does (`principalName`) and
 links it to `objects` when one answers to it (task 101): by the `PrimarySmtpAddress` of the Admin API's `User` object

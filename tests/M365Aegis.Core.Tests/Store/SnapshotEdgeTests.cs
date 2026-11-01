@@ -167,6 +167,13 @@ public sealed class SnapshotEdgeTests
         Assert.Equal(new SnapshotRetention(3, 1), SnapshotTake.RetentionOf(profile with { KeepDaily = 3, KeepWeekly = 1 }));
         Assert.Equal(FailureKind.Usage, Assert.Throws<AegisException>(() => SnapshotTake.RetentionOf(profile with { KeepDaily = 0 })).Failure.Kind);
         Assert.Equal(FailureKind.Usage, Assert.Throws<AegisException>(() => SnapshotTake.RetentionOf(profile with { KeepWeekly = -1 })).Failure.Kind);
+
+        // The whole-read age of the sharing read (task 116): a week unless the profile says otherwise, 1 or more.
+        Assert.Equal(7, SnapshotTake.FullSharingDaysOf(profile));
+        Assert.Equal(30, SnapshotTake.FullSharingDaysOf(profile with { FullSharingDays = 30 }));
+        AegisException zero = Assert.Throws<AegisException>(() => SnapshotTake.FullSharingDaysOf(profile with { FullSharingDays = 0 }));
+        Assert.Equal(FailureKind.Usage, zero.Failure.Kind);
+        Assert.Equal("the profile 'contoso' reads the shared files whole every 0 day(s); it is 1 or more", zero.Message);
     }
 
     [Fact]
@@ -176,17 +183,21 @@ public sealed class SnapshotEdgeTests
         var store = new ProfileStore(home);
         store.Save(SnapshotSamples.Profile);
         Assert.Null(store.Resolve("contoso").KeepDaily);
-        File.WriteAllText(store.Path, File.ReadAllText(store.Path).Replace("\"account\"", "\"keepDaily\": 3, \"keepWeekly\": 2, \"account\"", StringComparison.Ordinal));
+        Assert.Null(store.Resolve("contoso").FullSharingDays);
+        File.WriteAllText(store.Path, File.ReadAllText(store.Path).Replace("\"account\"", "\"keepDaily\": 3, \"keepWeekly\": 2, \"fullSharingDays\": 14, \"account\"", StringComparison.Ordinal));
 
         store.Save(SnapshotSamples.Profile with { Account = "bob@contoso.com" });
         TenantProfile kept = store.Resolve("contoso");
         store.Save(SnapshotSamples.Profile with { KeepDaily = 7 });
         TenantProfile daily = store.Resolve(null);
         store.Save(SnapshotSamples.Profile with { KeepWeekly = 5 });
+        TenantProfile weekly = store.Resolve(null);
+        store.Save(SnapshotSamples.Profile with { FullSharingDays = 3 });
 
-        Assert.Equal(("bob@contoso.com", 3, 2), (kept.Account, kept.KeepDaily, kept.KeepWeekly));
-        Assert.Equal((7, 2), (daily.KeepDaily, daily.KeepWeekly));
-        Assert.Equal((7, 5), (store.Resolve(null).KeepDaily, store.Resolve(null).KeepWeekly));
+        Assert.Equal(("bob@contoso.com", 3, 2, 14), (kept.Account, kept.KeepDaily, kept.KeepWeekly, kept.FullSharingDays));
+        Assert.Equal((7, 2, 14), (daily.KeepDaily, daily.KeepWeekly, daily.FullSharingDays));
+        Assert.Equal((7, 5, 14), (weekly.KeepDaily, weekly.KeepWeekly, weekly.FullSharingDays));
+        Assert.Equal(3, store.Resolve(null).FullSharingDays);
     }
 
     [Theory]

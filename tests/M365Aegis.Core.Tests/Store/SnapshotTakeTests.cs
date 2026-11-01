@@ -1,3 +1,4 @@
+using M365Aegis.Core.Config;
 using M365Aegis.Core.Exchange;
 using M365Aegis.Core.Exchange.AdminApi;
 using M365Aegis.Core.Graph;
@@ -136,11 +137,24 @@ public sealed class SnapshotTakeTests
         List<string> expected = Strings(before, Links);
         Assert.Equal(5, expected.Count);
         Assert.Equal(expected, Strings(connection, Links));
+        // The whole-read time is the seed's, carried (task 116); an incremental take names no reason for a whole read.
         Assert.Equal(
             ["deltaLink.drive-finance https://graph.microsoft.com/v1.0/drives/drive-finance/root/delta?token=delta-finance-2",
              "deltaLink.drive-phoenix https://graph.microsoft.com/v1.0/drives/drive-phoenix/root/delta?token=delta-phoenix-2",
-             "deltaLinks whole-drives", "incrementalDrives drive-finance,drive-phoenix", "sharingBase 2026-10-31T060000Z.sqlite"],
-            Strings(connection, "select key || ' ' || value from manifest where key like 'delta%' or key in ('incrementalDrives', 'sharingBase') order by key"));
+             "deltaLinks whole-drives", "incrementalDrives drive-finance,drive-phoenix", "sharingBase 2026-10-31T060000Z.sqlite",
+             "sharingWholeRead 2026-10-31T06:00:00.0000000Z"],
+            SharingManifest(connection));
+    }
+
+    /// <summary>The manifest's sharing keys of a snapshot (the delta links, the base, the whole read and its reason), <c>key value</c>, by key.</summary>
+    private static List<string> SharingManifest(SqliteConnection connection) =>
+        Strings(connection, "select key || ' ' || value from manifest where key like 'delta%' or key like 'sharing%' or key = 'incrementalDrives' order by key");
+
+    private static async Task<List<string>> SharingManifestAsync(string file)
+    {
+        await using var connection = new SqliteConnection($"Data Source={file};Mode=ReadOnly;Pooling=False");
+        await connection.OpenAsync(Ct);
+        return SharingManifest(connection);
     }
 
     [Fact]
@@ -157,6 +171,76 @@ public sealed class SnapshotTakeTests
 
         SnapshotDomain sharing = take.Domains.Single(domain => domain.Name == "sharing");
         Assert.Equal((SnapshotDomainStatus.Ok, 7, null), (sharing.Status, sharing.Rows, sharing.Note));
+        // The whole read is this take's, and the flag is its reason (task 116).
+        Assert.Equal(
+            ["sharingWholeRead 2026-11-01T06:00:00.0000000Z", "sharingWholeReason full"],
+            (await SharingManifestAsync(take.Path)).Where(line => line.StartsWith("sharingWhole", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task ATakeReadsEveryDriveWholeAgainWhenTheLastWholeReadIsOld()
+    {
+        string home = SnapshotSamples.WriteProfile(PlanSamples.TempHome());
+        TenantProfile profile = SnapshotSamples.Profile with { FullSharingDays = 2 };
+        string seed = await SnapshotSamples.SeedAsync(home);
+        // The seed is a first take: nothing to start from, so every drive was read whole at its time.
+        Assert.Equal(
+            ["sharingWholeRead 2026-10-31T06:00:00.0000000Z", "sharingWholeReason no-base"],
+            (await SharingManifestAsync(seed)).Where(line => line.StartsWith("sharingWhole", StringComparison.Ordinal)));
+
+        // A day later: incremental, the whole-read time carried.
+        SnapshotTakeResult first = (await SnapshotSamples.TakeAsync(home, SnapshotSamples.Taken.AddDays(1), profile)).Data!;
+        Assert.Equal("2 of 2 drive(s) read incrementally from 2026-10-31T060000Z.sqlite, 2 changed item(s)", first.Domains.Single(domain => domain.Name == "sharing").Note);
+        Assert.Equal(
+            ["incrementalDrives drive-finance,drive-phoenix", "sharingBase 2026-10-31T060000Z.sqlite", "sharingWholeRead 2026-10-31T06:00:00.0000000Z"],
+            (await SharingManifestAsync(first.Path)).Where(line => !line.StartsWith("delta", StringComparison.Ordinal)));
+
+        // Two days later the last whole read is as old as the profile allows: every drive is read whole, and the manifest says why.
+        (GraphClient client, FixtureGraphTransport transport) = GraphFixtures.Client();
+        var backends = new ExchangeBackends(SidecarFixtures.Session(), AdminApiConnection.Fixtures(GraphFixtures.Root), () => client, () => SidecarFixtures.Session());
+        SnapshotTakeResult whole = (await SnapshotSamples.TakeAsync(home, SnapshotSamples.Taken.AddDays(2), profile, backends)).Data!;
+        SnapshotDomain sharing = whole.Domains.Single(domain => domain.Name == "sharing");
+        Assert.Equal(
+            (SnapshotDomainStatus.Ok, 7, "every drive read whole: the last whole read is 2 day(s) old, and the profile reads whole every 2 day(s)"),
+            (sharing.Status, sharing.Rows, sharing.Note));
+        Assert.Equal(
+            ["sharingWholeRead 2026-11-02T06:00:00.0000000Z", "sharingWholeReason age"],
+            (await SharingManifestAsync(whole.Path)).Where(line => !line.StartsWith("delta", StringComparison.Ordinal)));
+        // The whole read's pages (Finance has two), never a stored delta link's token.
+        List<Uri> deltas = transport.Requests.Select(request => request.Uri).Where(uri => uri.AbsolutePath.EndsWith("/root/delta", StringComparison.Ordinal)).ToList();
+        Assert.Equal(3, deltas.Count);
+        Assert.All(deltas, uri => Assert.Contains("$top=1000", Uri.UnescapeDataString(uri.Query), StringComparison.Ordinal));
+        Assert.DoesNotContain(deltas, uri => uri.Query.Contains("token=delta-", StringComparison.Ordinal));
+
+        // The day after, incremental again from the whole read.
+        SnapshotTakeResult next = (await SnapshotSamples.TakeAsync(home, SnapshotSamples.Taken.AddDays(3), profile)).Data!;
+        Assert.Equal("2 of 2 drive(s) read incrementally from 2026-11-02T060000Z.sqlite, 2 changed item(s)", next.Domains.Single(domain => domain.Name == "sharing").Note);
+        Assert.Contains("sharingWholeRead 2026-11-02T06:00:00.0000000Z", await SharingManifestAsync(next.Path));
+    }
+
+    [Fact]
+    public async Task ATakeReadsEveryDriveWholeWhenTheBaseDoesNotSayWhenItWasReadWhole()
+    {
+        string home = SnapshotSamples.WriteProfile(PlanSamples.TempHome());
+        string seed = await SnapshotSamples.SeedAsync(home);
+        // A snapshot taken before task 116 has no whole-read time.
+        await using (var connection = new SqliteConnection($"Data Source={seed};Pooling=False"))
+        {
+            await connection.OpenAsync(Ct);
+            using SqliteCommand command = connection.CreateCommand();
+            command.CommandText = $"delete from manifest where key = '{SharingBase.WholeReadKey}'";
+            await command.ExecuteNonQueryAsync(Ct);
+        }
+
+        SnapshotTakeResult take = (await SnapshotSamples.TakeAsync(home, SnapshotSamples.Taken.AddDays(1))).Data!;
+
+        SnapshotDomain sharing = take.Domains.Single(domain => domain.Name == "sharing");
+        Assert.Equal(
+            (SnapshotDomainStatus.Ok, 7, "every drive read whole: 2026-10-31T060000Z.sqlite does not say when its drives were last read whole"),
+            (sharing.Status, sharing.Rows, sharing.Note));
+        Assert.Equal(
+            ["sharingWholeRead 2026-11-01T06:00:00.0000000Z", "sharingWholeReason unknown"],
+            (await SharingManifestAsync(take.Path)).Where(line => !line.StartsWith("delta", StringComparison.Ordinal)));
     }
 
     [Fact]

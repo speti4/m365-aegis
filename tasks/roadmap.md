@@ -35,8 +35,8 @@ colleague grants FullAccess on a shared mailbox from the window without touching
 
 ## M5 Snapshot and views
 
-A nightly snapshot of groups, sites, sharing and mailbox permissions, and the cross-workload "who can reach
-what" view (the Teams chat export once listed here is out of scope, D-013). Done when the access view answers
+A snapshot of groups, sites, sharing and mailbox permissions, taken on demand or on a schedule (D-014), and the
+cross-workload "who can reach what" view (the Teams chat export once listed here is out of scope, D-013). Done when the access view answers
 for one user from the snapshot in a second.
 
 ## M6 Release and team
