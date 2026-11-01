@@ -20,6 +20,8 @@ not the list. The summary under a heading is written by hand and kept by the gen
 - The mailbox access card refreshes after a write card applies a change to the mailbox it shows ([091](https://github.com/speti4/m365-aegis/blob/main/tasks/done/091-access-card-refreshes-after-a-write-card-applies.md))
 - The mailbox access card's user view is marked stale after an apply names that user, with a "Read again" button ([103](https://github.com/speti4/m365-aegis/blob/main/tasks/done/103-user-view-marked-stale-after-an-apply-with-a-read-again-button.md))
 - The group writes' last-owner warning in the window's words when a group write card arrives ([104](https://github.com/speti4/m365-aegis/blob/main/tasks/done/104-last-owner-warning-in-the-windows-words.md))
+- A user picker shared by the User access and the Mailbox access cards ([112](https://github.com/speti4/m365-aegis/blob/main/tasks/done/112-user-picker-shared-by-the-access-cards.md))
+- The window's own names for the snapshot parts in the access card's warnings ([113](https://github.com/speti4/m365-aegis/blob/main/tasks/done/113-window-names-for-the-snapshot-parts-in-the-access-cards-warnings.md))
 
 ### M5 Snapshot and views
 
@@ -32,6 +34,8 @@ not the list. The summary under a heading is written by hand and kept by the gen
 - The calendars' folder names in one piped `Get-EXOMailboxFolderStatistics` call ([100](https://github.com/speti4/m365-aegis/blob/main/tasks/done/100-calendar-names-in-one-piped-folder-statistics-call.md))
 - A calendar permission entry's holder is matched by its address, not only by its display name ([101](https://github.com/speti4/m365-aegis/blob/main/tasks/done/101-calendar-entry-holder-matched-by-address.md))
 - The access view as a window card ([102](https://github.com/speti4/m365-aegis/blob/main/tasks/done/102-access-view-as-a-window-card.md))
+- `snapshot diff --user <x>`: one person's gained and lost access between two snapshots ([114](https://github.com/speti4/m365-aegis/blob/main/tasks/done/114-snapshot-diff-for-one-user.md))
+- The snapshot diff as a window card ([115](https://github.com/speti4/m365-aegis/blob/main/tasks/done/115-snapshot-diff-as-a-window-card.md))
 
 ### M6 Release and team
 
@@ -42,6 +46,7 @@ not the list. The summary under a heading is written by hand and kept by the gen
 - A user-facing README and a setup guide for another tenant's administrator ([106](https://github.com/speti4/m365-aegis/blob/main/tasks/done/106-user-facing-readme-and-setup-guide.md))
 - The setup and usage guides, the license and a readme in the release zip ([107](https://github.com/speti4/m365-aegis/blob/main/tasks/done/107-guides-license-and-readme-in-the-release-zip.md))
 - Doctor: a per-permission consent check that names the missing row of the setup guide's table ([109](https://github.com/speti4/m365-aegis/blob/main/tasks/done/109-doctor-per-permission-consent-check.md))
+- The setup guide's "Sign in once and check it" points the first run at the doctor's consent row ([110](https://github.com/speti4/m365-aegis/blob/main/tasks/done/110-setup-guide-points-the-first-run-at-the-doctors-consent-row.md))
 
 ### Project housekeeping
 

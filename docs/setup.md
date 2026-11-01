@@ -97,7 +97,7 @@ carries.
 | command group | delegated permission | API | role the account needs |
 | --- | --- | --- | --- |
 | `login`, `whoami`, the window's sign-in | `User.Read` | Microsoft Graph | none |
-| `group members`, `group owners`, `group owners-missing` | `GroupMember.Read.All`, and `User.ReadBasic.All` for the names of members and owners; `Exchange.Manage` for a distribution group's owners (its "managed by") and `--all-types` | Microsoft Graph; Exchange Online for the distribution groups | none for Graph; the Exchange Online read role of the mailbox row for the distribution groups |
+| `group members`, `group owners`, `group owners-missing` | `GroupMember.Read.All`, and `User.ReadBasic.All` for the names of members and owners and for the window's user picker; `Exchange.Manage` for a distribution group's owners (its "managed by") and `--all-types` | Microsoft Graph; Exchange Online for the distribution groups | none for Graph; the Exchange Online read role of the mailbox row for the distribution groups |
 | `team list` | `Team.ReadBasic.All` | Microsoft Graph | none |
 | `site list` | `Sites.Read.All` | Microsoft Graph | none; the list holds the sites the account can open |
 | `signin list`, `audit list` | `AuditLog.Read.All` | Microsoft Graph | Reports Reader, Security Reader or Global Reader; the sign-in log also needs a Microsoft Entra ID P1 or P2 license in the tenant |

@@ -3,6 +3,7 @@ size: M
 origin: wip/102-access-view-as-a-window-card.md
 created: 2026-11-01
 started: 2026-11-01
+closed: 2026-11-01
 plan: none
 milestone: M4 Window
 ---
@@ -95,6 +96,7 @@ them. The maintainer's click-through of the real window is optional and the main
   The mock answers from the directory signed in and from its snapshot signed out.
 - 2026-11-01 — `origin/main` merged (#151, the take's bulk reads): the wording test still reads 13 parts from
   `SnapshotTake.cs`.
+- 2026-11-01 — merged in #152 (squash); closed on `main` by the main session: the maintainer asked for a live directory search before the merge (the picker searches Graph first and falls back to the newest snapshot); of the pull request's follow-ups the OneDrive note on the card is task 118, the live search was done in the rework, the part names were merged by bundle F
 
 ## Deviations from the plan
 
@@ -139,4 +141,4 @@ them. The maintainer's click-through of the real window is optional and the main
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-11-01` by the main session after the merge

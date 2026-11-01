@@ -3,6 +3,7 @@ size: S
 origin: wip/109-doctor-per-permission-consent-check.md
 created: 2026-11-01
 started: 2026-11-01
+closed: 2026-11-01
 plan: none
 milestone: M6 Release and team
 ---
@@ -48,6 +49,7 @@ them. The permission map's test (task 109) reads the guide's permissions tables:
   `Add-DelegatedPermission` and `admin-consent`, then `login` and `doctor` again; a row left out on purpose may stay a
   warning, and the "no token" part points at the `sign-in` row.
 - 2026-11-01 — `docs/usage.md` unchanged: its doctor table's `consent` row already links the permissions table.
+- 2026-11-01 — merged in #152 (squash); closed on `main` by the main session: no follow-up of its own; the permissions table row that would name the window's user picker under `User.ReadBasic.All` was proposed with 112
 
 ## Deviations from the plan
 
@@ -65,4 +67,4 @@ them. The permission map's test (task 109) reads the guide's permissions tables:
 - [x] every doc under *Docs that move* changed in this change (`docs/usage.md` needed none)
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-11-01` by the main session after the merge

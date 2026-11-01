@@ -3,6 +3,7 @@ size: S
 origin: wip/102-access-view-as-a-window-card.md
 created: 2026-11-01
 started: 2026-11-01
+closed: 2026-11-01
 plan: none
 milestone: M4 Window
 ---
@@ -55,6 +56,7 @@ them.
   warnings starts with its window name; a part's store word before "is partial", "could not be read" or "was not
   read" is forbidden over every reply sample, the access views and the browser mock's card, beside the flag and the
   command of task 104.
+- 2026-11-01 — merged in #152 (squash); closed on `main` by the main session: no follow-up of its own
 
 ## Deviations from the plan
 
@@ -76,4 +78,4 @@ them.
 - [x] every doc under *Docs that move* changed in this change (none; `docs/development.md` names the map)
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-11-01` by the main session after the merge

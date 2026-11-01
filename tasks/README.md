@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-11-01 — edit the files, not this section._
 
-**State:** 10 backlog (5 ready · 0 blocked · 0 waiting · 5 ideas) · 0 in progress · 108 done · 0 dropped · 12 decisions
+**State:** 5 backlog (4 ready · 0 blocked · 0 waiting · 1 idea) · 0 in progress · 113 done · 0 dropped · 12 decisions
 
 ### Ready
 
@@ -36,7 +36,6 @@ _Generated 2026-11-01 — edit the files, not this section._
 | # | Task | Size | Created |
 |---|---|---|---|
 | 108 | [Verify the setup guide in a live round: the Azure CLI registration block and th…](backlog/108-verify-the-setup-guide-in-a-live-round.md) | S | 2026-10-31 |
-| 110 | [The setup guide's "Sign in once and check it" points the first run at the docto…](backlog/110-setup-guide-points-the-first-run-at-the-doctors-consent-row.md) | S | 2026-11-01 |
 
 ### Needs decision
 
@@ -47,20 +46,6 @@ _none_
 _none_
 
 ### Ideas
-
-#### M4 Window
-
-| # | Task | Size | Created |
-|---|---|---|---|
-| 112 | [A user picker shared by the User access and the Mailbox access cards](backlog/112-user-picker-shared-by-the-access-cards.md) | M | 2026-11-01 |
-| 113 | [The window's own names for the snapshot parts in the access card's warnings](backlog/113-window-names-for-the-snapshot-parts-in-the-access-cards-warnings.md) | S | 2026-11-01 |
-
-#### M5 Snapshot and views
-
-| # | Task | Size | Created |
-|---|---|---|---|
-| 114 | [snapshot diff --user <x>: one person's gained and lost access between two snaps…](backlog/114-snapshot-diff-for-one-user.md) | S | 2026-11-01 |
-| 115 | [The snapshot diff as a window card](backlog/115-snapshot-diff-as-a-window-card.md) | M | 2026-11-01 |
 
 #### M6 Release and team
 
@@ -80,18 +65,18 @@ _none_
 
 | # | Task | Closed |
 |---|---|---|
+| 115 | [The snapshot diff as a window card](done/115-snapshot-diff-as-a-window-card.md) | 2026-11-01 |
+| 114 | [snapshot diff --user <x>: one person's gained and lost access between two snaps…](done/114-snapshot-diff-for-one-user.md) | 2026-11-01 |
+| 113 | [The window's own names for the snapshot parts in the access card's warnings](done/113-window-names-for-the-snapshot-parts-in-the-access-cards-warnings.md) | 2026-11-01 |
+| 112 | [A user picker shared by the User access and the Mailbox access cards](done/112-user-picker-shared-by-the-access-cards.md) | 2026-11-01 |
+| 110 | [The setup guide's "Sign in once and check it" points the first run at the docto…](done/110-setup-guide-points-the-first-run-at-the-doctors-consent-row.md) | 2026-11-01 |
 | 109 | [Doctor: a per-permission consent check that names the missing row of the setup …](done/109-doctor-per-permission-consent-check.md) | 2026-11-01 |
 | 104 | [The group writes' last-owner warning in the window's words when a group write c…](done/104-last-owner-warning-in-the-windows-words.md) | 2026-11-01 |
 | 103 | [The mailbox access card's user view is marked stale after an apply names that u…](done/103-user-view-marked-stale-after-an-apply-with-a-read-again-button.md) | 2026-11-01 |
 | 102 | [The access view as a window card](done/102-access-view-as-a-window-card.md) | 2026-11-01 |
 | 101 | [A calendar permission entry's holder is matched by its address, not only by its…](done/101-calendar-entry-holder-matched-by-address.md) | 2026-11-01 |
-| 100 | [The calendars' folder names in one piped Get-EXOMailboxFolderStatistics call](done/100-calendar-names-in-one-piped-folder-statistics-call.md) | 2026-11-01 |
-| 099 | [An incremental sharing read from the delta links the previous snapshot stored](done/099-incremental-sharing-read-from-the-stored-delta-links.md) | 2026-11-01 |
-| 098 | [snapshot diff <a> <b>: who gained or lost access between two snapshots](done/098-snapshot-diff-who-gained-or-lost-access.md) | 2026-11-01 |
-| 097 | [snapshot take reads the Exchange-owned groups' owners in one bulk Get-Distribut…](done/097-snapshot-take-reads-exchange-owners-in-one-bulk-call.md) | 2026-11-01 |
-| 096 | [group owners-missing --all-types falls back to Graph's list when the account ha…](done/096-owners-missing-all-types-falls-back-to-graph-without-an-exchange-role.md) | 2026-11-01 |
 
-_98 more in `done/`._
+_103 more in `done/`._
 
 ### Decisions
 

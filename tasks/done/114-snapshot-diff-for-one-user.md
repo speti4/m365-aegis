@@ -3,6 +3,7 @@ size: S
 origin: wip/098-snapshot-diff-who-gained-or-lost-access.md
 created: 2026-11-01
 started: 2026-11-01
+closed: 2026-11-01
 plan: none
 milestone: M5 Snapshot and views
 ---
@@ -76,6 +77,7 @@ changes no table, column or manifest key.
   warning per snapshot and domain, at its first place, naming every section ("the sites and sharedItems rows of those
   items may show as removed or added"); the whole-tenant diff, where one domain rests on it, reads as before.
   `origin/main` merged (bundle A, #151) without a conflict.
+- 2026-11-01 — merged in #156 (squash); closed on `main` by the main session: the partial-domain warnings were folded to one per snapshot and domain after the live check; no follow-up of its own; the two test flakes the pull request names (the sidecar timeout test under local load, the GUI smoke under full redirection) are not filed (the maintainer's call: both pass alone and in CI)
 
 ## Deviations from the plan
 
@@ -109,4 +111,4 @@ changes no table, column or manifest key.
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-11-01` by the main session after the merge

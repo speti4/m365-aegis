@@ -3,6 +3,7 @@ size: M
 origin: wip/098-snapshot-diff-who-gained-or-lost-access.md
 created: 2026-11-01
 started: 2026-11-01
+closed: 2026-11-01
 plan: none
 milestone: M5 Snapshot and views
 ---
@@ -79,6 +80,7 @@ bundles to merge resolves the overlap.
   ("SharePoint sites: read only in part in the snapshot … so rows of Shared files may show as added or removed without
   a change") and its left-out warning ("Groups: not compared; Nested group memberships not read in the snapshot …").
   Git's rename detection carried 114 and 115 into `done/` with the closed tasks; they are back in `wip/`.
+- 2026-11-01 — merged in #156 (squash); closed on `main` by the main session: of the pull request's follow-ups, a snapshot-picker list on the card and the user picker in "Only this user" are not filed (the maintainer's call: the typed picks and the full address serve); the card's part names and warnings go through bundle E's wording map
 
 ## Deviations from the plan
 
@@ -118,4 +120,4 @@ bundles to merge resolves the overlap.
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
 - [x] `tasks_check` green (the stale index is the main session's)
-- [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
+- [x] moved to `done/` with `closed: 2026-11-01` by the main session after the merge
