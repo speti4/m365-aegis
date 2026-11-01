@@ -48,6 +48,7 @@ not the list. The summary under a heading is written by hand and kept by the gen
 - `release.ps1 -RequireSignature` refuses a certificate whose thumbprint is not the pinned one ([095](https://github.com/speti4/m365-aegis/blob/main/tasks/done/095-release-refuses-a-certificate-that-is-not-the-pinned-one.md))
 - A user-facing README and a setup guide for another tenant's administrator ([106](https://github.com/speti4/m365-aegis/blob/main/tasks/done/106-user-facing-readme-and-setup-guide.md))
 - The setup and usage guides, the license and a readme in the release zip ([107](https://github.com/speti4/m365-aegis/blob/main/tasks/done/107-guides-license-and-readme-in-the-release-zip.md))
+- Verify the setup guide in a live round: the Azure CLI registration block and the least role for the message trace ([108](https://github.com/speti4/m365-aegis/blob/main/tasks/done/108-verify-the-setup-guide-in-a-live-round.md))
 - Doctor: a per-permission consent check that names the missing row of the setup guide's table ([109](https://github.com/speti4/m365-aegis/blob/main/tasks/done/109-doctor-per-permission-consent-check.md))
 - The setup guide's "Sign in once and check it" points the first run at the doctor's consent row ([110](https://github.com/speti4/m365-aegis/blob/main/tasks/done/110-setup-guide-points-the-first-run-at-the-doctors-consent-row.md))
 

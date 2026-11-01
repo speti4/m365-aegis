@@ -3,6 +3,7 @@ size: S
 origin: wip/106-user-facing-readme-and-setup-guide.md
 created: 2026-10-31
 started: 2026-11-01
+closed: 2026-11-01
 plan: none
 milestone: M6 Release and team
 ---
@@ -92,6 +93,10 @@ Fifteenth round of 2026-11-01, worked in the main session on its own branch (no 
   `docs/setup.md`; a 500 whose message is "Failed parsing error response" keeps exit code 9 (the service did not say
   the account was refused) with a hint that names the role (`MessageTraceLookup.IsRoleShaped`, both lookups); tests
   for the shaped and a plain 500. `docs/setup.md`: the `trace` row's role cell, the troubleshooting line for the 500.
+- 2026-11-01 — merged in #164 (squash); closed on `main` by the main session. The one follow-up of the pull request
+  (a warning when `mailbox list` answers the signed-in account's mailbox alone, the Admin API's scoped list for an
+  account without a role) is dropped: the tool is for the team's accounts, which hold the role, and the scoped list is
+  the service's own behavior.
 
 ## Deviations from the plan
 
@@ -123,8 +128,8 @@ Fifteenth round of 2026-11-01, worked in the main session on its own branch (no 
 
 ## Closing checklist
 
-- [ ] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] every follow-up is a `backlog/` file (`/tasks add`, approved by the owner) or deleted with a reason in the Log
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
+- [x] `tasks_check` green, README index regenerated
+- [x] moved to `done/` with `closed: 2026-11-01`

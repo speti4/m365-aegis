@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-11-01 — edit the files, not this section._
 
-**State:** 2 backlog (0 ready · 0 blocked · 0 waiting · 2 ideas) · 1 in progress · 116 done · 0 dropped · 14 decisions
+**State:** 2 backlog (0 ready · 0 blocked · 0 waiting · 2 ideas) · 0 in progress · 117 done · 0 dropped · 14 decisions
 
 ### Ready
 
@@ -44,11 +44,7 @@ _none_
 
 ### In progress
 
-#### M6 Release and team
-
-| # | Task | Started | Plan |
-|---|---|---|---|
-| 108 | [Verify the setup guide in a live round: the Azure CLI registration block and th…](wip/108-verify-the-setup-guide-in-a-live-round.md) | 2026-11-01 | `none` |
+_none_
 
 ### Closed – do not reopen
 
@@ -67,9 +63,9 @@ _none_
 | 112 | [A user picker shared by the User access and the Mailbox access cards](done/112-user-picker-shared-by-the-access-cards.md) | 2026-11-01 |
 | 110 | [The setup guide's "Sign in once and check it" points the first run at the docto…](done/110-setup-guide-points-the-first-run-at-the-doctors-consent-row.md) | 2026-11-01 |
 | 109 | [Doctor: a per-permission consent check that names the missing row of the setup …](done/109-doctor-per-permission-consent-check.md) | 2026-11-01 |
-| 104 | [The group writes' last-owner warning in the window's words when a group write c…](done/104-last-owner-warning-in-the-windows-words.md) | 2026-11-01 |
+| 108 | [Verify the setup guide in a live round: the Azure CLI registration block and th…](done/108-verify-the-setup-guide-in-a-live-round.md) | 2026-11-01 |
 
-_106 more in `done/`._
+_107 more in `done/`._
 
 ### Decisions
 
