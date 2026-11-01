@@ -99,7 +99,6 @@ public sealed class BridgeWriteAttribute : Attribute;
 /// <see cref="Ping"/>, <see cref="WhoAmI"/>, <see cref="Login"/>, <see cref="OpenSignInPage"/>, <see cref="Logout"/>,
 /// <see cref="GroupMembers"/>, <see cref="MailboxList"/>, <see cref="MailboxAccess"/>, <see cref="Access"/>,
 /// <see cref="UserSearch"/> and <see cref="SnapshotDiff"/>, the write requests
-
 /// (<see cref="Writes"/>: <see cref="MailboxAccessGrant"/>, <see cref="MailboxAccessRevoke"/>,
 /// <see cref="MailboxForwardingSet"/>, <see cref="MailboxForwardingClear"/>) and <see cref="ApplyPlan"/>; the host
 /// answers each request with one reply of the type named here, or with <see cref="Error"/>, and sends
