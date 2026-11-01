@@ -44,7 +44,7 @@ reshape them. The live second take on an unchanged day is the main session's.
        the full read; the manifest names the incremental drives
 3. [x] Fixtures: a second delta page with one changed and one removed item; the Core tests hold that the second take
        reads that item's permissions only and gives the same rows as a full take
-4. [ ] The live second take on an unchanged day (the main session's numbers) in the Verification; docs under *Docs
+4. [x] The live second take on an unchanged day (the main session's numbers) in the Verification; docs under *Docs
        that move*; `tasks_check` without `write` clean apart from the stale index
 
 ## Log
@@ -70,6 +70,10 @@ reshape them. The live second take on an unchanged day is the main session's.
   take of the changed state (a link changed, an item removed, one newly shared, one item twice in the delta) and reads
   a drive whose delta answers 410 whole; the base rule passes over an unreadable file, a snapshot whose sharing failed
   and a partial one without the marker, and uses a partial one with it, its failed drive read whole
+- 2026-11-01 — live order of the takes: the baseline snapshot (build `5a30bc7`) has a partial sharing domain (one
+  throttled drive) and no `deltaLinks` = `whole-drives` marker, so the rule passes it over as a base; the after-take
+  ran with `--full` (a measured whole read, and no older `ok` snapshot could serve), and the incremental take started
+  from it
 - 2026-11-01 — merged `origin/main` (the round's other three bundles) into the branch; the conflict in the Cli's
   snapshot command (`diff` next to `--full`) kept both
 
@@ -83,12 +87,21 @@ reshape them. The live second take on an unchanged day is the main session's.
 
 ## Verification
 
-- <dated, concrete: the sharing domain's time and permission call count of a full and of an incremental live take>
+- 2026-11-01 — live, the main session, cached token, build `46118d7` (tenant counts rounded): the full sharing read
+  (`snapshot take --full`) took 1,086,649 ms with 500 Graph requests, 887,415 ms of it waiting on `Retry-After`, ok,
+  some 21,000 rows. The incremental take right after it took 4,827 ms with 108 Graph requests and no throttling, ok,
+  the same order of rows; its note said every drive (about a hundred) was read incrementally from the after-take,
+  26 changed items, and no drive fell back to a whole read. That is about 225 times faster, two orders of magnitude.
+  The whole take went from 24.2 to 7.5 minutes, the calendars' Admin API reads now most of it
+- 2026-11-01 — live: `snapshot diff <after-take> latest` (task 098's diff) between the full and the incremental take
+  found no change in members, owners, sharing, grants, folderPermissions or forwarding, only the two forbidden
+  sites both takes share: the changed items read again gave the same sharing rows
+- 2026-11-01 — local, merged tree: the matrix of task 097's Verification
 
 ## Closing checklist
 
 - [ ] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
-- [ ] every doc under *Docs that move* changed in this change
-- [ ] Verification written, dated
-- [ ] `tasks_check` green (the stale index is the main session's)
+- [x] every doc under *Docs that move* changed in this change
+- [x] Verification written, dated
+- [x] `tasks_check` green (the stale index is the main session's)
 - [ ] moved to `done/` with `closed: YYYY-MM-DD` by the main session after the merge
