@@ -73,8 +73,9 @@ internal static class SnapshotCommand
     }
 
     /// <summary>
-    /// <c>snapshot diff &lt;a&gt; [&lt;b&gt;]</c> (task 098): what appeared and disappeared from the first snapshot to the
-    /// second (the newest when omitted), per domain; it reads the two files only (<c>local</c>).
+    /// <c>snapshot diff &lt;a&gt; [&lt;b&gt;] [--user &lt;x&gt;]</c> (task 098): what appeared and disappeared from the first
+    /// snapshot to the second (the newest when omitted), per domain, or for one user in the access view's sections
+    /// (task 114); it reads the two files only (<c>local</c>).
     /// </summary>
     private static Command Diff(Option<bool> json, Option<bool> table, Option<string?> profile)
     {
@@ -88,9 +89,14 @@ internal static class SnapshotCommand
             Arity = ArgumentArity.ZeroOrOne,
             DefaultValueFactory = _ => SnapshotDiff.Latest,
         };
+        Option<string?> user = new("--user")
+        {
+            Description = "Only what this user gained or lost (user principal name, address or object id), nested memberships and what comes through them included.",
+        };
         Command diff = new("diff", "Show who gained or lost access between two snapshots: memberships, owners, sharing, mailbox rights, calendars, forwarding.");
         diff.Arguments.Add(from);
         diff.Arguments.Add(to);
+        diff.Options.Add(user);
         diff.SetAction(parsed => CommandRunner.Run(
             Program.ResolveMode(parsed, json, table),
             Backend.Local,
@@ -98,7 +104,7 @@ internal static class SnapshotCommand
             {
                 string home = AegisHome.Resolve();
                 string name = SnapshotStore.ProfileName(home, parsed.GetValue(profile));
-                return CommandResult.Success(SnapshotDiff.Compare(home, name, parsed.GetValue(from)!, parsed.GetValue(to)!, DateTimeOffset.UtcNow));
+                return CommandResult.Success(SnapshotDiff.Compare(home, name, parsed.GetValue(from)!, parsed.GetValue(to)!, DateTimeOffset.UtcNow, parsed.GetValue(user)));
             },
             SnapshotDiffTableView.Instance));
         return diff;
@@ -258,7 +264,8 @@ internal sealed class SnapshotDetailTableView : ITableView<SnapshotDetail>
 /// <summary>
 /// The table of <c>snapshot diff</c>: a row per membership, owner, shared item's grantee, mailbox right, calendar
 /// permission or forwarding that appeared or disappeared; the two snapshots, the counts per domain and the warnings
-/// under it.
+/// under it. One user's diff (task 114) has a section column and a <c>through</c> column (the group a row comes
+/// through, or <c>direct</c>), and names the user under it.
 /// </summary>
 internal sealed class SnapshotDiffTableView : ITableView<SnapshotDiffReport>
 {
@@ -270,17 +277,28 @@ internal sealed class SnapshotDiffTableView : ITableView<SnapshotDiffReport>
 
     public IReadOnlyList<string> Headers => ["domain", "change", "what", "who", "how"];
 
-    public IEnumerable<IReadOnlyList<string>> Rows(SnapshotDiffReport data) => data.Changes.Select(change => (IReadOnlyList<string>)
-    [
-        change.Domain,
-        change.Change == SnapshotChange.Added ? "added" : "removed",
-        change.What,
-        change.Who,
-        change.How,
-    ]);
+    public IReadOnlyList<string> HeadersFor(SnapshotDiffReport data) => data.User is null ? Headers : ["section", "change", "what", "who", "how", "through"];
+
+    public IEnumerable<IReadOnlyList<string>> Rows(SnapshotDiffReport data) => data.Changes.Select(change =>
+    {
+        IReadOnlyList<string> row =
+        [
+            change.Domain,
+            change.Change == SnapshotChange.Added ? "added" : "removed",
+            change.What,
+            change.Who,
+            change.How,
+        ];
+        return data.User is null ? row : [.. row, change.Through ?? "direct"];
+    });
 
     public IEnumerable<string> Footer(SnapshotDiffReport data)
     {
+        if (data.User is { } user)
+        {
+            yield return $"for {user.UserPrincipalName ?? user.Mail ?? user.ObjectId}{(user.DisplayName is { } display ? $" ({display})" : "")}, nested memberships and what comes through them included";
+        }
+
         yield return $"from {Side(data.From)} to {Side(data.To)}";
         IEnumerable<string> counts = data.Domains
             .Where(domain => domain.Compared)

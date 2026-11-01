@@ -97,8 +97,8 @@ public sealed class BridgeWriteAttribute : Attribute;
 /// <summary>
 /// The message types of the protocol. The front end sends <see cref="Ready"/> (a notification) and the requests
 /// <see cref="Ping"/>, <see cref="WhoAmI"/>, <see cref="Login"/>, <see cref="OpenSignInPage"/>, <see cref="Logout"/>,
-/// <see cref="GroupMembers"/>, <see cref="MailboxList"/>, <see cref="MailboxAccess"/>, <see cref="Access"/> and
-/// <see cref="UserSearch"/>, the write requests
+/// <see cref="GroupMembers"/>, <see cref="MailboxList"/>, <see cref="MailboxAccess"/>, <see cref="Access"/>,
+/// <see cref="UserSearch"/> and <see cref="SnapshotDiff"/>, the write requests
 /// (<see cref="Writes"/>: <see cref="MailboxAccessGrant"/>, <see cref="MailboxAccessRevoke"/>,
 /// <see cref="MailboxForwardingSet"/>, <see cref="MailboxForwardingClear"/>) and <see cref="ApplyPlan"/>; the host
 /// answers each request with one reply of the type named here, or with <see cref="Error"/>, and sends
@@ -228,6 +228,25 @@ public static class BridgeMessageType
     public const string UserMatches = "user-matches";
 
     /// <summary>
+    /// Asks what appeared and disappeared between two snapshots of the window's profile, as <c>snapshot diff</c> reads it
+    /// (task 115 over task 098's read, and task 114's for one user): the local files only, no sign-in and no request to
+    /// any service. The payload is a <see cref="SnapshotDiffRequest"/>, every field optional: the newest snapshot and the
+    /// one before it by default. Answered with <see cref="SnapshotDiffReport"/>, or with <see cref="TooFewSnapshots"/>
+    /// when there are not two to compare.
+    /// </summary>
+    public const string SnapshotDiff = "snapshot-diff";
+
+    /// <summary>What appeared and disappeared: a <see cref="Snapshots.SnapshotDiffReport"/> as the payload.</summary>
+    public const string SnapshotDiffReport = "snapshot-diff-report";
+
+    /// <summary>
+    /// The profile has fewer than two snapshots to compare (or none before the one named): a
+    /// <see cref="TooFewSnapshotsInfo"/> as the payload. A state of the card, as <see cref="NoSnapshot"/> is one.
+    /// </summary>
+    public const string TooFewSnapshots = "too-few-snapshots";
+
+
+    /// <summary>
     /// Plans a grant of mailbox rights as <c>mailbox access grant</c> does (task 082); the payload is a
     /// <see cref="MailboxAccessWriteRequest"/>. Answered with <see cref="Plan"/>.
     /// </summary>
@@ -303,6 +322,19 @@ public sealed record UserSearchRequest(string? Text);
 /// <param name="Message">That there is none, one sentence.</param>
 /// <param name="Hint">What to do about it, in the window's words.</param>
 public sealed record NoSnapshotInfo(string Profile, string Message, string Hint);
+
+/// <summary>The payload of a <see cref="BridgeMessageType.SnapshotDiff"/> request; a blank or missing field takes its default.</summary>
+/// <param name="From">The first snapshot, picked as <c>snapshot diff</c> picks one; the one before <paramref name="To"/> when missing.</param>
+/// <param name="To">The second snapshot; the newest when missing.</param>
+/// <param name="User">One user's changes only (task 114): a user principal name, an address or an object id.</param>
+public sealed record SnapshotDiffRequest(string? From, string? To, string? User);
+
+/// <summary>The payload of a <see cref="BridgeMessageType.TooFewSnapshots"/> reply.</summary>
+/// <param name="Profile">The tenant profile whose snapshots were looked for.</param>
+/// <param name="Snapshots">How many readable snapshots the profile has on this computer.</param>
+/// <param name="Message">Why there is nothing to compare, one sentence.</param>
+/// <param name="Hint">What to do about it, in the window's words.</param>
+public sealed record TooFewSnapshotsInfo(string Profile, int Snapshots, string Message, string Hint);
 
 /// <summary>The payload of a <see cref="BridgeMessageType.Login"/> request; none is a sign-in through the broker.</summary>
 /// <param name="DeviceCode">Skip the broker and sign in through a browser with a device code.</param>

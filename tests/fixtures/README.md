@@ -248,4 +248,7 @@ Phoenix, carol no longer owns Finance EU and dave owns Project Phoenix, the orga
 and bob holds the users link on `Roadmap.pptx`, Finance Staff lost Reception's FullAccess and dave got Finance's,
 carol's `Default` calendar entry went from free/busy to Reviewer, bob's external forwarding is gone and alice forwards
 to carol, keeping a copy. The group Finance is renamed Finance Team and every integer key is moved by 100, which
-`snapshot diff` must not show as changes.
+`snapshot diff` must not show as changes. Task 114 adds a new group, Audit (`…-000000000037`): bob is its member and
+Audit is a member of Finance Staff, so bob gains Finance Staff through Audit, and with it the users link on
+`Roadmap.pptx` and carol's calendar; `userGroups` follows the new memberships as a take computes it, so `snapshot
+diff --user bob@contoso.com` lists those rows with the group they come through.

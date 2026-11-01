@@ -1,4 +1,6 @@
 import { mockAccess, mockUserSearch } from "./mock-access";
+import { mockDiff } from "./mock-snapshot-diff";
+
 import { type MockForwarding, MockWrites, mockForwarding } from "./mock-writes";
 import {
   type BridgeError,
@@ -155,7 +157,7 @@ export interface MockOptions {
   delayMs?: number;
   /** Whether the mock starts signed in (the default) or signed out. */
   signedIn?: boolean;
-  /** Whether the profile has a snapshot for the access card (the default) or none (task 102). */
+  /** Whether the profile has snapshots for the access and the diff cards (the default) or none (tasks 102, 115). */
   snapshot?: boolean;
 }
 
@@ -166,7 +168,10 @@ export interface MockOptions {
  * mailboxes of the fake Exchange Online module, and the mailbox writes planned over them and applied only with the
  * confirmation (`MockWrites`, task 082); an apply changes this mock's own holders and forwarding, so a lookup after it
  * shows the change (task 091), and dave's access from the snapshot (`mock-access.ts`, task 102), signed in or not, or the
- * answer without a snapshot, and the user picker's search, from the directory signed in and from the snapshot signed out (task 112). Anything else is not found, an unknown type an error.
+ * answer without a snapshot, the user picker's search, from the directory signed in and from the snapshot signed
+ * out (task 112), and the changes between two snapshots (`mock-snapshot-diff.ts`, task 115). Anything else is not
+ * found, an unknown type an error.
+
  */
 export class MockTransport implements Transport {
   private handlers: Array<(message: BridgeMessage) => void> = [];
@@ -331,6 +336,9 @@ export class MockTransport implements Transport {
         return mockAccess(text("user"), this.snapshot);
       case MessageType.userSearch:
         return mockUserSearch(text("text"), { signedIn: this.signedIn, snapshot: this.snapshot });
+      case MessageType.snapshotDiff:
+        return mockDiff(text("user"), this.snapshot);
+
       case MessageType.mailboxAccessGrant:
       case MessageType.mailboxAccessRevoke:
       case MessageType.mailboxForwardingSet:

@@ -45,6 +45,20 @@ export function snapshotPart(part: string): string {
   return Object.hasOwn(snapshotPartNames, part) ? snapshotPartNames[part] : part;
 }
 
+/** One user's sections of a snapshot diff (task 114) that are no part of the snapshot by that name: the part each reads. */
+const diffSectionParts: Readonly<Record<string, string>> = {
+  sharedItems: "sharing",
+  calendars: "folderPermissions",
+};
+
+/**
+ * A part a snapshot diff compares as the access changes card names it (task 115): a part of the snapshot, or one
+ * user's section by the part it reads; a name neither knows keeps the core's word.
+ */
+export function diffPart(name: string): string {
+  return snapshotPart(Object.hasOwn(diffSectionParts, name) ? diffSectionParts[name] : name);
+}
+
 interface Rewording {
   /** The core's sentence, its variable parts captured in order. */
   core: RegExp;
@@ -87,6 +101,21 @@ const rewordings: readonly Rewording[] = [
     // SnapshotAccess, a part the take did not read, with the take's own note, which stays the take's (task 113).
     core: /^(\w+) was not read: (.+)$/s,
     window: (part, note) => `${snapshotPart(part)}: not read in this snapshot; ${note}.`,
+  },
+  {
+    // SnapshotDiff, a part read only in part in one of the two snapshots, with the parts whose rows rest on it (task 114).
+    core: /^(\w+) is partial in (\S+) \((.+)\): the (.+) rows of those items may show as removed or added$/s,
+    window: (part, snapshot, count, sections) =>
+      `${snapshotPart(part)}: read only in part in the snapshot ${snapshot} (${count}), so rows of ${sections
+        .split(/, | and /)
+        .map(diffPart)
+        .join(", ")} may show as added or removed without a change.`,
+  },
+  {
+    // SnapshotDiff, a part left out because a snapshot did not read what it rests on.
+    core: /^(\w+) is left out: (.+)$/s,
+    window: (section, why) =>
+      `${diffPart(section)}: not compared; ${why.replace(/(\w+) was not read in (\S+)/g, (_, part: string, snapshot: string) => `${snapshotPart(part)} not read in the snapshot ${snapshot}`)}.`,
   },
 ];
 

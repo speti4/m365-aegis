@@ -174,12 +174,59 @@ public sealed class SnapshotCommandTests
         Assert.Equal("2026-10-31T060000Z.sqlite", data.GetProperty("from").GetProperty("snapshot").GetString());
         Assert.Equal("2026-11-01T060000Z.sqlite", data.GetProperty("to").GetProperty("snapshot").GetString());
         Assert.Equal("latest", data.GetProperty("to").GetProperty("pick").GetString());
-        Assert.Equal((6, 6), (data.GetProperty("added").GetInt32(), data.GetProperty("removed").GetInt32()));
+        Assert.Equal((8, 6), (data.GetProperty("added").GetInt32(), data.GetProperty("removed").GetInt32()));
+        Assert.False(data.TryGetProperty("user", out _));
         Assert.Equal("local", document.RootElement.GetProperty("meta").GetProperty("backend").GetString());
         Assert.StartsWith("domain             change   what", table, StringComparison.Ordinal);
         Assert.Matches(@"\ngrants +removed +reception@contoso\.com +Finance Staff +full-access\n", table);
         Assert.Contains("\nfrom 2026-10-31T060000Z.sqlite (taken 2026-10-31 06:00:00 UTC, ", table, StringComparison.Ordinal);
-        Assert.Contains("\n6 added, 6 removed: members +1 -1, owners +1 -1, sharing +1 -1, grants +1 -1, folderPermissions +1 -1, forwarding +1 -1\n", table, StringComparison.Ordinal);
+        Assert.Contains("\n8 added, 6 removed: members +3 -1, owners +1 -1, sharing +1 -1, grants +1 -1, folderPermissions +1 -1, forwarding +1 -1\n", table, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DiffForOneUserListsTheNestedMembershipAndWhatComesThroughIt()
+    {
+        string home = await HomeWithTwoSnapshotsAsync();
+
+        (int exitCode, string stdout, string stderr) = CliTests.RunWith(Layers(home), "--json", "snapshot", "diff", "2026-10-31", "--user", "bob@contoso.com");
+        (int tableExit, string table, _) = CliTests.RunWith(Layers(home), "--table", "snapshot", "diff", "2026-10-31T060000Z", "latest", "--user", "00000000-0000-0000-0000-000000000003");
+
+        Assert.Equal((0, 0), (exitCode, tableExit));
+        Assert.Equal("", stderr);
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        JsonElement data = document.RootElement.GetProperty("data");
+        Assert.Equal("bob@contoso.com", data.GetProperty("user").GetProperty("userPrincipalName").GetString());
+        Assert.Equal((7, 1), (data.GetProperty("added").GetInt32(), data.GetProperty("removed").GetInt32()));
+        Assert.Equal("Audit", data.GetProperty("changes")[1].GetProperty("through").GetString());
+        Assert.StartsWith("section", table, StringComparison.Ordinal);
+        Assert.Matches(@"\ngroups +added +Finance Staff +bob@contoso\.com +member +Audit\n", table);
+        Assert.Contains("\nfor bob@contoso.com (Bob Example), nested memberships and what comes through them included\n", table, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DiffForAUserNeitherSnapshotKnowsIsNotFound()
+    {
+        string home = await HomeWithTwoSnapshotsAsync();
+
+        (int unknownExit, _, string unknown) = CliTests.RunWith(Layers(home), "--table", "snapshot", "diff", "2026-10-31", "--user", "nobody@contoso.com");
+        (int blankExit, _, string blank) = CliTests.RunWith(Layers(home), "--table", "snapshot", "diff", "2026-10-31", "--user", " ");
+
+        Assert.Equal((4, 2), (unknownExit, blankExit));
+        Assert.Contains("error: neither 2026-10-31T060000Z.sqlite nor 2026-11-01T060000Z.sqlite knows a user 'nobody@contoso.com' (not-found)", unknown, StringComparison.Ordinal);
+        Assert.Contains("error: no user was named (usage)", blank, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheUserDiffTable()
+    {
+        string home = await HomeWithTwoSnapshotsAsync();
+        SnapshotDiffReport diff = SnapshotDiff.Compare(home, "contoso", "yesterday", "latest", SnapshotSamples.ChangedTaken.AddHours(2), "bob@contoso.com");
+
+        var output = new StringWriter();
+        var error = new StringWriter();
+        Renderer.Render(CommandResult.Success(diff), new EnvelopeMeta([], 3, Backend.Local), SnapshotDiffTableView.Instance, OutputMode.Table, output, error);
+
+        await Verify($"--- stdout ---\n{output}--- stderr ---\n{error}");
     }
 
     [Fact]

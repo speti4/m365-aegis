@@ -62,6 +62,10 @@ describe("the bridge protocol", () => {
       "sign-in-page-opened.json",
       "signed-in.json",
       "signed-out.json",
+      "snapshot-diff-report.json",
+      "snapshot-diff-report.user.json",
+      "snapshot-diff.json",
+      "too-few-snapshots.json",
       "user-grants.json",
       "user-matches.json",
       "user-search.json",
@@ -469,5 +473,68 @@ describe("the bridge protocol", () => {
     expect(reply("access-report", { ...report, warnings: [1] })).toBeNull();
     expect(reply("no-snapshot", { profile: "contoso", message: "none" })).toBeNull();
     expect(reply("no-snapshot", "none")).toBeNull();
+  });
+
+  it("writes the snapshot diff request as its sample, and reads the diff and too-few-snapshots samples (task 115)", () => {
+    expect(JSON.parse(writeMessage(request(MessageType.snapshotDiff, {}, "17")))).toEqual(
+      JSON.parse(sample("snapshot-diff.json")),
+    );
+    const report = readReply(parsed("snapshot-diff-report.json"));
+    expect(report?.type).toBe(MessageType.snapshotDiffReport);
+    if (report?.type !== MessageType.snapshotDiffReport) return;
+    expect([report.data.from.snapshot, report.data.to.pick, report.data.added, report.data.removed]).toEqual([
+      "2026-10-31T060000Z.sqlite",
+      "latest",
+      8,
+      6,
+    ]);
+    expect(report.data.user).toBeUndefined();
+    const bob = readReply(parsed("snapshot-diff-report.user.json"));
+    if (bob?.type !== MessageType.snapshotDiffReport) throw new Error("not a diff");
+    expect(bob.data.user?.userPrincipalName).toBe("bob@contoso.com");
+    expect(bob.data.changes[1]).toMatchObject({ domain: "groups", what: "Finance Staff", through: "Audit" });
+    expect(readReply(parsed("too-few-snapshots.json"))).toEqual({
+      type: MessageType.tooFewSnapshots,
+      data: JSON.parse(sample("too-few-snapshots.json")).data,
+    });
+  });
+
+  it("refuses a snapshot diff reply whose payload does not have its type's shape", () => {
+    const reply = (type: string, data: unknown) => readReply({ aegis: PROTOCOL_VERSION, id: "17", type, data });
+    const report = JSON.parse(sample("snapshot-diff-report.user.json")).data;
+    expect(reply("snapshot-diff-report", report)?.type).toBe(MessageType.snapshotDiffReport);
+    expect(reply("snapshot-diff-report", null)).toBeNull();
+    expect(reply("snapshot-diff-report", { ...report, from: null })).toBeNull();
+    expect(reply("snapshot-diff-report", { ...report, from: { ...report.from, snapshot: 1 } })).toBeNull();
+    expect(reply("snapshot-diff-report", { ...report, from: { ...report.from, taken: 1 } })).toBeNull();
+    expect(reply("snapshot-diff-report", { ...report, from: { ...report.from, ageHours: "2" } })).toBeNull();
+    expect(reply("snapshot-diff-report", { ...report, from: { ...report.from, pick: 1 } })).toBeNull();
+    expect(reply("snapshot-diff-report", { ...report, to: undefined })).toBeNull();
+    expect(reply("snapshot-diff-report", { ...report, domains: {} })).toBeNull();
+    expect(reply("snapshot-diff-report", { ...report, domains: [null] })).toBeNull();
+    expect(
+      reply("snapshot-diff-report", { ...report, domains: [{ compared: true, added: 0, removed: 0 }] }),
+    ).toBeNull();
+    expect(reply("snapshot-diff-report", { ...report, domains: [{ name: "x", added: 0, removed: 0 }] })).toBeNull();
+    expect(
+      reply("snapshot-diff-report", { ...report, domains: [{ name: "x", compared: true, removed: 0 }] }),
+    ).toBeNull();
+    expect(reply("snapshot-diff-report", { ...report, domains: [{ name: "x", compared: true, added: 0 }] })).toBeNull();
+    expect(reply("snapshot-diff-report", { ...report, changes: [{ domain: "groups" }] })).toBeNull();
+    expect(
+      reply("snapshot-diff-report", { ...report, changes: [{ ...report.changes[0], change: "renamed" }] }),
+    ).toBeNull();
+    expect(reply("snapshot-diff-report", { ...report, warnings: [1] })).toBeNull();
+    expect(reply("snapshot-diff-report", { ...report, added: "7" })).toBeNull();
+    expect(reply("snapshot-diff-report", { ...report, removed: undefined })).toBeNull();
+    expect(reply("snapshot-diff-report", { ...report, user: "bob" })).toBeNull();
+    expect(reply("snapshot-diff-report", { ...report, user: { mail: 1 } })).toBeNull();
+    expect(reply("snapshot-diff-report", { ...report, user: undefined })?.type).toBe(MessageType.snapshotDiffReport);
+    const few = JSON.parse(sample("too-few-snapshots.json")).data;
+    expect(reply("too-few-snapshots", null)).toBeNull();
+    expect(reply("too-few-snapshots", { ...few, profile: 1 })).toBeNull();
+    expect(reply("too-few-snapshots", { ...few, snapshots: "0" })).toBeNull();
+    expect(reply("too-few-snapshots", { ...few, message: undefined })).toBeNull();
+    expect(reply("too-few-snapshots", { ...few, hint: undefined })).toBeNull();
   });
 });

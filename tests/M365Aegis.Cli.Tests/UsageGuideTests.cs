@@ -95,7 +95,7 @@ public sealed partial class UsageGuideTests
     public void TheGuideHasCommandsCardsAndExamplesToCheck()
     {
         Assert.True(CommandPaths.Count >= 40, $"{CommandPaths.Count} commands");
-        Assert.Equal(["Sign-in", "Group members", "Mailbox access", "User access", "Mailbox rights", "Mailbox forwarding"],
+        Assert.Equal(["Sign-in", "Group members", "Mailbox access", "User access", "Access changes", "Mailbox rights", "Mailbox forwarding"],
             CardTitles.Select(row => row.Data).OrderBy(Order));
         Assert.True(Examples.Count >= 40, $"{Examples.Count} examples");
     }
@@ -142,7 +142,7 @@ public sealed partial class UsageGuideTests
     }
 
     /// <summary>The order the guide gives the cards: the window's own, top to bottom.</summary>
-    private static int Order(string title) => Array.IndexOf(["Sign-in", "Group members", "Mailbox access", "User access", "Mailbox rights", "Mailbox forwarding"], title);
+    private static int Order(string title) => Array.IndexOf(["Sign-in", "Group members", "Mailbox access", "User access", "Access changes", "Mailbox rights", "Mailbox forwarding"], title);
 
     /// <summary>
     /// The recorded Graph and Admin API answers, the fake Exchange Online module, and a home with the three sample plan

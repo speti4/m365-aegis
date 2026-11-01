@@ -366,6 +366,7 @@ when it is older than 36 hours. Without a snapshot it ends with exit code 4 and 
 ```powershell
 m365-aegis snapshot diff 2026-10-31               # from the last snapshot of that day (UTC) to the newest
 m365-aegis snapshot diff 2026-10-31T060000Z latest --json | ConvertFrom-Json
+m365-aegis snapshot diff 2026-10-31 --user bob@contoso.com   # what one user gained or lost
 ```
 
 `snapshot diff <a> <b>` lists who gained or lost access from the first snapshot to the second, without signing in: the
@@ -377,6 +378,16 @@ and groups in them, not by their names, so a renamed group or user is no change,
 one row removed and one added. The answer names both snapshots and their ages; a part of the tenant that one of them
 could not read is left out of the comparison with a warning, and a part read only in part is compared with a warning
 that its unread items may show as changes. A pick that finds no snapshot ends with exit code 4.
+
+`--user <x>` (a user principal name, an address or an object id) lists what that one user gained or lost, in the
+sections of [What one user reaches](#what-one-user-reaches): the groups, nested memberships included, the groups
+they own, the sites, the shared files, the mailbox rights and the calendar permissions, each held directly or through
+a group, and the forwarding of the user's mailbox or to it. The `through` column names the group a row comes
+through: when the user joins a group that is itself a member of another, both memberships show, and so does what the
+other group holds. The user is matched by the object id in both snapshots, so a changed user principal name is no
+change; a user only one of them knows has everything added or removed, with a warning. What reaches everyone (an
+organization link, a calendar open to every user) is not the user's own and stays in the full diff. A user neither
+snapshot knows ends with exit code 4.
 
 ### A snapshot every morning
 
@@ -447,6 +458,18 @@ counts. The card names the snapshot's time and age, and "Good to know" says when
 or a part of it could not be read. The card reads the snapshot on this computer only: it needs no sign-in, and its
 answer is as old as the snapshot. Without a snapshot it says "No snapshot yet": the snapshot is taken on the command
 line (`m365-aegis snapshot take`, or [a snapshot every morning](#a-snapshot-every-morning)).
+
+### Access changes
+
+"Compare": who gained or lost access between the newest snapshot and the one before it, as `m365-aegis snapshot diff`
+lists it (see [What changed between two snapshots](#what-changed-between-two-snapshots)). Under the two snapshots'
+times and ages, a table for each part of the tenant that changed (group members and owners, shared files, mailbox
+rights, calendars, forwarding), each row "added" or "removed", and a line for the parts without a change. "From" and
+"To" pick other snapshots, the way the command line picks them: a snapshot's name, `latest`, `yesterday` or a date.
+"Only this user" narrows the changes to one person, as `--user` does: the groups, groups within groups included, the
+sites, the shared files, the mailboxes and the calendars, with the group each row comes through. "Good to know" says
+when a part of a snapshot could not be read. Like the user access card, it reads the snapshots on this computer only
+and needs no sign-in; with fewer than two snapshots it says "Nothing to compare yet".
 
 ### Mailbox rights
 

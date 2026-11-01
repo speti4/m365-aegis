@@ -76,7 +76,8 @@ m365-aegis group members add Finance dave@contoso.com --dry-run
 ```
 
 `m365-aegis-gui.exe` opens the window, with the same sign-in and plans and cards for the sign-in, group members,
-mailbox access, a user's access from the snapshot, mailbox rights and mailbox forwarding. The [usage guide](docs/usage.md) covers every command and card.
+mailbox access, a user's access from the snapshot, the access changes between two snapshots, mailbox rights and
+mailbox forwarding. The [usage guide](docs/usage.md) covers every command and card.
 
 ## Documentation
 

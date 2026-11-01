@@ -1,0 +1,11 @@
+{
+  "aegis": 1,
+  "id": "17",
+  "type": "too-few-snapshots",
+  "data": {
+    "profile": "contoso",
+    "snapshots": 0,
+    "message": "no snapshot of the profile 'contoso' yet",
+    "hint": "the card compares two snapshots: ask the administrator to take one every morning, so there is always the day before to compare with"
+  }
+}
