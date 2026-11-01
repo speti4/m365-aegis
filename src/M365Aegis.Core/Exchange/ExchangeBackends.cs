@@ -1,3 +1,4 @@
+using M365Aegis.Core.Exchange.AdminApi;
 using M365Aegis.Core.Exchange.Sidecar;
 using M365Aegis.Core.Graph;
 
@@ -12,12 +13,13 @@ namespace M365Aegis.Core.Exchange;
 public sealed class ExchangeBackends : IAsyncDisposable
 {
     private readonly IExoCmdletRunner _sidecar;
-    private readonly IExoCmdletRunner? _adminApi;
     private readonly Lazy<GraphClient>? _graph;
     private readonly Func<IExoCmdletRunner>? _newSidecar;
     private readonly List<IExoCmdletRunner> _extra = [];
     private readonly List<string> _used = [];
     private readonly Lock _lock = new();
+    private IExoCmdletRunner? _adminApiInner;
+    private IExoCmdletRunner? _adminApi;
     private int _started;
     private long _sidecarCalls;
     private long _adminApiCalls;
@@ -31,6 +33,7 @@ public sealed class ExchangeBackends : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(sidecar);
         _sidecar = new Counted(sidecar, this, adminApi: false);
+        _adminApiInner = adminApi;
         _adminApi = adminApi is null ? null : new Counted(adminApi, this, adminApi: true);
         _graph = graph is null ? null : new Lazy<GraphClient>(graph);
         _newSidecar = newSidecar;
@@ -125,6 +128,27 @@ public sealed class ExchangeBackends : IAsyncDisposable
 
     /// <summary>The cmdlets sent to the Admin API so far.</summary>
     public long AdminApiCalls => Interlocked.Read(ref _adminApiCalls);
+
+    /// <summary>How long the Admin API client has waited on throttling so far; zero without one (or with a test's stand-in).</summary>
+    public TimeSpan AdminApiWaited => (_adminApiInner as AdminApiClient)?.Waited ?? TimeSpan.Zero;
+
+    /// <summary>
+    /// Gives the Admin API the take's throttling budget (task 117): the client is replaced by its
+    /// <see cref="AdminApiClient.WithBudget"/> copy under the same counting wrapper, so the cmdlet count and the waits go
+    /// on from where they are. Nothing happens without an <see cref="AdminApiClient"/> (a run
+    /// without the Admin API, a test's stand-in).
+    /// </summary>
+    internal void BudgetAdminApi(int maxRetries, TimeSpan maxTotalDelay)
+    {
+        lock (_lock)
+        {
+            if (_adminApiInner is AdminApiClient client)
+            {
+                _adminApiInner = client.WithBudget(maxRetries, maxTotalDelay);
+                _adminApi = new Counted(_adminApiInner, this, adminApi: true);
+            }
+        }
+    }
 
     /// <summary>The layers used so far, in the order first used, joined with <c>+</c> (<c>admin-api+pwsh</c>); <c>pwsh</c> before any.</summary>
     public string Backend

@@ -40,16 +40,16 @@ Fourteenth round of 2026-11-01, worked in the main session on its own branch (no
 
 ## Steps
 
-1. [ ] `AdminApiClient.WithBudget` on the Graph client's pattern: shared counters (`Calls`, `Waited`,
+1. [x] `AdminApiClient.WithBudget` on the Graph client's pattern: shared counters (`Calls`, `Waited`,
        `ThrottledAnswers`) across the budgeted copy; `Waited` and `ThrottledAnswers` public
-2. [ ] `ExchangeBackends.BudgetAdminApi` (the budgeted client under the counting wrapper), `AdminApiWaited`,
+2. [x] `ExchangeBackends.BudgetAdminApi` (the budgeted client under the counting wrapper), `AdminApiWaited`,
        `AdminApiThrottled`; the take calls it next to `Graph.WithBudget`
-3. [ ] `AdaptiveGate` (ceiling, halve on a throttled release, +1 after a clean round, never below one) and the
+3. [x] `AdaptiveGate` (ceiling, halve on a throttled release, +1 after a clean round, never below one) and the
        folderPermissions domain's reads through it, `SnapshotTakeOptions.AdminApiParallel = 8`; the domain's remark
        names a back-off when one happened
-4. [ ] `SnapshotDomain.AdminApiThrottledMs` from the client's waits per domain; `snapshot take`'s `requests` column
+4. [x] `SnapshotDomain.AdminApiThrottledMs` from the client's waits per domain; `snapshot take`'s `requests` column
        prints `N admin-api (throttled X s)`
-5. [ ] Tests: the budgeted client's shared counters and a 429 past a command's minute; the gate's bounds; a throttled
+5. [x] Tests: the budgeted client's shared counters and a 429 past a command's minute; the gate's bounds; a throttled
        calendar read in the take (the Graph test's Admin API twin); an in-flight probe (at most eight, half after a
        throttled answer); the take's rows and counts unchanged; the table's new form
 6. [ ] Docs under *Docs that move*; the local matrix; the live before/after in the Verification
@@ -57,6 +57,26 @@ Fourteenth round of 2026-11-01, worked in the main session on its own branch (no
 ## Log
 
 - 2026-11-01 — promoted on `task/117-folder-permissions-domain-read-in-parallel` by the main session
+- 2026-11-01 — Core: `AdminApiClient.WithBudget` (the Graph client's pattern: the same transport, target and request
+  log, a fresh budget, the calls, the waits and the throttled answers counted in one shared state; `Waited` and
+  `ThrottledAnswers` public), `ExchangeBackends.BudgetAdminApi` swaps the budgeted copy in under the counting wrapper
+  and `AdminApiWaited` reads its waits; the take budgets both clients in one place. `AdaptiveGate` (Snapshots): a
+  semaphore of the ceiling whose limit halves on a throttled release by keeping the released permits out of
+  circulation (no permit is taken, so a shrink never waits on the reads in flight) and grows by one after a round of
+  clean releases. The folderPermissions domain reads through it, `SnapshotTakeOptions.AdminApiParallel = 8`; a read's
+  throttled answers are its own `ThrottleWitness` (an `AsyncLocal` counter the client notes a 429 into), because a
+  shared counter attributed one read's 429 to every read in flight and halved the gate twice in the test. The domain's
+  note names the back-off when one happened. `SnapshotDomain.AdminApiThrottledMs` from the client's waits per domain;
+  `snapshot take` prints `N admin-api (throttled X s)`.
+- 2026-11-01 — tests: `AdminApiTests` (the budgeted copy waits five 50 s `Retry-After`s past a command's minute and
+  shares the counts; the command's own client then fails at once on the spent budget), `AdaptiveGateTests` (the
+  ninth waits, a throttled release halves to four and holds the permits back, the fourth clean release grows to five,
+  never below one, a ceiling below one refused), `SnapshotEdgeTests` (the Graph throttle test's Admin API twin over a
+  scripted transport: 2 cmdlets, 7 HTTP calls, 250 000 ms waited, "backed off to 4"; an in-flight probe over a held
+  runner: eight start, the ninth waits, a throttled answer and three clean ones start nothing, the fourth clean one
+  lets two more in), the table's new form; `ATakeReadsEveryDomainIntoOneFile` unchanged (`folderPermissions ok 14`,
+  `0 6 2`, the same calendar rows). `ScriptedTransport` records under a lock. Full matrix: 1,638 tests, Core and Cli
+  100% lines and branches, changelog and fixtures clean.
 
 ## Deviations from the plan
 

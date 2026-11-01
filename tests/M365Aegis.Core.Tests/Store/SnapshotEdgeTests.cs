@@ -519,6 +519,101 @@ public sealed class SnapshotEdgeTests
     }
 
     [Fact]
+    public async Task AThrottledCalendarReadIsSentAgainPastACommandsBudgetAndTheGateBacksOff()
+    {
+        var graph = new ScriptedGraph();
+        graph.Answer("/users", 200, Page(
+            new { id = U1, displayName = "Alice", userPrincipalName = "alice@contoso.com" },
+            new { id = U2, displayName = "Bob", userPrincipalName = "bob@contoso.com" }));
+        graph.Answer("/groups", 200, Page());
+        graph.Answer("/teams", 200, Page());
+        graph.Answer("/sites", 200, Page());
+        var sidecar = new CannedRunner(command => command.Cmdlet switch
+        {
+            ExoCmdlets.GetMailbox => MailboxEdgeTests.Items(
+                """{"DisplayName":"Alice","PrimarySmtpAddress":"alice@contoso.com","UserPrincipalName":"alice@contoso.com"}""",
+                """{"DisplayName":"Bob","PrimarySmtpAddress":"bob@contoso.com","UserPrincipalName":"bob@contoso.com"}"""),
+            ExoCmdlets.GetMailboxFolderStatistics => MailboxEdgeTests.Items("""{"Name":"Calendar","FolderPath":"/Calendar","FolderType":"Calendar"}"""),
+            _ => new ExoResult([], []),
+        });
+        // The real client over a scripted Admin API (task 117): the mailboxes refused (the sidecar answers them), Alice's
+        // calendar answered 429 five times with fifty seconds each (past a command's four retries and its minute, within
+        // the take's budget), then read; Bob's read at once.
+        int aliceAnswers = 0;
+        var transport = new ScriptedTransport(request => request.Uri.AbsolutePath.EndsWith("/Mailbox", StringComparison.Ordinal)
+            ? new GraphResponse(403, [], JsonSerializer.Serialize(Error("accessDenied")))
+            : request.Body!.Contains("alice", StringComparison.Ordinal) && Interlocked.Increment(ref aliceAnswers) <= 5
+                ? new GraphResponse(429, new Dictionary<string, string> { ["Retry-After"] = "50" }, JsonSerializer.Serialize(Error("TooManyRequests")))
+                : new GraphResponse(200, [], """{"value":[{"User":"Default","AccessRights":["AvailabilityOnly"]}]}"""));
+        var admin = new AdminApiClient(
+            transport,
+            _ => Task.FromResult(new AdminApiTarget(AdminApiConnection.TestTenantId, AdminApiConnection.TestAccount)),
+            options: new GraphClientOptions { Delay = (_, _) => Task.CompletedTask, Jitter = () => 0 });
+        var backends = new ExchangeBackends(sidecar, admin, () => graph.Client);
+
+        SnapshotTakeResult take = (await SnapshotSamples.TakeAsync(SnapshotSamples.WriteProfile(PlanSamples.TempHome()), Now, backends: backends)).Data!;
+
+        SnapshotDomain calendars = take.Domains.Single(domain => domain.Name == "folderPermissions");
+        Assert.Equal((SnapshotDomainStatus.Ok, 2, 0), (calendars.Status, calendars.Rows, calendars.ItemsFailed));
+        // Two cmdlets, seven HTTP calls; the five waits of fifty seconds are the domain's, and the one throttled read halved the gate.
+        Assert.Equal((2L, 250_000L, 7), (calendars.AdminApiCalls, calendars.AdminApiThrottledMs, transport.Requests.Count(request => request.Uri.AbsolutePath.EndsWith("/MailboxFolderPermission", StringComparison.Ordinal))));
+        Assert.StartsWith("read up to 8 calendars at once, backed off to 4 on throttled answers; 2 calendar name(s) read one mailbox at a time", calendars.Note, StringComparison.Ordinal);
+        Assert.Equal(0L, take.Domains.Single(domain => domain.Name == "mailboxes").AdminApiThrottledMs);
+    }
+
+    [Fact]
+    public async Task TheCalendarReadsRunEightAtOnceAndHalfAsManyAfterAThrottledOne()
+    {
+        var graph = new ScriptedGraph();
+        graph.Answer("/users", 200, Page());
+        graph.Answer("/groups", 200, Page());
+        graph.Answer("/teams", 200, Page());
+        graph.Answer("/sites", 200, Page());
+        string[] mailboxes = [.. Enumerable.Range(1, 12).Select(index => $"m{index}@contoso.com")];
+        var sidecar = new CannedRunner(command => command.Cmdlet switch
+        {
+            ExoCmdlets.GetMailbox => MailboxEdgeTests.Items([.. mailboxes.Select(address => $$$"""{"DisplayName":"{{{address}}}","PrimarySmtpAddress":"{{{address}}}","UserPrincipalName":"{{{address}}}"}""")]),
+            ExoCmdlets.GetMailboxFolderStatistics => MailboxEdgeTests.Items("""{"Name":"Calendar","FolderPath":"/Calendar","FolderType":"Calendar"}"""),
+            _ => new ExoResult([], []),
+        });
+        var admin = new HeldRunner();
+        var backends = new ExchangeBackends(sidecar, admin, () => graph.Client);
+
+        Task<CommandResult<SnapshotTakeResult>> taking = SnapshotSamples.TakeAsync(SnapshotSamples.WriteProfile(PlanSamples.TempHome()), Now, backends: backends);
+
+        // Eight reads start and the ninth waits at the gate (task 117). Each answer is followed by a settle: the read's
+        // release runs on the pool, and the order of two releases is the gate's only when the first is done.
+        await admin.StartedAsync(8);
+        await Settle();
+        Assert.Equal((8, 8), (admin.Started, admin.Pending));
+        // The first read's answer is throttled past the budget: the gate halves to four, so nothing new starts until the
+        // reads in flight are down to four, and the fourth clean answer after it is a round that lets two more in.
+        await admin.AnswerAsync(throttled: true);
+        await admin.AnswerAsync(throttled: false);
+        await admin.AnswerAsync(throttled: false);
+        await admin.AnswerAsync(throttled: false);
+        Assert.Equal((8, 4), (admin.Started, admin.Pending));
+        await admin.AnswerAsync(throttled: false);
+        await admin.StartedAsync(10);
+        await Settle();
+        Assert.Equal((10, 5), (admin.Started, admin.Pending));
+        while (admin.Started < 12)
+        {
+            await admin.AnswerAsync(throttled: false);
+        }
+
+        while (admin.Pending > 0)
+        {
+            await admin.AnswerAsync(throttled: false);
+        }
+
+        SnapshotTakeResult take = (await taking).Data!;
+        SnapshotDomain calendars = take.Domains.Single(domain => domain.Name == "folderPermissions");
+        Assert.Equal((SnapshotDomainStatus.Partial, 11, 1, "throttled 1"), (calendars.Status, calendars.Rows, calendars.ItemsFailed, calendars.ItemFailures));
+        Assert.Contains("read up to 8 calendars at once, backed off to 4 on throttled answers", calendars.Note, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AnIncrementalTakeGivesTheRowsOfAFullTakeAndReadsADriveWholeWhenItsDeltaFails()
     {
         var graph = new ScriptedGraph();
@@ -683,6 +778,91 @@ public sealed class SnapshotEdgeTests
     }
 
     private static object Site(string id) => new { id, displayName = $"Site {id}", webUrl = $"https://contoso.sharepoint.com/sites/{id}" };
+
+    /// <summary>Lets the pool run the continuations of an answer (the gate's release, the next read's start).</summary>
+    private static Task Settle() => Task.Delay(150, TestContext.Current.CancellationToken);
+
+    /// <summary>
+    /// An Admin API whose calendar reads wait until the test answers them, in the order they started (the gate's
+    /// in-flight probe, task 117); the mailboxes are refused, so the sidecar answers them.
+    /// </summary>
+    private sealed class HeldRunner : IExoCmdletRunner
+    {
+        private readonly Lock _lock = new();
+        private readonly Queue<TaskCompletionSource<ExoResult>> _pending = new();
+        private int _started;
+
+        internal int Started
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    return _started;
+                }
+            }
+        }
+
+        internal int Pending
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    return _pending.Count;
+                }
+            }
+        }
+
+        public Task<ExoResult> InvokeAsync(ExoCommand command, CancellationToken cancellationToken)
+        {
+            if (command.Cmdlet == AdminApiCmdlets.GetMailbox)
+            {
+                throw new AegisException(FailureKind.Forbidden, "refused");
+            }
+
+            var answer = new TaskCompletionSource<ExoResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_lock)
+            {
+                _started++;
+                _pending.Enqueue(answer);
+            }
+
+            return answer.Task;
+        }
+
+        /// <summary>Waits until at least that many reads have started (five seconds at the most).</summary>
+        internal async Task StartedAsync(int count)
+        {
+            DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+            while (Started < count)
+            {
+                Assert.True(DateTimeOffset.UtcNow < deadline, $"only {Started} of {count} reads started");
+                await Task.Delay(10, TestContext.Current.CancellationToken);
+            }
+        }
+
+        /// <summary>Answers the oldest pending read (throttled past the budget, or one entry) and lets its release run.</summary>
+        internal async Task AnswerAsync(bool throttled)
+        {
+            TaskCompletionSource<ExoResult> answer;
+            lock (_lock)
+            {
+                answer = _pending.Dequeue();
+            }
+
+            if (throttled)
+            {
+                answer.SetException(new AegisException(FailureKind.Throttled, "the retries ran out"));
+            }
+            else
+            {
+                answer.SetResult(MailboxEdgeTests.Items("""{"User":"Default","AccessRights":["AvailabilityOnly"]}"""));
+            }
+
+            await Settle();
+        }
+    }
 
     private static object Page(params object[] value) => new { value };
 

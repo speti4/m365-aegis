@@ -22,7 +22,7 @@ public sealed record AdminApiTarget(string TenantId, string Account);
 /// <c>$select</c>; every page of an answer is read by posting the same body to its <c>@odata.nextLink</c>, as the
 /// Graph client follows a collection (https://learn.microsoft.com/exchange/reference/admin-api-get-started). A 429 or
 /// 503 is retried after its <c>Retry-After</c> within the same budget as the Graph client's
-/// (<see cref="GraphClientOptions"/>). A failed answer becomes the contract's failure: 401 auth (3), 403 forbidden (8),
+/// (<see cref="GraphClientOptions"/>; the snapshot's take sets its own with <see cref="WithBudget"/>). A failed answer becomes the contract's failure: 401 auth (3), 403 forbidden (8),
 /// a missing object not found (4, a 404 or a 400 that says so), throttled (5), any other 400 a cmdlet failure (13),
 /// a server error or no network a service error (9). The token goes to the Admin API's host only; piped input, which
 /// the REST endpoints do not take, is refused as a bug.
@@ -38,10 +38,7 @@ public sealed class AdminApiClient : IExoCmdletRunner
     private readonly IGraphTransport _transport;
     private readonly Func<CancellationToken, Task<AdminApiTarget>> _target;
     private readonly GraphClientOptions _options;
-    private readonly Lock _lock = new();
-    private Task<AdminApiTarget>? _pendingTarget;
-    private TimeSpan _waited;
-    private int _calls;
+    private readonly Shared _shared;
 
     /// <summary>A client over a transport (<see cref="AdminApiConnection"/> makes the product's).</summary>
     /// <param name="transport">The network (<see cref="HttpAdminApiTransport"/>), or the fixtures.</param>
@@ -56,19 +53,62 @@ public sealed class AdminApiClient : IExoCmdletRunner
         _target = target;
         RequestLog = requestLog ?? new RequestLog();
         _options = options ?? new GraphClientOptions();
+        _shared = new Shared();
+    }
+
+    private AdminApiClient(AdminApiClient from, GraphClientOptions options)
+    {
+        _transport = from._transport;
+        _target = from._target;
+        RequestLog = from.RequestLog;
+        _options = options;
+        _shared = from._shared;
     }
 
     /// <summary>The request ids of every answer so far.</summary>
     public RequestLog RequestLog { get; }
 
-    /// <summary>How many HTTP calls the client made (pages and retries included).</summary>
+    /// <summary>
+    /// A client over the same transport, target and request log with another throttling budget, a fresh one, and the
+    /// same clock and jitter, as <see cref="GraphClient.WithBudget"/>: the snapshot's take (task 117) is a long run of
+    /// hundreds of calendar reads that may wait where a command would fail. The calls, the waits and the throttled
+    /// answers are counted across both clients.
+    /// </summary>
+    internal AdminApiClient WithBudget(int maxRetries, TimeSpan maxTotalDelay) =>
+        new(this, _options with { MaxRetries = maxRetries, MaxTotalDelay = maxTotalDelay });
+
+    /// <summary>How many HTTP calls the client made (pages and retries included), this client's and its budgeted copies'.</summary>
     public int Calls
     {
         get
         {
-            lock (_lock)
+            lock (_shared.Lock)
             {
-                return _calls;
+                return _shared.Calls;
+            }
+        }
+    }
+
+    /// <summary>How long the client has waited on throttling so far, this client's and its budgeted copies' (the take's per-domain counts, task 117).</summary>
+    public TimeSpan Waited
+    {
+        get
+        {
+            lock (_shared.Lock)
+            {
+                return _shared.Waited;
+            }
+        }
+    }
+
+    /// <summary>How many answers were a 429 or a 503 so far, retried or not, this client's and its budgeted copies' (task 117).</summary>
+    public long ThrottledAnswers
+    {
+        get
+        {
+            lock (_shared.Lock)
+            {
+                return _shared.ThrottledAnswers;
             }
         }
     }
@@ -200,14 +240,14 @@ public sealed class AdminApiClient : IExoCmdletRunner
 
     private Task<AdminApiTarget> TargetAsync(CancellationToken cancellationToken)
     {
-        lock (_lock)
+        lock (_shared.Lock)
         {
-            if (_pendingTarget is null || _pendingTarget.IsFaulted || _pendingTarget.IsCanceled)
+            if (_shared.PendingTarget is null || _shared.PendingTarget.IsFaulted || _shared.PendingTarget.IsCanceled)
             {
-                _pendingTarget = _target(cancellationToken);
+                _shared.PendingTarget = _target(cancellationToken);
             }
 
-            return _pendingTarget;
+            return _shared.PendingTarget;
         }
     }
 
@@ -216,13 +256,20 @@ public sealed class AdminApiClient : IExoCmdletRunner
         for (int attempt = 0; ; attempt++)
         {
             GraphResponse response = await _transport.SendAsync(request, cancellationToken).ConfigureAwait(false);
-            lock (_lock)
+            bool throttled = response.StatusCode is 429 or 503;
+            lock (_shared.Lock)
             {
-                _calls++;
+                _shared.Calls++;
+                _shared.ThrottledAnswers += throttled ? 1 : 0;
+            }
+
+            if (throttled)
+            {
+                ThrottleWitness.Note();
             }
 
             RequestLog.Add(response.RequestId);
-            if (response.StatusCode is not (429 or 503) || NextDelay(response.Headers, attempt) is not { } delay || !TryReserve(delay))
+            if (!throttled || NextDelay(response.Headers, attempt) is not { } delay || !TryReserve(delay))
             {
                 return response;
             }
@@ -249,14 +296,14 @@ public sealed class AdminApiClient : IExoCmdletRunner
 
     private bool TryReserve(TimeSpan delay)
     {
-        lock (_lock)
+        lock (_shared.Lock)
         {
-            if (_waited + delay > _options.MaxTotalDelay)
+            if (_shared.Waited + delay > _options.MaxTotalDelay)
             {
                 return false;
             }
 
-            _waited += delay;
+            _shared.Waited += delay;
             return true;
         }
     }
@@ -286,4 +333,18 @@ public sealed class AdminApiClient : IExoCmdletRunner
         || text.Contains("could not be found", StringComparison.OrdinalIgnoreCase)
         || text.Contains("ObjectNotFound", StringComparison.OrdinalIgnoreCase)
         || text.Contains("NotFound", StringComparison.Ordinal);
+
+    /// <summary>What a client and its budgeted copies share: the target once resolved, and the counts under one lock.</summary>
+    private sealed class Shared
+    {
+        internal Lock Lock { get; } = new();
+
+        internal Task<AdminApiTarget>? PendingTarget { get; set; }
+
+        internal TimeSpan Waited { get; set; }
+
+        internal int Calls { get; set; }
+
+        internal long ThrottledAnswers { get; set; }
+    }
 }
