@@ -151,11 +151,11 @@ public sealed class MailboxLayersCommandTests
     [Fact]
     public async Task TheLayeredMailboxTables()
     {
+        await using ExchangeSession sidecar = SidecarFixtures.Session();
         await using var backends = new ExchangeBackends(
-            SidecarFixtures.Session(),
+            sidecar,
             AdminApiConnection.Fixtures(GraphFixtures.Root),
             () => GraphFixtures.Client().Client);
-        await using ExchangeSession sidecar = (ExchangeSession)backends.Sidecar;
 
         CommandResult<MailboxAccess> access = await MailboxLookups.AccessAsync(backends, "reception", new MailboxAccessOptions(ExpandGroups: true), Ct);
         CommandResult<UserAccess> user = await MailboxLookups.AccessForUserAsync(backends, "dave@contoso.com", new UserAccessOptions(ExpandGroups: true), Ct);

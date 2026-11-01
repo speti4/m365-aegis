@@ -154,7 +154,15 @@ public sealed record MailboxSizes(IReadOnlyList<MailboxSize> Mailboxes, int Mail
 /// <param name="User">Who the entry is for, as Exchange names it: a display name, an address, <c>Default</c> (everyone in the organization) or <c>Anonymous</c>.</param>
 /// <param name="AccessRights">The role or the granular rights (<c>Reviewer</c>, <c>Editor</c>, <c>AvailabilityOnly</c>, …).</param>
 /// <param name="SharingPermissionFlags">The calendar's delegate flags (<c>Delegate</c>, <c>CanViewPrivateItems</c>, …); empty when none.</param>
-public sealed record FolderPermissionEntry(string User, IReadOnlyList<string> AccessRights, IReadOnlyList<string> SharingPermissionFlags);
+public sealed record FolderPermissionEntry(string User, IReadOnlyList<string> AccessRights, IReadOnlyList<string> SharingPermissionFlags)
+{
+    /// <summary>
+    /// The holder's primary address where the service names it (task 101: the <c>PrimarySmtpAddress</c> of the Admin
+    /// API's <c>User</c> object), which tells two holders of one display name apart; null for <c>Default</c>,
+    /// <c>Anonymous</c> and a holder named by its display name alone.
+    /// </summary>
+    public string? Address { get; init; }
+}
 
 /// <summary>The result of <c>mailbox folder-permissions &lt;mailbox&gt; [--folder &lt;path&gt;]</c> (task 042).</summary>
 /// <param name="Mailbox">The mailbox as given.</param>

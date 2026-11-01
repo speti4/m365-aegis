@@ -153,7 +153,10 @@ public static partial class MailboxLookups
             .Select(item => new FolderPermissionEntry(
                 Name(item, "User") ?? "?",
                 Words(item, "AccessRights", keepNone: true),
-                Words(item, "SharingPermissionFlags", keepNone: false)))
+                Words(item, "SharingPermissionFlags", keepNone: false))
+            {
+                Address = HolderAddress(item),
+            })
             .ToList();
         string? folderName = result.Items.Select(item => item.Text("FolderName")).FirstOrDefault(name => name is not null);
         return CommandResult.Success(new MailboxFolderPermissions(box, path, folderName, entries));
@@ -177,15 +180,9 @@ public static partial class MailboxLookups
                     Properties = ["Name", "FolderPath", "FolderType"],
                 },
                 cancellationToken).ConfigureAwait(false);
-            string? path = folders.Items
-                .Where(item => string.Equals(item.Text("FolderType"), Calendar, StringComparison.OrdinalIgnoreCase))
-                .Select(item => item.Text("FolderPath"))
-                .OfType<string>()
-                .OrderBy(found => found.Length)
-                .FirstOrDefault();
-            if (path is not null)
+            if (DefaultCalendar(folders.Items) is { } path)
             {
-                return path.Replace('/', '\\').Trim('\\');
+                return path;
             }
         }
         catch (AegisException exception) when (exception.Failure.Kind == FailureKind.NotFound)
@@ -198,6 +195,107 @@ public static partial class MailboxLookups
         }
 
         return Calendar;
+    }
+
+    /// <summary>
+    /// The default calendar's path of every mailbox in two sidecar calls (task 100), where <see cref="CalendarPathAsync"/>
+    /// spends one per mailbox: the mailboxes (<c>Get-EXOMailbox</c> with their <c>ExchangeGuid</c>), then their object
+    /// ids piped into one <c>Get-EXOMailboxFolderStatistics -FolderScope Calendar</c>, the documented
+    /// <c>Get-EXOMailbox | Get-EXOMailboxFolderStatistics</c> over the sidecar's <c>input</c>. A folder is matched to its
+    /// mailbox by <c>ContentMailboxGuid</c> or <c>MailboxGuid</c> (the mailbox's <c>ExchangeGuid</c>), else by the part of
+    /// its <c>Identity</c> before the first backslash, a name one mailbox alone answers to. The answer is keyed by each
+    /// mailbox's object id and address; a mailbox no folder was matched to (a mailbox the piped read failed for) is not in
+    /// it, and a read that fails for another reason than the sign-in is an empty answer: the caller reads those
+    /// calendars' names one by one.
+    /// </summary>
+    internal static async Task<IReadOnlyDictionary<string, string>> CalendarPathsAsync(IExoCmdletRunner exo, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(exo);
+        var paths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        IReadOnlyList<ExoObject> mailboxes;
+        ExoResult folders;
+        try
+        {
+            mailboxes = await AllMailboxesAsync(exo, sharedOnly: false, ["ExchangeGuid"], cancellationToken).ConfigureAwait(false);
+            if (mailboxes.Count == 0)
+            {
+                return paths;
+            }
+
+            folders = await exo.InvokeAsync(
+                new ExoCommand(ExoCmdlets.GetMailboxFolderStatistics)
+                {
+                    Parameters = new Dictionary<string, object?> { ["FolderScope"] = Calendar },
+                    Input = Identities(mailboxes),
+                    Properties = ["Identity", "ContentMailboxGuid", "MailboxGuid", "FolderPath", "FolderType"],
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (AegisException exception) when (exception.Failure.Kind != FailureKind.Auth)
+        {
+            LogSink.Verbose?.Write("exchange-online", $"the calendars' names could not be read in one call ({exception.Failure.Code}); each mailbox's is read on its own");
+            return paths;
+        }
+
+        Dictionary<string, ExoObject?> byGuid = Unique(mailboxes, mailbox => [mailbox.Text("ExchangeGuid")]);
+        Dictionary<string, ExoObject?> byName = Unique(mailboxes, mailbox => [.. Keys(mailbox), mailbox.Text("ExchangeGuid")]);
+        foreach (IGrouping<ExoObject, ExoObject> owned in folders.Items
+            .Select(folder => (Folder: folder, Owner: OwnerOf(folder, byGuid, byName)))
+            .Where(pair => pair.Owner is not null)
+            .GroupBy(pair => pair.Owner!, pair => pair.Folder))
+        {
+            if (DefaultCalendar(owned) is { } path)
+            {
+                foreach (string? key in new[] { owned.Key.Text("ExternalDirectoryObjectId"), owned.Key.Text("PrimarySmtpAddress") })
+                {
+                    if (key is not null)
+                    {
+                        paths[key] = path;
+                    }
+                }
+            }
+        }
+
+        return paths;
+    }
+
+    /// <summary>The path of the folder whose type is <c>Calendar</c>, the shortest when there are several; null for none.</summary>
+    private static string? DefaultCalendar(IEnumerable<ExoObject> folders) =>
+        folders
+            .Where(item => string.Equals(item.Text("FolderType"), Calendar, StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Text("FolderPath"))
+            .OfType<string>()
+            .OrderBy(found => found.Length)
+            .Select(found => found.Replace('/', '\\').Trim('\\'))
+            .FirstOrDefault();
+
+    /// <summary>The mailboxes by each name they answer to; a name two mailboxes answer to is null.</summary>
+    private static Dictionary<string, ExoObject?> Unique(IReadOnlyList<ExoObject> mailboxes, Func<ExoObject, IEnumerable<string?>> names)
+    {
+        var index = new Dictionary<string, ExoObject?>(StringComparer.OrdinalIgnoreCase);
+        foreach (ExoObject mailbox in mailboxes)
+        {
+            foreach (string name in names(mailbox).OfType<string>())
+            {
+                index[name] = index.TryGetValue(name, out ExoObject? other) && other != mailbox ? null : mailbox;
+            }
+        }
+
+        return index;
+    }
+
+    /// <summary>The mailbox a folder of the piped read is in: by its mailbox's GUID, else by its identity's mailbox part.</summary>
+    private static ExoObject? OwnerOf(ExoObject folder, Dictionary<string, ExoObject?> byGuid, Dictionary<string, ExoObject?> byName)
+    {
+        string? guid = folder.Text("ContentMailboxGuid") ?? folder.Text("MailboxGuid");
+        if (guid is not null && byGuid.GetValueOrDefault(guid) is { } owner)
+        {
+            return owner;
+        }
+
+        string? identity = folder.Text("Identity");
+        int slash = identity?.IndexOf('\\', StringComparison.Ordinal) ?? -1;
+        return slash > 0 ? byName.GetValueOrDefault(identity![..slash]) : null;
     }
 
     /// <summary>
@@ -1069,6 +1167,16 @@ public static partial class MailboxLookups
 
         return null;
     }
+
+    /// <summary>
+    /// A folder entry's holder's primary address (task 101): the Admin API's <c>User</c> object
+    /// (<c>Exchange.MailboxFolderUserId</c>) carries it as <c>PrimarySmtpAddress</c>, null for <c>Default</c> and
+    /// <c>Anonymous</c>; a <c>User</c> given as text is its address when it is one.
+    /// </summary>
+    private static string? HolderAddress(ExoObject item) =>
+        item.Value("User") is { ValueKind: JsonValueKind.Object } user
+            ? user.TryGetProperty("PrimarySmtpAddress", out JsonElement smtp) && smtp.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(smtp.GetString()) ? smtp.GetString() : null
+            : item.Text("User") is { } text && text.Contains('@', StringComparison.Ordinal) ? text : null;
 
     /// <summary>A list value's words: a list, or a text of comma-separated words; <c>None</c> left out unless kept.</summary>
     private static List<string> Words(ExoObject item, string property, bool keepNone) =>

@@ -17,6 +17,12 @@ public sealed record SnapshotTakeOptions(string Home, TenantProfile Profile)
     /// <summary>The clock of the snapshot's name and of the retention.</summary>
     public TimeProvider Clock { get; init; } = TimeProvider.System;
 
+    /// <summary>
+    /// Reads every drive's sharing whole (<c>snapshot take --full</c>, task 099) instead of only what changed since the
+    /// previous snapshot's delta links.
+    /// </summary>
+    public bool Full { get; init; }
+
     /// <summary>How many drives, permission lists or mailboxes are read at once.</summary>
     internal int Parallel { get; init; } = 4;
 
@@ -200,7 +206,7 @@ public static class SnapshotTake
             SnapshotDomain mailboxes = await DomainAsync("mailboxes", "admin-api Get-Mailbox (pwsh Get-EXOMailbox when it cannot answer)", MailboxesAsync).ConfigureAwait(false);
             SnapshotDomain members = await DomainAsync("members", "graph /groups/{id}/members ($batch)", () => After(groups, MembersAsync)).ConfigureAwait(false);
             await DomainAsync("userGroups", "computed from the direct members at take time", () => After(members, () => Task.FromResult(new DomainRead(Builder.Closure(), [])))).ConfigureAwait(false);
-            await DomainAsync("owners", "graph /groups/{id}/owners ($batch); pwsh Get-DistributionGroup ManagedBy for the groups Exchange owns", () => After(groups, OwnersAsync)).ConfigureAwait(false);
+            await DomainAsync("owners", "graph /groups/{id}/owners ($batch); pwsh Get-DistributionGroup -ResultSize Unlimited ManagedBy and one piped Get-EXORecipient for the groups Exchange owns", () => After(groups, OwnersAsync)).ConfigureAwait(false);
             await DomainAsync("teams", "graph /teams", TeamsAsync).ConfigureAwait(false);
             SnapshotDomain sites = await DomainAsync("sites", "graph /sites?search=*; /sites/{id}/drive ($batch): the drive and the group behind the site", SitesAsync).ConfigureAwait(false);
             await DomainAsync(
@@ -214,13 +220,19 @@ public static class SnapshotTake
                 0,
                 "other users' OneDrives need a consent the tool does not ask for (Sites.Read.All reads the signed-in account's only; task 092)"));
             await DomainAsync("grants", "pwsh Get-EXOMailboxPermission (split across sidecars), Get-EXORecipientPermission, GrantSendOnBehalfTo", GrantsAsync).ConfigureAwait(false);
-            await DomainAsync("folderPermissions", "admin-api Get-MailboxFolderPermission of each mailbox's calendar", () => After(mailboxes, FolderPermissionsAsync)).ConfigureAwait(false);
+            await DomainAsync("folderPermissions", "pwsh Get-EXOMailbox | Get-EXOMailboxFolderStatistics -FolderScope Calendar (the calendars' names, piped); admin-api Get-MailboxFolderPermission of each mailbox's calendar", () => After(mailboxes, FolderPermissionsAsync)).ConfigureAwait(false);
             await DomainAsync("forwarding", "pwsh Get-EXOMailbox ForwardingSmtpAddress, ForwardingAddress", ForwardingAsync).ConfigureAwait(false);
         }
 
-        /// <summary>Reads one domain and records it; any failure but the sign-in's is the domain's own.</summary>
+        /// <summary>
+        /// Reads one domain and records it with its time and the requests it sent (task 097: the domains are read one
+        /// after the other, so the counters' difference is the domain's own); any failure but the sign-in's is the
+        /// domain's own.
+        /// </summary>
         private async Task<SnapshotDomain> DomainAsync(string name, string read, Func<Task<DomainRead>> work)
         {
+            var clock = Stopwatch.StartNew();
+            (long graph, TimeSpan waited, long adminApi, long sidecar) = (_graph.RequestsSent, _graph.Waited, backends.AdminApiCalls, backends.SidecarCalls);
             SnapshotDomain domain;
             try
             {
@@ -246,6 +258,14 @@ public static class SnapshotTake
                 domain = new SnapshotDomain(name, SnapshotDomainStatus.Failed, read, 0, $"{exception.Failure.Code}: {exception.Message}");
             }
 
+            domain = domain with
+            {
+                ElapsedMs = clock.ElapsedMilliseconds,
+                GraphRequests = _graph.RequestsSent - graph,
+                ThrottledMs = (long)(_graph.Waited - waited).TotalMilliseconds,
+                AdminApiCalls = backends.AdminApiCalls - adminApi,
+                SidecarCalls = backends.SidecarCalls - sidecar,
+            };
             Domains.Add(domain);
             return domain;
         }
@@ -303,17 +323,32 @@ public static class SnapshotTake
                 AddOwners(groupId, owners, "graph");
             }
 
+            // The groups Exchange owns: ManagedBy of every one in two sidecar calls (task 097), not two per group.
             var failed = new List<Unread>();
-            foreach (GroupInfo group in _groups.Where(GroupWrites.ThroughExchange))
+            List<GroupInfo> exchangeOwned = _groups.Where(GroupWrites.ThroughExchange).ToList();
+            if (exchangeOwned.Count == 0)
             {
-                try
+                return new DomainRead(Builder.Owners.Count, failed);
+            }
+
+            try
+            {
+                IReadOnlyDictionary<string, IReadOnlyList<GroupMember>> managedBy = await GroupWrites.ExchangeOwnerListsAsync(backends, cancellationToken).ConfigureAwait(false);
+                foreach (GroupInfo group in exchangeOwned)
                 {
-                    AddOwners(group.Id, await GroupWrites.ExchangeOwnerListAsync(backends, group, cancellationToken).ConfigureAwait(false), "managedBy");
+                    if (managedBy.TryGetValue(group.Id, out IReadOnlyList<GroupMember>? owners))
+                    {
+                        AddOwners(group.Id, owners, "managedBy");
+                    }
+                    else
+                    {
+                        failed.Add(new Unread($"{group.DisplayName}: not among the groups Get-DistributionGroup lists", FailureKind.NotFound.ToCode()));
+                    }
                 }
-                catch (AegisException exception) when (exception.Failure.Kind != FailureKind.Auth)
-                {
-                    failed.Add(new Unread($"{group.DisplayName}: {exception.Message}", exception.Failure.Code));
-                }
+            }
+            catch (AegisException exception) when (exception.Failure.Kind != FailureKind.Auth)
+            {
+                failed.AddRange(exchangeOwned.Select(group => new Unread($"{group.DisplayName}: {exception.Message}", exception.Failure.Code)));
             }
 
             return new DomainRead(Builder.Owners.Count, failed);
@@ -382,20 +417,41 @@ public static class SnapshotTake
         /// read twenty to a <c>$batch</c> call. Several drives' deltas are read at once, but their permissions one batch at
         /// a time, which SharePoint throttles first (live: 1,036 of 2,218 items answered 429 with four drives at once); a
         /// throttled item is sent again after its <c>Retry-After</c> within the take's budget. A drive that fails is an
-        /// item that failed.
+        /// item that failed. Since task 099 a drive the previous snapshot kept a delta link for is read from that link
+        /// (<see cref="SharingBase"/>): only the items changed since come, their permissions are read again, a removed
+        /// item's rows and those of an item that inherits its parent's sharing again are dropped, and the drive's other
+        /// rows are the previous snapshot's. A drive without a link, or whose delta from it fails (a <c>410</c>
+        /// <c>resyncRequired</c> or any other error), is read whole, and <c>--full</c> reads every drive whole. A drive's
+        /// link is kept only when the drive was read whole, so a later take never builds on rows that are missing.
         /// </summary>
         private async Task<DomainRead> SharingAsync()
         {
             List<SnapshotSite> sites = Builder.Sites.Where(site => site.DriveId is not null).ToList();
+            SharingBase? previous = options.Full ? null : SharingBase.Load(SnapshotStore.Folder(options.Home, options.Profile.Name));
+            Extra[SharingBase.WholeDrives] = SharingBase.WholeDrivesValue;
             using var permissionGate = new SemaphoreSlim(1, 1);
-            DriveRead[] reads = await EachAsync(sites, site => ReadDriveAsync(site, permissionGate)).ConfigureAwait(false);
+            DriveRead[] reads = await EachAsync(sites, site => ReadDriveAsync(site, permissionGate, previous?.DeltaLinks.GetValueOrDefault(site.DriveId!))).ConfigureAwait(false);
             var failed = new List<Unread>();
+            var incremental = new List<string>();
+            int changed = 0;
+            int fellBack = 0;
             foreach (DriveRead read in reads)
             {
                 failed.AddRange(read.Failed);
-                if (read.DeltaLink is not null)
+                fellBack += read.FellBack ? 1 : 0;
+                if (read.DeltaLink is not null && read.Failed.Count == 0)
                 {
-                    Extra[$"deltaLink.{read.Site.DriveId}"] = read.DeltaLink;
+                    Extra[SharingBase.DeltaLinkPrefix + read.Site.DriveId] = read.DeltaLink;
+                }
+
+                if (read.Changed is { } changedIds)
+                {
+                    incremental.Add(read.Site.DriveId!);
+                    changed += changedIds.Count;
+                    foreach (BaseLink link in previous!.Links.GetValueOrDefault(read.Site.DriveId!, []).Where(link => !changedIds.Contains(link.ItemId)))
+                    {
+                        AddCarried(read.Site, link);
+                    }
                 }
 
                 foreach ((DriveItem item, IReadOnlyList<DrivePermission> permissions) in read.Items)
@@ -404,41 +460,70 @@ public static class SnapshotTake
                 }
             }
 
-            return new DomainRead(Builder.Links.Count, failed);
+            if (incremental.Count > 0)
+            {
+                Extra["sharingBase"] = previous!.Name;
+                Extra["incrementalDrives"] = string.Join(",", incremental);
+            }
+
+            string remark = string.Join("; ", new[]
+            {
+                incremental.Count == 0 ? null : $"{incremental.Count} of {reads.Length} drive(s) read incrementally from {previous!.Name}, {changed} changed item(s)",
+                fellBack == 0 ? null : $"{fellBack} drive(s) read whole, their delta since the previous snapshot failed",
+            }.OfType<string>());
+            return new DomainRead(Builder.Links.Count, failed, remark.Length == 0 ? null : remark);
         }
 
-        private sealed record DriveRead(SnapshotSite Site, List<(DriveItem Item, IReadOnlyList<DrivePermission> Permissions)> Items, List<Unread> Failed, string? DeltaLink);
+        /// <summary>
+        /// A drive's read: the items whose permissions were read, the items that failed, the delta link for the next take,
+        /// the ids of the items an incremental read found changed (null for a whole read), and whether an incremental
+        /// read failed and the drive was read whole.
+        /// </summary>
+        private sealed record DriveRead(
+            SnapshotSite Site,
+            List<(DriveItem Item, IReadOnlyList<DrivePermission> Permissions)> Items,
+            List<Unread> Failed,
+            string? DeltaLink,
+            HashSet<string>? Changed = null,
+            bool FellBack = false);
 
-        private async Task<DriveRead> ReadDriveAsync(SnapshotSite site, SemaphoreSlim permissionGate)
+        private async Task<DriveRead> ReadDriveAsync(SnapshotSite site, SemaphoreSlim permissionGate, string? since)
         {
             var items = new List<(DriveItem, IReadOnlyList<DrivePermission>)>();
             var failed = new List<Unread>();
-            var shared = new List<DriveItem>();
-            string? deltaLink;
-            try
+            List<DriveItem> shared = [];
+            HashSet<string>? changedIds = null;
+            string? deltaLink = null;
+            bool fellBack = false;
+            if (since is not null)
             {
-                var request = GraphRequest.Get(GraphQuery.Path($"/drives/{site.DriveId}/root/delta", ("$select", "id,name,shared,parentReference"), ("$top", "1000"))) with
+                try
                 {
-                    Permission = WorkspaceLookups.SitePermission,
-                    Prefer = HierarchicalSharing,
-                };
-                while (true)
+                    (List<DriveItem> changed, deltaLink) = await DeltaAsync(new GraphRequest(HttpMethod.Get, since)).ConfigureAwait(false);
+                    // An item may come more than once; its last occurrence is its state.
+                    List<DriveItem> latest = changed.GroupBy(item => item.Id, StringComparer.Ordinal).Select(group => group.Last()).ToList();
+                    changedIds = latest.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+                    shared = latest.Where(item => item.Deleted is null && item.Shared is not null).ToList();
+                }
+                catch (AegisException exception) when (exception.Failure.Kind != FailureKind.Auth)
                 {
-                    DeltaPage page = (await _graph.GetAsync<DeltaPage>(request, cancellationToken).ConfigureAwait(false))!;
-                    shared.AddRange(page.Value.Where(item => item.Shared is not null));
-                    if (page.NextLink is null)
-                    {
-                        deltaLink = page.DeltaLink;
-                        break;
-                    }
-
-                    request = new GraphRequest(HttpMethod.Get, page.NextLink) { Permission = WorkspaceLookups.SitePermission, Prefer = HierarchicalSharing };
+                    fellBack = true;
                 }
             }
-            catch (AegisException exception) when (exception.Failure.Kind != FailureKind.Auth)
+
+            if (changedIds is null)
             {
-                failed.Add(new Unread($"{site.Name}: {exception.Message}", exception.Failure.Code));
-                return new DriveRead(site, items, failed, null);
+                try
+                {
+                    (List<DriveItem> all, deltaLink) = await DeltaAsync(
+                        GraphRequest.Get(GraphQuery.Path($"/drives/{site.DriveId}/root/delta", ("$select", "id,name,shared,parentReference"), ("$top", "1000")))).ConfigureAwait(false);
+                    shared = all.Where(item => item.Shared is not null).ToList();
+                }
+                catch (AegisException exception) when (exception.Failure.Kind != FailureKind.Auth)
+                {
+                    failed.Add(new Unread($"{site.Name}: {exception.Message}", exception.Failure.Code));
+                    return new DriveRead(site, items, failed, null, null, fellBack);
+                }
             }
 
             IReadOnlyList<GraphBatchResponse> answers;
@@ -474,7 +559,36 @@ public static class SnapshotTake
                 }
             }
 
-            return new DriveRead(site, items, failed, deltaLink);
+            return new DriveRead(site, items, failed, deltaLink, changedIds, fellBack);
+        }
+
+        /// <summary>Every page of a drive's delta from its first request: the items, and the last page's delta link.</summary>
+        private async Task<(List<DriveItem> Items, string? DeltaLink)> DeltaAsync(GraphRequest first)
+        {
+            var items = new List<DriveItem>();
+            GraphRequest request = first with { Permission = WorkspaceLookups.SitePermission, Prefer = HierarchicalSharing };
+            while (true)
+            {
+                DeltaPage page = (await _graph.GetAsync<DeltaPage>(request, cancellationToken).ConfigureAwait(false))!;
+                items.AddRange(page.Value);
+                if (page.NextLink is null)
+                {
+                    return (items, page.DeltaLink);
+                }
+
+                request = new GraphRequest(HttpMethod.Get, page.NextLink) { Permission = WorkspaceLookups.SitePermission, Prefer = HierarchicalSharing };
+            }
+        }
+
+        /// <summary>A row of the previous snapshot an incremental read keeps (task 099), with its grantees as the objects they were.</summary>
+        private void AddCarried(SnapshotSite site, BaseLink link)
+        {
+            var row = new SnapshotLink(Builder.Links.Count + 1, site.Key, link.ItemId, link.ItemName, link.ItemPath, link.Kind, link.Scope, link.Type, link.Roles, link.Expires, link.HasPassword);
+            Builder.Links.Add(row);
+            foreach (BaseGrantee grantee in link.Grantees)
+            {
+                Builder.LinkGrantees.Add((row.Key, Builder.Object(grantee.Kind, grantee.ObjectId, null, grantee.Name, grantee.Mail).Key));
+            }
         }
 
         /// <summary>
@@ -562,7 +676,9 @@ public static class SnapshotTake
         /// <summary>
         /// Each mailbox's calendar permissions over the Admin API (task 042), several mailboxes at once; a mailbox that
         /// fails is an item that failed. An entry's holder is named as the service names it, and matched to an object by
-        /// its user principal name, its address or a display name only one object carries.
+        /// the address the service gives with it first (task 101), else by the name as a user principal name, an address
+        /// or a display name only one object carries; <c>Default</c> and <c>Anonymous</c> are everyone's and match none.
+        /// The note counts the holders no object matched.
         /// </summary>
         private async Task<DomainRead> FolderPermissionsAsync()
         {
@@ -571,12 +687,22 @@ public static class SnapshotTake
                 throw new AegisException(FailureKind.ServiceError, "the calendars' permissions need the Exchange Online Admin API, which this run does not have");
             }
 
+            // The calendars' names in the mailboxes' languages in one piped read (task 100); a mailbox it did not name
+            // has its calendar's name read on its own, as before.
+            IReadOnlyDictionary<string, string> calendars = await MailboxLookups.CalendarPathsAsync(backends.Sidecar, cancellationToken).ConfigureAwait(false);
             var failed = new List<Unread>();
+            int oneByOne = 0;
             (MailboxInfo Mailbox, MailboxFolderPermissions? Folder)[] reads = await EachAsync(_mailboxes, async mailbox =>
             {
+                string? calendar = (mailbox.ObjectId is { } id ? calendars.GetValueOrDefault(id) : null) ?? calendars.GetValueOrDefault(mailbox.PrimarySmtpAddress);
+                if (calendar is null)
+                {
+                    Interlocked.Increment(ref oneByOne);
+                }
+
                 try
                 {
-                    return (mailbox, (await MailboxLookups.FolderPermissionsAsync(backends, mailbox.PrimarySmtpAddress, null, cancellationToken).ConfigureAwait(false)).Data);
+                    return (mailbox, (await MailboxLookups.FolderPermissionsAsync(backends, mailbox.PrimarySmtpAddress, calendar, cancellationToken).ConfigureAwait(false)).Data);
                 }
                 catch (AegisException exception) when (exception.Failure.Kind != FailureKind.Auth)
                 {
@@ -589,18 +715,36 @@ public static class SnapshotTake
                 }
             }).ConfigureAwait(false);
             Dictionary<string, SnapshotObject?> names = Builder.NameIndex();
+            int unmatched = 0;
+            int unmatchedAddress = 0;
             foreach ((MailboxInfo mailbox, MailboxFolderPermissions? folder) in reads.Where(read => read.Folder is not null))
             {
                 int key = Builder.Mailbox(mailbox).Key;
                 foreach (FolderPermissionEntry entry in folder!.Permissions)
                 {
-                    Builder.FolderPermissions.Add((key, folder.Folder, Named(names, entry.User)?.Key, entry.User, string.Join(",", entry.AccessRights)));
+                    // The holder by its address first (task 101), by the name the service gives it only without one.
+                    bool everyone = Everyone(entry.User);
+                    int? holder = everyone ? null : (entry.Address is { } address ? Named(names, address) : null)?.Key ?? Named(names, entry.User)?.Key;
+                    unmatched += holder is null && !everyone ? 1 : 0;
+                    // An address no object has is someone outside the snapshot (an external or another recipient's);
+                    // a holder without one is named by its display name alone (live: a removed account's lingers).
+                    unmatchedAddress += holder is null && !everyone && (entry.Address ?? entry.User).Contains('@', StringComparison.Ordinal) ? 1 : 0;
+                    Builder.FolderPermissions.Add((key, folder.Folder, holder, entry.User, string.Join(",", entry.AccessRights)));
                 }
             }
 
             failed.Sort((left, right) => string.CompareOrdinal(left.What, right.What));
-            return new DomainRead(Builder.FolderPermissions.Count, failed);
+            string remark = string.Join("; ", new[]
+            {
+                oneByOne == 0 ? null : $"{oneByOne} calendar name(s) read one mailbox at a time, the piped read did not name them",
+                unmatched == 0 ? null : $"{unmatched} holder(s) matched no object: {unmatched - unmatchedAddress} without an address, {unmatchedAddress} with an address outside the snapshot",
+            }.OfType<string>());
+            return new DomainRead(Builder.FolderPermissions.Count, failed, remark.Length == 0 ? null : remark);
         }
+
+        /// <summary>A calendar entry for everyone rather than a holder: <c>Default</c> (every user) or <c>Anonymous</c>.</summary>
+        private static bool Everyone(string user) =>
+            user.Equals("Default", StringComparison.OrdinalIgnoreCase) || user.Equals("Anonymous", StringComparison.OrdinalIgnoreCase);
 
         private async Task<DomainRead> ForwardingAsync()
         {

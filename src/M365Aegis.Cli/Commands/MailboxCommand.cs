@@ -586,7 +586,7 @@ internal sealed class FolderPermissionsTableView : ITableView<MailboxFolderPermi
 
     public IEnumerable<IReadOnlyList<string>> Rows(MailboxFolderPermissions data) => data.Permissions.Select(entry => (IReadOnlyList<string>)
     [
-        entry.User,
+        entry.Address is { } address && !string.Equals(address, entry.User, StringComparison.OrdinalIgnoreCase) ? $"{entry.User} <{address}>" : entry.User,
         entry.AccessRights.Count == 0 ? "-" : string.Join(", ", entry.AccessRights),
         entry.SharingPermissionFlags.Count == 0 ? "-" : string.Join(", ", entry.SharingPermissionFlags),
     ]);

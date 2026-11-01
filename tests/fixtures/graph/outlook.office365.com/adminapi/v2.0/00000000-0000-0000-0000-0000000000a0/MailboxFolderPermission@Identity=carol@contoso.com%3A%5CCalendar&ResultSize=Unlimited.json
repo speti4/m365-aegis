@@ -27,7 +27,8 @@
       "FolderName": "Calendar",
       "User": {
         "DisplayName": "Finance Staff",
-        "UserType": "Internal"
+        "UserType": "Internal",
+        "PrimarySmtpAddress": "finance-staff@contoso.com"
       },
       "AccessRights": [
         "Reviewer"
