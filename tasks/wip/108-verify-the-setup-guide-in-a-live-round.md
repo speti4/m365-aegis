@@ -56,7 +56,7 @@ Fifteenth round of 2026-11-01, worked in the main session on its own branch (no 
        profile's account restored
 4. [x] `docs/setup.md`: the `trace` row names the role; the `MessageTraceLookup` hint names the role next to the
        service principal if the live refusal is the same for both
-5. [ ] The Verification dated; the local matrix with the sidecar Pester tests
+5. [x] The Verification dated; the local matrix with the sidecar Pester tests
 
 ## Log
 
@@ -105,7 +105,21 @@ Fifteenth round of 2026-11-01, worked in the main session on its own branch (no 
 
 ## Verification
 
-- <dated, concrete: what was run, what it showed, before/after where a number changed>
+- 2026-11-01 — live, the Azure CLI block: run end to end as the administrator with Azure CLI 2.71.0 against the
+  throwaway registration `m365-aegis-setup-check`, every step exit 0, the registration shown as the guide describes it
+  (public client, `AzureADMyOrg`, the two redirect URIs, 11 Graph and 2 Exchange delegated scopes, both consented for
+  all principals), then deleted with its service principal (both lists empty). The guide gained the sentence about the
+  `permission add` warning and the date of the run; `PermissionMapTests` still parse it.
+- 2026-11-01 — live, the roles: the everyday account (no Exchange Online role group) got exit 9 from `trace` eight
+  times (Graph 500 "Failed parsing error response"), exit 0 from `group owners-missing --all-types` with the sidecar
+  answering, and one mailbox from `mailbox list`; eight minutes in Recipient Management changed nothing (six runs);
+  the role was taken out at 15:19. The control right after, the administrator's account on the same query: exit 0 with
+  10 messages, so the 500 is the account's, not the service's. The probe did not find the least role live; the table
+  carries the Learn reference's role groups and the 500 as the shape of a missing role.
+- 2026-11-01 — local: `dotnet restore --locked-mode`, `dotnet format --verify-no-changes`, `dotnet build -c Release
+  -p:SkipFrontendBuild=true`, `dotnet test` (1,644 passed), the coverage gate (Core and Cli 100% lines and branches),
+  `changelog.py --check`, `check-fixtures.py --self-test` and `check-fixtures.py` clean; the sidecar's Pester run
+  (`tests/sidecar/run-with-coverage.ps1`): 124 passed, the script's 266/266 commands.
 
 ## Closing checklist
 
