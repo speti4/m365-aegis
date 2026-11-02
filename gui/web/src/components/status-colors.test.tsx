@@ -93,8 +93,37 @@ describe("the status badges", () => {
       />,
     );
 
+    const noExchange = await render(
+      <SignInCard
+        state={{
+          status: "signed-in",
+          info: {
+            profile: "work",
+            account: "alice@contoso.com",
+            tenantId: "contoso.com",
+            tokens: [{ resource: "exchange", error: "the consent is missing", scopes: [] }],
+          },
+        }}
+        onRefresh={noop}
+        onSignIn={noop}
+        onSignOut={noop}
+        onOpenSignInPage={noop}
+      />,
+    );
+    const unknown = await render(
+      <SignInCard
+        state={{ status: "unknown" }}
+        onRefresh={noop}
+        onSignIn={noop}
+        onSignOut={noop}
+        onOpenSignInPage={noop}
+      />,
+    );
+
     expect(badgeOf(signedIn.container, "signed in").className).toContain("text-success");
     expect(badgeOf(signedOut.container, "signed out").className).toContain("text-warning");
+    expect(badgeOf(noExchange.container, "signed in · Exchange unavailable").className).toContain("text-warning");
+    expect(badgeOf(unknown.container, "sign-in unknown").className).toContain("text-danger");
   });
 });
 
