@@ -36,7 +36,7 @@ describe("the mailbox access card", () => {
 
     await click(button(container, "List the shared mailboxes"));
     await settle();
-    expect(container.textContent).toContain("2 shared mailbox(es); pick one to see its access.");
+    expect(container.textContent).toContain("2 shared mailboxes. Choose one to see its permissions.");
     // The time the answer took is a detail, behind the collapsed "Details" line (task 126).
     const listDetails = container.querySelector('[data-testid="details"]') as HTMLDetailsElement;
     expect(listDetails.open).toBe(false);
@@ -48,7 +48,7 @@ describe("the mailbox access card", () => {
     expect(input().value).toBe("reception@contoso.com");
     // The button picked is gone with the list: the focus is back in the field.
     expect(document.activeElement).toBe(input());
-    expect(liveStatus(container)).toBe("Reception: 3 grants");
+    expect(liveStatus(container)).toBe("Reception: 3 permissions");
     expect(container.querySelector('[data-testid="answer-for"]')?.textContent).toBe(
       'Answer for "reception@contoso.com"',
     );
@@ -56,28 +56,28 @@ describe("the mailbox access card", () => {
       [...row.querySelectorAll("td")].map((cell) => cell.textContent),
     );
     expect(rows).toEqual([
-      ["FullAccess", "alice@contoso.com", "alice@contoso.com"],
-      ["FullAccess", "bob@contoso.com", "bob@contoso.com"],
+      ["Full Access", "alice@contoso.com", "alice@contoso.com"],
+      ["Full Access", "bob@contoso.com", "bob@contoso.com"],
       ["Send As", "bob@contoso.com", "bob@contoso.com"],
     ]);
     // The layers are details too: the sentence and the layer of each row, not a column (task 126).
     expect([...container.querySelectorAll("th")].map((head) => head.textContent)).toEqual([
-      "Right",
-      "Holder",
-      "Address",
+      "Permission",
+      "User or group",
+      "Email address",
     ]);
     const details = container.querySelector('[data-testid="details"]') as HTMLDetailsElement;
     expect(details.open).toBe(false);
     expect(details.textContent).toContain(
-      "The mailbox and its Send on Behalf delegates by name come from the Admin API",
+      "The mailbox and its Send on Behalf delegates came from the Exchange admin API",
     );
     expect([...details.querySelectorAll("li")].map((item) => item.textContent)).toEqual([
-      "FullAccess, alice@contoso.com: read through PowerShell",
-      "FullAccess, bob@contoso.com: read through PowerShell",
-      "Send As, bob@contoso.com: read through PowerShell",
+      "Full Access, alice@contoso.com: read through Exchange Online PowerShell",
+      "Full Access, bob@contoso.com: read through Exchange Online PowerShell",
+      "Send As, bob@contoso.com: read through Exchange Online PowerShell",
     ]);
     expect(details.textContent).toMatch(/Answered in \d+ ms\.$/);
-    expect(container.textContent).toContain("· 3 grant(s)");
+    expect(container.textContent).toContain("Shared mailboxreception@contoso.com· 3 permissions");
   });
 
   it("says when nobody but the mailbox's own account holds a right", async () => {
@@ -85,7 +85,7 @@ describe("the mailbox access card", () => {
 
     await lookUp("Alice Example");
 
-    expect(container.textContent).toContain("Nobody holds a right on this mailbox but its own account.");
+    expect(container.textContent).toContain("No one else has permissions on this mailbox.");
     expect(container.querySelector("table")).toBeNull();
   });
 
@@ -97,15 +97,15 @@ describe("the mailbox access card", () => {
     await click(byUser);
     expect(byUser.getAttribute("aria-checked")).toBe("true");
     expect(label().textContent).toBe("User");
-    expect(input().placeholder).toBe("Start typing a name, or a full address");
+    expect(input().placeholder).toBe("Start typing a name, or enter a full email address");
     expect(input().getAttribute("role")).toBe("combobox");
     await lookUp("bob@contoso.com");
-    expect(liveStatus(container)).toBe("Bob Example: 3 grants over 4 mailboxes");
+    expect(liveStatus(container)).toBe("Bob Example: 3 permissions across 4 mailboxes");
 
     const text = container.textContent ?? "";
     expect(text).toContain("Bob Example");
-    expect(text).toContain("partial");
-    expect(text).toContain("1 list(s) could not be read; the grants below may be incomplete.");
+    expect(text).toContain("Incomplete");
+    expect(text).toContain("1 list could not be read, so the permissions below may be incomplete.");
     expect(text).toContain("the FullAccess list of 'Archive' could not be read (a mock)");
     expect(container.querySelectorAll("tbody tr")).toHaveLength(3);
 
@@ -137,11 +137,11 @@ describe("the mailbox access card", () => {
     await click(radio(container, "A user"));
 
     await lookUp("dave@contoso.com");
-    expect(liveStatus(container)).toBe("dave@contoso.com: 0 grants over 4 mailboxes");
+    expect(liveStatus(container)).toBe("dave@contoso.com: 0 permissions across 4 mailboxes");
 
-    expect(container.textContent).toContain("dave@contoso.com· 0 grant(s) over 4 mailbox(es)");
-    expect(container.textContent).not.toContain("partial");
-    expect(container.textContent).toContain("The user holds no right on another mailbox.");
+    expect(container.textContent).toContain("dave@contoso.com· 0 permissions across 4 mailboxes");
+    expect(container.textContent).not.toContain("Incomplete");
+    expect(container.textContent).toContain("No permissions on other mailboxes.");
 
     const access: MailboxAccess = {
       mailbox: { displayName: "Archive", primarySmtpAddress: "archive@contoso.com", type: "SharedMailbox" },
@@ -153,13 +153,13 @@ describe("the mailbox access card", () => {
     expect(cells).toEqual(["Send on Behalf", "Finance team", ""]);
     // No layer named: the details have the time only.
     expect(second.container.querySelector('[data-testid="layers"]')).toBeNull();
-    expect(liveStatus(second.container)).toBe("Archive: 1 grant");
+    expect(liveStatus(second.container)).toBe("Archive: 1 permission");
 
     const one: UserAccess = { ...grants, mailboxesScanned: 1, displayName: "Dave Example" };
     const third = await card(scripted(() => ({ type: MessageType.userGrants, data: one })));
     await click(radio(third.container, "A user"));
     await third.lookUp("dave@contoso.com");
-    expect(liveStatus(third.container)).toBe("Dave Example: 0 grants over 1 mailbox");
+    expect(liveStatus(third.container)).toBe("Dave Example: 0 permissions across 1 mailbox");
   });
 
   it("shows an error under the field and drops the old answer (task 120)", async () => {
@@ -243,7 +243,7 @@ describe("the mailbox access card", () => {
     expect(button(container, "Looking up…")).toBeDefined();
     expect(container.textContent).not.toContain("The first lookup starts");
     expect(liveStatus(container)).toBe("Looking up finance…");
-    expect(container.textContent).toContain("Nobody holds a right");
+    expect(container.textContent).toContain("No one else has permissions");
     const shown = container.querySelector('[data-testid="answer-for"]')?.closest('[aria-busy="true"]');
     expect(shown?.className).toContain("opacity-50");
   });

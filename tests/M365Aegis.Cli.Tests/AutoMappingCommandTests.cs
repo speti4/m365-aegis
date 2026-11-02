@@ -35,7 +35,7 @@ public sealed class AutoMappingCommandTests
         Assert.Equal(0, dryExit);
         using JsonDocument dry = JsonDocument.Parse(dryOut);
         Assert.Equal(
-            "FullAccess for Carol Example (carol@contoso.com), without automapping",
+            "Full Access for Carol Example (carol@contoso.com), without automapping",
             dry.RootElement.GetProperty("data").GetProperty("changes")[0].GetProperty("detail").GetString());
         Assert.Equal(0, exitCode);
         using JsonDocument write = JsonDocument.Parse(Assert.Single(File.ReadAllLines(writes)));
@@ -53,7 +53,7 @@ public sealed class AutoMappingCommandTests
         Assert.Equal(0, exitCode);
         using JsonDocument document = JsonDocument.Parse(stdout);
         Assert.Equal(
-            [(2, "FullAccess for Carol Example (carol@contoso.com), without automapping"), (3, "Send As for Carol Example (carol@contoso.com)"), (4, "FullAccess for Bob Example (bob@contoso.com)")],
+            [(2, "Full Access for Carol Example (carol@contoso.com), without automapping"), (3, "Send As for Carol Example (carol@contoso.com)"), (4, "Full Access for Bob Example (bob@contoso.com)")],
             document.RootElement.GetProperty("data").GetProperty("changes").EnumerateArray().Select(change => (change.GetProperty("row").GetInt32(), change.GetProperty("detail").GetString())));
     }
 

@@ -15,6 +15,7 @@ import { exchangeError, signInReducer } from "./components/sign-in-state";
 import { SnapshotDiffCard } from "./components/snapshot-diff-card";
 import { pageGroups, signInSection, TopBar } from "./components/top-bar";
 import { UserAccessCard } from "./components/user-access-card";
+import { windowError } from "./components/vocabulary";
 
 /** How long a toast stays: long enough to read a sentence and its hint; its close button ends it sooner. */
 const TOAST_MS = 10_000;
@@ -42,7 +43,9 @@ export function App() {
   const runAs = signIn.status === "signed-in" ? signIn.info : undefined;
 
   const showError = useCallback((error: BridgeError) => {
-    toast.error(error.message, { description: error.hint });
+    // The core's lower-case sentence and hint in the window's words, each a sentence (task 122).
+    const { message, hint } = windowError(error);
+    toast.error(message, { description: hint });
   }, []);
 
   const checkSignIn = useCallback(async () => {

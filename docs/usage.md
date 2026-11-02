@@ -167,8 +167,8 @@ seconds the first time.
 
 ```powershell
 m365-aegis mailbox list --shared                  # the shared mailboxes (without --shared, every mailbox)
-m365-aegis mailbox access finance                 # who holds FullAccess, Send As and Send on Behalf on it
-m365-aegis mailbox access reception --expand-groups   # a right held by a group, expanded into its members
+m365-aegis mailbox access finance                 # who has Full Access, Send As and Send on Behalf on it
+m365-aegis mailbox access reception --expand-groups   # a permission held by a group, expanded into its members
 m365-aegis mailbox access --user bob@contoso.com  # the other way round: the mailboxes Bob can open or send as
 m365-aegis mailbox forwarders                     # the mailboxes that forward their mail, the external targets first
 m365-aegis mailbox size --top 3                   # the three largest mailboxes
@@ -259,9 +259,10 @@ m365-aegis mailbox forwarding set alice --to alice@fabrikam.com --keep-copy --dr
 m365-aegis mailbox forwarding clear bob --dry-run
 ```
 
-`group members add` and `remove` take several users at once. `--user` and `--right` repeat on the mailbox rights
-(`--right` takes `FullAccess`, `SendAs` and `SendOnBehalf`, also comma-separated); `--no-automapping` grants
-FullAccess without Outlook adding the mailbox for the user on its own. `mailbox forwarding set` forwards to the
+`group members add` and `remove` take several users at once. `--user` and `--right` repeat on the mailbox
+permissions (`--right` takes `FullAccess`, `SendAs` and `SendOnBehalf`, also comma-separated; the plan writes them as
+the Exchange admin center does: Full Access, Send As, Send on Behalf); `--no-automapping` grants Full Access without
+Outlook adding the mailbox for the user on its own. `mailbox forwarding set` forwards to the
 address only, unless `--keep-copy` keeps a copy in the mailbox; the plan warns when the address is outside the
 organization. The members and owners of a distribution group or a mail-enabled security group, which Microsoft Graph
 cannot change, are changed through Exchange Online, with the same plan, flags and exit codes. A synced group's members
@@ -275,7 +276,7 @@ change per line, all of it one plan.
 | write | columns |
 | --- | --- |
 | `group members add`, `group members remove`, `group owners add`, `group owners remove` | `group`, `user` |
-| `mailbox access grant`, `mailbox access revoke` | `mailbox`, `user`, `right`; a grant optionally `automapping` (`false` on a FullAccess line) |
+| `mailbox access grant`, `mailbox access revoke` | `mailbox`, `user`, `right`; a grant optionally `automapping` (`false` on a Full Access line) |
 | `mailbox forwarding set` | `mailbox`, `to`, optionally `keepCopy` (`true` or `false`) |
 | `mailbox forwarding clear` | `mailbox` |
 
@@ -319,7 +320,7 @@ and `--dry-run` or `--yes` as usual. A change the window applied resumes the sam
 A snapshot is a copy of who can reach what in the tenant, read in one run and kept as one file under
 `%LOCALAPPDATA%\m365-aegis\snapshots\<profile>\`: the users and groups with their members (nested ones too) and
 owners, the teams, the SharePoint sites with the group behind each one and their shared files, and the Exchange Online
-mailboxes with FullAccess, Send As, Send on Behalf, the calendars' permissions and the forwarding. Reading all of it
+mailboxes with Full Access, Send As, Send on Behalf, the calendars' permissions and the forwarding. Reading all of it
 takes minutes in a large tenant; a question to a snapshot takes well under a second. Take one before you ask, or let
 a scheduled task take one every morning (below): an answer is as old as the snapshot it comes from, and the window
 says when that was. Taking one only reads: nothing in the tenant changes.
@@ -360,7 +361,7 @@ m365-aegis access dave@contoso.com --json | ConvertFrom-Json
 
 `access` answers from the newest snapshot, without signing in: the groups the user is in (and through which group a
 nested membership comes), the sites of those groups and of the groups the user owns, the files shared with the user
-or one of the groups, the mailbox rights and the calendar permissions held directly or through a group. The links
+or one of the groups, the mailbox permissions and the calendar permissions held directly or through a group. The links
 anyone in the organization or anyone at all can open, and the calendars open to every user, reach this user like
 everyone else, so they are counted under the table rather than listed. The answer names the snapshot's time and warns
 when it is older than 36 hours. Without a snapshot it ends with exit code 4 and the hint
@@ -375,7 +376,7 @@ m365-aegis snapshot diff 2026-10-31 --user bob@contoso.com   # what one user gai
 ```
 
 `snapshot diff <a> <b>` lists who gained or lost access from the first snapshot to the second, without signing in: the
-group memberships and owners, the shared files and who they are shared with, the mailbox rights, the calendar
+group memberships and owners, the shared files and who they are shared with, the mailbox permissions, the calendar
 permissions and the forwarding, each row marked `added` or `removed`. A snapshot is named as `snapshot list` prints
 it, or picked: `latest` is the newest, `yesterday` the last one taken before today, a date (`2026-10-31`) the last one
 taken on that day or before it, all in UTC; without `<b>` the newest is compared. The rows are matched by the people
@@ -386,7 +387,7 @@ that its unread items may show as changes. A pick that finds no snapshot ends wi
 
 `--user <x>` (a user principal name, an address or an object id) lists what that one user gained or lost, in the
 sections of [What one user reaches](#what-one-user-reaches): the groups, nested memberships included, the groups
-they own, the sites, the shared files, the mailbox rights and the calendar permissions, each held directly or through
+they own, the sites, the shared files, the mailbox permissions and the calendar permissions, each held directly or through
 a group, and the forwarding of the user's mailbox or to it. The `through` column names the group a row comes
 through: when the user joins a group that is itself a member of another, both memberships show, and so does what the
 other group holds. The user is matched by the object id in both snapshots, so a changed user principal name is no
@@ -417,145 +418,183 @@ fixes it, and `access` keeps answering from the last snapshot with its age.
 
 `m365-aegis-gui.exe` opens the window. It uses the same tenant profile, the same sign-in and the same plans as the
 command line; the first profile is written by `m365-aegis login` on the command line. Each task is a card, and the
-cards come in three groups on one page: Look up (group members, mailbox access), Snapshots (user access, access
-changes) and Change (mailbox rights, mailbox forwarding).
+cards come in three groups on one page: Look up (Group members, Mailbox permissions), Snapshots (User access, Access
+changes) and Change (Change mailbox permissions, Mailbox forwarding).
 
 The bar at the top stays in place while the page scrolls. It shows the version, the links to the three groups
-(each scrolls its group to the top), and the sign-in: a dot and the state in words ("signed in", "signed in ·
-Exchange unavailable", "signed out"), the account, the tenant id shortened to its first eight characters (the whole
-id when you point at it), the profile, and "Sign in" or "Sign out". The state links to the sign-in card, which keeps
+(each scrolls its group to the top), and the sign-in: a dot and the state in words ("Signed in", "Signed in ·
+Exchange unavailable", "Signed out"), the account, the tenant id shortened to its first eight characters (the whole
+id when you point at it), the profile, and "Sign in" or "Sign out". The state links to the Sign-in card, which keeps
 the details.
 
-Every field has its name above it (Group, Mailbox, User, Users, Forward to, From, To, Only this user); the grey text
-in an empty field is an example. Enter in a field looks up, compares or, on a write card, shows the plan. A button
-that waits for a field stays reachable with Tab and says what it still needs. While a lookup runs the field keeps the
-cursor and the previous answer stays on the card, dimmed; the answer then names what it answers ("Answer for
-"Finance""). A lookup that fails says so under the field, with what to do, and the previous answer goes, so an old
-table never stands for a misspelled name. A screen reader hears each step of a card (a lookup under way, its answer,
-the plan, the result) as the card's status, and an error as an alert. A notice at the bottom right, with a close
-button, is left for the page's own requests, such as a failed sign-in.
+The window names things the way the Microsoft 365 admin centers do: Full Access, Send As and Send on Behalf are
+mailbox permissions; a person is named by their sign-in name (the user principal name) or their email address, an
+object by its object ID, a site by its URL; a mailbox is a Shared mailbox or a User mailbox, a group Microsoft 365,
+Security, Mail-enabled security or a Distribution list.
+
+Every field has its name above it (Group, Mailbox, User, Users, Forward to, Compare from, Compare to, Only this user);
+the grey text in an empty field is an example. Enter in a field looks up, compares or, on a write card, shows the
+plan. A button that waits for a field stays reachable with Tab and says what it still needs. While a lookup runs the
+field keeps the cursor and the previous answer stays on the card, dimmed; the answer then names what it answers
+("Answer for "Finance""). A lookup that fails says so under the field, with what to do, and the previous answer goes,
+so an old table never stands for a misspelled name. A screen reader hears each step of a card (a lookup under way,
+its answer, the plan, the result) as the card's status, and an error as an alert. A notice at the bottom right, with
+a close button, is left for the page's own requests, such as a failed sign-in.
 
 The technical side of an answer sits under a "Details" line, closed until you open it (a click, or Enter or Space on
-it): how long the answer took, the layer that read each mailbox right (the Admin API or the PowerShell session), the
-object ids of a group and its members, and an error's code. Tables keep their headers small and grey and their
-numbers in even columns.
+it): how long the answer took, which layer read each mailbox permission (the Exchange admin API or Exchange Online
+PowerShell), the object IDs of a group and its members, and an error's code ("Error code: not-found"). Tables keep
+their headers small and grey and their numbers in even columns.
 
 ### Sign-in
 
-The card shows the account, the profile, the tenant and each token's expiry, read silently as `m365-aegis whoami`
-does. Signed out, "Sign in" opens the Windows sign-in window over this one, and "Sign in with a code" shows a device
-code instead, with "Open in browser" for its page and "Copy the code"; the card updates when the sign-in completes.
+The card shows the account, the profile, the tenant and each service's connection ("Connected until 3:00 PM", or
+"Not connected:" with the reason), read silently as `m365-aegis whoami` does: checking it opens no sign-in prompt.
+Signed out, "Sign in" opens the Windows sign-in window over this one, and "Sign in with a code" shows a device code
+instead, with "Open in browser" for its page and "Copy the code"; the card updates when the sign-in completes.
 While a sign-in waits (the Windows sign-in window is open, which over Remote Desktop easily ends up behind the
 window, or a device code is shown), "Cancel" stops the window waiting: the card is signed out again and says that a
 sign-in window or a browser page still open for it can be closed. A sign-in finished there afterwards is not picked up
 on its own; "Refresh" reads the state again.
-"Sign out" signs the account out; "Refresh" reads the state again. Without a profile the card says so: run
-`m365-aegis login` on the command line once. "signed in · Exchange unavailable" means the account is signed in but
-the Exchange Online row has no token, usually because the Exchange Online permission is not consented yet: the row
-says why, and the mailbox write cards wait (see below) until an administrator consents and "Refresh" reads a token.
+"Sign out" signs the account out; "Refresh" reads the state again. Without a profile the card says "There is no tenant
+profile on this computer yet, so the window cannot sign in." and, under "What to do:", "Ask the administrator to set
+up the tenant profile on this computer; the window signs in with it." (the administrator runs `m365-aegis login` on
+the command line once). "Signed
+in · Exchange unavailable" means the account is signed in but Exchange Online is not connected, usually because the
+Exchange Online permission is not consented yet: the row says why, and the mailbox write cards wait (see below) until
+an administrator consents and "Refresh" connects it.
 
 ### Group members
 
-A group's name, address or object id, then "Look up": the group's type and its direct members in a table, as
-`m365-aegis group members` lists them; the object ids of the group and of each member are under "Details".
+The group's name, its email address, its object ID or one word of its name, then "Look up": the group's type
+(Microsoft 365, Security, Mail-enabled security or Distribution list, and "Synced from on-premises" for a group the
+on-premises directory owns) and its direct members in a table (Type, Name, Sign-in name or email), as
+`m365-aegis group members` lists them; the object IDs of the group and of each member are under "Details". A name
+that finds no group says so ("No group named 'Finanse'.") with what to enter instead; a word that starts several
+groups' names lists them ("'Fin' matches 2 groups: Finance, Finance EU.") and asks for the full name or the email
+address of the one you want.
 
-### Mailbox access
+### Mailbox permissions
 
-"A mailbox" or "A user" (the arrow keys move between them), then the address and "Look up": who holds FullAccess, Send As and Send on Behalf on the
-mailbox, or the mailboxes the user holds them on, as `m365-aegis mailbox access` reads them. For "A user" the field
-is the user picker of the [User access](#user-access) card: type three letters of a name and pick the user, which looks
-the user up at once. "List the shared
-mailboxes" lists them as buttons; pick one to see its access. A right held by a group is listed as the group. The
-first lookup starts the Exchange Online session, which takes a few seconds. "Details" under a mailbox's table says
-which layer read each right and how long the answer took. When the Mailbox rights card grants or
-revokes a right on the mailbox shown here, the card reads the mailbox again on its own and says "Read again after a
-change on the Mailbox rights card." over the table.
+"A mailbox" or "A user" (the arrow keys move between them), then "Look up": who has Full Access, Send As and Send on
+Behalf on the mailbox, or the mailboxes the user has them on, as `m365-aegis mailbox access` reads them. The mailbox
+field takes the mailbox's name, its email address or its object ID. For "A user" the field is the user picker of the
+[User access](#user-access) card: type three letters of a name and choose the user, which looks the user up at once.
+"List the shared mailboxes" lists them as buttons; choose one to see its permissions. The card shows direct
+permissions only: a permission given to a group shows the group, not its members. A mailbox's answer names its type
+(Shared mailbox, User mailbox) and lists each permission with the user or group and the email address ("No one else
+has permissions on this mailbox." when there is none). The first lookup starts the Exchange Online session, which
+takes a few seconds. "Details" under a mailbox's table says which layer read each permission (the Exchange admin API
+for the mailbox and its Send on Behalf delegates, Exchange Online PowerShell for Full Access and Send As, or
+PowerShell alone when the admin API does not answer) and how long the answer took ("Answered in 1.2 s."). When the
+Change mailbox permissions card grants or revokes a permission on the mailbox shown here, the card reads the mailbox
+again on its own and says "Read again after a change on the Change mailbox permissions card." over the table.
 
-A user's list is not read again on its own: that lookup goes over every mailbox and takes a while. When the Mailbox
-rights card grants or revokes a right for the user shown here, the card marks the list as possibly out of date and
-offers "Read again", which looks the user up once more; a change for another user marks nothing.
+A user's answer lists the mailboxes with their email address, type and permission, and counts them ("· 3
+permissions across 120 mailboxes"). When some mailboxes could not be read, an "Incomplete" badge marks the answer and
+a box under it lists the lists that failed, with the service's message: the permissions shown may then miss some. A
+user's list is not read again on its own: that lookup goes over every mailbox and takes a while. When the Change
+mailbox permissions card grants or revokes a permission for the user shown here, the card marks the list as possibly
+out of date and offers "Read again", which looks the user up once more; a change for another user marks nothing.
 
 ### User access
 
-The user field is a picker: type three letters of a name, a surname or an address, and it lists the matching users
-(eight at most, with "More users match" when there are more); the arrow keys and Enter, or a click, pick one and look
-the user up. Signed in, the suggestions come from the directory, live (with the `User.ReadBasic.All` permission the
-group lookups already use), and the line under the list says "From the directory.". Signed out, or when the directory
-does not answer, they come from the newest snapshot on this computer and the line names the snapshot's time; a user
-created since then is not among them. Signed out and without a snapshot the picker says it has nothing to suggest
-from. A full principal name or address typed by hand, then "Look up", always works.
+The user field is a picker: type three letters of a name, a surname or an email address, and it lists the matching
+users (eight at most, with "More users match" when there are more); the arrow keys and Enter, or a click, choose one
+and look the user up. Signed in, the suggestions come from the directory, live (with the `User.ReadBasic.All`
+permission the group lookups already use), and the line under the list says "From the directory.". Signed out, or
+when the directory does not answer, they come from the newest snapshot on this computer and the line names the
+snapshot's time; a user created since then is not among them. Signed out and without a snapshot the picker says it
+has nothing to suggest from. A full sign-in name or email address typed by hand ("Start typing a name, or enter a
+full email address"), then "Look up", always works, and so does an object ID.
 
-A user's principal name, address or object id, then "Look up": what the user reaches, from the newest snapshot (see
-[What one user reaches](#what-one-user-reaches)): the groups, and for a nested membership the group it comes through;
-the sites of those groups, as a member or an owner; the files and folders shared with the user or one of the groups;
-the mailbox rights and the calendar permissions, each held directly or through a group. Under them, what reaches
-everyone (the links anyone in the organization or anyone at all can open, the calendars open to every user) as
-counts. The card names the snapshot's time and age, and "Good to know" says when the snapshot is older than 36 hours
-or a part of it could not be read. The card reads the snapshot on this computer only: it needs no sign-in, and its
-answer is as old as the snapshot. Without a snapshot it says "No snapshot yet": the snapshot is taken on the command
-line (`m365-aegis snapshot take`, or [a snapshot every morning](#a-snapshot-every-morning)).
+The answer is what the user can reach, from the newest snapshot (see
+[What one user reaches](#what-one-user-reaches)): the groups with their type, and for a nested membership the group
+it comes through; the sites of those groups with their URL, as a member or an owner; the files and folders shared with
+the user or one of the groups ("Link: specific people · View", "Shared directly · Edit"); the mailbox permissions and
+the calendar permissions (Outlook's roles: Reviewer, Editor, "Free/busy only"…), each held directly or through a
+group. Under them, what is also open to everyone, this user included (the links anyone in your organization or anyone
+at all can open, the calendars that show more than free/busy to the whole organization), as counts. The card names
+the snapshot's time and age, and "Good to know" says when the snapshot is older than 36 hours or a part of it could
+not be read. The card reads the snapshot on this computer only: it needs no sign-in, and its answer is as old as the
+snapshot. A user the snapshot knows but the directory no longer has is marked "Not in the directory". Without a
+snapshot it says "No snapshot yet": the snapshot is taken on the command line (`m365-aegis snapshot take`, or
+[a snapshot every morning](#a-snapshot-every-morning)).
 
 ### Access changes
 
-"Compare": who gained or lost access between the newest snapshot and the one before it, as `m365-aegis snapshot diff`
+"Compare": who gained or lost access between the latest snapshot and the one before it, as `m365-aegis snapshot diff`
 lists it (see [What changed between two snapshots](#what-changed-between-two-snapshots)). Under the two snapshots'
-times and ages, a table for each part of the tenant that changed (group members and owners, shared files, mailbox
-rights, calendars, forwarding), each row "added" or "removed", and a line for the parts without a change. "From" and
-"To" pick other snapshots, the way the command line picks them: a snapshot's name, `latest`, `yesterday` or a date
-such as 2026-10-31; the line under the fields says so, and empty they compare the newest two. "Only this user"
+times and ages, a table for each part of the tenant that changed (Group members, Group owners, Shared files, Mailbox
+permissions, Calendar permissions, Mail forwarding), each row "Added" or "Removed" with what, who and how in the
+window's words (Member, Owner, "Link: people in your organization · View", Full Access, "Free/busy only", "To an
+email address, outside your organization"), a line "No change in: …" for the parts without a change, and a line "Not
+compared: …" for a part one of the snapshots could not read, with the reason under "Good to know". "Compare from" and
+"Compare to" pick other snapshots, the way the command line picks them: a snapshot's name, `latest`, `yesterday` or a
+date such as 2026-10-31; the line under the fields says so, and empty they compare the latest two. "Only this user"
 narrows the changes to one person, as `--user` does: the groups, groups within groups included, the sites, the shared
-files, the mailboxes and the calendars, with the group each row comes through. The field is the user picker: a pick
-fills it, and Enter then compares. The tables of the parts share their columns, so they line up. "Good to know" says
-when a part of a snapshot could not be read. Like the user access card, it reads the snapshots on this computer only
-and needs no sign-in; with fewer than two snapshots it says "Nothing to compare yet".
+files, the mailboxes and the calendars, with the group each row comes through ("Direct" for one held by the user).
+The field is the user picker: a choice fills it, and Enter then compares. The tables of the parts share their
+columns, so they line up. "Good to know" says when a part of a snapshot could not be read, naming the snapshot by its
+time ("…in the snapshot of 2026-10-31 06:00 UTC (1 item could not be read)…"). Like the user access card, it reads
+the snapshots on this computer only and needs no sign-in; with fewer than two snapshots it says "Nothing to compare
+yet".
 
-### Mailbox rights
+### Change mailbox permissions
 
-Grants or revokes FullAccess, Send As or Send on Behalf on a mailbox, as `m365-aegis mailbox access grant` and
-`revoke` do. The steps are the same on every write card: Pick, Plan, Confirm, Result.
+Grants or revokes Full Access, Send As or Send on Behalf on a mailbox, as `m365-aegis mailbox access grant` and
+`revoke` do. The steps are the same on every write card: Choose, Review, Confirm, Result.
 
-1. Pick: "Grant" or "Revoke", the mailbox, the users (several, separated by commas) and the rights; for a FullAccess
-   grant, "Without automapping" keeps Outlook from adding the mailbox on its own. The mailbox field suggests the shared
-   mailboxes as you type (the window lists them once, which may take a few seconds the first time); the Users field
-   is the user picker of the [User access](#user-access) card, and each user picked joins the list with a comma after
-   it, so the next name can follow. Enter on an open list picks the highlighted entry, or the first; Enter with no
-   list open, or "See the plan", shows the plan. A full address, a name or an object id typed by hand still goes as
-   typed, a user mailbox or an outside address among them. Until every pick is there, the line beside the button says
-   what is still needed.
-2. Plan: the window computes the plan, the same one `--dry-run` prints, and nothing is changed yet: what changes, from
-   what to what, what is already as asked, the warnings ("Good to know"). "Change the picks", or Escape, goes back.
-3. Confirm: the plan once more: each change with its action and from what to what, the warnings in short, and the
+1. Choose: "Grant" or "Revoke", the mailbox, the users (several, separated by commas) and the permissions; for a
+   Full Access grant, "Without automapping: Outlook won't add the mailbox for them automatically (Full Access only)".
+   The mailbox field suggests the shared mailboxes as you type (the window lists them once, which may take a few
+   seconds the first time); the Users field is the user picker of the [User access](#user-access) card, and each user
+   chosen joins the list with a comma after it, so the next name can follow. Enter on an open list picks the
+   highlighted entry, or the first; Enter with no list open, or "Review the plan", shows the plan. A mailbox's name,
+   email address or object ID, or a person's sign-in name or email address, typed by hand still goes as typed, a user
+   mailbox or an outside address among them. Until everything is there, the line beside the button says what is
+   still needed ("Still needed: the mailbox, at least one user.").
+2. Review: the window prepares the plan, the same one `--dry-run` prints, and nothing is changed yet: each change
+   with the card's verb as its badge (Grant, Revoke, Forward, Stop forwarding), from what to what ("No Full Access →
+   Has Full Access"), what is left as it is ("Left as it is:"), and the warnings ("Check before you confirm"). A plan
+   with nothing to change says "Nothing to do": everything is already as asked, so there is nothing to confirm.
+   "Back to edit", or Escape, goes back.
+3. Confirm: the plan once more: each change with its badge and from what to what, the warnings in short, and the
    account and profile the change is made as ("You're about to make these 2 changes as alice@contoso.com (profile
    work):"). Tick "I've reviewed these changes." and press the button that names the change: "Grant permissions" or
-   "Revoke permissions" here, "Start forwarding" or "Stop forwarding" on the forwarding card; a removal's button is
-   red. It stands for `--yes`. "Back to the plan" (or Escape) and "Cancel", which goes back to the picks, change
+   "Revoke permissions" here, "Forward mail" or "Stop forwarding" on the forwarding card; a removal's button is
+   red. It stands for `--yes`. "Back to the plan" (or Escape) and "Cancel", which goes back to the first step, change
    nothing.
 4. Result: "Done", "Partly done" or "Not done", each change with its result and the service's message; a result not
    done in full says how many changes were made once, with the error's code under "Details". The apply is recorded
    like one from the command line, so `m365-aegis plan list` shows it and `--resume` continues a partial one. When
-   the [Mailbox access](#mailbox-access) card shows the mailbox and reads it again after the change, the result says
-   so ("The Mailbox access card read Reception again after this change.") and "Show it" scrolls up to that card.
-   After a result not done in full, "See the plan again" asks for the plan once more with the same picks: what was
-   made is now left as it is, so the plan holds only what is still missing. "Start a new change" goes back to the
-   picks with the mailbox kept and everything else cleared (the users or the address, the rights, Grant and Forward,
-   the boxes as they start), since the next change is usually on the same mailbox but never for the same people.
+   the [Mailbox permissions](#mailbox-permissions) card shows the mailbox and reads it again after the change, the
+   result says so ("The Mailbox permissions card read Reception again after this change.") and "Show it" scrolls up
+   to that card. After a result not done in full, "Review the plan again" asks for the plan once more with the same
+   choices: what was made is now left as it is, so the plan holds only what is still missing. "Start a new change"
+   goes back to the first step with the mailbox kept and everything else cleared (the users or the address, the
+   permissions, Grant and Forward, the boxes as they start), since the next change is usually on the same mailbox but
+   never for the same people.
 
 With the keyboard, each step puts the cursor on its own first line (the plan's title, the confirmation's sentence,
 the result), and going back puts it in the mailbox field.
 
-"Refused: nothing was changed" means the window did not send anything (a plan older than 15 minutes, for one: see
+"Refused: nothing was changed" means the window did not send anything (a plan older than 15 minutes, for one: review
 the plan again). "Stopped: check the mailbox before you try again" means the apply broke off and some changes may
 have been made: look at the mailbox, or at `m365-aegis plan list`, before you try again. A card that needs a
-sign-in says so and waits for the sign-in card; signed in without an Exchange Online token it says "Exchange Online
-unavailable" with the reason and waits too, since the plan reads the mailbox through Exchange Online.
+sign-in says so and waits for the Sign-in card; signed in without a connection to Exchange Online it says "Exchange
+Online unavailable" with the reason and waits too, since the plan reads the mailbox through Exchange Online.
 
 ### Mailbox forwarding
 
-Forwards a mailbox's mail to an address, or stops it, as `m365-aegis mailbox forwarding set` and `clear` do:
-"Forward" or "Stop forwarding", the mailbox, the address (the user picker; an outside address is typed in full), and
-"Keep a copy in the mailbox" (ticked by default here;
-on the command line a copy needs `--keep-copy`). Then the same steps as the mailbox rights card; without the copy, the
-plan's "Good to know" says that the mail reaches the address only and that ticking the box keeps one.
+Forwards a mailbox's mail to another email address, or stops forwarding it, as `m365-aegis mailbox forwarding set`
+and `clear` do: "Forward" or "Stop forwarding", the mailbox, the address (the user picker; an outside address is
+entered in full), and "Keep a copy in the mailbox" (ticked by default here; on the command line a copy needs
+`--keep-copy`). Then the same steps as the Change mailbox permissions card. The plan's title says what happens
+("Forward the mail of Reception (reception@contoso.com)", "Stop forwarding the mail of …"); without the copy, "Check
+before you confirm" says that the mail reaches the address only and that ticking the box keeps one, and an address
+outside your organization is warned about, since Exchange Online blocks automatic forwarding to it unless the
+outbound spam filter policy allows it.
 
 The group writes, the CSV batches and a resume are on the command line only. `m365-aegis-gui.exe --verbose` writes
 the window's sign-in log as `--verbose` does on the command line.

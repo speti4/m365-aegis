@@ -70,7 +70,7 @@ describe("the applies the write cards tell", () => {
       operation: MessageType.mailboxAccessGrant,
       title: "t",
       changes: [
-        change("FullAccess for Bob Example (bob@contoso.com), without automapping"),
+        change("Full Access for Bob Example (bob@contoso.com), without automapping"),
         change("Send As for Bob Example (bob@contoso.com)"),
         change("Send As for Finance Staff (finance-staff@contoso.com) and Carol (carol@contoso.com)"),
         change("forwarding to alice@fabrikam.com"),
@@ -143,9 +143,9 @@ async function apply(card: HTMLElement, values: Record<string, string>) {
   for (const [label, value] of Object.entries(values)) {
     await type(input(card, label), value);
   }
-  await click(button(card, "See the plan"));
+  await click(button(card, "Review the plan"));
   await settle();
-  await click(button(card, "Continue to confirm"));
+  await click(button(card, "Continue"));
   await click(
     [...card.querySelectorAll("label")]
       .find((label) => label.textContent?.includes("I've reviewed"))
@@ -192,12 +192,12 @@ describe("the mailbox access card after an apply", () => {
       MessageType.mailboxAccess,
     ]);
     expect(sent[3].data).toEqual({ mailbox: "finance@contoso.com" });
-    expect(holderRows(access)).toContainEqual(["FullAccess", "bob@contoso.com", "bob@contoso.com"]);
-    expect(layers(access)).toContain("FullAccess, bob@contoso.com: read through PowerShell");
+    expect(holderRows(access)).toContainEqual(["Full Access", "bob@contoso.com", "bob@contoso.com"]);
+    expect(layers(access)).toContain("Full Access, bob@contoso.com: read through Exchange Online PowerShell");
     expect(access.querySelector('[data-testid="refreshed"]')?.textContent).toBe(
-      "Read again after a change on the Mailbox rights card.",
+      "Read again after a change on the Change mailbox permissions card.",
     );
-    expect(access.textContent).not.toContain("reading its access again");
+    expect(access.textContent).not.toContain("reading its permissions again");
 
     // A lookup of its own clears the mark.
     await submit(access.querySelector("form") as HTMLFormElement);
@@ -213,7 +213,7 @@ describe("the mailbox access card after an apply", () => {
     await apply(rights, { Mailbox: "Finance", Users: "bob@contoso.com" });
     await settle();
     expect(rights.querySelector('[data-testid="re-read"]')?.textContent).toBe(
-      "The Mailbox access card read Finance again after this change.Show it",
+      "The Mailbox permissions card read Finance again after this change.Show it",
     );
 
     await click(button(rights, "Show it"));
@@ -238,7 +238,7 @@ describe("the mailbox access card after an apply", () => {
     const { access, rights } = await page(transport);
     await lookUp(access, "reception");
 
-    await click(button(rights, "FullAccess"));
+    await click(button(rights, "Full Access"));
     await click(button(rights, "Send As"));
     await click(button(rights, "Send on Behalf"));
     await apply(rights, { Mailbox: "reception@contoso.com", Users: "alice@contoso.com" });
@@ -253,7 +253,7 @@ describe("the mailbox access card after an apply", () => {
     expect(input(rights, "Mailbox").value).toBe("reception@contoso.com");
     expect(input(rights, "Users").value).toBe("");
     await click(radio(rights, "Revoke"));
-    await click(button(rights, "FullAccess"));
+    await click(button(rights, "Full Access"));
     await click(button(rights, "Send As"));
     await apply(rights, { Users: "alice@contoso.com" });
     await settle();
@@ -265,13 +265,13 @@ describe("the mailbox access card after an apply", () => {
     const { access, rights } = await page(new MockTransport());
     await lookUp(access, "finance");
 
-    await click(button(rights, "FullAccess"));
+    await click(button(rights, "Full Access"));
     await click(button(rights, "Send on Behalf"));
     await apply(rights, { Mailbox: "finance", Users: "alice@contoso.com" });
     await settle();
 
     expect(holderRows(access)).toContainEqual(["Send on Behalf", "Alice Example", "alice@contoso.com"]);
-    expect(layers(access)).toContain("Send on Behalf, Alice Example: read through Admin API");
+    expect(layers(access)).toContain("Send on Behalf, Alice Example: read through the Exchange admin API");
   });
 
   it("sends nothing after an apply to another mailbox, a forwarding, or while it shows no mailbox", async () => {
@@ -314,14 +314,14 @@ describe("the mailbox access card after an apply", () => {
 describe("the write card's apply, as the access card hears it", () => {
   const plan: Plan = {
     operation: MessageType.mailboxAccessGrant,
-    title: "Grant mailbox rights on Finance (finance@contoso.com)",
+    title: "Grant mailbox permissions on Finance (finance@contoso.com)",
     changes: [
       {
         action: "add",
         target: "Finance (finance@contoso.com)",
-        detail: "FullAccess for Bob Example (bob@contoso.com)",
-        current: "no FullAccess",
-        desired: "holds FullAccess",
+        detail: "Full Access for Bob Example (bob@contoso.com)",
+        current: "no Full Access",
+        desired: "has Full Access",
       },
     ],
     unchanged: [],
@@ -394,8 +394,8 @@ describe("the write card's apply, as the access card hears it", () => {
     await apply(rights, { Mailbox: "finance", Users: "bob" });
     await settle();
 
-    expect(access.textContent).toContain("A change was applied to this mailbox: reading its access again…");
-    expect(liveStatus(access)).toBe("A change was applied to this mailbox: reading its access again…");
+    expect(access.textContent).toContain("A change was made to this mailbox: reading its permissions again…");
+    expect(liveStatus(access)).toBe("A change was made to this mailbox: reading its permissions again…");
     expect(isDisabled(button(access, "Looking up…"))).toBe(true);
   });
 
@@ -414,7 +414,7 @@ describe("the write card's apply, as the access card hears it", () => {
     });
     const { access, rights } = await lookUpThenApply(transport);
     const alert = access.querySelector('[role="alert"]') as HTMLElement;
-    expect(alert.textContent).toContain("the session ended");
+    expect(alert.textContent).toContain("The session ended.");
     expect(alert.textContent).toContain("sidecar-unavailable");
     expect(access.querySelector('[data-testid="refreshed"]')).toBeNull();
     expect(rights.querySelector('[data-testid="re-read"]')).toBeNull();
@@ -442,9 +442,9 @@ describe("the mailbox access card's user view after an apply (task 103)", () => 
       {
         action: "add",
         target: "Finance (finance@contoso.com)",
-        detail: "FullAccess for Bob Example (bob@contoso.com)",
-        current: "no FullAccess",
-        desired: "holds FullAccess",
+        detail: "Full Access for Bob Example (bob@contoso.com)",
+        current: "no Full Access",
+        desired: "has Full Access",
         ...(applied ? { result: { status: "applied" } } : {}),
       },
     ],
@@ -458,14 +458,14 @@ describe("the mailbox access card's user view after an apply (task 103)", () => 
     const { access, rights } = await page(transport);
     await showUser(access, "bob@contoso.com");
     expect(access.querySelector('[data-testid="stale"]')).toBeNull();
-    expect(grantRows(access)).not.toContainEqual(["Finance", "finance@contoso.com", "SharedMailbox", "FullAccess"]);
+    expect(grantRows(access)).not.toContainEqual(["Finance", "finance@contoso.com", "Shared mailbox", "Full Access"]);
 
     await apply(rights, { Mailbox: "finance", Users: "bob@contoso.com" });
     await settle();
 
     // Marked, and nothing read: the reverse lookup goes over every mailbox.
     expect(access.querySelector('[data-testid="stale"]')?.textContent).toContain(
-      "A change on the Mailbox rights card named this user since this list was read, so it may be out of date.",
+      "A change on the Change mailbox permissions card named this user since this list was read, so it may be out of date.",
     );
     expect(types().filter((sentType) => sentType === MessageType.mailboxAccess)).toHaveLength(1);
     expect(liveStatus(access)).toContain("so it may be out of date");
@@ -483,7 +483,7 @@ describe("the mailbox access card's user view after an apply (task 103)", () => 
     expect(types().filter((sentType) => sentType === MessageType.mailboxAccess)).toHaveLength(2);
     expect(sent.at(-1)?.data).toEqual({ user: "bob@contoso.com" });
     expect(access.querySelector('[data-testid="stale"]')).toBeNull();
-    expect(grantRows(access)).toContainEqual(["Finance", "finance@contoso.com", "SharedMailbox", "FullAccess"]);
+    expect(grantRows(access)).toContainEqual(["Finance", "finance@contoso.com", "Shared mailbox", "Full Access"]);
     // "Read again" is gone with the mark: the focus is back in the user field.
     expect(document.activeElement).toBe(input(access, "User"));
   });

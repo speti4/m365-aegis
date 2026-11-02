@@ -1,3 +1,5 @@
+import { plural, sentence, snapshotTime } from "./vocabulary";
+
 /**
  * The core's warnings in the window's words (tasks 090, 102 and 104). The core writes a plan's warnings, and the
  * access view's, for the command line, and the window shows the same `Plan` and the same `AccessReport`; a warning
@@ -38,7 +40,7 @@ export const snapshotPartNames: Readonly<Record<string, string>> = {
   sites: "SharePoint sites",
   sharing: "Shared files",
   oneDrive: "OneDrive",
-  grants: "Mailbox rights",
+  grants: "Mailbox permissions",
   folderPermissions: "Calendar permissions",
   forwarding: "Mail forwarding",
 };
@@ -88,7 +90,7 @@ const rewordings: readonly Rewording[] = [
     // MailboxWrites, a forwarding set without `--keep-copy`: the forwarding card's box is "Keep a copy in the mailbox".
     core: /^(.+) keeps no copy: the mail reaches (.+) only \(--keep-copy keeps one\)$/s,
     window: (mailbox, to) =>
-      `${mailbox} keeps no copy: the mail reaches ${to} only. To keep one in the mailbox too, choose "Change the picks" and tick "Keep a copy in the mailbox".`,
+      `${mailbox} keeps no copy: the mail reaches ${to} only. To keep one in the mailbox too, choose "Back to edit" and tick "Keep a copy in the mailbox".`,
   },
   {
     // GroupWrites, an owner removal that leaves no owner: the list of groups without an owner is the administrator's.
@@ -106,7 +108,7 @@ const rewordings: readonly Rewording[] = [
     // SnapshotAccess, a part of the snapshot read only in part: the part in the window's words (task 113).
     core: /^(\w+) is partial in this snapshot: (.+) item\(s\) could not be read \((.+)\); `m365-aegis snapshot show` names them$/s,
     window: (part, count, why) =>
-      `${snapshotPart(part)}: read only in part in this snapshot; ${count} item(s) could not be read (${why}), so the answer may miss what they hold. The administrator can see which ones in the snapshot's details.`,
+      `${snapshotPart(part)}: read only in part in this snapshot; ${plural(Number(count), "item")} could not be read (${why}), so the answer may miss what they hold. The administrator can see which ones in the snapshot's details.`,
   },
   {
     // SnapshotAccess, a part of the snapshot that could not be read at all.
@@ -123,7 +125,7 @@ const rewordings: readonly Rewording[] = [
     // SnapshotDiff, a part read only in part in one of the two snapshots, with the parts whose rows rest on it (task 114).
     core: /^(\w+) is partial in (\S+) \((.+)\): the (.+) rows of those items may show as removed or added$/s,
     window: (part, snapshot, count, sections) =>
-      `${snapshotPart(part)}: read only in part in the snapshot ${snapshot} (${count}), so rows of ${sections
+      `${snapshotPart(part)}: read only in part in the snapshot of ${snapshotTime(snapshot)} (${unreadItems(count)}), so rows of ${sections
         .split(/, | and /)
         .map(diffPart)
         .join(", ")} may show as added or removed without a change.`,
@@ -132,11 +134,14 @@ const rewordings: readonly Rewording[] = [
     // SnapshotDiff, a part left out because a snapshot did not read what it rests on.
     core: /^(\w+) is left out: (.+)$/s,
     window: (section, why) =>
-      `${diffPart(section)}: not compared; ${why.replace(/(\w+) was not read in (\S+)/g, (_, part: string, snapshot: string) => `${snapshotPart(part)} not read in the snapshot ${snapshot}`)}.`,
+      `${diffPart(section)}: not compared; ${why.replace(/(\w+) was not read in ([^\s;]+)/g, (_, part: string, snapshot: string) => `${snapshotPart(part)} not read in the snapshot of ${snapshotTime(snapshot)}`)}.`,
   },
 ];
 
-/** A warning of the core as the card shows it: reworded when it names a flag or a command, else as the core wrote it. */
+/**
+ * A warning of the core as the card shows it: reworded when it names a flag or a command, else as the core wrote it,
+ * made a sentence (task 122).
+ */
 export function windowWarning(warning: string): string {
   for (const { core, window } of rewordings) {
     const match = core.exec(warning);
@@ -144,12 +149,13 @@ export function windowWarning(warning: string): string {
       return window(...match.slice(1));
     }
   }
-  return warning;
+  return sentence(warning);
 }
 
-/** A count with its noun, singular for one: "1 change", "4 direct members" (task 121's announcements). */
-export function count(n: number, one: string, many = `${one}s`): string {
-  return `${n} ${n === 1 ? one : many}`;
+/** How many items of a part a snapshot could not read, as the diff's warning counts them (`1 item(s) not read`). */
+function unreadItems(count: string): string {
+  const items = /^(\d+) item\(s\) not read$/.exec(count);
+  return items ? `${plural(Number(items[1]), "item")} could not be read` : "some items could not be read";
 }
 
 /** The button that applies a confirmed plan: its name, and whether it removes something (task 120). */
@@ -160,13 +166,14 @@ export interface ConfirmAction {
 
 /**
  * The confirmation's button by the plan's operation (task 120): it names what the click does, and a removal is drawn
- * as a destructive button; the one place these names live, so the vocabulary sweep (task 122) renames them here. An
- * operation this list does not know keeps the neutral "Confirm and apply".
+ * as a destructive button, with the card's verb (task 122: Grant, Revoke, Forward, Stop forwarding, as the choice on
+ * the card and the plan's badge, `changeVerb`). An operation this list does not know keeps the neutral "Confirm and
+ * apply".
  */
 export const confirmActions: Readonly<Record<string, ConfirmAction>> = {
   "mailbox-access-grant": { label: "Grant permissions", destructive: false },
   "mailbox-access-revoke": { label: "Revoke permissions", destructive: true },
-  "mailbox-forwarding-set": { label: "Start forwarding", destructive: false },
+  "mailbox-forwarding-set": { label: "Forward mail", destructive: false },
   "mailbox-forwarding-clear": { label: "Stop forwarding", destructive: true },
 };
 

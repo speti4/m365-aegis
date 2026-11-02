@@ -6,34 +6,34 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { BridgeClient } from "../bridge/client";
 import { type AccessReport, MessageType, type NoSnapshotInfo } from "../bridge/protocol";
 import { AnswerFor, Field, LiveStatus, LookupError, SubmitButton, useLookup } from "./card-parts";
-import { rightNames } from "./mailbox-access-card";
 import { Notice } from "./plan-view";
-import { count, windowWarning } from "./plan-wording";
+import { windowWarning } from "./plan-wording";
 import { describeTaken } from "./snapshot-time";
 import { UserPicker } from "./user-picker";
+import { calendarRole, groupKindName, plural, rightNames, roleName, sentence, sharingAccess } from "./vocabulary";
 
 export { describeTaken };
 
 /** A snapshot's age as the card writes it: hours under two days, days from then on. */
 export function describeAge(hours: number): string {
-  return hours < 48 ? `${hours} hour(s) ago` : `${(hours / 24).toFixed(1)} days ago`;
+  return hours < 48 ? `${plural(hours, "hour")} ago` : `${(hours / 24).toFixed(1)} days ago`;
 }
 
-/** What a right or a permission comes through: the group, or "direct" for one granted to the user. */
-const through = (group: string | undefined) => group ?? "direct";
+/** What a permission comes through: the group, or "Direct" for one given to the user. */
+const through = (group: string | undefined) => group ?? "Direct";
 
 type Result = { kind: "report"; asked: string; data: AccessReport } | { kind: "none"; data: NoSnapshotInfo };
 
 /** The status line of an access view: the user as asked, and how much of each section. */
 function reportStatus(asked: string, report: AccessReport): string {
   const { groups, sites, sharedItems, mailboxes, calendars } = report;
-  return `${asked}: ${count(groups.length, "group")}, ${count(sites.length, "site")}, ${count(sharedItems.length, "shared file")}, ${count(mailboxes.length, "mailbox right")}, ${count(calendars.length, "calendar permission")}`;
+  return `${asked}: ${plural(groups.length, "group")}, ${plural(sites.length, "site")}, ${plural(sharedItems.length, "shared file")}, ${plural(mailboxes.length, "mailbox permission")}, ${plural(calendars.length, "calendar permission")}`;
 }
 
 /**
  * What one user reaches (task 102), as `access <user>` answers it from the newest snapshot (task 084): the groups and
- * the member groups a nested membership comes through, the sites of those groups, the shared items, the mailbox rights
- * and the calendar permissions held directly or through a group, the counts of what reaches everyone, the snapshot's
+ * the member groups a nested membership comes through, the sites of those groups, the shared items, the mailbox
+ * permissions and the calendar permissions held directly or through a group, the counts of what reaches everyone, the snapshot's
  * time and age, and its warnings in the window's words. The user is picked from the suggestions (the directory, else the snapshot) as the colleague
  * types a name (the user picker, task 112), or typed in full. The host reads the snapshot file on this computer only: no
  * sign-in, no request to Microsoft 365, so the card works signed out too. Without a snapshot the card says so plainly
@@ -72,8 +72,8 @@ export function UserAccessCard({ client }: { client: BridgeClient }) {
       <CardHeader>
         <CardTitle id={`${id}-title`}>User access</CardTitle>
         <CardDescription>
-          What one user reaches: groups, sites, shared files, mailboxes and calendars, from the newest snapshot of the
-          tenant on this computer. Nothing is asked of Microsoft 365, so the answer is as old as the snapshot.
+          See what one user can reach (groups, sites, shared files, mailboxes and calendars) in the newest snapshot on
+          this computer. The answer is as old as the snapshot.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -100,7 +100,7 @@ export function UserAccessCard({ client }: { client: BridgeClient }) {
               />
               <SubmitButton
                 busy={busy}
-                missing={query.trim() === "" ? "Type a user's name or address first." : null}
+                missing={query.trim() === "" ? "Enter a user's name or email address first." : null}
                 hintId={`${id}-hint`}
                 idle="Look up"
                 working="Looking up…"
@@ -131,7 +131,7 @@ export function NoSnapshotView({ info }: { info: NoSnapshotInfo }) {
   return (
     <Notice tone="info" icon={<DatabaseZap aria-hidden />} title="No snapshot yet">
       <p>The card answers from a snapshot of the tenant, and this computer has none for the profile {info.profile}.</p>
-      <p className="text-muted-foreground">{info.hint}</p>
+      <p className="text-muted-foreground">{sentence(info.hint)}</p>
     </Notice>
   );
 }
@@ -183,7 +183,7 @@ export function AccessReportView({ report }: { report: AccessReport }) {
         <p className="flex flex-wrap items-center gap-2">
           <strong>{user.displayName ?? name}</strong>
           {user.displayName && name ? <span className="text-muted-foreground">{name}</span> : null}
-          {user.objectId ? null : <Badge variant="outline">no directory account</Badge>}
+          {user.objectId ? null : <Badge variant="outline">Not in the directory</Badge>}
         </p>
         <p className="text-sm text-muted-foreground tabular-nums" data-testid="snapshot">
           From the snapshot taken {describeTaken(report.taken)}, {describeAge(report.ageHours)}.
@@ -198,23 +198,18 @@ export function AccessReportView({ report }: { report: AccessReport }) {
         {groups.map((group) => (
           <TableRow key={`${group.id}:${group.displayName}`}>
             <TableCell>{group.displayName ?? group.id}</TableCell>
-            <TableCell>{group.kind ?? ""}</TableCell>
-            <TableCell>{group.direct ? "direct" : `through ${group.via.join(", ")}`}</TableCell>
+            <TableCell>{group.kind ? groupKindName(group.kind) : ""}</TableCell>
+            <TableCell>{group.direct ? "Direct" : `Through ${group.via.join(", ")}`}</TableCell>
           </TableRow>
         ))}
       </Section>
-      <Section
-        title="Sites"
-        count={sites.length}
-        empty="No site through a group."
-        headers={["Site", "Address", "Through"]}
-      >
+      <Section title="Sites" count={sites.length} empty="No site through a group." headers={["Site", "URL", "Through"]}>
         {sites.map((site) => (
           <TableRow key={`${site.name}:${site.role}`}>
             <TableCell>{site.name}</TableCell>
             <TableCell>{site.webUrl ?? ""}</TableCell>
             <TableCell>
-              {site.role} of {site.group}
+              {roleName(site.role)} of {site.group}
             </TableCell>
           </TableRow>
         ))}
@@ -232,11 +227,7 @@ export function AccessReportView({ report }: { report: AccessReport }) {
             <TableCell>
               {item.site}: {(item.path ?? "").replace(/\/$/, "")}/{item.item}
             </TableCell>
-            <TableCell>
-              {[item.kind, item.scope, item.roles, item.expires ? `until ${item.expires}` : undefined]
-                .filter((part) => part !== undefined)
-                .join(" ")}
-            </TableCell>
+            <TableCell>{sharingAccess(item)}</TableCell>
             <TableCell>{through(item.through)}</TableCell>
           </TableRow>
         ))}
@@ -244,8 +235,8 @@ export function AccessReportView({ report }: { report: AccessReport }) {
       <Section
         title="Mailboxes"
         count={mailboxes.length}
-        empty="No right on another mailbox."
-        headers={["Mailbox", "Address", "Right", "Through"]}
+        empty="No permissions on other mailboxes."
+        headers={["Mailbox", "Email address", "Permission", "Through"]}
       >
         {mailboxes.map((mailbox) => (
           <TableRow key={`${mailbox.address}:${mailbox.right}:${mailbox.through}`}>
@@ -259,24 +250,22 @@ export function AccessReportView({ report }: { report: AccessReport }) {
       <Section
         title="Calendars"
         count={calendars.length}
-        empty="No permission on another calendar."
-        headers={["Mailbox", "Address", "Permission", "Through"]}
+        empty="No permissions on other calendars."
+        headers={["Mailbox", "Email address", "Permission", "Through"]}
       >
         {calendars.map((calendar) => (
           <TableRow key={`${calendar.address}:${calendar.folder}:${calendar.through}`}>
             <TableCell>{calendar.mailbox}</TableCell>
             <TableCell>{calendar.address}</TableCell>
             <TableCell>
-              {calendar.folder}: {calendar.rights}
+              {calendar.folder}: {calendarRole(calendar.rights)}
             </TableCell>
             <TableCell>{through(calendar.through)}</TableCell>
           </TableRow>
         ))}
       </Section>
       <p className="text-sm text-muted-foreground tabular-nums" data-testid="everyone">
-        Reaches everyone, this user too: {everyone.organizationLinks} link(s) anyone in the organization can open,{" "}
-        {everyone.anonymousLinks} link(s) anyone can open, {everyone.defaultCalendars} calendar(s) open beyond free/busy
-        to every user and {everyone.anonymousCalendars} to anonymous.
+        {`Also open to everyone, including this user: ${plural(everyone.organizationLinks, "link")} anyone in your organization can open, ${plural(everyone.anonymousLinks, "link")} anyone can open, and ${plural(everyone.defaultCalendars, "calendar")} that ${everyone.defaultCalendars === 1 ? "shows" : "show"} more than free/busy to the whole organization (${everyone.anonymousCalendars} to anonymous users).`}
       </p>
     </div>
   );

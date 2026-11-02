@@ -5,6 +5,7 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import type { DeviceCodePrompt, ResourceToken } from "../bridge/protocol";
 import { LiveStatus } from "./card-parts";
 import { canSignIn, exchangeError, type SignInState, signInStatus, statusLabel } from "./sign-in-state";
+import { sentence } from "./vocabulary";
 
 export type { SignInState } from "./sign-in-state";
 
@@ -39,9 +40,7 @@ export function SignInCard({
         <CardTitle id={`${id}-title`} className="flex items-center gap-2">
           Sign-in <StatusBadge state={state} />
         </CardTitle>
-        <CardDescription>
-          The account the window works as, read silently: no sign-in window opens to check it.
-        </CardDescription>
+        <CardDescription>The account this window uses. Checking it doesn't open a sign-in prompt.</CardDescription>
         <CardAction className="flex gap-2">
           {state.status === "signed-in" ? (
             <Button variant="outline" size="sm" onClick={onSignOut}>
@@ -75,7 +74,7 @@ export function SignInCard({
 }
 
 /**
- * The state's badge: "signed in · Exchange unavailable" when the Exchange Online row has no token (task 124), which
+ * The state's badge: "Signed in · Exchange unavailable" when the Exchange Online row has no token (task 124), which
  * the row below names; nothing while the state is read.
  */
 function StatusBadge({ state }: { state: SignInState }) {
@@ -126,10 +125,10 @@ function SignInDetails({ state, onOpenSignInPage }: { state: SignInState; onOpen
           ) : (
             <p>There is no tenant profile on this computer yet, so the window cannot sign in.</p>
           )}
-          <p className="text-muted-foreground">{state.info.message}</p>
+          <p className="text-muted-foreground">{sentence(state.info.message)}</p>
           {state.info.hint ? (
             <p data-testid="sign-in-hint">
-              <span className="font-medium">What to do:</span> {state.info.hint}
+              <span className="font-medium">What to do:</span> {sentence(state.info.hint)}
             </p>
           ) : null}
         </div>
@@ -202,15 +201,23 @@ function DeviceCode({ prompt, onOpen }: { prompt: DeviceCodePrompt; onOpen: () =
 
 const resourceNames: Record<string, string> = { graph: "Microsoft Graph", exchange: "Exchange Online" };
 
+/** A token's expiry as the row says it: the time of day, the token lasting an hour or so. */
+export function describeExpiry(expiresOn: string | undefined): string {
+  return expiresOn
+    ? `Connected until ${new Date(expiresOn).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+    : "Connected";
+}
+
+/** One resource's row: connected until the token's expiry, or not connected and why (task 122's words). */
 function TokenRow({ token }: { token: ResourceToken }) {
   return (
     <>
       <dt className="text-muted-foreground">{resourceNames[token.resource] ?? token.resource}</dt>
       <dd>
         {token.error ? (
-          <span className="text-destructive">no token: {token.error}</span>
+          <span className="text-destructive">Not connected: {token.error}</span>
         ) : (
-          <span>token until {token.expiresOn ? new Date(token.expiresOn).toLocaleString() : "?"}</span>
+          <span>{describeExpiry(token.expiresOn)}</span>
         )}
       </dd>
     </>

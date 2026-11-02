@@ -154,14 +154,14 @@ public sealed class MailboxWriteEdgeTests
         WritePlan write = await MailboxLookups.PlanAccessAsync(backends, grant: false, [new AccessChangeRow("shared", "bob@contoso.com", MailboxRight.FullAccess)], Ct);
 
         PlanChange change = Assert.Single(write.Plan.Changes);
-        Assert.Equal((PlanAction.Remove, "FullAccess for bob@contoso.com"), (change.Action, change.Detail));
+        Assert.Equal((PlanAction.Remove, "Full Access for bob@contoso.com"), (change.Action, change.Detail));
         Assert.Empty(write.Plan.Warnings);
     }
 
     [Theory]
-    [InlineData("MailContact", "is a MailContact")]
-    [InlineData("MailUniversalDistributionGroup", "is a MailUniversalDistributionGroup")]
-    [InlineData("DynamicDistributionGroup", "is a DynamicDistributionGroup")]
+    [InlineData("MailContact", "is a mail contact")]
+    [InlineData("MailUniversalDistributionGroup", "is a distribution list")]
+    [InlineData("DynamicDistributionGroup", "is a dynamic distribution list")]
     [InlineData("MailNonUniversalDistributionGroupX", "is a MailNonUniversalDistributionGroupX")]
     [InlineData("UserMailbox", null)]
     [InlineData(null, null)]
@@ -202,7 +202,7 @@ public sealed class MailboxWriteEdgeTests
         WritePlan write = await MailboxLookups.PlanAccessAsync(backends, grant: true, MailboxLookups.AccessRows("shared", ["sales"], ["FullAccess,SendAs,SendOnBehalf"]), Ct);
 
         Assert.Equal(
-            "Sales is a group: every member, the nested ones too, gets FullAccess, Send As and Send on Behalf on Shared; Outlook does not add the mailbox for them on its own (no automapping through a group)",
+            "Sales is a group: every member, the nested ones too, gets Full Access, Send As and Send on Behalf on Shared; Outlook does not add the mailbox for them on its own (no automapping through a group)",
             Assert.Single(write.Plan.Warnings));
     }
 

@@ -78,6 +78,6 @@ public sealed class SnapshotUserSearchTests
         AegisException empty = Assert.Throws<AegisException>(() => SnapshotAccess.FindUsers(home, "contoso", "  "));
 
         Assert.Equal((FailureKind.NotFound, SnapshotStore.TakeHint), (none.Failure.Kind, none.Failure.Hint));
-        Assert.Equal((FailureKind.Usage, "no text to search for", "type the start of a name or an address"), (empty.Failure.Kind, empty.Message, empty.Failure.Hint));
+        Assert.Equal((FailureKind.Usage, "no text to search for", "enter the start of a name or an email address"), (empty.Failure.Kind, empty.Message, empty.Failure.Hint));
     }
 }

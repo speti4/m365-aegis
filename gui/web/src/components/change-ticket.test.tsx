@@ -13,13 +13,13 @@ const noop = () => undefined;
 
 const plan = (changes: number): Plan => ({
   operation: "mailbox-access-grant",
-  title: "Grant mailbox rights on Reception (reception@contoso.com)",
+  title: "Grant mailbox permissions on Reception (reception@contoso.com)",
   changes: Array.from({ length: changes }, (_, index) => ({
     action: "add" as const,
     target: "Reception (reception@contoso.com)",
     detail: `Send As for user${index}@contoso.com`,
     current: "no Send As",
-    desired: "holds Send As",
+    desired: "has Send As",
   })),
   unchanged: [],
   warnings: [],
@@ -36,8 +36,8 @@ describe("the change ticket", () => {
     expect(ticket(container)?.className).toContain("bg-ticket");
     expect(ticket(container)?.textContent).toContain(plan(2).title);
     expect([...container.querySelectorAll("span.font-semibold")].map((span) => span.textContent)).toEqual([
-      "holds Send As",
-      "holds Send As",
+      "Has Send As",
+      "Has Send As",
     ]);
   });
 

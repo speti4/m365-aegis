@@ -89,7 +89,7 @@ public sealed class BridgeWriteTests
         BridgeMessage appliedSet = await window.SendAsync(BridgeWindow.Apply(BridgeWindow.PlanId(set), true));
 
         Assert.Equal("forwards to alice@fabrikam.com, keeps a copy", Text(set.Data!["plan"]!["changes"]![0]!, "desired"));
-        Assert.Contains("is outside the accepted domains", set.Data["plan"]!["warnings"]![0]!.GetValue<string>(), StringComparison.Ordinal);
+        Assert.Contains("is outside your organization", set.Data["plan"]!["warnings"]![0]!.GetValue<string>(), StringComparison.Ordinal);
         Assert.Equal("Send As for Alice Example (alice@contoso.com)", Text(revoke.Data!["plan"]!["changes"]![0]!, "detail"));
         Assert.Equal("plan-applied", appliedSet.Type);
         PlanRecord written = PlanStore.Read(Assert.Single(window.Records))!;
@@ -124,7 +124,7 @@ public sealed class BridgeWriteTests
         Assert.Equal("plan", plan.Type);
         Assert.Null(plan.Data!["planId"]);
         Assert.Equal("up-to-date", Text(plan.Data["plan"]!, "mode"));
-        Assert.Equal("holds FullAccess already", Text(plan.Data["plan"]!["unchanged"]![0]!, "state"));
+        Assert.Equal("has Full Access already", Text(plan.Data["plan"]!["unchanged"]![0]!, "state"));
         Assert.Empty(window.Sent());
         Assert.Empty(window.Records);
     }
@@ -222,8 +222,8 @@ public sealed class BridgeWriteTests
     [InlineData(BridgeMessageType.MailboxAccessGrant, null, "no user was named")]
     [InlineData(BridgeMessageType.MailboxAccessGrant, """{"mailbox":"finance","users":"bob@contoso.com","rights":["full-access"]}""", "no user was named")]
     [InlineData(BridgeMessageType.MailboxAccessGrant, """{"mailbox":"finance","users":[42,null," "],"rights":["full-access"]}""", "no user was named")]
-    [InlineData(BridgeMessageType.MailboxAccessRevoke, """{"mailbox":"finance","users":["bob@contoso.com"]}""", "no right was chosen")]
-    [InlineData(BridgeMessageType.MailboxAccessGrant, """{"mailbox":"finance","users":["bob@contoso.com"],"rights":["send-as"],"noAutoMapping":true}""", "without automapping goes with FullAccess")]
+    [InlineData(BridgeMessageType.MailboxAccessRevoke, """{"mailbox":"finance","users":["bob@contoso.com"]}""", "no permission was chosen")]
+    [InlineData(BridgeMessageType.MailboxAccessGrant, """{"mailbox":"finance","users":["bob@contoso.com"],"rights":["send-as"],"noAutoMapping":true}""", "without automapping goes with Full Access")]
     [InlineData(BridgeMessageType.MailboxAccessGrant, """{"mailbox":"finance","users":["bob@contoso.com"],"rights":["read"]}""", "unknown right 'read'")]
     [InlineData(BridgeMessageType.MailboxAccessGrant, """{"users":["bob@contoso.com"],"rights":["full-access"]}""", "the mailbox is missing")]
     [InlineData(BridgeMessageType.MailboxForwardingSet, """{"mailbox":"alice","keepCopy":true}""", "the forwarding address is missing")]
@@ -349,13 +349,13 @@ public sealed class BridgeWriteTests
     {
         var plan = new Plan(
             "mailbox-access-grant",
-            "Grant mailbox rights on Finance (finance@contoso.com)",
+            "Grant mailbox permissions on Finance (finance@contoso.com)",
             [
-                new PlanChange(PlanAction.Add, "Finance", "FullAccess for Bob", "no FullAccess", "holds FullAccess") { Result = new ChangeResult(ChangeStatus.Applied) },
-                new PlanChange(PlanAction.Add, "Finance", "Send As for Bob", "no Send As", "holds Send As") { Result = new ChangeResult(ChangeStatus.Failed, new EnvelopeError("cmdlet-failed", "refused")) },
-                new PlanChange(PlanAction.Add, "Finance", "Send on Behalf for Bob", "no Send on Behalf", "holds Send on Behalf") { Result = new ChangeResult(ChangeStatus.Skipped) },
+                new PlanChange(PlanAction.Add, "Finance", "Full Access for Bob", "no Full Access", "has Full Access") { Result = new ChangeResult(ChangeStatus.Applied) },
+                new PlanChange(PlanAction.Add, "Finance", "Send As for Bob", "no Send As", "has Send As") { Result = new ChangeResult(ChangeStatus.Failed, new EnvelopeError("cmdlet-failed", "refused")) },
+                new PlanChange(PlanAction.Add, "Finance", "Send on Behalf for Bob", "no Send on Behalf", "has Send on Behalf") { Result = new ChangeResult(ChangeStatus.Skipped) },
             ],
-            [new PlanUnchanged("Finance", "FullAccess for Alice", "holds FullAccess already")],
+            [new PlanUnchanged("Finance", "Full Access for Alice", "has Full Access already")],
             ["Bob is a group"]);
 
         Assert.Equal("3 change(s) planned, 1 unchanged, 1 warning(s)", BridgeDispatcher.DescribePlan(plan));

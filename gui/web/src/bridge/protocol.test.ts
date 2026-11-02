@@ -330,7 +330,12 @@ describe("the bridge protocol", () => {
     expect(
       reply.data.plan.changes.map((change) => [change.action, change.detail, change.current, change.desired]),
     ).toEqual([
-      ["add", "FullAccess for Bob Example (bob@contoso.com), without automapping", "no FullAccess", "holds FullAccess"],
+      [
+        "add",
+        "Full Access for Bob Example (bob@contoso.com), without automapping",
+        "no Full Access",
+        "has Full Access",
+      ],
     ]);
   });
 

@@ -12,39 +12,26 @@ import {
   type ExchangeLayer,
   type MailboxAccess,
   type MailboxInfo,
-  type MailboxRight,
   MessageType,
   type UserAccess,
 } from "../bridge/protocol";
 import { type AppliedWrites, namesUser, touches } from "./applied-writes";
 import { AnswerFor, Choice, Field, LiveStatus, LookupError, SubmitButton, useLookup } from "./card-parts";
 import { DetailsLine } from "./details-line";
-import { count } from "./plan-wording";
 import { UserPicker } from "./user-picker";
-
-export const rightNames: Record<MailboxRight, string> = {
-  "full-access": "FullAccess",
-  "send-as": "Send As",
-  "send-on-behalf": "Send on Behalf",
-};
-
-/** The layers a grant can come from, as the card names them under its "Details" line (tasks 063 and 126). */
-export const layerNames: Record<ExchangeLayer, string> = {
-  "admin-api": "Admin API",
-  pwsh: "PowerShell",
-};
+import { layerNames, mailboxTypeName, plural, rightNames } from "./vocabulary";
 
 /**
- * Which layer read what of a mailbox's access, as the card writes it under the mailbox (task 063): the Admin API's
- * mailbox read with the Send on Behalf delegates by name beside the session's FullAccess and Send As, or the session
- * alone; null when the reply names no layer.
+ * Which layer read what of a mailbox's permissions, as the card writes it under the mailbox's "Details" line (task
+ * 063): the Admin API's mailbox read with the Send on Behalf delegates by name beside the session's Full Access and
+ * Send As, or the session alone; null when the reply names no layer.
  */
 export function describeLayers(access: MailboxAccess): string | null {
   switch (access.mailboxLayer) {
     case "admin-api":
-      return "The mailbox and its Send on Behalf delegates by name come from the Admin API, FullAccess and Send As from the PowerShell session.";
+      return "The mailbox and its Send on Behalf delegates came from the Exchange admin API; Full Access and Send As from Exchange Online PowerShell.";
     case "pwsh":
-      return "Everything comes from the PowerShell session: the Admin API did not answer for this mailbox, or the window has none.";
+      return "Everything came from Exchange Online PowerShell: the Exchange admin API didn't answer for this mailbox, or this window can't use it.";
     default:
       return null;
   }
@@ -71,13 +58,13 @@ type Result =
   | { kind: "shared"; data: MailboxInfo[]; ms: number };
 
 /**
- * The window's first mailbox page (task 045): who holds FullAccess, Send As and Send on Behalf on a mailbox, or
- * which mailboxes a user holds them on, as `m365-aegis mailbox access` reads them, and the shared mailboxes to pick
+ * The window's first mailbox page (task 045): who has Full Access, Send As and Send on Behalf on a mailbox, or
+ * which mailboxes a user has them on, as `m365-aegis mailbox access` reads them, and the shared mailboxes to pick
  * one from. The user is picked from the suggestions (the directory, else the snapshot) as the colleague types a name (the user picker, task 112), or
  * typed in full. The window keeps one Exchange Online session: the first lookup starts it (a few seconds), the later
  * ones answer in the cmdlet's own time, which the answer's "Details" line shows. A mailbox's grants come over the
  * layers as on the command line (task 063): the "Details" line under the answer names the layer that read each row,
- * with the time the answer took (task 126). When the mailbox rights card applies a
+ * with the time the answer took (task 126). When the Change mailbox permissions card applies a
  * grant or a revoke to the mailbox the card shows (`applied`, task 091), the card reads it again with one
  * `mailbox-access` request and says so; an apply to another mailbox, or a forwarding, sends nothing. A user's grants
  * are not read again on their own (the reverse lookup goes over every mailbox, task 043): when a grant or a revoke names
@@ -131,19 +118,19 @@ export function MailboxAccessCard({ client, applied }: { client: BridgeClient; a
                 holders = true;
                 return {
                   result: { kind: "holders", asked, data: reply.data, ms, refreshed },
-                  status: `${reply.data.mailbox.displayName}: ${count(reply.data.holders.length, "grant")}`,
+                  status: `${reply.data.mailbox.displayName}: ${plural(reply.data.holders.length, "permission")}`,
                 };
               case MessageType.userGrants:
                 setAnswered(true);
                 return {
                   result: { kind: "grants", asked, data: reply.data, ms, stale: false },
-                  status: `${reply.data.displayName ?? reply.data.user}: ${count(reply.data.grants.length, "grant")} over ${count(reply.data.mailboxesScanned, "mailbox", "mailboxes")}`,
+                  status: `${reply.data.displayName ?? reply.data.user}: ${plural(reply.data.grants.length, "permission")} across ${plural(reply.data.mailboxesScanned, "mailbox")}`,
                 };
               case MessageType.mailboxes:
                 setAnswered(true);
                 return {
                   result: { kind: "shared", data: reply.data.mailboxes, ms },
-                  status: count(reply.data.mailboxes.length, "shared mailbox", "shared mailboxes"),
+                  status: plural(reply.data.mailboxes.length, "shared mailbox"),
                 };
               default:
                 return undefined;
@@ -176,12 +163,12 @@ export function MailboxAccessCard({ client, applied }: { client: BridgeClient; a
         void run(
           MessageType.mailboxAccess,
           { mailbox: shown.primarySmtpAddress },
-          "A change was applied to this mailbox: reading its access again…",
+          "A change was made to this mailbox: reading its permissions again…",
           true,
         ).then((read) => {
           if (read) {
             write.onReRead?.({
-              card: "Mailbox access",
+              card: "Mailbox permissions",
               mailbox: shown.displayName,
               show: () => reveal(cardRef.current),
             });
@@ -230,10 +217,10 @@ export function MailboxAccessCard({ client, applied }: { client: BridgeClient; a
   return (
     <Card ref={cardRef} tabIndex={-1} aria-labelledby={`${id}-title`} className={cn("scroll-mt-20", focusTarget)}>
       <CardHeader>
-        <CardTitle id={`${id}-title`}>Mailbox access</CardTitle>
+        <CardTitle id={`${id}-title`}>Mailbox permissions</CardTitle>
         <CardDescription>
-          Who can open a mailbox or send as it, or which mailboxes a user can: direct grants only, a group is listed as
-          the group.
+          See who has Full Access, Send As or Send on Behalf on a mailbox, or which mailboxes a user has them on. Shows
+          direct permissions only: a permission given to a group shows the group, not its members.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -265,7 +252,7 @@ export function MailboxAccessCard({ client, applied }: { client: BridgeClient; a
                 <Input
                   id={fieldId}
                   ref={field}
-                  placeholder="Mailbox address, name or object id"
+                  placeholder="Mailbox name, email address or object ID"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   readOnly={busy}
@@ -288,7 +275,7 @@ export function MailboxAccessCard({ client, applied }: { client: BridgeClient; a
               )}
               <SubmitButton
                 busy={busy}
-                missing={query.trim() === "" ? `Type a ${mode === "mailbox" ? "mailbox" : "user"} first.` : null}
+                missing={query.trim() === "" ? `Enter a ${mode === "mailbox" ? "mailbox" : "user"} first.` : null}
                 hintId={`${id}-hint`}
                 idle="Look up"
                 working="Looking up…"
@@ -298,7 +285,7 @@ export function MailboxAccessCard({ client, applied }: { client: BridgeClient; a
         </form>
         {refreshing ? (
           <p className="text-sm text-muted-foreground">
-            A change was applied to this mailbox: reading its access again…
+            A change was made to this mailbox: reading its permissions again…
           </p>
         ) : null}
         {busy && !answered ? (
@@ -319,7 +306,7 @@ export function MailboxAccessCard({ client, applied }: { client: BridgeClient; a
 
 /** The stale mark's sentence, on the card and in its status region. */
 const staleText =
-  "A change on the Mailbox rights card named this user since this list was read, so it may be out of date. Reading it again goes over every mailbox and takes a while.";
+  "A change on the Change mailbox permissions card named this user since this list was read, so it may be out of date. Reading it again goes over every mailbox and takes a while.";
 
 function ResultView({
   result,
@@ -337,7 +324,9 @@ function ResultView({
     case "shared":
       return (
         <div className="space-y-2">
-          <p className="text-muted-foreground">{result.data.length} shared mailbox(es); pick one to see its access.</p>
+          <p className="text-muted-foreground">
+            {plural(result.data.length, "shared mailbox")}. Choose one to see its permissions.
+          </p>
           <ul className="flex flex-wrap gap-2">
             {result.data.map((mailbox) => (
               <li key={mailbox.primarySmtpAddress}>
@@ -360,24 +349,24 @@ function ResultView({
           <AnswerFor query={result.asked} />
           <p className="flex flex-wrap items-center gap-2">
             <strong>{mailbox.displayName}</strong>
-            <Badge variant="secondary">{mailbox.type}</Badge>
+            <Badge variant="secondary">{mailboxTypeName(mailbox.type)}</Badge>
             <span className="text-muted-foreground">{mailbox.primarySmtpAddress}</span>
-            <span className="text-muted-foreground tabular-nums">· {holders.length} grant(s)</span>
+            <span className="text-muted-foreground tabular-nums">· {plural(holders.length, "permission")}</span>
           </p>
           {result.refreshed ? (
             <p className="text-xs text-muted-foreground" data-testid="refreshed">
-              Read again after a change on the Mailbox rights card.
+              Read again after a change on the Change mailbox permissions card.
             </p>
           ) : null}
           {holders.length === 0 ? (
-            <p className="text-muted-foreground">Nobody holds a right on this mailbox but its own account.</p>
+            <p className="text-muted-foreground">No one else has permissions on this mailbox.</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Right</TableHead>
-                  <TableHead>Holder</TableHead>
-                  <TableHead>Address</TableHead>
+                  <TableHead>Permission</TableHead>
+                  <TableHead>User or group</TableHead>
+                  <TableHead>Email address</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -417,9 +406,9 @@ function ResultView({
             <strong>{displayName ?? user}</strong>
             {displayName ? <span className="text-muted-foreground">{user}</span> : null}
             <span className="text-muted-foreground tabular-nums">
-              · {grants.length} grant(s) over {mailboxesScanned} mailbox(es)
+              · {plural(grants.length, "permission")} across {plural(mailboxesScanned, "mailbox")}
             </span>
-            {failed.length > 0 ? <Badge variant="warning">partial</Badge> : null}
+            {failed.length > 0 ? <Badge variant="warning">Incomplete</Badge> : null}
           </p>
           {result.stale ? (
             <div
@@ -441,7 +430,7 @@ function ResultView({
           {failed.length > 0 ? (
             <div className="rounded-lg border border-danger/50 p-3 text-sm">
               <p className="font-medium">
-                {failed.length} list(s) could not be read; the grants below may be incomplete.
+                {plural(failed.length, "list")} could not be read, so the permissions below may be incomplete.
               </p>
               <ul className="list-disc pl-5 text-muted-foreground">
                 {failed.map((line) => (
@@ -451,15 +440,15 @@ function ResultView({
             </div>
           ) : null}
           {grants.length === 0 ? (
-            <p className="text-muted-foreground">The user holds no right on another mailbox.</p>
+            <p className="text-muted-foreground">No permissions on other mailboxes.</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Mailbox</TableHead>
-                  <TableHead>Address</TableHead>
+                  <TableHead>Email address</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Right</TableHead>
+                  <TableHead>Permission</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -467,7 +456,7 @@ function ResultView({
                   <TableRow key={`${grant.mailbox.primarySmtpAddress}:${grant.right}`}>
                     <TableCell>{grant.mailbox.displayName}</TableCell>
                     <TableCell className="font-mono text-xs">{grant.mailbox.primarySmtpAddress}</TableCell>
-                    <TableCell>{grant.mailbox.type}</TableCell>
+                    <TableCell>{mailboxTypeName(grant.mailbox.type)}</TableCell>
                     <TableCell>{rightNames[grant.right]}</TableCell>
                   </TableRow>
                 ))}

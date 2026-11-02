@@ -20,8 +20,8 @@ sign-ins and reports. Every write behind a plan and a confirmation.
   allow-list; message trace through Graph.
 - **Two outputs, one contract.** A table at a terminal, a JSON envelope in a pipe or for an agent; exit codes that mean
   one thing each.
-- **Writes behind a plan.** Group members and owners, mailbox rights and forwarding, one at a time or from a CSV file:
-  `--dry-run` shows the plan, `--yes` applies it, and every apply leaves a record that `--resume` can continue.
+- **Writes behind a plan.** Group members and owners, mailbox permissions and forwarding, one at a time or from a CSV
+  file: `--dry-run` shows the plan, `--yes` applies it, and every apply leaves a record that `--resume` can continue.
 - **Snapshots.** Who can reach what (groups, sites, shared files, mailboxes, calendars) read into one local file, so
   `access <user>` answers in under a second without signing in, and `snapshot diff` shows who gained or lost access
   between two of them.
@@ -76,8 +76,8 @@ m365-aegis group members add Finance dave@contoso.com --dry-run
 ```
 
 `m365-aegis-gui.exe` opens the window, with the same sign-in and plans and cards for the sign-in, group members,
-mailbox access, a user's access from the snapshot, the access changes between two snapshots, mailbox rights and
-mailbox forwarding. The [usage guide](docs/usage.md) covers every command and card.
+mailbox permissions, a user's access from the snapshot, the access changes between two snapshots, changing mailbox
+permissions and mailbox forwarding. The [usage guide](docs/usage.md) covers every command and card.
 
 ## Documentation
 

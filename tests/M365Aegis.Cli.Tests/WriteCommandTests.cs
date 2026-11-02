@@ -162,7 +162,7 @@ public sealed class WriteCommandTests
         Assert.Equal(0, dryExit);
         using JsonDocument dry = JsonDocument.Parse(dryOut);
         Assert.Equal(1, dry.RootElement.GetProperty("data").GetProperty("changes").GetArrayLength());
-        Assert.Equal("holds FullAccess already", dry.RootElement.GetProperty("data").GetProperty("unchanged")[0].GetProperty("state").GetString());
+        Assert.Equal("has Full Access already", dry.RootElement.GetProperty("data").GetProperty("unchanged")[0].GetProperty("state").GetString());
         Assert.Equal("pwsh", dry.RootElement.GetProperty("meta").GetProperty("backend").GetString());
         Assert.Equal(0, exitCode);
         using JsonDocument applied = JsonDocument.Parse(stdout);
@@ -204,7 +204,7 @@ public sealed class WriteCommandTests
 
         Assert.Equal(0, exitCode);
         using JsonDocument document = JsonDocument.Parse(stdout);
-        Assert.StartsWith("alice@fabrikam.com is outside the accepted domains", document.RootElement.GetProperty("data").GetProperty("warnings")[0].GetString(), StringComparison.Ordinal);
+        Assert.StartsWith("alice@fabrikam.com is outside your organization", document.RootElement.GetProperty("data").GetProperty("warnings")[0].GetString(), StringComparison.Ordinal);
         using JsonDocument write = JsonDocument.Parse(Assert.Single(File.ReadAllLines(writes)));
         JsonElement parameters = write.RootElement.GetProperty("parameters");
         Assert.Equal("Set-Mailbox", write.RootElement.GetProperty("cmdlet").GetString());

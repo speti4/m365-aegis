@@ -1,14 +1,14 @@
 import { type Ref, useCallback, useEffect, useRef } from "react";
 import type { BridgeClient } from "../bridge/client";
 import { type BridgeError, type MailboxInfo, MessageType } from "../bridge/protocol";
-import { count } from "./plan-wording";
 import { type Suggested, SuggestField } from "./suggest-field";
+import { plural } from "./vocabulary";
 
 /** How many mailboxes the list shows at most: more match a name too short to help. */
 export const MAX_MAILBOXES = 8;
 
 /** The line under the list that names where the suggestions come from. */
-const source = "From the shared mailboxes; any other mailbox by its full address.";
+const source = "From the shared mailboxes; any other mailbox by its full email address.";
 
 /**
  * The shared mailboxes whose name, a word of it, address or user principal name starts with `text` (any case), as the
@@ -24,7 +24,7 @@ export function mailboxSuggestions(mailboxes: readonly MailboxInfo[], text: stri
   const shown = matching.slice(0, MAX_MAILBOXES);
   const more = matching.length > shown.length;
   if (shown.length === 0) {
-    const none = `No shared mailbox starts with "${text}": a full address still works.`;
+    const none = `No shared mailbox starts with "${text}": a full email address still works.`;
     return { options: [], announce: none, note: [none, source] };
   }
   return {
@@ -33,14 +33,14 @@ export function mailboxSuggestions(mailboxes: readonly MailboxInfo[], text: stri
       name: mailbox.displayName,
       detail: mailbox.primarySmtpAddress,
     })),
-    announce: `${count(shown.length, "matching shared mailbox", "matching shared mailboxes")}${more ? ", and more" : ""}: use the arrow keys to pick one.`,
+    announce: `${plural(shown.length, "matching shared mailbox")}${more ? ", and more" : ""}: use the arrow keys to choose one.`,
     note: [...(more ? ["More mailboxes match: type more of the name."] : []), source],
   };
 }
 
 /** The line under the field when the shared mailboxes could not be listed. */
 export function unlisted(error: BridgeError): Suggested {
-  const line = `No suggestions: the shared mailboxes could not be listed (${error.message}). Type the mailbox's address.`;
+  const line = `No suggestions: the shared mailboxes could not be listed (${error.message}). Enter the mailbox's email address.`;
   return { options: [], announce: line, note: [line] };
 }
 
@@ -99,7 +99,7 @@ export function MailboxPicker({
   return (
     <SuggestField
       {...field}
-      placeholder="Start typing a shared mailbox's name, or an address"
+      placeholder="Start typing a shared mailbox's name, or enter an email address"
       suggest={suggest}
       listLabel="Matching shared mailboxes"
       minLength={1}

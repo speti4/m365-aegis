@@ -625,9 +625,11 @@ operation to the core that returns a `WritePlan`, and a command whose action is 
   the current forwarding as `Get-EXOMailbox` carries it; `set` is `Set-Mailbox -ForwardingSmtpAddress <address>
   -DeliverToMailboxAndForward <keep a copy>`, unchanged when the mailbox forwards there already with the same copy
   setting; a `ForwardingAddress` (a recipient), which takes precedence over an SMTP address, is cleared with it and
-  the plan warns; an address outside the accepted domains warns that the mail leaves the organization and that the
-  outbound spam filter policy blocks automatic external forwarding unless it allows it; forwarding without a copy
-  warns too. `clear` sets both to `$null` and `DeliverToMailboxAndForward` to `$false`. A mailbox named twice is a
+  the plan warns; an address outside the accepted domains warns that it is outside your organization and that
+  Exchange Online blocks automatic forwarding to it unless the outbound spam filter policy allows it, so the mail may
+  not arrive; forwarding without a copy warns too. The plan's title is "Forward the mail of …" or "Stop forwarding the
+  mail of …", and a mailbox write's plan names the permissions as the Exchange admin center does ("Full Access for
+  Bob Example", "no Full Access → has Full Access", task 122). `clear` sets both to `$null` and `DeliverToMailboxAndForward` to `$false`. A mailbox named twice is a
   usage error.
 
 **A batch from a CSV file** (task 054). `--from-csv <file>` on every write above takes the changes from a file
@@ -1096,11 +1098,11 @@ reads it again, `cancel` (task 126) drops a waiting sign-in back to signed out w
 `App` counts its sign-ins so the reply of one it no longer waits for is dropped: the bridge has no cancel message, the
 host's sign-in runs on until it ends or times out; "Sign in" and "Sign in with a code" when signed out with a profile, with the window's hint for the
 state, the device code with "Copy the code" and "Open in browser" while it waits, "Cancel" while it waits, "Sign
-out" when signed in), the group members card with the table (the object ids under "Details"), the mailbox access card
-(a mailbox or a user, the shared mailboxes to pick from, the holders or the grants in a table, the partial warning,
+out" when signed in), the group members card with the table (the object IDs under "Details"), the mailbox permissions
+card (a mailbox or a user, the shared mailboxes to pick from, the holders or the grants in a table, the partial warning,
 and under "Details" the layer that read each holder and the time of the answer; it reads the mailbox it shows again
 after a grant or a revoke, below), the write
-cards (task 082, `components/mailbox-write-cards.tsx`: "Mailbox rights" and "Mailbox forwarding"), and a toast
+cards (task 082, `components/mailbox-write-cards.tsx`: "Change mailbox permissions" and "Mailbox forwarding"), and a toast
 (sonner, with a close button and ten seconds) for an `error` reply of the page's own requests (the sign-in, the
 sign-out, the device code's page).
 
@@ -1126,33 +1128,52 @@ transition ("Looking up Finance…", "Finance: 4 direct members", "Plan: 2 chang
 its "N matching users" or "No user starts with …" line to the same region (`onAnnounce`), and is `aria-expanded`
 only while it lists a user. An either/or choice is `Choice`, base-ui's `RadioGroup`: one Tab stop, the arrow keys.
 
-**The write cards** follow the sketch below over the core's real `Plan`: Pick › Plan › Confirm › Result, the flow a
-reducer in `components/write-flow.ts` and its parts in `components/plan-view.tsx`. "See the plan" sends the write
+**The window's vocabulary** (task 122, `components/vocabulary.ts`) is the glossary's home: every word a card shows
+for a value of the core goes through it, so two cards never name one thing two ways. Microsoft's terms where it has
+them: Full Access, Send As and Send on Behalf (`rightNames`; the command line still takes `FullAccess`), a mailbox
+"permission" never a right or a grant, Shared mailbox and User mailbox (`mailboxTypeName`), Microsoft 365, Security,
+Mail-enabled security and Distribution list by the bridge's word or the snapshot's (`groupKindName`), User, Group and
+Device (`objectTypeName`), Member and Owner (`roleName`), SharePoint's sharing words ("Link: people in your
+organization · View", `sharingAccess`), Outlook's calendar roles ("Free/busy only", `calendarRole`), a snapshot diff's
+"how" column by its part (`diffHow`), a snapshot by its time, never its `.sqlite` file (`snapshotTime`); people are
+named by sign-in name, email address and object ID, a site by its URL. A plan change's badge is the card's verb by the
+plan's operation (`changeVerb`: Grant, Revoke, Forward, Stop forwarding), the same as the card's choice and the
+confirmation's button; the write steps are Choose › Review › Confirm › Result. `plural(n, noun)` (`Intl.PluralRules`)
+writes every count, never "(s)"; `sentence` makes the core's lower-case fragment a sentence (an opening address or
+quote kept as it is), and `windowError` gives an error the window's words: the core's errors the command line shares
+(a group not found or several found, a holder or a forwarding address not found) are reworded at the card, by name,
+not by object id, since the command line's tests pin its own; any other gets the window's terms ("enter", sign-in
+name, object ID, Full Access) and both its sentence and its hint as sentences. `ErrorText` (the lookups' error, the
+refusal), the toast and a failed change's line all show it. A value a map does not know stays as the core wrote it.
+
+**The write cards** follow the sketch below over the core's real `Plan`: Choose › Review › Confirm › Result (task 122),
+the flow a reducer in `components/write-flow.ts` and its parts in `components/plan-view.tsx`. "Review the plan" sends the write
 request once every pick has a value; the plan shows each change (its action, the target, what changes, the state now
-→ after), what is left as it is, and the warnings, and a plan with nothing to change offers no confirmation. A warning
+→ after), what is left as it is, and the warnings under "Check before you confirm" (task 122; "Good to know" stays for
+the snapshot notes of the access cards), and a plan with nothing to change offers no confirmation. A warning
 is the core's sentence, which the command line prints as it is; the card shows one that names a flag in its own words
 (task 090, `components/plan-wording.ts`: the forwarding's "(--keep-copy keeps one)" becomes a sentence that sends to
-"Change the picks" and the "Keep a copy in the mailbox" box), and a warning the list does not know as the core wrote
-it. Of the core's warnings (`PlanBuilder.Warn` and the resume's own) two name a flag: that one and `plan prune`'s
+"Back to edit" and the "Keep a copy in the mailbox" box), and a warning the list does not know as the core wrote
+it, made a sentence. Of the core's warnings (`PlanBuilder.Warn` and the resume's own) two name a flag: that one and `plan prune`'s
 `--resume`, which no card plans; a Vitest test reads the core's sources and fails on a new one, and another renders
 the plan, the confirmation, the result and an error over the bridge samples with every mailbox write's warning, and
 the forwarding card over the browser mock, without a `--` flag on the card. The confirmation's note says "the window
 sends no change until you confirm" instead of naming `--yes`.
-"Continue to confirm" shows the plan again (task 120): each change with its action's badge and its now → after, the
+"Continue" shows the plan again (task 120): each change with its action's badge and its now → after, the
 warnings in short, the account and profile from the sign-in state (`runAs`), and a checkbox ("I've reviewed these
 changes."); the one button that sends a write is named by the plan's operation (`confirmAction` in
-`plan-wording.ts`: "Grant permissions", "Revoke permissions", "Start forwarding", "Stop forwarding", destructive for
+`plan-wording.ts`: "Grant permissions", "Revoke permissions", "Forward mail", "Stop forwarding", destructive for
 a removal, "Confirm and apply" for an operation the map does not know) and sends `apply-plan` with `"confirm":
-true`. "Back to the plan", "Cancel" (back to the picks) and "Change the picks" send nothing (the host's plan runs out
+true`. "Back to the plan", "Cancel" (back to the picks) and "Back to edit" send nothing (the host's plan runs out
 after 15 minutes). The result says "Done", "Partly done" or "Not done", each change with its result and the service's
 sentence, and the plan record's file (task 126: a result not done in full says how many changes were made once,
 over the list, and leaves out the host's summary, whose sentence and hint repeat the list and the record, but for its
-code under "Details"; its sentence shows when no change carries a message of its own). "See the plan again", after a
+code under "Details"; its sentence shows when no change carries a message of its own). "Review the plan again", after a
 result not done in full, sends the write request the plan answered once more (`request-plan` is allowed from the
 result): the host plans only what is not so yet. "Start a new change" goes back to the picks and calls the card's
 `onStartOver`, which keeps the mailbox and resets the rest; "Cancel" on the confirmation keeps every pick. The picks
-are a form, so Enter means "See
-the plan" (Enter on a rights toggle or a choice submits too, instead of toggling it), and the line beside the button
+are a form, so Enter means "Review
+the plan" (Enter on a permission toggle or a choice submits too, instead of toggling it), and the line beside the button
 lists what is still needed; Escape goes back from the plan, the confirmation and a refusal, never while an apply
 runs. On a step change the card moves the focus to the step's first element (`tabIndex={-1}`: the plan's title, the
 confirmation's sentence, the working line, the result's or the refusal's notice) and to the mailbox field on the
@@ -1171,12 +1192,12 @@ or none was made, and an apply that broke off on the way (an `error` other than 
 plan's operation, the mailbox as the card asked for it and the addresses in the changes' targets. The mailbox access
 card listens while it shows a mailbox's holders; after a grant or a revoke whose name or addresses are that mailbox's
 (its name, address, user principal name or object id, in any case), it sends one `mailbox-access` for the mailbox's
-address, says "A change was applied to this mailbox: reading its access again…" while it waits, and "Read again after
-a change on the Mailbox rights card." over the new table. An apply to another mailbox, a forwarding (the card shows no
+address, says "A change was made to this mailbox: reading its permissions again…" while it waits, and "Read again
+after a change on the Change mailbox permissions card." over the new table. An apply to another mailbox, a forwarding (the card shows no
 forwarding) or a card that shows a user's grants or nothing sends no request; the bridge has no new message.
 
 **The user view's stale mark** (task 103): the channel's message also names the users the write named, as the card
-asked for them and the addresses in its changes' details ("FullAccess for Bob Example (bob@contoso.com)"). While the
+asked for them and the addresses in its changes' details ("Full Access for Bob Example (bob@contoso.com)"). While the
 mailbox access card shows a user's grants, a grant or a revoke that names that user (the principal name or the
 display name, in any case) marks the list ("…so it may be out of date") and offers "Read again", which sends one
 `mailbox-access` for the user; the card never reads the user again on its own, since the reverse lookup goes over
@@ -1188,11 +1209,11 @@ the groups and the sign-in state that `App` already holds (the dot, the state in
 first eight characters, the profile, Sign in or Sign out). A link scrolls its section to the top with `scrollIntoView`
 (smoothly unless the user asked for reduced motion, below the bar through `scroll-margin-top`) and moves the focus
 there; it does not change the address, since the dev sketch's route is a hash. `exchangeError` (`sign-in-state.ts`)
-is the whoami reply's Exchange Online row's error: the bar and the sign-in card's badge read "signed in · Exchange
-unavailable" and the write cards show "Exchange Online unavailable" with "See the plan" disabled. The channel's
+is the whoami reply's Exchange Online row's error: the bar and the sign-in card's badge read "Signed in · Exchange
+unavailable" and the write cards show "Exchange Online unavailable" with "Review the plan" disabled. The channel's
 message carries an `onReRead` callback of the write card that applied it: once the mailbox access card has read the
 mailbox again and shows the answer, it calls it with its title, the mailbox's name and a `show` function, and the write
-card's result step says "The Mailbox access card read Reception again after this change." with "Show it", which
+card's result step says "The Mailbox permissions card read Reception again after this change." with "Show it", which
 scrolls to that card and focuses it. A failed read again, or an answer after the card started over, shows nothing.
 
 **The user access card** (task 102, `components/user-access-card.tsx`): a user, then `access`; the answer in five
@@ -1203,7 +1224,7 @@ host's hint; an `error` reply shows under the field. The card does not wait for 
 from `src/bridge/mock-access.ts`, which a Vitest test holds equal to the `access-report.json` sample, and
 `?mock=no-snapshot` in the address starts the mock without a snapshot. `?mock=no-exchange` starts it signed in
 without an Exchange Online token (the whoami reply's Exchange Online row carries an error), so the top bar's and the
-sign-in card's "signed in · Exchange unavailable" and the write cards' "Exchange Online unavailable" show (task 124);
+sign-in card's "Signed in · Exchange unavailable" and the write cards' "Exchange Online unavailable" show (task 124);
 the mock's own Exchange Online answers do not change.
 
 **The user picker** (task 112, `components/user-picker.tsx`): the user field of the user access card and of the
@@ -1257,7 +1278,7 @@ core's, unchanged.
 
 **The snapshot's parts in the window's words** (task 113): the access view's warnings name a part of the snapshot by
 the store's word (`sites is partial…`, `oneDrive was not read: …`); the wording map names it as the card does
-(`snapshotPartNames` in `components/plan-wording.ts`: "SharePoint sites", "OneDrive", "Mailbox rights", "Calendar
+(`snapshotPartNames` in `components/plan-wording.ts`: "SharePoint sites", "OneDrive", "Mailbox permissions", "Calendar
 permissions", …, one name for each of the take's 13 parts) and words the partial, the failed and the skipped part as
 "SharePoint sites: read only in part in this snapshot; …". The
 Vitest test reads the parts from `SnapshotTake.cs` and fails on a part the map does not name, and forbids a part's

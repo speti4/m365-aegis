@@ -311,8 +311,19 @@ export class MockTransport implements Transport {
           return { type: MessageType.error, data: { code: "usage", message: "the group is missing" } };
         }
         const { id, displayName, mail } = mockFinance.group;
-        return [id, displayName, mail].some((value) => value?.toLowerCase() === name.toLowerCase())
-          ? { type: MessageType.members, data: mockFinance }
+        if ([id, displayName, mail].some((value) => value?.toLowerCase() === name.toLowerCase())) {
+          return { type: MessageType.members, data: mockFinance };
+        }
+        // A word that starts more than one group's name, as the core's search finds them (task 122's ambiguous name).
+        return "finance".startsWith(name.toLowerCase())
+          ? {
+              type: MessageType.error,
+              data: {
+                code: "not-found",
+                message: `'${name}' names 2 groups`,
+                hint: `give the object id of one: Finance (${id}), Finance EU (00000000-0000-0000-0000-000000000032)`,
+              },
+            }
           : {
               type: MessageType.error,
               data: {
@@ -338,7 +349,7 @@ export class MockTransport implements Transport {
         if ((mailboxName === "") === (userName === "")) {
           return {
             type: MessageType.error,
-            data: { code: "usage", message: "give a mailbox or a user, not both and not neither" },
+            data: { code: "usage", message: "choose a mailbox or a user, not both" },
           };
         }
         if (userName !== "") {

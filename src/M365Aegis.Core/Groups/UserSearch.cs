@@ -39,7 +39,7 @@ public static class UserSearch
         string prefix = text.Replace("\"", "", StringComparison.Ordinal).Trim();
         if (prefix.Length == 0)
         {
-            throw new AegisException(FailureKind.Usage, "no text to search for", "type the start of a name or an address");
+            throw new AegisException(FailureKind.Usage, "no text to search for", "enter the start of a name or an email address");
         }
 
         string search = string.Join(" OR ", SearchedFields.Select(field => $"\"{field}:{prefix}\""));

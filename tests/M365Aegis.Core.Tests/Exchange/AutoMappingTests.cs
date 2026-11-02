@@ -76,8 +76,8 @@ public sealed class AutoMappingTests
         CommandResult<Plan> applied = await PlanGuard.RunAsync(write, WriteMode.Apply, PlanSamples.Store(PlanSamples.TempHome()), Ct);
 
         PlanChange change = Assert.Single(write.Plan.Changes);
-        Assert.Equal("FullAccess for Carol Example (carol@contoso.com), without automapping", change.Detail);
-        Assert.Equal("holds FullAccess already; its automapping is left as it is", Assert.Single(write.Plan.Unchanged).State);
+        Assert.Equal("Full Access for Carol Example (carol@contoso.com), without automapping", change.Detail);
+        Assert.Equal("has Full Access already; its automapping is left as it is", Assert.Single(write.Plan.Unchanged).State);
         Assert.True(applied.Ok);
         ExoCommand sent = Assert.Single(recorder.Commands, command => command.Cmdlet == ExoCmdlets.AddMailboxPermission);
         Assert.Equal(false, sent.Parameters["AutoMapping"]);
@@ -94,7 +94,7 @@ public sealed class AutoMappingTests
         WritePlan write = await MailboxLookups.PlanAccessAsync(backends, grant: true, MailboxLookups.AccessRows("finance", ["carol@contoso.com"], ["FullAccess"]), Ct);
         await PlanGuard.RunAsync(write, WriteMode.Apply, PlanSamples.Store(PlanSamples.TempHome()), Ct);
 
-        Assert.Equal("FullAccess for Carol Example (carol@contoso.com)", Assert.Single(write.Plan.Changes).Detail);
+        Assert.Equal("Full Access for Carol Example (carol@contoso.com)", Assert.Single(write.Plan.Changes).Detail);
         ExoCommand sent = Assert.Single(recorder.Commands, command => command.Cmdlet == ExoCmdlets.AddMailboxPermission);
         Assert.False(sent.Parameters.ContainsKey("AutoMapping"));
     }

@@ -29,8 +29,8 @@ async function card(transport: MockTransport | ScriptedTransport) {
   const rendered = await render(<SnapshotDiffCard client={new BridgeClient(transport)} />);
   const field = (label: string) => labeled(rendered.container, label);
   const compare = async (picks: { from?: string; to?: string; user?: string } = {}) => {
-    await type(field("From"), picks.from ?? "");
-    await type(field("To"), picks.to ?? "");
+    await type(field("Compare from"), picks.from ?? "");
+    await type(field("Compare to"), picks.to ?? "");
     await type(field("Only this user"), picks.user ?? "");
     await submit(rendered.container.querySelector("form") as HTMLFormElement);
     await settle();
@@ -59,29 +59,42 @@ describe("the access changes card", () => {
     expect(liveStatus(container)).toBe("8 added, 6 removed between the two snapshots");
 
     expect(container.querySelector('[data-testid="snapshots"]')?.textContent).toBe(
-      "From the snapshot taken 2026-10-31 06:00 UTC (26 hour(s) ago) to the one taken 2026-11-01 06:00 UTC (2 hour(s) ago): 8 added, 6 removed.",
+      "From the snapshot taken 2026-10-31 06:00 UTC (26 hours ago) to the one taken 2026-11-01 06:00 UTC (2 hours ago): 8 added, 6 removed.",
     );
     expect(titles(container)).toEqual([
       "Group members · 3 added, 1 removed",
       "Group owners · 1 added, 1 removed",
       "Shared files · 1 added, 1 removed",
-      "Mailbox rights · 1 added, 1 removed",
+      "Mailbox permissions · 1 added, 1 removed",
       "Calendar permissions · 1 added, 1 removed",
       "Mail forwarding · 1 added, 1 removed",
     ]);
+    // How each row holds what it holds, in the window's words (task 122), never the core's values.
     expect(rows(container, "Group members")).toEqual([
-      ["added", "Audit", "bob@contoso.com", "member"],
-      ["removed", "Finance EU", "FIN-KIOSK-01", "member (device)"],
-      ["added", "Finance Staff", "Audit", "member (group)"],
-      ["added", "Project Phoenix", "bob@contoso.com", "member"],
+      ["Added", "Audit", "bob@contoso.com", "Member"],
+      ["Removed", "Finance EU", "FIN-KIOSK-01", "Member (device)"],
+      ["Added", "Finance Staff", "Audit", "Member (group)"],
+      ["Added", "Project Phoenix", "bob@contoso.com", "Member"],
     ]);
-    expect(rows(container, "Mailbox rights")).toEqual([
-      ["added", "finance@contoso.com", "dave@contoso.com", "FullAccess"],
-      ["removed", "reception@contoso.com", "Finance Staff", "FullAccess"],
+    expect(rows(container, "Group owners").map((row) => row[3])).toEqual(["Owner", "Owner"]);
+    expect(rows(container, "Shared files").map((row) => row[3])).toEqual([
+      "Link: people in your organization · View",
+      "Link: specific people · View",
     ]);
+    expect(rows(container, "Mailbox permissions")).toEqual([
+      ["Added", "finance@contoso.com", "dave@contoso.com", "Full Access"],
+      ["Removed", "reception@contoso.com", "Finance Staff", "Full Access"],
+    ]);
+    expect(rows(container, "Calendar permissions").map((row) => row[3])).toEqual(["Free/busy only", "Reviewer"]);
+    expect(rows(container, "Mail forwarding").map((row) => row[3])).toEqual([
+      "To a recipient, keeps a copy",
+      "To an email address, outside your organization, keeps a copy",
+    ]);
+    // A snapshot by its time, never its file (task 122).
     expect(container.textContent).toContain(
-      "SharePoint sites: read only in part in the snapshot 2026-10-31T060000Z.sqlite (1 item(s) not read), so rows of Shared files may show as added or removed without a change.",
+      "SharePoint sites: read only in part in the snapshot of 2026-10-31 06:00 UTC (1 item could not be read), so rows of Shared files may show as added or removed without a change.",
     );
+    expect(container.textContent).not.toContain(".sqlite");
     expect(container.querySelector('[data-testid="user"]')).toBeNull();
     expect(container.querySelector('[data-testid="unchanged"]')).toBeNull();
     expect(container.textContent).not.toContain("Through");
@@ -95,12 +108,12 @@ describe("the access changes card", () => {
 
     expect(container.querySelector('[data-testid="user"]')?.textContent).toBe("Bob Examplebob@contoso.com");
     expect(rows(container, "Groups")).toEqual([
-      ["added", "Audit", "bob@contoso.com", "member", "direct"],
-      ["added", "Finance Staff", "bob@contoso.com", "member", "Audit"],
-      ["added", "Project Phoenix", "bob@contoso.com", "member", "direct"],
+      ["Added", "Audit", "bob@contoso.com", "Member", "Direct"],
+      ["Added", "Finance Staff", "bob@contoso.com", "Member", "Audit"],
+      ["Added", "Project Phoenix", "bob@contoso.com", "Member", "Direct"],
     ]);
     expect(rows(container, "Calendar permissions")).toEqual([
-      ["added", "carol@contoso.com: Calendar", "Finance Staff", "Reviewer", "Finance Staff"],
+      ["Added", "carol@contoso.com: Calendar", "Finance Staff", "Reviewer", "Finance Staff"],
     ]);
     expect(container.querySelector('[data-testid="unchanged"]')?.textContent).toBe(
       "No change in: Group owners, Mailboxes.",
@@ -115,7 +128,9 @@ describe("the access changes card", () => {
     expect(container.textContent).toContain("Nothing to compare yet");
     expect(liveStatus(container)).toBe("Nothing to compare yet");
     expect(container.textContent).toContain("No snapshot of the profile 'contoso' yet.");
-    expect(container.textContent).toContain("ask the administrator to take one every morning");
+    expect(container.textContent).toContain(
+      "The card compares two snapshots: ask the administrator to take one every morning",
+    );
     expect(container.querySelector("table")).toBeNull();
   });
 
@@ -129,12 +144,12 @@ describe("the access changes card", () => {
     const alert = container.querySelector('[role="alert"]') as HTMLElement;
     expect(alert.textContent).toContain("The comparison failed");
     expect(alert.textContent).toContain(
-      "neither 2026-10-31T060000Z.sqlite nor 2026-11-01T060000Z.sqlite knows a user 'nobody@contoso.com'",
+      "Neither the snapshot of 2026-10-31 06:00 UTC nor the snapshot of 2026-11-01 06:00 UTC knows a user 'nobody@contoso.com'.",
     );
     expect(field("Only this user").getAttribute("aria-invalid")).toBe("true");
     // From is described by the line of what it takes, and by the error.
     const hint = container.querySelector('[data-testid="sides-hint"]') as HTMLElement;
-    expect(field("From").getAttribute("aria-describedby")).toBe(`${hint.id} ${alert.id}`);
+    expect(field("Compare from").getAttribute("aria-describedby")).toBe(`${hint.id} ${alert.id}`);
     expect(titles(container)).toHaveLength(0);
   });
 
@@ -153,7 +168,7 @@ describe("the access changes card", () => {
 
     await compare({ from: "", to: "latest", user: "bob@contoso.com" });
     expect(isDisabled(button(container, "Comparing…"))).toBe(true);
-    expect(field("To").readOnly).toBe(true);
+    expect(field("Compare to").readOnly).toBe(true);
     expect(liveStatus(container)).toBe("Comparing the snapshots…");
     expect(transport.sent.map((message) => message.data)).toEqual([
       { from: "yesterday" },
@@ -197,15 +212,15 @@ describe("the changes view", () => {
     const { container } = await render(<SnapshotDiffView report={report} />);
 
     expect(container.textContent).toContain(
-      "Groups: not compared; Nested group memberships not read in the snapshot 2026-11-01T060000Z.sqlite; Group members not read in the snapshot 2026-10-31T060000Z.sqlite.",
+      "Groups: not compared; Nested group memberships not read in the snapshot of 2026-11-01 06:00 UTC; Group members not read in the snapshot of 2026-10-31 06:00 UTC.",
     );
     expect(container.textContent).toContain(
-      "Nested group memberships: read only in part in the snapshot 2026-11-01T060000Z.sqlite (items not read: unknown), so rows of Groups, SharePoint sites, Shared files, Mailboxes, Calendar permissions may show as added or removed without a change.",
+      "Nested group memberships: read only in part in the snapshot of 2026-11-01 06:00 UTC (some items could not be read), so rows of Groups, SharePoint sites, Shared files, Mailboxes, Calendar permissions may show as added or removed without a change.",
     );
 
     expect(container.querySelector('[data-testid="user"]')?.textContent).toBe("00000000-0000-0000-0000-000000000003");
     expect(titles(container)).toEqual(["licenses · 1 added, 0 removed"]);
-    expect(rows(container, "licenses")).toEqual([["added", "E5", "bob@contoso.com", "assigned", "direct"]]);
+    expect(rows(container, "licenses")).toEqual([["Added", "E5", "bob@contoso.com", "assigned", "Direct"]]);
     expect(container.querySelector('[data-testid="left-out"]')?.textContent).toBe(
       'Not compared: Groups (see "Good to know").',
     );
@@ -240,21 +255,23 @@ describe("the changes view", () => {
 });
 
 describe("the access changes card's fields and tables (task 126)", () => {
-  it("says what From and To take, and picks the user from the suggestions", async () => {
+  it("says what Compare from and Compare to take, and picks the user from the suggestions", async () => {
     const transport = new MockTransport();
     const { container, field } = await card(transport);
     const hint = container.querySelector('[data-testid="sides-hint"]') as HTMLElement;
     expect(hint.textContent).toBe(
-      "Leave From and To empty to compare the newest snapshot with the one before it. Each also takes latest, yesterday, a date such as 2026-10-31, or a snapshot's name.",
+      "Leave both empty to compare the latest snapshot with the one before it. Each also takes latest, yesterday, a date such as 2026-10-31, or a snapshot's name.",
     );
-    expect(field("To").getAttribute("aria-describedby")).toBe(hint.id);
+    expect(field("Compare to").getAttribute("aria-describedby")).toBe(hint.id);
+    expect(field("Compare from").placeholder).toBe("Snapshot before the latest");
+    expect(field("Compare to").placeholder).toBe("Latest snapshot");
 
     const user = field("Only this user");
     expect(user.getAttribute("role")).toBe("combobox");
     await type(user, "bob");
     await settle(DEBOUNCE_MS);
     await settle();
-    expect(liveStatus(container)).toBe("1 matching user: use the arrow keys to pick one.");
+    expect(liveStatus(container)).toBe("1 matching user: use the arrow keys to choose one.");
     // Enter on the open list picks; the comparison waits for Enter on a closed one.
     const enter = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
     await act(async () => {

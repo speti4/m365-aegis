@@ -240,7 +240,7 @@ public static class SnapshotAccess
         string prefix = text.Trim();
         if (prefix.Length == 0)
         {
-            throw new AegisException(FailureKind.Usage, "no text to search for", "type the start of a name or an address");
+            throw new AegisException(FailureKind.Usage, "no text to search for", "enter the start of a name or an email address");
         }
 
         (string file, SnapshotDetail detail) = SnapshotStore.Newest(home, profile);

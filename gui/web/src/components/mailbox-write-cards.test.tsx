@@ -64,12 +64,12 @@ async function fill(container: HTMLElement, values: Record<string, string>) {
 }
 
 async function seePlan(container: HTMLElement) {
-  await click(button(container, "See the plan"));
+  await click(button(container, "Review the plan"));
   await settle();
 }
 
 async function confirmAndApply(container: HTMLElement, action = "Grant permissions") {
-  await click(button(container, "Continue to confirm"));
+  await click(button(container, "Continue"));
   expect(button(container, action).disabled).toBe(true);
   await check(checkbox(container, "I've reviewed these changes."));
   await click(button(container, action));
@@ -78,14 +78,14 @@ async function confirmAndApply(container: HTMLElement, action = "Grant permissio
 
 const plan: Plan = {
   operation: "mailbox-access-grant",
-  title: "Grant mailbox rights on Finance (finance@contoso.com)",
+  title: "Grant mailbox permissions on Finance (finance@contoso.com)",
   changes: [
     {
       action: "add",
       target: "Finance (finance@contoso.com)",
-      detail: "FullAccess for Bob Example (bob@contoso.com)",
-      current: "no FullAccess",
-      desired: "holds FullAccess",
+      detail: "Full Access for Bob Example (bob@contoso.com)",
+      current: "no Full Access",
+      desired: "has Full Access",
     },
   ],
   unchanged: [],
@@ -103,7 +103,7 @@ describe("the mailbox rights card", () => {
   it("grants FullAccess with a plan and a confirmation, the apply only after the confirmation", async () => {
     const { transport, sent } = recorded();
     const { container } = await accessCard(transport);
-    expect(isDisabled(button(container, "See the plan"))).toBe(true);
+    expect(isDisabled(button(container, "Review the plan"))).toBe(true);
     expect(container.textContent).toContain("Still needed: the mailbox, at least one user.");
 
     await fill(container, { Mailbox: " finance ", Users: "bob@contoso.com" });
@@ -111,9 +111,11 @@ describe("the mailbox rights card", () => {
     await seePlan(container);
 
     const text = () => container.textContent ?? "";
-    expect(text()).toContain("Grant mailbox rights on Finance (finance@contoso.com)");
-    expect(text()).toContain("FullAccess for Bob Example (bob@contoso.com)");
-    expect(text()).toContain("no FullAccess → holds FullAccess");
+    expect(text()).toContain("Grant mailbox permissions on Finance (finance@contoso.com)");
+    expect(text()).toContain("Full Access for Bob Example (bob@contoso.com)");
+    // The badge is the card's verb, the states sentences (task 122).
+    expect(text()).toContain("GrantFinance (finance@contoso.com)");
+    expect(text()).toContain("No Full Access → Has Full Access");
     expect(sent.map((message) => message.type)).toEqual([MessageType.mailboxAccessGrant]);
     expect(sent[0].data).toEqual({
       mailbox: "finance",
@@ -128,15 +130,15 @@ describe("the mailbox rights card", () => {
     expect(sent[1].data).toEqual({ planId: "mock-plan-1", confirm: true });
     expect(text()).toContain("Every change was made.");
     expect(text()).toMatch(/The plan record: %LOCALAPPDATA%.*mailbox-access-grant\.json/);
-    expect(container.querySelector('[aria-label="applied"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Made"]')).not.toBeNull();
 
     // "Start a new change" keeps the mailbox and clears the rest (task 126): the user and the rights must not carry
     // over to the next change.
-    expect(hasButton(container, "See the plan again")).toBe(false);
+    expect(hasButton(container, "Review the plan again")).toBe(false);
     await click(button(container, "Start a new change"));
     expect(input(container, "Mailbox").value).toBe(" finance ");
     expect(input(container, "Users").value).toBe("");
-    expect(button(container, "FullAccess").getAttribute("aria-checked")).toBe("true");
+    expect(button(container, "Full Access").getAttribute("aria-checked")).toBe("true");
     expect(container.textContent).toContain("Still needed: at least one user.");
   });
 
@@ -146,9 +148,9 @@ describe("the mailbox rights card", () => {
     await fill(container, { Mailbox: "finance", Users: "bob@contoso.com" });
     await seePlan(container);
 
-    await click(button(container, "Continue to confirm"));
+    await click(button(container, "Continue"));
     await click(button(container, "Back to the plan"));
-    await click(button(container, "Change the picks"));
+    await click(button(container, "Back to edit"));
 
     expect(sent.map((message) => message.type)).toEqual([MessageType.mailboxAccessGrant]);
     expect(input(container, "Mailbox").value).toBe("finance");
@@ -162,11 +164,11 @@ describe("the mailbox rights card", () => {
     await check(withoutAutomapping());
     expect(withoutAutomapping().checked).toBe(true);
     await click(button(container, "Send As"));
-    await click(button(container, "FullAccess"));
+    await click(button(container, "Full Access"));
     expect(withoutAutomapping().disabled).toBe(true);
     await click(button(container, "Send As"));
-    expect(isDisabled(button(container, "See the plan"))).toBe(true);
-    expect(container.textContent).toContain("Still needed: the mailbox, at least one user, at least one right.");
+    expect(isDisabled(button(container, "Review the plan"))).toBe(true);
+    expect(container.textContent).toContain("Still needed: the mailbox, at least one user, at least one permission.");
     await click(button(container, "Send As"));
     await click(radio(container, "Revoke"));
     expect(radio(container, "Revoke").getAttribute("aria-checked")).toBe("true");
@@ -177,7 +179,7 @@ describe("the mailbox rights card", () => {
       type: MessageType.mailboxAccessRevoke,
       data: { users: ["bob@contoso.com", "alice@contoso.com"], rights: ["send-as"], noAutoMapping: false },
     });
-    expect(container.textContent).toContain("holds Send As → no Send As");
+    expect(container.textContent).toContain("Has Send As → No Send As");
     expect(container.textContent).toContain("Left as it is:");
     expect(container.textContent).toContain("(no Send As)");
   });
@@ -191,7 +193,7 @@ describe("the mailbox rights card", () => {
     await seePlan(container);
 
     expect(sent[0].data).toMatchObject({ noAutoMapping: true });
-    expect(container.textContent).toContain("FullAccess for Bob Example (bob@contoso.com), without automapping");
+    expect(container.textContent).toContain("Full Access for Bob Example (bob@contoso.com), without automapping");
   });
 
   it("says when there is nothing to do, and offers no confirmation", async () => {
@@ -201,10 +203,8 @@ describe("the mailbox rights card", () => {
     await seePlan(container);
 
     expect(container.textContent).toContain("Nothing to do");
-    expect(container.textContent).toContain("(holds FullAccess already)");
-    expect([...container.querySelectorAll("button")].some((item) => item.textContent === "Continue to confirm")).toBe(
-      false,
-    );
+    expect(container.textContent).toContain("(has Full Access already)");
+    expect([...container.querySelectorAll("button")].some((item) => item.textContent === "Continue")).toBe(false);
   });
 
   it("shows the host's refusal of the plan: nothing was changed", async () => {
@@ -214,16 +214,16 @@ describe("the mailbox rights card", () => {
     await seePlan(container);
 
     expect(container.textContent).toContain("Refused: nothing was changed");
-    expect(container.textContent).toContain("mailbox 'archive' not found");
-    expect(container.textContent).toContain("What to do: check the name or the address and try again");
-    await click(button(container, "Change the picks"));
+    expect(container.textContent).toContain("Mailbox 'archive' not found.");
+    expect(container.textContent).toContain("What to do: Check the name or the address and try again.");
+    await click(button(container, "Back to edit"));
     expect(input(container, "Mailbox").value).toBe("archive");
   });
 
   it("shows a partial apply with each change's result and the service's message", async () => {
     const { container } = await accessCard(new MockTransport());
 
-    await click(button(container, "FullAccess"));
+    await click(button(container, "Full Access"));
     await click(button(container, "Send As"));
     await click(button(container, "Send on Behalf"));
     await fill(container, { Mailbox: "reception", Users: "alice@contoso.com" });
@@ -231,9 +231,11 @@ describe("the mailbox rights card", () => {
     await confirmAndApply(container);
 
     expect(container.textContent).toContain("Partly done");
-    expect(container.textContent).toContain("1 of 2 change(s) were made.");
-    expect(container.textContent).toContain("the mock refuses Send on Behalf on Reception");
-    expect(container.querySelector('[aria-label="failed"]')).not.toBeNull();
+    expect(container.textContent).toContain("1 of 2 changes were made.");
+    expect(container.textContent).toContain(
+      "The mock refuses Send on Behalf on Reception, to show a partial result. Exchange Online could not do this;",
+    );
+    expect(container.querySelector('[aria-label="Failed"]')).not.toBeNull();
   });
 
   it("tells an apply the host refused from one that stopped on the way", async () => {
@@ -244,7 +246,7 @@ describe("the mailbox rights card", () => {
     await seePlan(refusedCard.container);
     await confirmAndApply(refusedCard.container);
     expect(refusedCard.container.textContent).toContain("Refused: nothing was changed");
-    expect(refusedCard.container.textContent).toContain("the plan is older than 15 minutes");
+    expect(refusedCard.container.textContent).toContain("The plan is older than 15 minutes.");
 
     const stoppedCard = await accessCard(
       scripted({ type: MessageType.error, data: { code: "internal", message: "the window broke" } }),
@@ -275,8 +277,8 @@ describe("the mailbox rights card", () => {
     await confirmAndApply(container);
 
     expect(container.textContent).toContain("Not done");
-    expect(container.textContent).toContain("0 of 2 change(s) were made.");
-    expect(container.querySelector('[aria-label="skipped"]')).not.toBeNull();
+    expect(container.textContent).toContain("0 of 2 changes were made.");
+    expect(container.querySelector('[aria-label="Skipped"]')).not.toBeNull();
     expect(container.textContent).not.toContain("The plan record");
     expect(container.textContent).not.toContain("What to do");
   });
@@ -301,16 +303,16 @@ describe("the mailbox rights card", () => {
     await fill(container, { Mailbox: "finance", Users: "bob@contoso.com" });
 
     expect(container.textContent).toContain("Signed out");
-    expect(isDisabled(button(container, "See the plan"))).toBe(true);
+    expect(isDisabled(button(container, "Review the plan"))).toBe(true);
     expect(container.textContent).toContain("Still needed: a sign-in on the Sign-in card.");
 
     await rerender(<MailboxAccessWriteCard client={client} signedIn={true} />);
     await seePlan(container);
-    expect(container.textContent).toContain("Continue to confirm");
+    expect(container.textContent).toContain("Continue");
 
     await rerender(<MailboxAccessWriteCard client={client} signedIn={false} />);
     expect(container.textContent).toContain("Signed out");
-    expect(container.textContent).not.toContain("Continue to confirm");
+    expect(container.textContent).not.toContain("Continue");
     // A sign-out moves no focus to the picks.
     expect(document.activeElement).not.toBe(input(container, "Mailbox"));
   });
@@ -320,9 +322,9 @@ describe("the mailbox forwarding card", () => {
   it("forwards to an outside address with the warnings, and applies it after the confirmation", async () => {
     const { transport, sent } = recorded();
     const { container } = await forwardingCard(transport);
-    expect(isDisabled(button(container, "See the plan"))).toBe(true);
+    expect(isDisabled(button(container, "Review the plan"))).toBe(true);
     await fill(container, { Mailbox: "alice@contoso.com" });
-    expect(container.textContent).toContain("Still needed: the address to forward to.");
+    expect(container.textContent).toContain("Still needed: the email address to forward to.");
 
     await fill(container, { Mailbox: "alice@contoso.com", "Forward to": "alice@fabrikam.com" });
     await check(checkbox(container, "Keep a copy"));
@@ -332,18 +334,24 @@ describe("the mailbox forwarding card", () => {
       type: MessageType.mailboxForwardingSet,
       data: { mailbox: "alice@contoso.com", to: "alice@fabrikam.com", keepCopy: false },
     });
-    expect(container.textContent).toContain("no forwarding → forwards to alice@fabrikam.com, keeps no copy");
+    expect(container.textContent).toContain("ForwardAlice Example (alice@contoso.com)");
+    expect(container.textContent).toContain("No forwarding → Forwards to alice@fabrikam.com, keeps no copy");
     expect(container.querySelectorAll('[role="status"]').length).toBeGreaterThanOrEqual(2);
-    expect(container.textContent).toContain("Good to know");
+    // A plan's warnings are titled for what they ask (task 122), and the outside address is warned in plain words.
+    expect(container.textContent).toContain("Check before you confirm");
+    expect(container.textContent).not.toContain("Good to know");
+    expect(container.textContent).toContain(
+      "alice@fabrikam.com is outside your organization. Exchange Online blocks automatic forwarding to external addresses unless your outbound spam filter policy allows it, so the mail may not arrive",
+    );
 
-    await click(button(container, "Continue to confirm"));
+    await click(button(container, "Continue"));
     // The confirmation repeats the warnings, in the window's words.
     const warnings = container.querySelector('[data-testid="confirm-warnings"]') as HTMLElement;
     expect(warnings.textContent).toContain("keeps no copy");
     expect(warnings.textContent).not.toContain("--keep-copy");
-    expect(button(container, "Start forwarding").className).not.toContain("bg-destructive");
+    expect(button(container, "Forward mail").className).not.toContain("bg-destructive");
     await click(button(container, "Back to the plan"));
-    await confirmAndApply(container, "Start forwarding");
+    await confirmAndApply(container, "Forward mail");
     expect(container.textContent).toContain("Every change was made.");
   });
 
@@ -359,12 +367,13 @@ describe("the mailbox forwarding card", () => {
     expect(sent[0]).toEqual(
       expect.objectContaining({ type: MessageType.mailboxForwardingClear, data: { mailbox: "bob@contoso.com" } }),
     );
-    expect(container.textContent).toContain("forwards to bob@fabrikam.com, keeps a copy → no forwarding");
-    await click(button(container, "Continue to confirm"));
+    expect(container.textContent).toContain("Stop forwardingBob Example (bob@contoso.com)");
+    expect(container.textContent).toContain("Forwards to bob@fabrikam.com, keeps a copy → No forwarding");
+    await click(button(container, "Continue"));
     // Stopping a forwarding is a removal: the button says so and is drawn as one.
     expect(button(container, "Stop forwarding").className).toContain("bg-destructive");
     await click(button(container, "Back to the plan"));
-    await click(button(container, "Change the picks"));
+    await click(button(container, "Back to edit"));
     await click(radio(container, "Forward"));
     expect(input(container, "Forward to")).not.toBeNull();
   });
@@ -391,16 +400,16 @@ describe("a write card's keyboard, focus and announcements (tasks 120 and 121)",
     await settle();
 
     expect(sent.map((message) => message.type)).toEqual([MessageType.mailboxAccessGrant]);
-    expect(focused().textContent).toBe("Grant mailbox rights on Finance (finance@contoso.com)");
+    expect(focused().textContent).toBe("Grant mailbox permissions on Finance (finance@contoso.com)");
     expect(status()).toBe("Plan: 1 change");
 
-    await click(button(container, "Continue to confirm"));
+    await click(button(container, "Continue"));
     expect(focused().textContent).toBe("You're about to make this change as alice@contoso.com (profile work):");
     expect(status()).toBe("Confirm: 1 change");
 
     // Escape from the confirmation goes back to the plan, from the plan back to the picks.
     await press(focused(), "Escape");
-    expect(focused().textContent).toBe("Grant mailbox rights on Finance (finance@contoso.com)");
+    expect(focused().textContent).toBe("Grant mailbox permissions on Finance (finance@contoso.com)");
     await press(focused(), "Escape");
     expect(focused()).toBe(input(container, "Mailbox"));
     expect(input(container, "Mailbox").value).toBe("finance");
@@ -414,21 +423,21 @@ describe("a write card's keyboard, focus and announcements (tasks 120 and 121)",
     await click(button(container, "Send As"));
     await fill(container, { Mailbox: "finance", Users: "bob@contoso.com" });
     await seePlan(container);
-    await click(button(container, "Continue to confirm"));
+    await click(button(container, "Continue"));
 
     const lead = container.querySelector('[data-testid="confirm-lead"]') as HTMLElement;
     expect(lead.textContent).toMatch(/^You're about to make these \d+ changes as alice@contoso.com \(profile work\):$/);
     // Each change with its action's badge and its state now → after, as the plan showed it.
     const items = [...container.querySelectorAll("ul > li")];
     expect(items.length).toBeGreaterThan(1);
-    expect(items[0].querySelector('[data-slot="badge"]')?.textContent).toBe("add");
+    expect(items[0].querySelector('[data-slot="badge"]')?.textContent).toBe("Grant");
     expect(items[0].textContent).toContain("→");
     expect(container.querySelector('[data-testid="confirm-warnings"]')).toBeNull();
     expect(button(container, "Grant permissions").className).not.toContain("bg-destructive");
 
     await click(button(container, "Cancel"));
     expect(focused()).toBe(input(container, "Mailbox"));
-    expect(container.textContent).toContain("See the plan");
+    expect(container.textContent).toContain("Review the plan");
     expect(sent).toHaveLength(1);
   });
 
@@ -462,17 +471,17 @@ describe("a write card's keyboard, focus and announcements (tasks 120 and 121)",
     await fill(container, { Mailbox: "finance", Users: "bob" });
     await seePlan(container);
     expect(liveStatus(container)).toBe("Plan: 2 changes");
-    await click(button(container, "Continue to confirm"));
+    await click(button(container, "Continue"));
     const revoke = button(container, "Revoke permissions");
     expect(revoke.className).toContain("bg-destructive");
     expect(liveStatus(container)).toBe("Confirm: 2 changes");
 
     await check(checkbox(container, "I've reviewed these changes."));
     await click(revoke);
-    expect(focused().textContent).toContain("Applying the plan");
-    expect(liveStatus(container)).toBe("Applying the plan…");
+    expect(focused().textContent).toContain("Making the changes, one at a time…");
+    expect(liveStatus(container)).toBe("Making the changes…");
     await press(focused(), "Escape");
-    expect(container.textContent).toContain("Applying the plan");
+    expect(container.textContent).toContain("Making the changes");
     expect(container.querySelector('li[aria-current="step"]')?.textContent).toBe("4Result (current)");
     expect(container.querySelector('[aria-current="step"]')?.tagName).toBe("LI");
   });
@@ -487,7 +496,7 @@ describe("a write card's keyboard, focus and announcements (tasks 120 and 121)",
     expect(liveStatus(container)).toBe("Done: every change was made");
     // The steps say which are done; the separators are drawn only.
     const steps = [...container.querySelectorAll('ol[aria-label="Steps"] > li')].map((item) => item.textContent);
-    expect(steps).toEqual(["1Pick (done)›", "2Plan (done)›", "3Confirm (done)›", "4Result (current)"]);
+    expect(steps).toEqual(["1Choose (done)›", "2Review (done)›", "3Confirm (done)›", "4Result (current)"]);
     expect(container.querySelectorAll('ol[aria-label="Steps"] [aria-hidden]')).toHaveLength(3);
 
     await click(button(container, "Start a new change"));
@@ -496,7 +505,7 @@ describe("a write card's keyboard, focus and announcements (tasks 120 and 121)",
 
   it("says a partial or failed apply, and focuses a refusal", async () => {
     const partial = await accessCard(new MockTransport());
-    await click(button(partial.container, "FullAccess"));
+    await click(button(partial.container, "Full Access"));
     await click(button(partial.container, "Send As"));
     await click(button(partial.container, "Send on Behalf"));
     await fill(partial.container, { Mailbox: "reception", Users: "alice@contoso.com" });
@@ -601,8 +610,8 @@ describe("the pickers on the write cards (task 125)", () => {
     await typeAndWait(mailbox, "fin");
     expect(options(container)).toEqual(["Finance finance@contoso.com"]);
     expect(mailbox.getAttribute("aria-expanded")).toBe("true");
-    expect(liveStatus(container)).toBe("1 matching shared mailbox: use the arrow keys to pick one.");
-    expect(note(container)).toEqual(["From the shared mailboxes; any other mailbox by its full address."]);
+    expect(liveStatus(container)).toBe("1 matching shared mailbox: use the arrow keys to choose one.");
+    expect(note(container)).toEqual(["From the shared mailboxes; any other mailbox by its full email address."]);
     expect(await key(mailbox, "Enter")).toBe(true);
     expect(mailbox.value).toBe("finance@contoso.com");
     expect(options(container)).toEqual([]);
@@ -618,7 +627,7 @@ describe("the pickers on the write cards (task 125)", () => {
     expect(await key(users, "Enter")).toBe(true);
     expect(users.value).toBe("alice@contoso.com, bob@contoso.com, ");
 
-    // Enter on a closed list is the form's: "See the plan", with the addresses picked.
+    // Enter on a closed list is the form's: "Review the plan", with the addresses picked.
     expect(await key(users, "Enter")).toBe(false);
     await submit(container.querySelector("form") as HTMLFormElement);
     await settle();
@@ -635,7 +644,7 @@ describe("the pickers on the write cards (task 125)", () => {
       rights: ["full-access"],
       noAutoMapping: false,
     });
-    // The plan step says the plan, no longer what a list said: alice holds FullAccess on Finance already.
+    // The plan step says the plan, no longer what a list said: alice has Full Access on Finance already.
     expect(liveStatus(container)).toBe("Plan: 1 change");
   });
 
@@ -649,8 +658,8 @@ describe("the pickers on the write cards (task 125)", () => {
     await typeAndWait(mailbox, "alice@contoso.com");
     expect(options(container)).toEqual([]);
     expect(note(container)).toEqual([
-      'No shared mailbox starts with "alice@contoso.com": a full address still works.',
-      "From the shared mailboxes; any other mailbox by its full address.",
+      'No shared mailbox starts with "alice@contoso.com": a full email address still works.',
+      "From the shared mailboxes; any other mailbox by its full email address.",
     ]);
     expect(mailbox.getAttribute("aria-expanded")).toBe("false");
     expect(await key(mailbox, "Enter")).toBe(false);
@@ -663,7 +672,7 @@ describe("the pickers on the write cards (task 125)", () => {
     expect(to.value).toBe("bob@contoso.com");
     await typeAndWait(to, "alice@fabrikam.com");
     expect(note(container)).toEqual([
-      'No user starts with "alice@fabrikam.com": a full address still works.',
+      'No user starts with "alice@fabrikam.com": a full email address still works.',
       "From the directory.",
     ]);
     expect(await key(to, "Enter")).toBe(false);
@@ -694,7 +703,7 @@ describe("the pickers on the write cards (task 125)", () => {
     const mailbox = input(failed.container, "Mailbox");
     await typeAndWait(mailbox, "r");
     const line =
-      "No suggestions: the shared mailboxes could not be listed (the session did not start). Type the mailbox's address.";
+      "No suggestions: the shared mailboxes could not be listed (the session did not start). Enter the mailbox's email address.";
     expect(note(failed.container)).toEqual([line]);
     expect(liveStatus(failed.container)).toBe(line);
 
@@ -713,7 +722,7 @@ describe("the pickers on the write cards (task 125)", () => {
     }));
     const found = mailboxSuggestions(many, "ro");
     expect(found.options).toHaveLength(MAX_MAILBOXES);
-    expect(found.announce).toBe("8 matching shared mailboxes, and more: use the arrow keys to pick one.");
+    expect(found.announce).toBe("8 matching shared mailboxes, and more: use the arrow keys to choose one.");
     expect(found.note[0]).toBe("More mailboxes match: type more of the name.");
     expect(mailboxSuggestions(many, "3").options.map((option) => option.value)).toEqual(["room3@contoso.com"]);
     expect(mailboxSuggestions(many, "ROOM9@").options.map((option) => option.name)).toEqual(["Room 9"]);
@@ -724,7 +733,7 @@ describe("the result of an apply not done in full (task 126)", () => {
   it("says it once, the code behind Details, and sees the plan again with what is still missing", async () => {
     const { transport, sent } = recorded();
     const { container } = await accessCard(transport);
-    await click(button(container, "FullAccess"));
+    await click(button(container, "Full Access"));
     await click(button(container, "Send As"));
     await click(button(container, "Send on Behalf"));
     await fill(container, { Mailbox: "reception", Users: "alice@contoso.com" });
@@ -733,7 +742,7 @@ describe("the result of an apply not done in full (task 126)", () => {
 
     const notice = container.querySelector('[role="status"][tabindex="-1"]') as HTMLElement;
     expect(notice.textContent).toContain("Partly done");
-    expect(notice.textContent).toContain("1 of 2 change(s) were made.");
+    expect(notice.textContent).toContain("1 of 2 changes were made.");
     // The host's summary repeats the list and the record: only its code stays, collapsed.
     expect(notice.textContent).not.toContain("applied, 1 failed");
     expect(notice.textContent).not.toContain("What to do");
@@ -743,7 +752,7 @@ describe("the result of an apply not done in full (task 126)", () => {
     expect(container.textContent?.match(/%LOCALAPPDATA%/g)).toHaveLength(1);
     expect(button(container, "Start a new change").className).not.toContain("bg-primary");
 
-    await click(button(container, "See the plan again"));
+    await click(button(container, "Review the plan again"));
     await settle();
     expect(sent.map((message) => message.type)).toEqual([
       MessageType.mailboxAccessGrant,
@@ -754,7 +763,7 @@ describe("the result of an apply not done in full (task 126)", () => {
     // What was made is left as it is; only the failed change is planned again.
     expect(liveStatus(container)).toBe("Plan: 1 change");
     expect(container.textContent).toContain("Send on Behalf for Alice Example (alice@contoso.com)");
-    expect(container.textContent).toContain("(holds Send As already)");
+    expect(container.textContent).toContain("(has Send As already)");
   });
 
   it("shows the host's sentence when no change carries a message of its own", async () => {
@@ -772,7 +781,7 @@ describe("the result of an apply not done in full (task 126)", () => {
     await seePlan(container);
     await confirmAndApply(container);
 
-    expect(container.textContent).toContain("the apply stopped");
+    expect(container.textContent).toContain("0 of 1 change was made.The apply stopped.");
     expect(container.textContent).not.toContain("see the log");
     expect(container.querySelector('[data-testid="details"]')?.textContent).toBe("DetailsError code: internal");
   });
@@ -782,8 +791,8 @@ describe("the result of an apply not done in full (task 126)", () => {
     await fill(container, { Mailbox: "alice@contoso.com", "Forward to": "bob@contoso.com" });
     await check(checkbox(container, "Keep a copy"));
     await seePlan(container);
-    await confirmAndApply(container, "Start forwarding");
-    expect(hasButton(container, "See the plan again")).toBe(false);
+    await confirmAndApply(container, "Forward mail");
+    expect(hasButton(container, "Review the plan again")).toBe(false);
 
     await click(button(container, "Start a new change"));
     expect(input(container, "Mailbox").value).toBe("alice@contoso.com");

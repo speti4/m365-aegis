@@ -10,7 +10,6 @@ import { MailboxForwardingCard } from "./mailbox-write-cards";
 import { ConfirmView, ErrorText, PlanView, ResultView } from "./plan-view";
 import {
   confirmAction,
-  count,
   skippedPartNote,
   skippedPartNotes,
   snapshotPart,
@@ -120,17 +119,11 @@ function skippedParts(): Array<{ part: string; note: string }> {
  */
 const bareDomain = new RegExp(`\\b(${takeParts().join("|")}) (is partial|could not be read|was not read)\\b`);
 
-describe("the words of a count and of the confirmation's button (tasks 120 and 121)", () => {
-  it("counts in the singular for one", () => {
-    expect(count(0, "change")).toBe("0 changes");
-    expect(count(1, "change")).toBe("1 change");
-    expect(count(3, "mailbox", "mailboxes")).toBe("3 mailboxes");
-  });
-
+describe("the words of the confirmation's button (tasks 120 and 122)", () => {
   it("names the button by the operation, a removal destructive, an unknown one neutral", () => {
     expect(confirmAction("mailbox-access-grant")).toEqual({ label: "Grant permissions", destructive: false });
     expect(confirmAction("mailbox-access-revoke")).toEqual({ label: "Revoke permissions", destructive: true });
-    expect(confirmAction("mailbox-forwarding-set")).toEqual({ label: "Start forwarding", destructive: false });
+    expect(confirmAction("mailbox-forwarding-set")).toEqual({ label: "Forward mail", destructive: false });
     expect(confirmAction("mailbox-forwarding-clear")).toEqual({ label: "Stop forwarding", destructive: true });
     expect(confirmAction("group-owner-add")).toEqual({ label: "Confirm and apply", destructive: false });
   });
@@ -141,7 +134,7 @@ describe("a plan warning in the window's words", () => {
     expect(
       windowWarning("Alice Example keeps no copy: the mail reaches alice@fabrikam.com only (--keep-copy keeps one)"),
     ).toBe(
-      'Alice Example keeps no copy: the mail reaches alice@fabrikam.com only. To keep one in the mailbox too, choose "Change the picks" and tick "Keep a copy in the mailbox".',
+      'Alice Example keeps no copy: the mail reaches alice@fabrikam.com only. To keep one in the mailbox too, choose "Back to edit" and tick "Keep a copy in the mailbox".',
     );
   });
 
@@ -166,12 +159,12 @@ describe("a plan warning in the window's words", () => {
         "sharing is partial in this snapshot: 3 item(s) could not be read (forbidden 2, throttled 1); `m365-aegis snapshot show` names them",
       ),
     ).toBe(
-      "Shared files: read only in part in this snapshot; 3 item(s) could not be read (forbidden 2, throttled 1), so the answer may miss what they hold. The administrator can see which ones in the snapshot's details.",
+      "Shared files: read only in part in this snapshot; 3 items could not be read (forbidden 2, throttled 1), so the answer may miss what they hold. The administrator can see which ones in the snapshot's details.",
     );
     expect(
       windowWarning("grants could not be read in this snapshot; `m365-aegis snapshot show` names the failure"),
     ).toBe(
-      "Mailbox rights: could not be read in this snapshot, so the answer has none of it. The administrator can see why in the snapshot's details.",
+      "Mailbox permissions: could not be read in this snapshot, so the answer has none of it. The administrator can see why in the snapshot's details.",
     );
     // A skipped part the map knows gets the window's note, whatever the take wrote (task 118).
     expect(
@@ -225,13 +218,13 @@ describe("a plan warning in the window's words", () => {
     }
   });
 
-  it("passes a warning it does not know through unchanged", () => {
+  it("passes a warning it does not know through as a sentence (task 122)", () => {
     const outside =
-      "alice@fabrikam.com is outside the accepted domains: the mail leaves the organization, and the outbound spam filter policy blocks automatic forwarding to an external address unless the policy allows it";
-    expect(windowWarning(outside)).toBe(outside);
-    expect(windowWarning("a new warning of the core (--some-flag)")).toBe("a new warning of the core (--some-flag)");
+      "alice@fabrikam.com is outside your organization. Exchange Online blocks automatic forwarding to external addresses unless your outbound spam filter policy allows it, so the mail may not arrive";
+    expect(windowWarning(outside)).toBe(`${outside}.`);
+    expect(windowWarning("a new warning of the core (--some-flag)")).toBe("A new warning of the core (--some-flag).");
     expect(windowWarning("Finance keeps no copy (--keep-copy keeps one)")).toBe(
-      "Finance keeps no copy (--keep-copy keeps one)",
+      "Finance keeps no copy (--keep-copy keeps one).",
     );
   });
 
@@ -405,17 +398,17 @@ describe("no card renders a flag of the command line", () => {
     await type(field(container, "Mailbox"), "alice@contoso.com");
     await type(field(container, "Forward to"), "alice@fabrikam.com");
     await click(container.querySelector("label input") as HTMLInputElement);
-    await click(button(container, "See the plan"));
+    await click(button(container, "Review the plan"));
     await settle();
     seen.push(text());
     expect(text()).toContain(
-      'Alice Example keeps no copy: the mail reaches alice@fabrikam.com only. To keep one in the mailbox too, choose "Change the picks" and tick "Keep a copy in the mailbox".',
+      'Alice Example keeps no copy: the mail reaches alice@fabrikam.com only. To keep one in the mailbox too, choose "Back to edit" and tick "Keep a copy in the mailbox".',
     );
 
-    await click(button(container, "Continue to confirm"));
+    await click(button(container, "Continue"));
     seen.push(text());
     await click(container.querySelector("label input") as HTMLInputElement);
-    await click(button(container, "Start forwarding"));
+    await click(button(container, "Forward mail"));
     await settle();
     seen.push(text());
     expect(text()).toContain("Every change was made.");

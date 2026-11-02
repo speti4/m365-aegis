@@ -3,7 +3,7 @@ import type { MailboxInfo, Plan, UserAccess } from "../bridge/protocol";
 /**
  * A change a write card applied (task 091): the plan's operation, the mailbox as the card asked for it, the addresses
  * the plan's changes name (the core names a change's target "Finance (finance@contoso.com)"), and the users the write
- * named (task 103): as the card asked for them, and the addresses in its changes' details ("FullAccess for Bob Example
+ * named (task 103): as the card asked for them, and the addresses in its changes' details ("Full Access for Bob Example
  * (bob@contoso.com)"). A write card
  * tells the page once its apply has finished, whether every change, some or none was made, and when the apply broke
  * off on the way, so a card that shows the mailbox can read it again.
