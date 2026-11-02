@@ -91,14 +91,20 @@ on the write cards, a confirmation that names the action and the account; the te
   card's status says "Signed in as …; Exchange Online is unavailable". The checks and the walk below ran again on the
   rebased tree (253 tests).
 
+- 2026-11-02 — rebased onto `main` after task 123 (#178): the plan's and the confirmation's action badges, the
+  notices, the result icons, the stale and partial marks use 123's `success`/`warning`/`danger` tokens (the error
+  notice `border-danger/50`, the same color as `destructive`); the choices carry 123's check on the selected option
+  (now base-ui radios); a focusable-disabled button looks like 123's disabled one (`aria-disabled:` in
+  `ui/button.tsx`). Checks, keyboard walk and axe ran again on the rebased tree (260 tests, 100%).
+
 ## Deviations from the plan
 
 - The lookup cards' `onError` prop is gone rather than kept for page-level errors: no lookup error is page-level, and
   the toast stays for the sign-in requests only.
 - "Still needed: …" is a visible line beside "See the plan", not only an `aria-describedby` text, so a mouse user sees
   it too; on the lookup cards the same hint is screen-reader-only, the empty field being self-evident.
-- The look of a button disabled but focusable (`aria-disabled:opacity-50`) is a class at the four call sites
-  (`focusableDisabled` in `card-parts.tsx`), not in `ui/button.tsx`, which task 123 changes in parallel.
+- The look of a button disabled but focusable lives in `ui/button.tsx`'s base classes (`aria-disabled:` beside 123's
+  `disabled:` muted outline), since the rebase onto task 123; before it, a class at the call sites.
 - SECURITY.md named the old "Confirm and apply" button; it now says "a write card's confirmation button".
 
 ## Verification

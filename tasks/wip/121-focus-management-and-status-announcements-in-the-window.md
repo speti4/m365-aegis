@@ -86,6 +86,12 @@ Done when: a keyboard-only lookup and write flow keeps the focus on a named cont
   state, the heading and its `aria-labelledby`, the arrow keys on both radio groups (ArrowRight moves and checks, one
   Tab stop), the stepper's text and separators, the picker's `aria-expanded`, `aria-controls` and announcements.
 
+- 2026-11-02 — rebased onto `main` after task 123 (#178): every element the page focuses on its own (the plan's title,
+  the confirmation's sentence, the working line, the result's and the refusal's notice, the page's group sections, the
+  access card that "Show it" reveals) carries `focusTarget` (`src/lib/focus.ts`): `outline-none` for a mouse, 123's
+  2 px `outline-ring` under `focus-visible`, so a keyboard user sees where the focus went. Walk: each step's target
+  shows the 2 px outline; axe 0 violations signed in and signed out (the 4.02:1 badge is gone with 123's tokens).
+
 ## Deviations from the plan
 
 - The working line ("computing the plan", "applying") is a focus target too, so the focus never falls to the page
