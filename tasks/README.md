@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-11-02 — edit the files, not this section._
 
-**State:** 1 backlog (0 ready · 0 blocked · 0 waiting · 1 idea) · 0 in progress · 118 done · 0 dropped · 14 decisions
+**State:** 8 backlog (0 ready · 0 blocked · 0 waiting · 8 ideas) · 0 in progress · 118 done · 0 dropped · 15 decisions
 
 ### Ready
 
@@ -29,6 +29,18 @@ _none_
 _none_
 
 ### Ideas
+
+#### M4 Window
+
+| # | Task | Size | Created |
+|---|---|---|---|
+| 120 | [Lookup errors shown in the card, labeled fields, Enter and Escape on the write …](backlog/120-lookup-errors-in-the-card-labeled-fields-and-a-complete-confirmation-step.md) | M | 2026-11-02 |
+| 121 | [Focus management and status announcements in the window, with card headings, ra…](backlog/121-focus-management-and-status-announcements-in-the-window.md) | M | 2026-11-02 |
+| 122 | [The window's vocabulary: Microsoft's terms, one verb per action from the card t…](backlog/122-the-windows-vocabulary-microsofts-terms-one-verb-per-action-no-raw-values.md) | M | 2026-11-02 |
+| 123 | [Status color tokens, one dark palette, forced colors and the focus ring's contr…](backlog/123-status-color-tokens-one-dark-palette-forced-colors-and-focus-contrast.md) | S | 2026-11-02 |
+| 124 | [A sticky top bar with the account, the tenant and the sign-in state, and in-pag…](backlog/124-a-sticky-top-bar-with-the-account-the-tenant-and-in-page-navigation.md) | M | 2026-11-02 |
+| 125 | [The user picker on the write cards](backlog/125-the-user-picker-on-the-write-cards.md) | M | 2026-11-02 |
+| 126 | [Small flow fixes in the window](backlog/126-small-flow-fixes-in-the-window.md) | S | 2026-11-02 |
 
 #### M5 Snapshot and views
 
@@ -65,6 +77,7 @@ _108 more in `done/`._
 
 | # | Decision | Status | Date |
 |---|---|---|---|
+| D-015 | [The window follows one design direction, a Windows-native operations console](decisions/D-015-a-design-direction-for-the-window.md) | proposed | 2026-11-02 |
 | D-014 | [The snapshot is taken on demand; a schedule is an option, not the model](decisions/D-014-snapshot-on-demand-not-nightly.md) | decided | 2026-11-01 |
 | D-013 | [No Teams chat export, and no managed distribution for now](decisions/D-013-no-teams-chat-export-and-no-managed-distribution-for-now.md) | decided | 2026-11-01 |
 | D-011 | [The snapshot store's format, place, query path and retention](decisions/D-011-snapshot-store-format.md) | decided | 2026-10-31 |
