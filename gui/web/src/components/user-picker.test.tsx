@@ -221,12 +221,15 @@ describe("the user picker", () => {
     const empty = await picker();
     await typeAndWait(empty.input(), "zzz");
     expect(empty.options()).toEqual([]);
-    expect(empty.note()).toEqual(['No user starts with "zzz": a full address still works.', "From the directory."]);
+    expect(empty.note()).toEqual([
+      'No user starts with "zzz": a full email address still works.',
+      "From the directory.",
+    ]);
     // No list to pick from: the field is not expanded and controls nothing (task 121), and the card hears why.
     expect(empty.container.querySelector('[role="listbox"]')).toBeNull();
     expect(empty.input().getAttribute("aria-expanded")).toBe("false");
     expect(empty.input().hasAttribute("aria-controls")).toBe(false);
-    expect(empty.onAnnounce).toHaveBeenLastCalledWith('No user starts with "zzz": a full address still works.');
+    expect(empty.onAnnounce).toHaveBeenLastCalledWith('No user starts with "zzz": a full email address still works.');
   });
 
   it("tells the card how many users match, and is expanded with them (task 121)", async () => {
@@ -236,7 +239,7 @@ describe("the user picker", () => {
     expect(found.input().getAttribute("aria-expanded")).toBe("true");
     expect(found.input().getAttribute("aria-controls")).toBe(listbox.id);
     expect(found.onAnnounce).toHaveBeenLastCalledWith(
-      `${found.options().length} matching users: use the arrow keys to pick one.`,
+      `${found.options().length} matching users: use the arrow keys to choose one.`,
     );
     expect(found.input().id).toBe("picker");
     expect(found.input().hasAttribute("aria-invalid")).toBe(false);
@@ -254,10 +257,10 @@ describe("the user picker", () => {
     const none = await picker(new MockTransport({ signedIn: false, snapshot: false }));
     await typeAndWait(none.input(), "dav");
     expect(none.note()).toEqual([
-      "No suggestions: the directory cannot be searched now and this computer has no snapshot. Type the full address.",
+      "No suggestions: the directory cannot be searched now and this computer has no snapshot. Enter the full email address.",
     ]);
     expect(none.onAnnounce).toHaveBeenLastCalledWith(
-      "No suggestions: the directory cannot be searched now and this computer has no snapshot. Type the full address.",
+      "No suggestions: the directory cannot be searched now and this computer has no snapshot. Enter the full email address.",
     );
     expect(await none.press("ArrowDown")).toBe(false);
   });
@@ -283,7 +286,7 @@ describe("the user picker", () => {
 
     expect(options()).toEqual(["room@contoso.com", "00000000-0000-0000-0000-000000000099"]);
     expect(note()).toEqual(["More users match: type more of the name.", "From the directory."]);
-    expect(onAnnounce).toHaveBeenLastCalledWith("2 matching users, and more: use the arrow keys to pick one.");
+    expect(onAnnounce).toHaveBeenLastCalledWith("2 matching users, and more: use the arrow keys to choose one.");
   });
 
   it("drops the answer to an older text, shows no list after a failed search, and clears it under three letters", async () => {

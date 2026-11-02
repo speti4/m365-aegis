@@ -6,7 +6,8 @@ import { focusTarget } from "@/lib/focus";
 import { cn } from "@/lib/utils";
 import type { BridgeError, Plan, PlanApplied, PlanChange } from "../bridge/protocol";
 import { DetailsLine } from "./details-line";
-import { confirmAction, count, windowWarning } from "./plan-wording";
+import { confirmAction, windowWarning } from "./plan-wording";
+import { capitalize, changeVerb, plural, windowError } from "./vocabulary";
 import { outcome, type WriteState, writeStepIndex, writeStepNames } from "./write-flow";
 
 /**
@@ -17,7 +18,7 @@ import { outcome, type WriteState, writeStepIndex, writeStepNames } from "./writ
  */
 
 /**
- * The steps above the card's body: Pick › Plan › Confirm › Result. The current step's item carries `aria-current`,
+ * The steps above the card's body: Choose › Review › Confirm › Result (task 122). The current step's item carries `aria-current`,
  * and each step says whether it is done or current in words a screen reader reads (task 121); the separators are
  * drawn only.
  */
@@ -110,12 +111,16 @@ export function Notice({
   );
 }
 
-/** A failure's sentence, what to do about it, and its code in a collapsed details line (task 126). */
+/**
+ * A failure's sentence, what to do about it, and its code in a collapsed details line (task 126); the sentence and the
+ * hint in the window's words (task 122, `windowError`).
+ */
 export function ErrorText({ error }: { error: BridgeError }) {
+  const { message, hint } = windowError(error);
   return (
     <>
-      <p>{error.message}</p>
-      {error.hint ? <p className="mt-1 text-muted-foreground">What to do: {error.hint}</p> : null}
+      <p>{message}</p>
+      {hint ? <p className="mt-1 text-muted-foreground">What to do: {hint}</p> : null}
       <ErrorCode code={error.code} />
     </>
   );
@@ -140,15 +145,19 @@ function actionVariant(action: PlanChange["action"]): "success" | "danger" | "wa
   return action === "remove" || action === "clear" ? "danger" : "warning";
 }
 
-/** One change: the action's badge, the target, what changes, and the state now → after, the after state strong. */
-function ChangeItem({ change }: { change: PlanChange }) {
+/**
+ * One change: the badge with the card's verb for it (`changeVerb`, task 122), the target, what changes, and the state
+ * now → after, the after state strong.
+ */
+function ChangeItem({ operation, change }: { operation: string; change: PlanChange }) {
   return (
     <li className="flex items-start gap-2 py-2 first:pt-0 last:pb-0">
-      <Badge variant={actionVariant(change.action)}>{change.action}</Badge>
+      <Badge variant={actionVariant(change.action)}>{changeVerb(operation, change.action)}</Badge>
       <span>
         <strong>{change.target}</strong>: {change.detail}
         <span className="block text-sm text-muted-foreground">
-          {change.current} → <span className="font-semibold text-foreground">{change.desired}</span>
+          {capitalize(change.current)} →{" "}
+          <span className="font-semibold text-foreground">{capitalize(change.desired)}</span>
         </span>
       </span>
     </li>
@@ -185,11 +194,11 @@ export function PlanView({ plan, titleRef }: { plan: Plan; titleRef?: Ref<HTMLPa
       ) : (
         <div className="space-y-1">
           <p className="text-sm text-muted-foreground">
-            {plan.changes.length} change(s) when you confirm, and none before:
+            {plural(plan.changes.length, "change")} when you confirm, and none before:
           </p>
           <ul className="divide-y">
             {plan.changes.map((change) => (
-              <ChangeItem key={`${change.target}:${change.detail}`} change={change} />
+              <ChangeItem key={`${change.target}:${change.detail}`} operation={plan.operation} change={change} />
             ))}
           </ul>
         </div>
@@ -207,7 +216,7 @@ export function PlanView({ plan, titleRef }: { plan: Plan; titleRef?: Ref<HTMLPa
         </div>
       ) : null}
       {plan.warnings.map((warning) => (
-        <Notice key={warning} tone="warning" icon={<TriangleAlert aria-hidden />} title="Good to know">
+        <Notice key={warning} tone="warning" icon={<TriangleAlert aria-hidden />} title="Check before you confirm">
           {windowWarning(warning)}
         </Notice>
       ))}
@@ -250,7 +259,7 @@ export function ConfirmView({
 }) {
   const [checked, setChecked] = useState(false);
   const action = confirmAction(plan.operation);
-  const changes = plan.changes.length === 1 ? "this change" : `these ${count(plan.changes.length, "change")}`;
+  const changes = plan.changes.length === 1 ? "this change" : `these ${plural(plan.changes.length, "change")}`;
   return (
     <div className="space-y-4">
       <ChangeTicket>
@@ -269,13 +278,13 @@ export function ConfirmView({
         </div>
         <ul className="divide-y">
           {plan.changes.map((change) => (
-            <ChangeItem key={`${change.target}:${change.detail}`} change={change} />
+            <ChangeItem key={`${change.target}:${change.detail}`} operation={plan.operation} change={change} />
           ))}
         </ul>
         {plan.warnings.length > 0 ? (
           <div className="rounded-lg border border-warning/50 p-3 text-sm" data-testid="confirm-warnings">
             <p className="flex items-center gap-2 font-medium">
-              <TriangleAlert className="size-4 text-warning" aria-hidden /> Good to know
+              <TriangleAlert className="size-4 text-warning" aria-hidden /> Check before you confirm
             </p>
             <ul className="mt-1 list-disc space-y-1 pl-5">
               {plan.warnings.map((warning) => (
@@ -312,14 +321,20 @@ export function ConfirmView({
   );
 }
 
+/** A failed change's message and what to do, each a sentence in the window's words. */
+function ChangeError({ error }: { error: BridgeError }) {
+  const { message, hint } = windowError(error);
+  return <span className="block text-sm text-muted-foreground">{hint ? `${message} ${hint}` : message}</span>;
+}
+
 function ResultIcon({ change }: { change: PlanChange }) {
   switch (change.result?.status) {
     case "applied":
-      return <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" aria-label="applied" />;
+      return <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" aria-label="Made" />;
     case "failed":
-      return <CircleX className="mt-0.5 size-4 shrink-0 text-danger" aria-label="failed" />;
+      return <CircleX className="mt-0.5 size-4 shrink-0 text-danger" aria-label="Failed" />;
     default:
-      return <CircleMinus className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-label="skipped" />;
+      return <CircleMinus className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-label="Skipped" />;
   }
 }
 
@@ -350,9 +365,9 @@ export function ResultView({ applied, noticeRef }: { applied: PlanApplied; notic
           title={ended === "partial" ? "Partly done" : "Not done"}
         >
           <p>
-            {done} of {total} change(s) were made.
+            {done} of {plural(total, "change")} {total === 1 ? "was" : "were"} made.
           </p>
-          {error && !explained ? <p className="mt-1">{error.message}</p> : null}
+          {error && !explained ? <p className="mt-1">{windowError(error).message}</p> : null}
           {error ? <ErrorCode code={error.code} /> : null}
         </Notice>
       )}
@@ -362,12 +377,7 @@ export function ResultView({ applied, noticeRef }: { applied: PlanApplied; notic
             <ResultIcon change={change} />
             <span>
               <strong>{change.target}</strong>: {change.detail}
-              {change.result?.error ? (
-                <span className="block text-sm text-muted-foreground">
-                  {change.result.error.message}
-                  {change.result.error.hint ? ` (${change.result.error.hint})` : ""}
-                </span>
-              ) : null}
+              {change.result?.error ? <ChangeError error={change.result.error} /> : null}
             </span>
           </li>
         ))}

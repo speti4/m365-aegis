@@ -46,14 +46,14 @@ describe("the sign-in card", () => {
   it("shows the account, the tenant and a line per token, and signs out", async () => {
     const { container, on, text } = await card({ status: "signed-in", info: alice });
 
-    expect(text()).toContain("signed in · Exchange unavailable");
+    expect(text()).toContain("Signed in · Exchange unavailable");
     expect(container.querySelector('[data-testid="account"]')?.textContent).toBe("Alice Example · alice@contoso.com");
     expect(text()).toContain("00000000-0000-0000-0000-000000000002");
     expect(text()).toContain("Microsoft Graph");
-    expect(text()).toContain("token until ");
-    expect(text()).toContain("no token: the consent is missing");
-    expect(text()).toContain("sharepoint");
-    expect(text()).toContain("token until ?");
+    expect(text()).toContain("Microsoft GraphConnected until ");
+    expect(text()).toContain("Not connected: the consent is missing");
+    // A token without an expiry is connected, with no time to name.
+    expect(text()).toMatch(/sharepointConnected$/);
     expect(hasButton(container, "Sign in")).toBe(false);
 
     await click(button(container, "Sign out"));
@@ -68,7 +68,7 @@ describe("the sign-in card", () => {
       info: { profile: "work", account: "alice@contoso.com", tokens: [] },
     });
 
-    expect(text()).toContain("signing out…");
+    expect(text()).toContain("Signing out…");
     expect(container.querySelector('[data-testid="account"]')?.textContent).toBe("alice@contoso.com");
     expect(text()).not.toContain("Tenant");
     expect(button(container, "Refresh").disabled).toBe(true);
@@ -81,9 +81,9 @@ describe("the sign-in card", () => {
       info: { profile: "work", account: "alice@contoso.com", message: "no silent sign-in", hint: "sign in again" },
     });
 
-    expect(text()).toContain("signed out");
+    expect(text()).toContain("Signed out");
     expect(text()).toContain("Profile work (alice@contoso.com) has no usable sign-in.");
-    expect(container.querySelector('[data-testid="sign-in-hint"]')?.textContent).toBe("What to do: sign in again");
+    expect(container.querySelector('[data-testid="sign-in-hint"]')?.textContent).toBe("What to do: Sign in again.");
     await click(button(container, "Sign in"));
     await click(button(container, "Sign in with a code"));
     expect(on.onSignIn.mock.calls).toEqual([[false], [true]]);
@@ -101,7 +101,7 @@ describe("the sign-in card", () => {
 
   it("waits for the account picker, then shows the device code with its page and a copy button", async () => {
     const waiting = await card({ status: "signing-in", before: null });
-    expect(waiting.text()).toContain("signing in…");
+    expect(waiting.text()).toContain("Signing in…");
     expect(waiting.container.querySelector('[data-testid="signing-in"]')).not.toBeNull();
 
     const writeText = vi.fn().mockResolvedValue(undefined);

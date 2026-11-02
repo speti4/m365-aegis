@@ -3,6 +3,7 @@ import type { BridgeClient } from "../bridge/client";
 import { type AccessUser, MessageType, type UserMatches } from "../bridge/protocol";
 import { describeTaken } from "./snapshot-time";
 import { DEBOUNCE_MS, type Suggested, SuggestField } from "./suggest-field";
+import { plural } from "./vocabulary";
 
 export { DEBOUNCE_MS };
 
@@ -29,7 +30,7 @@ type Found = { kind: "users"; text: string; matches: UserMatches } | { kind: "no
  */
 export function UserPicker({
   client,
-  placeholder = "Start typing a name, or a full address",
+  placeholder = "Start typing a name, or enter a full email address",
   ...field
 }: {
   client: BridgeClient;
@@ -103,15 +104,15 @@ export function describeSource(matches: UserMatches): string {
 function suggestionLines(found: Found): string[] {
   if (found.kind === "no-snapshot") {
     return [
-      "No suggestions: the directory cannot be searched now and this computer has no snapshot. Type the full address.",
+      "No suggestions: the directory cannot be searched now and this computer has no snapshot. Enter the full email address.",
     ];
   }
   const { matches, text } = found;
   const total = matches.users.length;
   const lines = [
     total === 0
-      ? `No user starts with "${text}": a full address still works.`
-      : `${total} matching user${total === 1 ? "" : "s"}${matches.more ? ", and more" : ""}: use the arrow keys to pick one.`,
+      ? `No user starts with "${text}": a full email address still works.`
+      : `${plural(total, "matching user")}${matches.more ? ", and more" : ""}: use the arrow keys to choose one.`,
   ];
   if (total > 0 && matches.more) {
     lines.push("More users match: type more of the name.");

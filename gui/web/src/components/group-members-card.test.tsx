@@ -32,7 +32,7 @@ describe("the group members card", () => {
     expect(isDisabled(lookUp)).toBe(true);
     expect(lookUp.disabled).toBe(false);
     expect(document.getElementById(lookUp.getAttribute("aria-describedby") ?? "")?.textContent).toBe(
-      "Type a group's name, address or object id first.",
+      "Enter a group's name, email address or object ID first.",
     );
 
     await type(input, "  Finance ");
@@ -46,18 +46,23 @@ describe("the group members card", () => {
     expect(container.querySelector('[data-testid="answer-for"]')?.textContent).toBe('Answer for "Finance"');
     expect(text).toContain("Microsoft 365");
     expect(text).toContain("finance@contoso.com");
-    expect(text).toContain("· 4 direct member(s)");
-    expect(text).not.toContain("synced");
+    expect(text).toContain("· 4 direct members");
+    expect(text).not.toContain("Synced");
     const rows = [...container.querySelectorAll("tbody tr")].map((row) =>
       [...row.querySelectorAll("td")].map((cell) => cell.textContent),
     );
-    expect(rows[2]).toEqual(["user", "Carol Example", "carol@contoso.com"]);
+    expect(rows[2]).toEqual(["User", "Carol Example", "carol@contoso.com"]);
     // A member without a sign-in name shows its address.
-    expect(rows[3]).toEqual(["group", "Finance EU", "finance-eu@contoso.com"]);
+    expect(rows[3]).toEqual(["Group", "Finance EU", "finance-eu@contoso.com"]);
+    expect([...container.querySelectorAll("th")].map((head) => head.textContent)).toEqual([
+      "Type",
+      "Name",
+      "Sign-in name or email",
+    ]);
     // The object ids are details, behind a collapsed line (task 126).
     const details = container.querySelector('[data-testid="details"]') as HTMLDetailsElement;
     expect(details.open).toBe(false);
-    expect(details.textContent).toContain("The group's object id: 00000000-0000-0000-0000-000000000031");
+    expect(details.textContent).toContain("The group's object ID: 00000000-0000-0000-0000-000000000031");
     expect([...details.querySelectorAll("li")].map((item) => item.textContent)[2]).toBe(
       "Carol Example: 00000000-0000-0000-0000-000000000004",
     );
@@ -74,7 +79,7 @@ describe("the group members card", () => {
     await settle();
 
     expect((transport as ScriptedTransport).sent.at(-1)?.data).toEqual({ group: "Sales" });
-    expect(container.textContent).toContain("synced");
+    expect(container.textContent).toContain("SecuritySynced from on-premises");
     expect(container.textContent).toContain("The group has no direct members.");
     expect(container.querySelector("table")).toBeNull();
   });
@@ -91,10 +96,10 @@ describe("the group members card", () => {
     await settle();
 
     const cells = [...container.querySelectorAll("tbody td")].map((cell) => cell.textContent);
-    expect(cells).toEqual(["servicePrincipal", "", ""]);
+    expect(cells).toEqual(["App", "", ""]);
     // In the details, a member without a name or an address goes by its type.
     expect(container.querySelector('[data-testid="member-ids"]')?.textContent).toBe(
-      "servicePrincipal: 00000000-0000-0000-0000-000000000040",
+      "App: 00000000-0000-0000-0000-000000000040",
     );
   });
 
@@ -111,12 +116,27 @@ describe("the group members card", () => {
 
     const alert = container.querySelector('[role="alert"]') as HTMLElement;
     expect(alert.textContent).toContain("The lookup failed");
-    expect(alert.textContent).toContain("no group named 'Nope'");
-    expect(alert.textContent).toContain("not-found");
+    // The core's error in the window's words (task 122): a sentence, and what to enter instead.
+    expect(alert.textContent).toContain("No group named 'Nope'.");
+    expect(alert.textContent).toContain(
+      "What to do: Check the spelling, or enter the group's email address, its object ID, or one word of its name.",
+    );
+    expect(alert.textContent).toContain("Error code: not-found");
     expect(input.getAttribute("aria-invalid")).toBe("true");
     expect(input.getAttribute("aria-describedby")).toBe(alert.id);
     expect(container.querySelector("table")).toBeNull();
     expect(liveStatus(container)).toBe("");
+
+    // A word that starts several groups' names: the groups by name, not by object id (task 122).
+    await type(input, "Fin");
+    await submit(form);
+    await settle();
+    const ambiguous = container.querySelector('[role="alert"]') as HTMLElement;
+    expect(ambiguous.textContent).toContain("'Fin' matches 2 groups: Finance, Finance EU.");
+    expect(ambiguous.textContent).toContain(
+      "What to do: Enter the full name or the email address of the one you want.",
+    );
+    expect(ambiguous.textContent).not.toContain("00000000-0000-0000-0000-000000000031");
 
     // The next lookup clears the error.
     await type(input, "Finance");

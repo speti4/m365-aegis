@@ -236,7 +236,7 @@ public static partial class MailboxLookups
                 access.Mailbox.ObjectId ?? access.Mailbox.PrimarySmtpAddress,
                 row.Right.ToString(),
                 holder.Text("ExternalDirectoryObjectId") ?? holder.Text("Guid") ?? holder.Text("PrimarySmtpAddress") ?? row.User);
-            string holds = $"holds {right}";
+            string holds = $"has {right}";
             string lacks = $"no {right}";
             if (held == grant)
             {
@@ -283,7 +283,7 @@ public static partial class MailboxLookups
         }
 
         List<MailboxInfo> mailboxes = accesses.Values.Select(access => access.Mailbox).DistinctBy(mailbox => mailbox.PrimarySmtpAddress, StringComparer.OrdinalIgnoreCase).ToList();
-        string verb = grant ? "Grant mailbox rights on" : "Revoke mailbox rights on";
+        string verb = grant ? "Grant mailbox permissions on" : "Revoke mailbox permissions on";
         builder.Title = mailboxes.Count == 1
             ? $"{verb} {mailboxes[0].DisplayName} ({mailboxes[0].PrimarySmtpAddress})"
             : string.Format(CultureInfo.InvariantCulture, "{0} {1} mailboxes", verb, mailboxes.Count);
@@ -385,7 +385,7 @@ public static partial class MailboxLookups
             AddStep(builder, sidecar, new PlanChange(PlanAction.Set, target, $"forwarding to {row.To}", current, desired) { Row = row.Row, Index = PlanRows.IndexOf(row), Key = ids }, setting);
             if (IsExternal(row.To, domains))
             {
-                builder.Warn($"{row.To} is outside the accepted domains: the mail leaves the organization, and the outbound spam filter policy blocks automatic forwarding to an external address unless the policy allows it");
+                builder.Warn($"{row.To} is outside your organization. Exchange Online blocks automatic forwarding to external addresses unless your outbound spam filter policy allows it, so the mail may not arrive");
             }
 
             if (!row.KeepCopy)
@@ -394,7 +394,7 @@ public static partial class MailboxLookups
             }
         }
 
-        string verb = set ? "Set the forwarding of" : "Clear the forwarding of";
+        string verb = set ? "Forward the mail of" : "Stop forwarding the mail of";
         builder.Title = mailboxes.Count == 1
             ? $"{verb} {mailboxes[0].DisplayName} ({mailboxes[0].PrimarySmtpAddress})"
             : string.Format(CultureInfo.InvariantCulture, "{0} {1} mailboxes", verb, mailboxes.Count);
@@ -464,7 +464,7 @@ public static partial class MailboxLookups
         string type = holder.Text("RecipientTypeDetails") ?? "";
         if (type is "MailContact" or "MailUniversalDistributionGroup" or "DynamicDistributionGroup" || type.Contains("DistributionGroup", StringComparison.OrdinalIgnoreCase))
         {
-            builder.Warn($"{who} is a {type}: Exchange grants mailbox rights to mailboxes, mail users and mail-enabled security groups, so the service will likely refuse it");
+            builder.Warn($"{who} is a {RecipientName(type)}: Exchange gives mailbox permissions to mailboxes, mail users and mail-enabled security groups only, so the service will likely refuse it");
         }
         else if (IsGroup(holder))
         {
@@ -505,9 +505,19 @@ public static partial class MailboxLookups
         return address is null || string.Equals(name, address, StringComparison.OrdinalIgnoreCase) ? name : $"{name} ({address})";
     }
 
+    /// <summary>A recipient's type as the Exchange admin center names it (task 122); one it does not name stays as Exchange wrote it.</summary>
+    private static string RecipientName(string type) => type switch
+    {
+        "MailContact" => "mail contact",
+        "MailUniversalDistributionGroup" => "distribution list",
+        "DynamicDistributionGroup" => "dynamic distribution list",
+        _ => type,
+    };
+
+    /// <summary>A permission as Microsoft Learn and the Exchange admin center write it (task 122); the command line takes <c>FullAccess</c>.</summary>
     private static string RightName(MailboxRight right) => right switch
     {
-        MailboxRight.FullAccess => "FullAccess",
+        MailboxRight.FullAccess => "Full Access",
         MailboxRight.SendAs => "Send As",
         _ => "Send on Behalf",
     };

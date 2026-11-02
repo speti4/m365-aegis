@@ -29,7 +29,7 @@ function follow(event: MouseEvent<HTMLAnchorElement>, id: string) {
 /**
  * The window's top bar (task 124): one quiet row that stays at the top while the page scrolls, with the title and
  * the version, the links to the card groups, and the sign-in as the sign-in card reads it: a status dot, the state in
- * words ("signed in · Exchange unavailable" when the Exchange Online row has no token), the account, the tenant
+ * words ("Signed in · Exchange unavailable" when the Exchange Online row has no token), the account, the tenant
  * shortened and the profile, and Sign in or Sign out. The sign-in card below keeps the details: the token rows, the
  * device code, Refresh.
  */
@@ -108,7 +108,7 @@ function Session({ state, onSignIn, onSignOut }: { state: SignInState; onSignIn:
         title="The sign-in card: the profile, the tokens, Refresh"
       >
         <span className={cn("size-2 shrink-0 rounded-full", dotColor(state))} aria-hidden data-testid="status-dot" />
-        <span data-testid="status">{statusLabel(state) ?? "checking the sign-in…"}</span>
+        <span data-testid="status">{statusLabel(state) ?? "Checking the sign-in…"}</span>
       </a>
       {account ? (
         <span

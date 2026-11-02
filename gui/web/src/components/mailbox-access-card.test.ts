@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 import { BridgeClient } from "../bridge/client";
 import { MockTransport } from "../bridge/mock-transport";
 import { type MailboxAccess, MessageType, parseMessage, readReply } from "../bridge/protocol";
-import { describeLayers, layerNames } from "./mailbox-access-card";
+import { describeLayers } from "./mailbox-access-card";
+import { layerNames } from "./vocabulary";
 
 // The reply sample the C# tests hold the host's answer to (tests/contracts/bridge/mailbox-holders.json).
 const contracts = path.resolve(__dirname, "../../../../tests/contracts/bridge");
@@ -20,21 +21,21 @@ const holdersSample = (): MailboxAccess => {
 describe("the access card's layers (task 063)", () => {
   it("names every layer of the sample's rows", () => {
     expect(holdersSample().holders.map((holder) => holder.layer && layerNames[holder.layer])).toEqual([
-      "PowerShell",
-      "PowerShell",
-      "Admin API",
+      "Exchange Online PowerShell",
+      "Exchange Online PowerShell",
+      "the Exchange admin API",
     ]);
   });
 
   it("says the Admin API read the mailbox and its delegates beside the session's rights", () => {
     expect(describeLayers(holdersSample())).toBe(
-      "The mailbox and its Send on Behalf delegates by name come from the Admin API, FullAccess and Send As from the PowerShell session.",
+      "The mailbox and its Send on Behalf delegates came from the Exchange admin API; Full Access and Send As from Exchange Online PowerShell.",
     );
   });
 
   it("says the session read everything when the Admin API did not answer", () => {
     const access: MailboxAccess = { ...holdersSample(), mailboxLayer: "pwsh" };
-    expect(describeLayers(access)).toMatch(/^Everything comes from the PowerShell session/);
+    expect(describeLayers(access)).toMatch(/^Everything came from Exchange Online PowerShell/);
   });
 
   it("says nothing when the reply names no layer", () => {

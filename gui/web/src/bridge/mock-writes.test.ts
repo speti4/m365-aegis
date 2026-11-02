@@ -25,11 +25,16 @@ describe("the browser mock's writes", () => {
     );
 
     expect(ready.planId).toBe("mock-plan-1");
-    expect(ready.plan.title).toBe("Grant mailbox rights on Finance (finance@contoso.com)");
+    expect(ready.plan.title).toBe("Grant mailbox permissions on Finance (finance@contoso.com)");
     expect(ready.plan.changes.map((change) => [change.action, change.detail, change.current, change.desired])).toEqual([
-      ["add", "FullAccess for Bob Example (bob@contoso.com), without automapping", "no FullAccess", "holds FullAccess"],
+      [
+        "add",
+        "Full Access for Bob Example (bob@contoso.com), without automapping",
+        "no Full Access",
+        "has Full Access",
+      ],
     ]);
-    expect(ready.plan.unchanged.map((line) => line.state)).toEqual(["holds FullAccess already"]);
+    expect(ready.plan.unchanged.map((line) => line.state)).toEqual(["has Full Access already"]);
   });
 
   it("plans a revoke of what is held, and leaves what is not", async () => {
@@ -43,7 +48,7 @@ describe("the browser mock's writes", () => {
     );
 
     expect(ready.plan.changes.map((change) => [change.action, change.current, change.desired])).toEqual([
-      ["remove", "holds Send As", "no Send As"],
+      ["remove", "has Send As", "no Send As"],
     ]);
     expect(ready.plan.unchanged.map((line) => line.state)).toEqual(["no Send on Behalf"]);
   });
@@ -69,11 +74,11 @@ describe("the browser mock's writes", () => {
       "no user was named",
     );
     expect(error(await grant({ mailbox: "finance", users: ["bob"], rights: "full-access" }))).toBe(
-      "no right was chosen",
+      "no permission was chosen",
     );
     expect(error(await grant({ mailbox: "finance", users: ["bob"], rights: ["owner"] }))).toBe("unknown right 'owner'");
     expect(error(await grant({ mailbox: "finance", users: ["bob"], rights: ["send-as"], noAutoMapping: true }))).toBe(
-      "without automapping goes with FullAccess",
+      "without automapping goes with Full Access",
     );
     expect(error(await grant({ mailbox: "archive", users: ["bob"], rights: ["send-as"] }))).toBe(
       "mailbox 'archive' not found",
@@ -100,7 +105,7 @@ describe("the browser mock's writes", () => {
     expect(same.plan.unchanged[0].state).toBe("forwards to bob@fabrikam.com, keeps a copy already");
     expect(other.plan.changes[0].current).toBe("forwards to bob@fabrikam.com, keeps a copy");
     expect(clear.plan.changes[0]).toMatchObject({ action: "clear", desired: "no forwarding" });
-    expect(clear.plan.title).toBe("Clear the forwarding of Bob Example (bob@contoso.com)");
+    expect(clear.plan.title).toBe("Stop forwarding the mail of Bob Example (bob@contoso.com)");
     expect(none.plan.unchanged[0].state).toBe("no forwarding");
     expect(error(await set({ mailbox: "alice@contoso.com", to: " " }))).toBe("the forwarding address is missing");
     expect(error(await set({ mailbox: "alice@contoso.com", to: "alice at fabrikam" }))).toBe(

@@ -21,7 +21,8 @@ import { Badge } from "./ui/badge";
 const noop = () => undefined;
 
 const plan = (actions: PlanAction[]): Plan => ({
-  operation: "mailbox-access-grant",
+  // An operation the window has no verb for: each badge names its action (task 122).
+  operation: "group-members-change",
   title: "Grant on shared@contoso.com",
   changes: actions.map((action) => ({
     action,
@@ -56,18 +57,18 @@ describe("the status badges", () => {
   it("color a plan's change by what it does", async () => {
     const { container } = await render(<PlanView plan={plan(["add", "remove", "clear", "set", "send"])} />);
 
-    expect(badgeOf(container, "add").className).toContain("text-success");
-    expect(badgeOf(container, "remove").className).toContain("text-danger");
-    expect(badgeOf(container, "clear").className).toContain("text-danger");
-    expect(badgeOf(container, "set").className).toContain("text-warning");
-    expect(badgeOf(container, "send").className).toContain("text-warning");
+    expect(badgeOf(container, "Add").className).toContain("text-success");
+    expect(badgeOf(container, "Remove").className).toContain("text-danger");
+    expect(badgeOf(container, "Clear").className).toContain("text-danger");
+    expect(badgeOf(container, "Set").className).toContain("text-warning");
+    expect(badgeOf(container, "Send").className).toContain("text-warning");
   });
 
   it("tell an added row of the diff from a removed one", async () => {
     const { container } = await render(<SnapshotDiffView report={mockSnapshotDiff} />);
 
-    expect(badgeOf(container, "added").className).toContain("text-success");
-    expect(badgeOf(container, "removed").className).toContain("text-danger");
+    expect(badgeOf(container, "Added").className).toContain("text-success");
+    expect(badgeOf(container, "Removed").className).toContain("text-danger");
   });
 
   it("show the sign-in state in green or amber", async () => {
@@ -124,10 +125,10 @@ describe("the status badges", () => {
       />,
     );
 
-    expect(badgeOf(signedIn.container, "signed in").className).toContain("text-success");
-    expect(badgeOf(signedOut.container, "signed out").className).toContain("text-warning");
-    expect(badgeOf(noExchange.container, "signed in · Exchange unavailable").className).toContain("text-warning");
-    expect(badgeOf(unknown.container, "sign-in unknown").className).toContain("text-danger");
+    expect(badgeOf(signedIn.container, "Signed in").className).toContain("text-success");
+    expect(badgeOf(signedOut.container, "Signed out").className).toContain("text-warning");
+    expect(badgeOf(noExchange.container, "Signed in · Exchange unavailable").className).toContain("text-warning");
+    expect(badgeOf(unknown.container, "Sign-in unknown").className).toContain("text-danger");
   });
 });
 
@@ -145,8 +146,8 @@ describe("the results of an applied plan", () => {
     };
     const { container } = await render(<ResultView applied={applied} />);
 
-    expect(container.querySelector('[aria-label="applied"]')?.getAttribute("class")).toContain("text-success");
-    expect(container.querySelector('[aria-label="failed"]')?.getAttribute("class")).toContain("text-danger");
+    expect(container.querySelector('[aria-label="Made"]')?.getAttribute("class")).toContain("text-success");
+    expect(container.querySelector('[aria-label="Failed"]')?.getAttribute("class")).toContain("text-danger");
     expect(container.querySelector('[role="status"]')?.className).toContain("border-warning/50");
   });
 });
@@ -164,7 +165,7 @@ describe("a selected choice", () => {
 
     expect(checks(radio(container, "Grant"))).toBe(1);
     expect(checks(radio(container, "Revoke"))).toBe(0);
-    expect(checks(button(container, "FullAccess"))).toBe(1);
+    expect(checks(button(container, "Full Access"))).toBe(1);
     expect(checks(button(container, "Send As"))).toBe(0);
 
     await click(radio(container, "Revoke"));

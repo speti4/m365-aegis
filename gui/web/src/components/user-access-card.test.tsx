@@ -33,6 +33,14 @@ async function card(transport: MockTransport | ScriptedTransport) {
   return { ...rendered, lookUp };
 }
 
+/** The column headers of the section with the given title. */
+function headers(container: HTMLElement, title: string): string[] {
+  const section = [...container.querySelectorAll("section")].find((candidate) =>
+    candidate.querySelector(":scope > h3")?.textContent?.startsWith(title),
+  );
+  return [...(section?.querySelectorAll("th") ?? [])].map((cell) => cell.textContent ?? "");
+}
+
 /** The rows of the section with the given title, cell by cell. */
 function rows(container: HTMLElement, title: string): string[][] {
   const section = [...container.querySelectorAll("section")].find((candidate) =>
@@ -56,38 +64,40 @@ describe("the user access card", () => {
     expect(text).toContain("Dave Exampledave@contoso.com");
     expect(container.querySelector('[data-testid="answer-for"]')?.textContent).toBe('Answer for "dave@contoso.com"');
     expect(liveStatus(container)).toBe(
-      "dave@contoso.com: 4 groups, 2 sites, 3 shared files, 1 mailbox right, 1 calendar permission",
+      "dave@contoso.com: 4 groups, 2 sites, 3 shared files, 1 mailbox permission, 1 calendar permission",
     );
     expect(container.querySelectorAll("h3")).toHaveLength(5);
     expect(container.querySelector('[data-testid="snapshot"]')?.textContent).toBe(
-      "From the snapshot taken 2026-10-31 06:00 UTC, 2 hour(s) ago.",
+      "From the snapshot taken 2026-10-31 06:00 UTC, 2 hours ago.",
     );
     expect(rows(container, "Groups")).toEqual([
-      ["Finance", "Microsoft365", "through Finance EU"],
-      ["Finance EU", "Security", "direct"],
-      ["Finance Staff", "MailEnabledSecurity", "through Finance EU"],
-      ["Project Phoenix", "Microsoft365", "direct"],
+      ["Finance", "Microsoft 365", "Through Finance EU"],
+      ["Finance EU", "Security", "Direct"],
+      ["Finance Staff", "Mail-enabled security", "Through Finance EU"],
+      ["Project Phoenix", "Microsoft 365", "Direct"],
     ]);
     expect(rows(container, "Sites")).toEqual([
-      ["Finance", "https://contoso.sharepoint.com/sites/finance", "member of Finance"],
-      ["Project Phoenix", "https://contoso.sharepoint.com/sites/phoenix", "member of Project Phoenix"],
+      ["Finance", "https://contoso.sharepoint.com/sites/finance", "Member of Finance"],
+      ["Project Phoenix", "https://contoso.sharepoint.com/sites/phoenix", "Member of Project Phoenix"],
     ]);
     expect(rows(container, "Shared files")).toEqual([
-      ["Finance: /Reports", "direct read", "Finance EU"],
-      ["Project Phoenix: /Plans/Roadmap.pptx", "link users read", "Finance Staff"],
-      ["Project Phoenix: /Plans/Roadmap.pptx", "direct read", "direct"],
+      ["Finance: /Reports", "Shared directly · View", "Finance EU"],
+      ["Project Phoenix: /Plans/Roadmap.pptx", "Link: specific people · View", "Finance Staff"],
+      ["Project Phoenix: /Plans/Roadmap.pptx", "Shared directly · View", "Direct"],
     ]);
     expect(rows(container, "Mailboxes")).toEqual([
-      ["Reception", "reception@contoso.com", "FullAccess", "Finance Staff"],
+      ["Reception", "reception@contoso.com", "Full Access", "Finance Staff"],
     ]);
+    expect(headers(container, "Sites")).toEqual(["Site", "URL", "Through"]);
+    expect(headers(container, "Mailboxes")).toEqual(["Mailbox", "Email address", "Permission", "Through"]);
     expect(rows(container, "Calendars")).toEqual([
       ["Carol Example", "carol@contoso.com", "Calendar: Reviewer", "Finance Staff"],
     ]);
     expect(container.querySelector('[data-testid="everyone"]')?.textContent).toBe(
-      "Reaches everyone, this user too: 1 link(s) anyone in the organization can open, 1 link(s) anyone can open, 1 calendar(s) open beyond free/busy to every user and 1 to anonymous.",
+      "Also open to everyone, including this user: 1 link anyone in your organization can open, 1 link anyone can open, and 1 calendar that shows more than free/busy to the whole organization (1 to anonymous users).",
     );
     expect(text).toContain(
-      "SharePoint sites: read only in part in this snapshot; 1 item(s) could not be read (forbidden 1), so the answer may miss what they hold. The administrator can see which ones in the snapshot's details.",
+      "SharePoint sites: read only in part in this snapshot; 1 item could not be read (forbidden 1), so the answer may miss what they hold. The administrator can see which ones in the snapshot's details.",
     );
     // The skipped part's note in the window's words (task 118), not the take's.
     expect(text).toContain(
@@ -113,7 +123,7 @@ describe("the user access card", () => {
     const option = container.querySelector('[role="option"]') as HTMLElement;
     // The name and the address are two words to a screen reader.
     expect(option.textContent).toBe("Dave Example dave@contoso.com");
-    expect(liveStatus(container)).toBe("1 matching user: use the arrow keys to pick one.");
+    expect(liveStatus(container)).toBe("1 matching user: use the arrow keys to choose one.");
     await click(option);
     await settle();
 
@@ -133,7 +143,7 @@ describe("the user access card", () => {
       "The card answers from a snapshot of the tenant, and this computer has none for the profile contoso.",
     );
     expect(container.textContent).toContain(
-      "ask the administrator to take a snapshot on this computer, or to schedule one every morning",
+      "Ask the administrator to take a snapshot on this computer, or to schedule one every morning.",
     );
     expect(container.querySelector("table")).toBeNull();
   });
@@ -146,8 +156,9 @@ describe("the user access card", () => {
 
     const alert = container.querySelector('[role="alert"]') as HTMLElement;
     expect(alert.textContent).toContain("The lookup failed");
-    expect(alert.textContent).toContain("the snapshot 2026-10-31T060000Z.sqlite knows no user 'nobody@contoso.com'");
-    expect(alert.textContent).toContain("What to do: check the name or the address and try again");
+    // The core's sentence in the window's words: a sentence, the snapshot by its time (task 122).
+    expect(alert.textContent).toContain("The snapshot of 2026-10-31 06:00 UTC knows no user 'nobody@contoso.com'.");
+    expect(alert.textContent).toContain("What to do: Check the name or the address and try again.");
     const input = field(container, "User");
     expect(input.getAttribute("aria-invalid")).toBe("true");
     expect(input.getAttribute("aria-describedby")).toBe(alert.id);
@@ -209,12 +220,12 @@ describe("the access view", () => {
     };
     const { container } = await render(<AccessReportView report={report} />);
 
-    expect(container.textContent).toContain("Partner Examplepartner@fabrikam.comno directory account");
+    expect(container.textContent).toContain("Partner Examplepartner@fabrikam.comNot in the directory");
     expect(container.textContent).toContain("In no group.");
     expect(container.textContent).toContain("No site through a group.");
-    expect(container.textContent).toContain("No right on another mailbox.");
-    expect(container.textContent).toContain("No permission on another calendar.");
-    expect(rows(container, "Shared files")).toEqual([["Finance: /", "link until 2026-12-31", "direct"]]);
+    expect(container.textContent).toContain("No permissions on other mailboxes.");
+    expect(container.textContent).toContain("No permissions on other calendars.");
+    expect(rows(container, "Shared files")).toEqual([["Finance: /", "Link · until 2026-12-31", "Direct"]]);
     expect(container.textContent).not.toContain("Good to know");
   });
 
@@ -226,19 +237,24 @@ describe("the access view", () => {
       groups: [{ id: "00000000-0000-0000-0000-000000000031", via: [], direct: true }],
       sites: [{ name: "Finance", group: "Finance", role: "owner" }],
       sharedItems: [],
+      everyone: { organizationLinks: 2, anonymousLinks: 0, defaultCalendars: 3, anonymousCalendars: 0 },
     };
     const { container } = await render(<AccessReportView report={report} />);
 
     expect(container.querySelector("strong")?.textContent).toBe("00000000-0000-0000-0000-000000000005");
-    expect(rows(container, "Groups")).toEqual([["00000000-0000-0000-0000-000000000031", "", "direct"]]);
-    expect(rows(container, "Sites")).toEqual([["Finance", "", "owner of Finance"]]);
+    expect(rows(container, "Groups")).toEqual([["00000000-0000-0000-0000-000000000031", "", "Direct"]]);
+    expect(rows(container, "Sites")).toEqual([["Finance", "", "Owner of Finance"]]);
     expect(container.textContent).toContain("No file or folder shared with the user or the groups.");
+    expect(container.querySelector('[data-testid="everyone"]')?.textContent).toBe(
+      "Also open to everyone, including this user: 2 links anyone in your organization can open, 0 links anyone can open, and 3 calendars that show more than free/busy to the whole organization (0 to anonymous users).",
+    );
   });
 
   it("writes the snapshot's time in UTC and its age in hours, then in days", () => {
     expect(describeTaken("2026-10-31T07:30:00+01:00")).toBe("2026-10-31 06:30 UTC");
     expect(describeTaken("yesterday")).toBe("yesterday");
-    expect(describeAge(40.4)).toBe("40.4 hour(s) ago");
+    expect(describeAge(40.4)).toBe("40.4 hours ago");
+    expect(describeAge(1)).toBe("1 hour ago");
     expect(describeAge(72)).toBe("3.0 days ago");
   });
 });

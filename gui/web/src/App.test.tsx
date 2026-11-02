@@ -77,7 +77,7 @@ describe("the window's page", () => {
     expect(container.querySelector('[data-testid="version"]')?.textContent).toBe("dev (browser mock)");
     expect(container.textContent).toContain("Alice Example · alice@contoso.com");
     // The top bar (task 124): the state, the account and the links to the groups, which are sections of the page.
-    expect(container.querySelector('[data-testid="status"]')?.textContent).toBe("signed in");
+    expect(container.querySelector('[data-testid="status"]')?.textContent).toBe("Signed in");
     expect(container.querySelector('[data-testid="bar-account"]')?.textContent).toBe("alice@contoso.com");
     expect(
       [...container.querySelectorAll("section > h2")].map((heading) => [
@@ -134,8 +134,8 @@ describe("the window's page", () => {
     expect(container.textContent).not.toContain("browser mock");
     expect(container.querySelector('[data-testid="version"]')?.textContent).toBe("…");
     expect(container.textContent).toContain("The sign-in state could not be read.");
-    expect(container.querySelector('[data-testid="status"]')?.textContent).toBe("sign-in unknown");
-    expect(toasts).toHaveBeenCalledWith("the cache could not be read", { description: "try again" });
+    expect(container.querySelector('[data-testid="status"]')?.textContent).toBe("Sign-in unknown");
+    expect(toasts).toHaveBeenCalledWith("The cache could not be read.", { description: "Try again." });
     expect(posted.map((message) => message.type).slice(0, 3)).toEqual([
       MessageType.ready,
       MessageType.ping,
@@ -172,14 +172,14 @@ describe("the window's page", () => {
 
     await click(button(container, "Sign in with a code"));
     await settle();
-    expect(toasts).toHaveBeenCalledWith("the account picker was closed", { description: "try again" });
+    expect(toasts).toHaveBeenCalledWith("The account picker was closed.", { description: "Try again." });
     expect(container.textContent).toContain("Profile work has no usable sign-in.");
 
     await click(button(container, "Refresh"));
     await settle();
     await click(button(container, "Sign out"));
     await settle();
-    expect(toasts).toHaveBeenCalledWith("the cache is locked", { description: "try again" });
+    expect(toasts).toHaveBeenCalledWith("The cache is locked.", { description: "Try again." });
     expect(container.querySelector('[data-testid="account"]')?.textContent).toBe("alice@contoso.com");
   });
 
@@ -210,7 +210,7 @@ describe("the window's page", () => {
 
     await click(button(container, "Open in browser"));
     await settle();
-    expect(toasts).toHaveBeenCalledWith("no sign-in waits", { description: "try again" });
+    expect(toasts).toHaveBeenCalledWith("No sign-in waits.", { description: "Try again." });
   });
 
   it("in a plain browser: a grant on the rights card is read again by the access card that shows the mailbox", async () => {
@@ -220,13 +220,13 @@ describe("the window's page", () => {
     await type(field(access, "Mailbox"), "finance");
     await submit(access.querySelector("form") as HTMLFormElement);
     await settle(MOCK_MS);
-    expect(access.textContent).toContain("· 3 grant(s)");
+    expect(access.textContent).toContain("· 3 permissions");
 
     await type(field(rights, "Mailbox"), "finance");
     await type(field(rights, "Users"), "bob@contoso.com");
-    await click(button(rights, "See the plan"));
+    await click(button(rights, "Review the plan"));
     await settle(MOCK_MS);
-    await click(button(rights, "Continue to confirm"));
+    await click(button(rights, "Continue"));
     // The confirmation names the account it runs as, from the sign-in card.
     expect(rights.querySelector('[data-testid="confirm-lead"]')?.textContent).toMatch(
       / as \S+@contoso\.com \(profile \w+\):$/,
@@ -234,11 +234,11 @@ describe("the window's page", () => {
     await click(rights.querySelector('input[type="checkbox"]') as HTMLInputElement);
     await click(button(rights, "Grant permissions"));
     await settle(MOCK_MS);
-    expect(access.textContent).toContain("A change was applied to this mailbox: reading its access again…");
+    expect(access.textContent).toContain("A change was made to this mailbox: reading its permissions again…");
     await settle(MOCK_MS);
 
-    expect(access.textContent).toContain("· 4 grant(s)");
-    expect(access.textContent).toContain("Read again after a change on the Mailbox rights card.");
+    expect(access.textContent).toContain("· 4 permissions");
+    expect(access.textContent).toContain("Read again after a change on the Change mailbox permissions card.");
   });
 
   it("in a plain browser: the user access card answers from the snapshot, signed out too", async () => {
@@ -255,14 +255,14 @@ describe("the window's page", () => {
     await settle(MOCK_MS);
 
     expect(user.querySelector('[data-testid="snapshot"]')?.textContent).toBe(
-      "From the snapshot taken 2026-10-31 06:00 UTC, 2 hour(s) ago.",
+      "From the snapshot taken 2026-10-31 06:00 UTC, 2 hours ago.",
     );
     await type(field(user, "User"), "nobody@contoso.com");
     await submit(user.querySelector("form") as HTMLFormElement);
     await settle(MOCK_MS);
     // A card's error is the card's, under its field (task 120): no toast.
     expect(user.querySelector('[role="alert"]')?.textContent).toContain(
-      "the snapshot 2026-10-31T060000Z.sqlite knows no user 'nobody@contoso.com'",
+      "The snapshot of 2026-10-31 06:00 UTC knows no user 'nobody@contoso.com'.",
     );
     expect(toasts).not.toHaveBeenCalled();
   });
@@ -277,7 +277,7 @@ describe("the window's page", () => {
 
     expect(changes.textContent).toContain("Access changes");
     expect(changes.querySelector('[data-testid="snapshots"]')?.textContent).toBe(
-      "From the snapshot taken 2026-10-31 06:00 UTC (26 hour(s) ago) to the one taken 2026-11-01 06:00 UTC (2 hour(s) ago): 8 added, 6 removed.",
+      "From the snapshot taken 2026-10-31 06:00 UTC (26 hours ago) to the one taken 2026-11-01 06:00 UTC (2 hours ago): 8 added, 6 removed.",
     );
   });
 
@@ -300,13 +300,13 @@ describe("the window's page", () => {
     const { container } = await render(<App />);
     await settle();
 
-    expect(container.querySelector('[data-testid="status"]')?.textContent).toBe("signed in · Exchange unavailable");
+    expect(container.querySelector('[data-testid="status"]')?.textContent).toBe("Signed in · Exchange unavailable");
     const change = container.querySelector("section#change") as HTMLElement;
     expect(change.textContent?.match(/Exchange Online unavailable/g)).toHaveLength(2);
-    expect(change.textContent).toContain("no Exchange Online token: the consent is missing.");
+    expect(change.textContent).toContain("no connection to Exchange Online: the consent is missing.");
     for (const card of change.querySelectorAll('[data-slot="card"]')) {
-      expect(isDisabled(button(card, "See the plan"))).toBe(true);
-      expect(card.textContent).toContain("Still needed: an Exchange Online token,");
+      expect(isDisabled(button(card, "Review the plan"))).toBe(true);
+      expect(card.textContent).toContain("Still needed: a connection to Exchange Online,");
     }
   });
 

@@ -30,8 +30,8 @@ public sealed partial class MailboxWritesTests
         WritePlan write = await MailboxLookups.PlanAccessAsync(backends, grant: true, MailboxLookups.AccessRows("finance", ["alice@contoso.com", "bob@contoso.com"], ["FullAccess"]), Ct);
 
         PlanChange change = Assert.Single(write.Plan.Changes);
-        Assert.Equal(("Finance (finance@contoso.com)", "FullAccess for Bob Example (bob@contoso.com)", "no FullAccess", "holds FullAccess"), (change.Target, change.Detail, change.Current, change.Desired));
-        Assert.Equal("holds FullAccess already", Assert.Single(write.Plan.Unchanged).State);
+        Assert.Equal(("Finance (finance@contoso.com)", "Full Access for Bob Example (bob@contoso.com)", "no Full Access", "has Full Access"), (change.Target, change.Detail, change.Current, change.Desired));
+        Assert.Equal("has Full Access already", Assert.Single(write.Plan.Unchanged).State);
         Assert.Equal("mailbox-access-grant", write.Plan.Operation);
 
         CommandResult<Plan> applied = await ApplyAsync(write);
@@ -58,7 +58,7 @@ public sealed partial class MailboxWritesTests
 
         Assert.True(granted.Ok);
         Assert.Contains(between.Holders, holder => holder.Right == MailboxRight.SendOnBehalf && holder.Address == "carol@contoso.com");
-        Assert.Equal(("holds Send on Behalf", "no Send on Behalf"), (revoke.Plan.Changes[0].Current, revoke.Plan.Changes[0].Desired));
+        Assert.Equal(("has Send on Behalf", "no Send on Behalf"), (revoke.Plan.Changes[0].Current, revoke.Plan.Changes[0].Desired));
         Assert.True(revoked.Ok);
         Assert.DoesNotContain(after.Holders, holder => holder.Right == MailboxRight.SendOnBehalf);
     }
@@ -89,7 +89,7 @@ public sealed partial class MailboxWritesTests
         WritePlan write = await MailboxLookups.PlanAccessAsync(backends, grant: true, MailboxLookups.AccessRows("finance", ["bob@contoso.com"], ["SendOnBehalf"]), Ct);
 
         Assert.Empty(write.Plan.Changes);
-        Assert.Equal("holds Send on Behalf already", Assert.Single(write.Plan.Unchanged).State);
+        Assert.Equal("has Send on Behalf already", Assert.Single(write.Plan.Unchanged).State);
         Assert.Equal("pwsh+admin-api", backends.Backend);
     }
 
@@ -110,8 +110,8 @@ public sealed partial class MailboxWritesTests
         Assert.Equal(3, write.Plan.Changes.Count);
         Assert.Equal(
             [
-                "Finance Staff (finance-staff@contoso.com) is a group: every member, the nested ones too, gets FullAccess and Send As on Finance; Outlook does not add the mailbox for them on its own (no automapping through a group)",
-                "Dave Private (dave@example.com) is a MailContact: Exchange grants mailbox rights to mailboxes, mail users and mail-enabled security groups, so the service will likely refuse it",
+                "Finance Staff (finance-staff@contoso.com) is a group: every member, the nested ones too, gets Full Access and Send As on Finance; Outlook does not add the mailbox for them on its own (no automapping through a group)",
+                "Dave Private (dave@example.com) is a mail contact: Exchange gives mailbox permissions to mailboxes, mail users and mail-enabled security groups only, so the service will likely refuse it",
             ],
             write.Plan.Warnings);
         Assert.Equal(ExitCode.Partial, result.ExitCode);
@@ -149,7 +149,7 @@ public sealed partial class MailboxWritesTests
         PlanChange change = Assert.Single(other.Plan.Changes);
         Assert.Equal((PlanAction.Set, "forwards to bob@fabrikam.com, keeps a copy", "forwards to carol@fabrikam.com, keeps no copy"), (change.Action, change.Current, change.Desired));
         Assert.Equal(2, other.Plan.Warnings.Count);
-        Assert.StartsWith("carol@fabrikam.com is outside the accepted domains", other.Plan.Warnings[0], StringComparison.Ordinal);
+        Assert.StartsWith("carol@fabrikam.com is outside your organization", other.Plan.Warnings[0], StringComparison.Ordinal);
         Assert.StartsWith("Bob Example keeps no copy", other.Plan.Warnings[1], StringComparison.Ordinal);
         Assert.Equal(("no forwarding", "forwards to carol@contoso.com, keeps a copy"), (inside.Plan.Changes[0].Current, inside.Plan.Changes[0].Desired));
         Assert.Empty(inside.Plan.Warnings);
@@ -202,7 +202,7 @@ public sealed partial class MailboxWritesTests
 
         Assert.Equal([(2, MailboxRight.FullAccess), (3, MailboxRight.SendAs), (4, MailboxRight.SendAs)], rows.Select(row => (row.Row!.Value, row.Right)));
         Assert.Equal([2, 3, 4], write.Plan.Changes.Select(change => change.Row!.Value));
-        Assert.Equal("Grant mailbox rights on 2 mailboxes", write.Plan.Title);
+        Assert.Equal("Grant mailbox permissions on 2 mailboxes", write.Plan.Title);
         Assert.Equal(ExitCode.Partial, result.ExitCode);
         Assert.Equal("2 of 3 change(s) applied, 1 failed", result.Failure!.Message);
         Assert.Equal([ChangeStatus.Applied, ChangeStatus.Failed, ChangeStatus.Applied], result.Data!.Changes.Select(change => change.Result!.Status));

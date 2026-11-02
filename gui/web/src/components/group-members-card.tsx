@@ -4,21 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { BridgeClient } from "../bridge/client";
-import { type GroupKind, type GroupMembers, MessageType } from "../bridge/protocol";
+import { type GroupMembers, MessageType } from "../bridge/protocol";
 import { AnswerFor, Field, LiveStatus, LookupError, SubmitButton, useLookup } from "./card-parts";
 import { DetailsLine } from "./details-line";
-import { count } from "./plan-wording";
-
-const kindNames: Record<GroupKind, string> = {
-  microsoft365: "Microsoft 365",
-  security: "Security",
-  "mail-enabled-security": "Mail-enabled security",
-  distribution: "Distribution",
-};
+import { groupKindName, objectTypeName, plural } from "./vocabulary";
 
 /**
  * `group members <group>`: the group's direct members, by name, in a table, under the name it was asked for; the
- * object ids under a collapsed "Details" line (task 126). A failure
+ * object IDs under a collapsed "Details" line (task 126); the type and the kind in the window's words (task 122). A failure
  * shows under the field, which it marks invalid, and drops the old table (task 120); the field stays usable while the
  * lookup runs, so the focus stays in it, and the card's status region says what is going on (task 121).
  */
@@ -40,7 +33,7 @@ export function GroupMembersCard({ client }: { client: BridgeClient }) {
         reply.type === MessageType.members
           ? {
               result: { asked, data: reply.data },
-              status: `${reply.data.group.displayName}: ${count(reply.data.members.length, "direct member")}`,
+              status: `${reply.data.group.displayName}: ${plural(reply.data.members.length, "direct member")}`,
             }
           : undefined,
     );
@@ -51,7 +44,7 @@ export function GroupMembersCard({ client }: { client: BridgeClient }) {
       <CardHeader>
         <CardTitle id={`${id}-title`}>Group members</CardTitle>
         <CardDescription>
-          A group's direct members, by the group's object id, its exact name or address, or a word of its name.
+          List a group's direct members. Search by name, email address, object ID, or one word of the name.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -61,7 +54,7 @@ export function GroupMembersCard({ client }: { client: BridgeClient }) {
             <div className="flex items-start gap-2">
               <Input
                 id={`${id}-group`}
-                placeholder="Group name, address or object id"
+                placeholder="Group name, email address or object ID"
                 value={group}
                 onChange={(event) => setGroup(event.target.value)}
                 readOnly={busy}
@@ -70,7 +63,7 @@ export function GroupMembersCard({ client }: { client: BridgeClient }) {
               />
               <SubmitButton
                 busy={busy}
-                missing={group.trim() === "" ? "Type a group's name, address or object id first." : null}
+                missing={group.trim() === "" ? "Enter a group's name, email address or object ID first." : null}
                 hintId={`${id}-hint`}
                 idle="Look up"
                 working="Looking up…"
@@ -96,10 +89,10 @@ function MembersTable({ result }: { result: GroupMembers }) {
     <div className="space-y-2">
       <p className="flex flex-wrap items-center gap-2">
         <strong>{group.displayName}</strong>
-        <Badge variant="secondary">{kindNames[group.kind]}</Badge>
-        {group.synced ? <Badge variant="outline">synced</Badge> : null}
+        <Badge variant="secondary">{groupKindName(group.kind)}</Badge>
+        {group.synced ? <Badge variant="outline">Synced from on-premises</Badge> : null}
         {group.mail ? <span className="text-muted-foreground">{group.mail}</span> : null}
-        <span className="text-muted-foreground tabular-nums">· {members.length} direct member(s)</span>
+        <span className="text-muted-foreground tabular-nums">· {plural(members.length, "direct member")}</span>
       </p>
       {members.length === 0 ? (
         <p className="text-muted-foreground">The group has no direct members.</p>
@@ -109,13 +102,13 @@ function MembersTable({ result }: { result: GroupMembers }) {
             <TableRow>
               <TableHead>Type</TableHead>
               <TableHead>Name</TableHead>
-              <TableHead>Sign-in name or address</TableHead>
+              <TableHead>Sign-in name or email</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {members.map((member) => (
               <TableRow key={member.id}>
-                <TableCell>{member.type}</TableCell>
+                <TableCell>{objectTypeName(member.type)}</TableCell>
                 <TableCell>{member.displayName ?? ""}</TableCell>
                 <TableCell className="font-mono text-xs">{member.userPrincipalName ?? member.mail ?? ""}</TableCell>
               </TableRow>
@@ -124,12 +117,13 @@ function MembersTable({ result }: { result: GroupMembers }) {
         </Table>
       )}
       <DetailsLine>
-        <p>The group's object id: {idText(group.id)}</p>
+        <p>The group's object ID: {idText(group.id)}</p>
         {members.length > 0 ? (
           <ul data-testid="member-ids">
             {members.map((member) => (
               <li key={member.id}>
-                {member.displayName ?? member.userPrincipalName ?? member.mail ?? member.type}: {idText(member.id)}
+                {member.displayName ?? member.userPrincipalName ?? member.mail ?? objectTypeName(member.type)}:{" "}
+                {idText(member.id)}
               </li>
             ))}
           </ul>

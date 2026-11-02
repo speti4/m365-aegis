@@ -100,15 +100,15 @@ export function exchangeError(state: SignInState): string | null {
 export function statusLabel(state: SignInState): string | null {
   switch (state.status) {
     case "signed-in":
-      return exchangeError(state) === null ? "signed in" : "signed in · Exchange unavailable";
+      return exchangeError(state) === null ? "Signed in" : "Signed in · Exchange unavailable";
     case "signed-out":
-      return "signed out";
+      return "Signed out";
     case "signing-in":
-      return "signing in…";
+      return "Signing in…";
     case "signing-out":
-      return "signing out…";
+      return "Signing out…";
     case "unknown":
-      return "sign-in unknown";
+      return "Sign-in unknown";
     default:
       return null;
   }

@@ -13,7 +13,7 @@ import {
 export type MockAnswer = { type: string; data: unknown };
 
 const rightNames: Record<MailboxRight, string> = {
-  "full-access": "FullAccess",
+  "full-access": "Full Access",
   "send-as": "Send As",
   "send-on-behalf": "Send on Behalf",
 };
@@ -139,11 +139,11 @@ export class MockWrites {
     if (users.length === 0) {
       return usage(
         "no user was named",
-        "give each user's user principal name or address, or a mail-enabled security group's address",
+        "enter each person's sign-in name or email address, or a mail-enabled security group's email address",
       );
     }
     if (asked.length === 0) {
-      return usage("no right was chosen", "choose FullAccess, Send As or Send on Behalf");
+      return usage("no permission was chosen", "choose Full Access, Send As or Send on Behalf");
     }
     const unknown = asked.find((right) => !rights.includes(right as MailboxRight));
     if (unknown !== undefined) {
@@ -152,8 +152,8 @@ export class MockWrites {
     const chosen = asked as MailboxRight[];
     if (noAutoMapping && !chosen.includes("full-access")) {
       return usage(
-        "without automapping goes with FullAccess",
-        "automapping is how Outlook adds a mailbox its FullAccess holder can open; choose FullAccess, or clear Without automapping",
+        "without automapping goes with Full Access",
+        "automapping is how Outlook adds a mailbox for someone with Full Access; choose Full Access, or clear Without automapping",
       );
     }
     const name = text(payload.mailbox);
@@ -180,10 +180,10 @@ export class MockWrites {
           unchanged.push({
             target: named(access.mailbox),
             detail,
-            state: grant ? `holds ${word} already` : `no ${word}`,
+            state: grant ? `has ${word} already` : `no ${word}`,
           });
         } else {
-          const [current, desired] = grant ? [`no ${word}`, `holds ${word}`] : [`holds ${word}`, `no ${word}`];
+          const [current, desired] = grant ? [`no ${word}`, `has ${word}`] : [`has ${word}`, `no ${word}`];
           changes.push({ action: grant ? "add" : "remove", target: named(access.mailbox), detail, current, desired });
           steps.push(() => change(access, right, holder, grant));
         }
@@ -192,7 +192,7 @@ export class MockWrites {
     const verb = grant ? "Grant" : "Revoke";
     return this.ready({
       operation: grant ? MessageType.mailboxAccessGrant : MessageType.mailboxAccessRevoke,
-      title: `${verb} mailbox rights on ${named(access.mailbox)}`,
+      title: `${verb} mailbox permissions on ${named(access.mailbox)}`,
       changes,
       unchanged,
       warnings: [],
@@ -204,7 +204,10 @@ export class MockWrites {
     const to = set ? text(payload.to) : "";
     const keepCopy = set && payload.keepCopy === true;
     if (set && to === "") {
-      return usage("the forwarding address is missing", "give the address to forward to, such as bob@fabrikam.com");
+      return usage(
+        "the forwarding address is missing",
+        "enter the email address to forward to, such as bob@fabrikam.com",
+      );
     }
     if (set && !/^[^@\s]+@[^@\s]+$/.test(to)) {
       return usage(
@@ -247,14 +250,14 @@ export class MockWrites {
       });
       if (!to.toLowerCase().endsWith("@contoso.com")) {
         warnings.push(
-          `${to} is outside the accepted domains: the mail leaves the organization, and the outbound spam filter policy blocks automatic forwarding to an external address unless the policy allows it`,
+          `${to} is outside your organization. Exchange Online blocks automatic forwarding to external addresses unless your outbound spam filter policy allows it, so the mail may not arrive`,
         );
       }
       if (!keepCopy) {
         warnings.push(`${mailbox.displayName} keeps no copy: the mail reaches ${to} only (--keep-copy keeps one)`);
       }
     }
-    const verb = set ? "Set the forwarding of" : "Clear the forwarding of";
+    const verb = set ? "Forward the mail of" : "Stop forwarding the mail of";
     return this.ready({
       operation: set ? MessageType.mailboxForwardingSet : MessageType.mailboxForwardingClear,
       title: `${verb} ${target}`,

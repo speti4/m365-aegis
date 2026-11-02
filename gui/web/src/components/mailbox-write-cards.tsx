@@ -23,10 +23,10 @@ import {
 } from "../bridge/protocol";
 import { type AppliedWrite, detailAddresses, type ReRead, targetAddresses } from "./applied-writes";
 import { Choice, Field, LiveStatus, submitOnEnter } from "./card-parts";
-import { rightNames } from "./mailbox-access-card";
 import { MailboxPicker } from "./mailbox-picker";
 import { ConfirmView, ErrorText, Notice, PlanView, ResultView, type RunAs, Stepper, Working } from "./plan-view";
 import { UserPicker } from "./user-picker";
+import { rightNames } from "./vocabulary";
 import { canConfirm, initialWriteState, outcome, type WriteState, writeReducer, writeStatus } from "./write-flow";
 
 /** A write the card's picks ask for: the request's type and payload; null while a pick is missing. */
@@ -46,7 +46,7 @@ export function splitList(text: string): string[] {
     .filter((item) => item !== "");
 }
 
-/** The picks still missing before the card can plan, as the line beside "See the plan" lists them. */
+/** The picks still missing before the card can plan, as the line beside "Review the plan" lists them. */
 export function describeMissing(missing: readonly string[]): string {
   return `Still needed: ${missing.join(", ")}.`;
 }
@@ -60,16 +60,17 @@ export function describeMissing(missing: readonly string[]): string {
  * off on the way) is told to `onApplied` (task 091), so the access card can read the mailbox again; when it did, the
  * result step says so and "Show it" scrolls to that card (task 124).
  *
- * The keyboard (tasks 120 and 121): the picks are a form, so Enter in a field means "See the plan" (it only computes a
- * plan); Escape goes back a step from the plan, the confirmation or a refusal, never while an apply runs. "See the
+ * The keyboard (tasks 120 and 121): the picks are a form, so Enter in a field means "Review the plan" (it only computes
+ * a plan); Escape goes back a step from the plan, the confirmation or a refusal, never while an apply runs. "Review the
  * plan" stays in the Tab order while a pick is missing, and the line beside it says which (`missing`). On every step
  * the focus moves to the step's heading or first control, `pickTarget` (the mailbox field) on the picks, and the
  * card's status region says what the step shows; on the picks it says what a picker's list says (`picks` gets the
  * function to tell it, task 125).
  *
  * The result (task 126): "Start a new change" goes back to the picks and tells the card (`onStartOver`), which keeps
- * the mailbox and clears the rest; after an apply not done in full, "See the plan again" sends the same request once
- * more, and the host plans only what is still missing.
+ * the mailbox and clears the rest; after an apply not done in full, "Review the plan again" sends the same request
+ * once more, and the host plans only what is still missing. The words are the window's vocabulary (task 122): Choose ›
+ * Review › Confirm › Result, "Back to edit", the card's own verbs.
  */
 export function WriteCard({
   title,
@@ -102,7 +103,7 @@ export function WriteCard({
   const [state, dispatch] = useReducer(writeReducer, initialWriteState);
   // What a picker's list said last, the card's status on the picks; a new step drops it.
   const [pickStatus, setPickStatus] = useState("");
-  // The request the plan on the card answers: "See the plan again" sends it once more.
+  // The request the plan on the card answers: "Review the plan again" sends it once more.
   const asked = useRef<WriteRequest | null>(null);
   // The write the card told last, and a card's word that it read the mailbox again after it (task 124).
   const told = useRef<AppliedWrite | null>(null);
@@ -172,7 +173,7 @@ export function WriteCard({
 
   const needed = [
     ...(signedIn ? [] : ["a sign-in on the Sign-in card"]),
-    ...(signedIn && exchangeError ? ["an Exchange Online token"] : []),
+    ...(signedIn && exchangeError ? ["a connection to Exchange Online"] : []),
     ...missing,
   ];
   return (
@@ -254,15 +255,15 @@ function Body({
         >
           {signedIn ? null : (
             <Notice tone="warning" icon={<LogIn aria-hidden />} title="Signed out">
-              This card needs a sign-in: sign in on the sign-in card, then come back here.
+              Sign in on the Sign-in card first, then come back here.
             </Notice>
           )}
           {signedIn && exchangeError ? (
             <Notice tone="warning" icon={<Unplug aria-hidden />} title="Exchange Online unavailable">
-              <p>The account is signed in, but the window has no Exchange Online token: {exchangeError}.</p>
+              <p>You're signed in, but the window has no connection to Exchange Online: {exchangeError}.</p>
               <p className="mt-1 text-muted-foreground">
-                What to do: an administrator consents to the Exchange Online permission, then Refresh on the sign-in
-                card.
+                What to do: Ask an administrator to consent to the Exchange Online permission, then select Refresh on
+                the Sign-in card.
               </p>
             </Notice>
           ) : null}
@@ -274,7 +275,7 @@ function Body({
               focusableWhenDisabled
               aria-describedby={hint ? hintId : undefined}
             >
-              See the plan
+              Review the plan
             </Button>
             {hint ? (
               <p id={hintId} className="text-sm text-muted-foreground">
@@ -285,7 +286,7 @@ function Body({
         </form>
       );
     case "planning":
-      return <Working ref={target} text="The window is computing the plan; nothing is changed yet…" />;
+      return <Working ref={target} text="Preparing the plan. Nothing has changed yet…" />;
     case "refused":
       return (
         <Refused
@@ -300,11 +301,9 @@ function Body({
         <div className="space-y-4">
           <PlanView plan={state.ready.plan} titleRef={target} />
           <div className="flex flex-wrap gap-2">
-            {canConfirm(state.ready) ? (
-              <Button onClick={() => dispatch({ type: "proceed" })}>Continue to confirm</Button>
-            ) : null}
+            {canConfirm(state.ready) ? <Button onClick={() => dispatch({ type: "proceed" })}>Continue</Button> : null}
             <Button variant="outline" onClick={() => dispatch({ type: "back" })}>
-              <ArrowLeft aria-hidden /> Change the picks
+              <ArrowLeft aria-hidden /> Back to edit
             </Button>
           </div>
         </div>
@@ -321,7 +320,7 @@ function Body({
         />
       );
     case "applying":
-      return <Working ref={target} text="Applying the plan: one change at a time…" />;
+      return <Working ref={target} text="Making the changes, one at a time…" />;
     case "result": {
       // Not done in full: the plan again, with what is still missing, is the likely next step.
       const again = outcome(state.applied) === "done" ? undefined : onSeePlanAgain;
@@ -337,7 +336,7 @@ function Body({
             </p>
           ) : null}
           <div className="flex flex-wrap gap-2">
-            {again ? <Button onClick={again}>See the plan again</Button> : null}
+            {again ? <Button onClick={again}>Review the plan again</Button> : null}
             <Button variant={again ? "outline" : "default"} onClick={onStartOver}>
               Start a new change
             </Button>
@@ -375,7 +374,7 @@ function Refused({
         <ErrorText error={error} />
       </Notice>
       <Button variant="outline" onClick={onBack}>
-        <ArrowLeft aria-hidden /> Change the picks
+        <ArrowLeft aria-hidden /> Back to edit
       </Button>
     </div>
   );
@@ -384,8 +383,8 @@ function Refused({
 const rights: readonly MailboxRight[] = ["full-access", "send-as", "send-on-behalf"];
 
 /**
- * Grant or revoke FullAccess, Send As or Send on Behalf on a mailbox, as `m365-aegis mailbox access grant|revoke`
- * does (task 082); a FullAccess grant can go without automapping (`--no-automapping`). The mailbox is picked from the
+ * Grant or revoke Full Access, Send As or Send on Behalf on a mailbox, as `m365-aegis mailbox access grant|revoke`
+ * does (task 082); a Full Access grant can go without automapping (`--no-automapping`). The mailbox is picked from the
  * shared mailboxes and the users from the directory or the snapshot, each pick added to the list (task 125); a name or
  * an address typed in full still goes as typed. "Start a new change" keeps the mailbox and clears the rest (task 126).
  */
@@ -422,7 +421,7 @@ export function MailboxAccessWriteCard({
   const missing = [
     ...(mailbox.trim() === "" ? ["the mailbox"] : []),
     ...(named.length === 0 ? ["at least one user"] : []),
-    ...(chosen.length === 0 ? ["at least one right"] : []),
+    ...(chosen.length === 0 ? ["at least one permission"] : []),
   ];
   const request: WriteRequest | null =
     missing.length === 0
@@ -457,7 +456,7 @@ export function MailboxAccessWriteCard({
         <UserPicker
           client={client}
           id={`${id}-users`}
-          placeholder="Start typing a name; several, separated by commas"
+          placeholder="Start typing a name; add several, separated by commas"
           value={users}
           onChange={setUsers}
           onAnnounce={announce}
@@ -466,7 +465,7 @@ export function MailboxAccessWriteCard({
         />
       </Field>
       <fieldset className="space-y-1.5">
-        <legend className="mb-1.5 text-sm font-medium">Rights</legend>
+        <legend className="mb-1.5 text-sm font-medium">Permissions</legend>
         <div className="flex flex-wrap gap-2">
           {rights.map((right) => {
             const on = chosen.includes(right);
@@ -495,14 +494,14 @@ export function MailboxAccessWriteCard({
           disabled={!automapping}
           onChange={(event) => setNoAutoMapping(event.target.checked)}
         />
-        Without automapping: Outlook does not add the mailbox for them on its own (a FullAccess grant only)
+        Without automapping: Outlook won't add the mailbox for them automatically (Full Access only)
       </label>
     </div>
   );
   return (
     <WriteCard
-      title="Mailbox rights"
-      description="Grant or revoke FullAccess, Send As or Send on Behalf on a mailbox: the plan first, then your confirmation."
+      title="Change mailbox permissions"
+      description="Grant or revoke Full Access, Send As or Send on Behalf on a mailbox. You review the plan before anything changes."
       client={client}
       signedIn={signedIn}
       exchangeError={exchangeError}
@@ -550,7 +549,7 @@ export function MailboxForwardingCard({
   const set = mode === "set";
   const missing = [
     ...(mailbox.trim() === "" ? ["the mailbox"] : []),
-    ...(set && to.trim() === "" ? ["the address to forward to"] : []),
+    ...(set && to.trim() === "" ? ["the email address to forward to"] : []),
   ];
   const request: WriteRequest | null =
     missing.length === 0
@@ -561,7 +560,7 @@ export function MailboxForwardingCard({
   const picks = (announce: (text: string) => void) => (
     <div className="space-y-4">
       <Choice
-        label="Set or clear"
+        label="Forward or stop forwarding"
         value={mode}
         options={[
           ["set", "Forward"],
@@ -586,7 +585,7 @@ export function MailboxForwardingCard({
             <UserPicker
               client={client}
               id={`${id}-to`}
-              placeholder="Start typing a name, or an outside address in full"
+              placeholder="Start typing a name, or enter a full email address"
               value={to}
               onChange={setTo}
               onAnnounce={announce}
@@ -609,7 +608,7 @@ export function MailboxForwardingCard({
   return (
     <WriteCard
       title="Mailbox forwarding"
-      description="Forward a mailbox's mail to an address, or stop it: the plan first, then your confirmation."
+      description="Forward a mailbox's mail to another email address, or stop forwarding it. You review the plan before anything changes."
       client={client}
       signedIn={signedIn}
       exchangeError={exchangeError}

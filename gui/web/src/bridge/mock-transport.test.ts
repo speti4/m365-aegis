@@ -40,7 +40,7 @@ describe("the browser mock", () => {
       data: {
         code: "usage",
         message: "no user was named",
-        hint: "give the user's user principal name, address or object id",
+        hint: "enter the user's sign-in name, email address or object ID",
       },
     });
   });
@@ -55,7 +55,7 @@ describe("the browser mock", () => {
     expect(await names("xample")).toEqual([]);
     expect(await client().call(MessageType.userSearch, {})).toEqual({
       type: MessageType.error,
-      data: { code: "usage", message: "no text to search for", hint: "type the start of a name or an address" },
+      data: { code: "usage", message: "no text to search for", hint: "enter the start of a name or an email address" },
     });
   });
 

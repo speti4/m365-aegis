@@ -72,7 +72,7 @@ public sealed class BridgeAccessTests
 
         BridgeMessage? reply = await Dispatcher(home).DispatchAsync(Request(data), None);
 
-        AssertError(reply, "usage", "give the user's user principal name, address or object id");
+        AssertError(reply, "usage", "enter the user's sign-in name, email address or object ID");
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public sealed class BridgeAccessTests
 
         BridgeMessage? reply = await Dispatcher(home).DispatchAsync(request, None);
 
-        AssertError(reply, "usage", "type the start of a name or an address");
+        AssertError(reply, "usage", "enter the start of a name or an email address");
     }
 
     [Fact]

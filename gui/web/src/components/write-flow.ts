@@ -1,5 +1,5 @@
 import { type BridgeError, MessageType, type PlanApplied, type PlanReady, type Reply } from "../bridge/protocol";
-import { count } from "./plan-wording";
+import { plural } from "./vocabulary";
 
 /**
  * The flow of a write card (task 082), the sketch's flow of task 018 over the core's real `Plan`: pick the objects,
@@ -32,7 +32,7 @@ export const initialWriteState: WriteState = { step: "pick" };
 export function writeReducer(state: WriteState, event: WriteEvent): WriteState {
   switch (event.type) {
     case "request-plan":
-      // From a result too: "See the plan again" after an apply not done in full (task 126).
+      // From a result too: "Review the plan again" after an apply not done in full (task 126).
       return state.step === "pick" || state.step === "refused" || state.step === "result"
         ? { step: "planning" }
         : state;
@@ -73,8 +73,8 @@ export function canConfirm(ready: PlanReady): boolean {
   return ready.planId !== undefined && ready.plan.changes.length > 0;
 }
 
-/** The four steps the card shows above its body, as the sketch names them. */
-export const writeStepNames = ["Pick", "Plan", "Confirm", "Result"] as const;
+/** The four steps the card shows above its body (task 122: Choose, Review, Confirm, Result). */
+export const writeStepNames = ["Choose", "Review", "Confirm", "Result"] as const;
 
 /** Which of the four steps is current. */
 export function writeStepIndex(state: WriteState): number {
@@ -112,15 +112,15 @@ export function writeStatus(state: WriteState): string {
     case "refused":
       return "";
     case "planning":
-      return "Computing the plan…";
+      return "Preparing the plan…";
     case "plan": {
       const changes = state.ready.plan.changes.length;
-      return changes === 0 ? "Plan: nothing to change" : `Plan: ${count(changes, "change")}`;
+      return changes === 0 ? "Plan: nothing to change" : `Plan: ${plural(changes, "change")}`;
     }
     case "confirming":
-      return `Confirm: ${count(state.ready.plan.changes.length, "change")}`;
+      return `Confirm: ${plural(state.ready.plan.changes.length, "change")}`;
     case "applying":
-      return "Applying the plan…";
+      return "Making the changes…";
     case "result": {
       const { changes } = state.applied.plan;
       const done = changes.filter((change) => change.result?.status === "applied").length;
@@ -128,7 +128,7 @@ export function writeStatus(state: WriteState): string {
         case "done":
           return "Done: every change was made";
         case "partial":
-          return `Partly done: ${done} of ${count(changes.length, "change")} made`;
+          return `Partly done: ${done} of ${plural(changes.length, "change")} made`;
         case "failed":
           return "Not done: no change was made";
       }

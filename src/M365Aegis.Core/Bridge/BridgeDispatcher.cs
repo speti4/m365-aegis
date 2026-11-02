@@ -301,7 +301,7 @@ public sealed class BridgeDispatcher
             return Error(request, new AegisFailure(
                 FailureKind.Usage,
                 "the group is missing",
-                "give the exact display name, the address, the object id, or a word of the name"));
+                "enter the group's name, email address or object ID, or one word of its name"));
         }
 
         GraphClient graph = _services.Graph(new RequestLog());
@@ -317,8 +317,8 @@ public sealed class BridgeDispatcher
         {
             return Task.FromResult(Error(request, new AegisFailure(
                 FailureKind.Usage,
-                "give a mailbox or a user, not both and not neither",
-                "a mailbox lists who can open or send as it; a user lists the mailboxes the user can open or send as")));
+                "choose a mailbox or a user, not both",
+                "a mailbox lists who has permissions on it; a user lists the mailboxes the user has permissions on")));
         }
 
         // A mailbox reads as `mailbox access <mailbox>` does (task 063): the mailbox and its Send on Behalf delegates by
@@ -356,7 +356,7 @@ public sealed class BridgeDispatcher
             return Error(request, new AegisFailure(
                 FailureKind.Usage,
                 "no user was named",
-                "give the user's user principal name, address or object id"));
+                "enter the user's sign-in name, email address or object ID"));
         }
 
         return FromSnapshot(request, (home, profile) =>
@@ -375,7 +375,7 @@ public sealed class BridgeDispatcher
         string? text = Text(request, "text");
         if (text is null)
         {
-            return Error(request, new AegisFailure(FailureKind.Usage, "no text to search for", "type the start of a name or an address"));
+            return Error(request, new AegisFailure(FailureKind.Usage, "no text to search for", "enter the start of a name or an email address"));
         }
 
         try
@@ -463,20 +463,20 @@ public sealed class BridgeDispatcher
             return Task.FromResult(Error(request, new AegisFailure(
                 FailureKind.Usage,
                 "no user was named",
-                "give each user's user principal name or address, or a mail-enabled security group's address")));
+                "enter each person's sign-in name or email address, or a mail-enabled security group's email address")));
         }
 
         if (rights.Count == 0)
         {
-            return Task.FromResult(Error(request, new AegisFailure(FailureKind.Usage, "no right was chosen", "choose FullAccess, Send As or Send on Behalf")));
+            return Task.FromResult(Error(request, new AegisFailure(FailureKind.Usage, "no permission was chosen", "choose Full Access, Send As or Send on Behalf")));
         }
 
         if (noAutoMapping && !rights.Any(right => MailboxLookups.ParseRight(right) == MailboxRight.FullAccess))
         {
             return Task.FromResult(Error(request, new AegisFailure(
                 FailureKind.Usage,
-                "without automapping goes with FullAccess",
-                "automapping is how Outlook adds a mailbox its FullAccess holder can open; choose FullAccess, or clear Without automapping")));
+                "without automapping goes with Full Access",
+                "automapping is how Outlook adds a mailbox for someone with Full Access; choose Full Access, or clear Without automapping")));
         }
 
         // The mailbox and each right are checked as the command line checks them, in words that fit the card too.
@@ -505,7 +505,7 @@ public sealed class BridgeDispatcher
             return Task.FromResult(Error(request, new AegisFailure(
                 FailureKind.Usage,
                 "the forwarding address is missing",
-                "give the address to forward to, such as bob@fabrikam.com")));
+                "enter the email address to forward to, such as bob@fabrikam.com")));
         }
 
         IReadOnlyList<ForwardingRow> rows = MailboxLookups.ForwardingRows(Text(request, "mailbox"), to, keepCopy, set, "the forwarding address");

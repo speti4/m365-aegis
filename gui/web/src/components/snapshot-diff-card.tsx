@@ -7,35 +7,28 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { BridgeClient } from "../bridge/client";
 import {
   MessageType,
-  type SnapshotDiffEntry,
   type SnapshotDiffReport,
   type SnapshotDiffSide,
   type TooFewSnapshotsInfo,
 } from "../bridge/protocol";
 import { Field, LiveStatus, LookupError, SubmitButton, useLookup } from "./card-parts";
-import { rightNames } from "./mailbox-access-card";
 import { Notice } from "./plan-view";
 import { diffPart, windowWarning } from "./plan-wording";
 import { describeAge, describeTaken } from "./user-access-card";
 import { UserPicker } from "./user-picker";
-
-/** How a row holds what it holds, a mailbox right in the window's words. */
-const howShown = (entry: SnapshotDiffEntry) => (rightNames as Record<string, string>)[entry.how] ?? entry.how;
-
-/** A sentence from the core's lower-case one. */
-const sentence = (text: string) => `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
+import { diffHow, sentence } from "./vocabulary";
 
 type Result = { kind: "report"; data: SnapshotDiffReport } | { kind: "too-few"; data: TooFewSnapshotsInfo };
 
 /**
  * Who gained or lost access between two snapshots (task 115), as `snapshot diff` answers it (task 098): the newest
  * snapshot and the one before it unless the colleague names them (a name, `latest`, `yesterday` or a date), every
- * membership, owner, shared file, mailbox right, calendar permission and forwarding that appeared or disappeared, by
+ * membership, owner, shared file, mailbox permission, calendar permission and forwarding that appeared or disappeared, by
  * part of the tenant; with a user, that user's changes only, nested memberships and what comes through a group
  * included (task 114). The host reads the snapshot files on this computer only: no sign-in, no request to Microsoft
  * 365. With fewer than two snapshots the card says so plainly. A failure shows under the fields and drops the old
  * answer (task 120); the fields stay usable while the host compares, and the status region says what is going on
- * (task 121). A line under the fields says what From and To take, and the user field is the user picker (task 126):
+ * (task 121). A line under the fields says what "Compare from" and "Compare to" take, and the user field is the user picker (task 126):
  * a pick fills it, Enter on a closed list compares.
  */
 export function SnapshotDiffCard({ client }: { client: BridgeClient }) {
@@ -70,8 +63,8 @@ export function SnapshotDiffCard({ client }: { client: BridgeClient }) {
   }
 
   const sides = [
-    { name: "from", label: "From", placeholder: "The one before", value: from, set: setFrom },
-    { name: "to", label: "To", placeholder: "The newest", value: to, set: setTo },
+    { name: "from", label: "Compare from", placeholder: "Snapshot before the latest", value: from, set: setFrom },
+    { name: "to", label: "Compare to", placeholder: "Latest snapshot", value: to, set: setTo },
   ];
   const errorId = `${id}-error`;
   const hintId = `${id}-sides-hint`;
@@ -80,9 +73,7 @@ export function SnapshotDiffCard({ client }: { client: BridgeClient }) {
       <CardHeader>
         <CardTitle id={`${id}-title`}>Access changes</CardTitle>
         <CardDescription>
-          Who gained or lost access between two snapshots of the tenant on this computer: the newest and the one before
-          it, unless you name them. A user narrows it to that person, groups within groups included. Nothing is asked of
-          Microsoft 365.
+          See who gained or lost access between two snapshots on this computer, for everyone or for one user.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -119,8 +110,8 @@ export function SnapshotDiffCard({ client }: { client: BridgeClient }) {
             </Field>
           </div>
           <p id={hintId} className="text-xs text-muted-foreground" data-testid="sides-hint">
-            Leave From and To empty to compare the newest snapshot with the one before it. Each also takes{" "}
-            <code>latest</code>, <code>yesterday</code>, a date such as <code>2026-10-31</code>, or a snapshot's name.
+            Leave both empty to compare the latest snapshot with the one before it. Each also takes <code>latest</code>,{" "}
+            <code>yesterday</code>, a date such as <code>2026-10-31</code>, or a snapshot's name.
           </p>
           <SubmitButton busy={busy} missing={null} hintId={`${id}-hint`} idle="Compare" working="Comparing…" />
         </form>
@@ -144,7 +135,7 @@ export function TooFewSnapshotsView({ info }: { info: TooFewSnapshotsInfo }) {
   return (
     <Notice tone="info" icon={<History aria-hidden />} title="Nothing to compare yet">
       <p>{sentence(info.message)}</p>
-      <p className="text-muted-foreground">{info.hint}</p>
+      <p className="text-muted-foreground">{sentence(info.hint)}</p>
     </Notice>
   );
 }
@@ -213,12 +204,14 @@ export function SnapshotDiffView({ report }: { report: SnapshotDiffReport }) {
                 .map((entry) => (
                   <TableRow key={`${entry.change}:${entry.what}:${entry.who}:${entry.how}:${entry.through}`}>
                     <TableCell>
-                      <Badge variant={entry.change === "added" ? "success" : "danger"}>{entry.change}</Badge>
+                      <Badge variant={entry.change === "added" ? "success" : "danger"}>
+                        {entry.change === "added" ? "Added" : "Removed"}
+                      </Badge>
                     </TableCell>
                     <TableCell>{entry.what}</TableCell>
                     <TableCell>{entry.who}</TableCell>
-                    <TableCell>{howShown(entry)}</TableCell>
-                    {user ? <TableCell>{entry.through ?? "direct"}</TableCell> : null}
+                    <TableCell>{diffHow(entry.domain, entry.how)}</TableCell>
+                    {user ? <TableCell>{entry.through ?? "Direct"}</TableCell> : null}
                   </TableRow>
                 ))}
             </TableBody>

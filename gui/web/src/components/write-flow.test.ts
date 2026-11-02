@@ -13,14 +13,14 @@ import {
 
 const plan: Plan = {
   operation: "mailbox-access-grant",
-  title: "Grant mailbox rights on Finance (finance@contoso.com)",
+  title: "Grant mailbox permissions on Finance (finance@contoso.com)",
   changes: [
     {
       action: "add",
       target: "Finance (finance@contoso.com)",
-      detail: "FullAccess for Bob Example (bob@contoso.com)",
-      current: "no FullAccess",
-      desired: "holds FullAccess",
+      detail: "Full Access for Bob Example (bob@contoso.com)",
+      current: "no Full Access",
+      desired: "has Full Access",
     },
   ],
   unchanged: [],
@@ -133,14 +133,14 @@ describe("what a write card's status region says (task 121)", () => {
     const two = { ...ready, plan: { ...plan, changes: [plan.changes[0], { ...plan.changes[0], detail: "d" }] } };
     expect(writeStatus({ step: "pick" })).toBe("");
     expect(writeStatus({ step: "refused", error: { code: "usage", message: "m" }, applying: false })).toBe("");
-    expect(writeStatus({ step: "planning" })).toBe("Computing the plan…");
+    expect(writeStatus({ step: "planning" })).toBe("Preparing the plan…");
     expect(writeStatus({ step: "plan", ready })).toBe("Plan: 1 change");
     expect(writeStatus({ step: "plan", ready: two })).toBe("Plan: 2 changes");
     expect(writeStatus({ step: "plan", ready: { ...ready, plan: { ...plan, changes: [] } } })).toBe(
       "Plan: nothing to change",
     );
     expect(writeStatus({ step: "confirming", ready: two })).toBe("Confirm: 2 changes");
-    expect(writeStatus({ step: "applying", ready })).toBe("Applying the plan…");
+    expect(writeStatus({ step: "applying", ready })).toBe("Making the changes…");
   });
 
   it("says how an apply ended", () => {

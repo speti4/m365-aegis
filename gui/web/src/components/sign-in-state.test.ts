@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DeviceCodePrompt, Reply, SignedOutInfo, SignInInfo } from "../bridge/protocol";
-import { describeElapsed, rightNames } from "./mailbox-access-card";
+import { describeElapsed } from "./mailbox-access-card";
 import { canSignIn, type SignInState, signInReducer, signInStatus } from "./sign-in-state";
 
 const alice: SignInInfo = { profile: "work", account: "alice@contoso.com", tokens: [] };
@@ -88,15 +88,7 @@ describe("the sign-in card's state", () => {
   });
 });
 
-describe("the mailbox access card's wording", () => {
-  it("names the rights as the command line's table does", () => {
-    expect(rightNames).toEqual({
-      "full-access": "FullAccess",
-      "send-as": "Send As",
-      "send-on-behalf": "Send on Behalf",
-    });
-  });
-
+describe("the mailbox permissions card's wording", () => {
   it("writes the answer's time in milliseconds under a second, in seconds above", () => {
     expect(describeElapsed(412.4)).toBe("412 ms");
     expect(describeElapsed(2412)).toBe("2.4 s");

@@ -360,7 +360,7 @@ public sealed partial class PlanCommandTests
         using JsonDocument document = JsonDocument.Parse(stdout);
         JsonElement data = document.RootElement.GetProperty("data");
         Assert.Equal("dry-run", data.GetProperty("mode").GetString());
-        Assert.Equal("FullAccess for Bob Example (bob@contoso.com), without automapping", Assert.Single(data.GetProperty("changes").EnumerateArray()).GetProperty("detail").GetString());
+        Assert.Equal("Full Access for Bob Example (bob@contoso.com), without automapping", Assert.Single(data.GetProperty("changes").EnumerateArray()).GetProperty("detail").GetString());
         Assert.Single(Records(home));
     }
 
