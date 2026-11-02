@@ -1140,13 +1140,29 @@ display name, in any case) marks the list ("…so it may be out of date") and of
 `mailbox-access` for the user; the card never reads the user again on its own, since the reverse lookup goes over
 every mailbox (task 043). An apply that names another user, or a forwarding, marks nothing.
 
+**The top bar and the "Show it" line** (task 124, `components/top-bar.tsx`): the page is one column of sections, the
+sign-in card and three groups (`#look-up`, `#snapshots`, `#change`), under a sticky bar with the version, the links to
+the groups and the sign-in state that `App` already holds (the dot, the state in words, the account, the tenant id's
+first eight characters, the profile, Sign in or Sign out). A link scrolls its section to the top with `scrollIntoView`
+(smoothly unless the user asked for reduced motion, below the bar through `scroll-margin-top`) and moves the focus
+there; it does not change the address, since the dev sketch's route is a hash. `exchangeError` (`sign-in-state.ts`)
+is the whoami reply's Exchange Online row's error: the bar and the sign-in card's badge read "signed in · Exchange
+unavailable" and the write cards show "Exchange Online unavailable" with "See the plan" disabled. The channel's
+message carries an `onReRead` callback of the write card that applied it: once the mailbox access card has read the
+mailbox again and shows the answer, it calls it with its title, the mailbox's name and a `show` function, and the write
+card's result step says "The Mailbox access card read Reception again after this change." with "Show it", which
+scrolls to that card and focuses it. A failed read again, or an answer after the card started over, shows nothing.
+
 **The user access card** (task 102, `components/user-access-card.tsx`): a user, then `access`; the answer in five
 sections (groups with the member groups a nested membership comes through, sites, shared files, mailboxes, calendars),
 each a table or a line when it is empty, the snapshot's time in UTC and its age, what reaches everyone as counts, and
 the access view's warnings through the wording map below. `no-snapshot` is a plain "No snapshot yet" state with the
 host's hint; an `error` reply is the page's toast. The card does not wait for a sign-in. The browser mock answers dave
 from `src/bridge/mock-access.ts`, which a Vitest test holds equal to the `access-report.json` sample, and
-`?mock=no-snapshot` in the address starts the mock without a snapshot.
+`?mock=no-snapshot` in the address starts the mock without a snapshot. `?mock=no-exchange` starts it signed in
+without an Exchange Online token (the whoami reply's Exchange Online row carries an error), so the top bar's and the
+sign-in card's "signed in · Exchange unavailable" and the write cards' "Exchange Online unavailable" show (task 124);
+the mock's own Exchange Online answers do not change.
 
 **The user picker** (task 112, `components/user-picker.tsx`): the user field of the user access card and of the
 mailbox access card's "A user". Once three letters are typed it sends `user-search` after a pause of 250 ms, so a word

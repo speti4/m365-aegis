@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Toaster } from "@/components/ui/sonner";
 import { BridgeClient, SIGN_IN_TIMEOUT_MS } from "./bridge/client";
 import { type BridgeError, MessageType } from "./bridge/protocol";
@@ -10,8 +9,9 @@ import { GroupMembersCard } from "./components/group-members-card";
 import { MailboxAccessCard } from "./components/mailbox-access-card";
 import { MailboxAccessWriteCard, MailboxForwardingCard } from "./components/mailbox-write-cards";
 import { SignInCard } from "./components/sign-in-card";
-import { signInReducer } from "./components/sign-in-state";
+import { exchangeError, signInReducer } from "./components/sign-in-state";
 import { SnapshotDiffCard } from "./components/snapshot-diff-card";
+import { pageGroups, signInSection, TopBar } from "./components/top-bar";
 import { UserAccessCard } from "./components/user-access-card";
 
 /**
@@ -23,7 +23,8 @@ import { UserAccessCard } from "./components/user-access-card";
  * the confirmation, the result); an `error` reply of a lookup is a toast, a write card shows its own. A change a write
  * card applied reaches the mailbox access card, which reads the mailbox it shows again (task 091) or marks the user's
  * list it shows as possibly out of date (task 103). The cards follow the design sketch of task 018, a dev-only page: `npm run dev`, then
- * `#/sketch/task-cards`.
+ * `#/sketch/task-cards`. The top bar stays at the top with the sign-in and the links to the card groups (task 124):
+ * Look up, Snapshots and Change, each a section of the one page.
  */
 export function App() {
   const { transport, hosted } = useMemo(() => createTransport(), []);
@@ -100,31 +101,64 @@ export function App() {
     void checkSignIn();
   }, [client, checkSignIn]);
 
+  const signedIn = signIn.status === "signed-in";
+  const noExchange = exchangeError(signIn);
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-5xl space-y-6 p-6">
-        <header className="flex flex-wrap items-baseline gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">m365-aegis</h1>
-          <span className="text-sm text-muted-foreground" data-testid="version">
-            {version ?? "…"}
-          </span>
-          {hosted ? null : <Badge variant="outline">browser mock: made-up data, no host</Badge>}
-        </header>
-        <SignInCard
-          state={signIn}
-          onRefresh={() => void checkSignIn()}
-          onSignIn={(deviceCode) => void signInWith(deviceCode)}
-          onSignOut={() => void signOut()}
-          onOpenSignInPage={() => void openSignInPage()}
-        />
-        <GroupMembersCard client={client} onError={showError} />
-        <MailboxAccessCard client={client} onError={showError} applied={applied} />
-        <UserAccessCard client={client} onError={showError} />
-        <SnapshotDiffCard client={client} onError={showError} />
-        <MailboxAccessWriteCard client={client} signedIn={signIn.status === "signed-in"} onApplied={applied.publish} />
-        <MailboxForwardingCard client={client} signedIn={signIn.status === "signed-in"} onApplied={applied.publish} />
-      </div>
+    <div className="min-h-screen bg-background text-foreground">
+      <TopBar
+        version={version}
+        hosted={hosted}
+        signIn={signIn}
+        onSignIn={() => void signInWith(false)}
+        onSignOut={() => void signOut()}
+      />
+      <main className="mx-auto max-w-5xl space-y-8 p-6">
+        <section id={signInSection} tabIndex={-1} aria-label="Sign-in" className="scroll-mt-16 outline-none">
+          <SignInCard
+            state={signIn}
+            onRefresh={() => void checkSignIn()}
+            onSignIn={(deviceCode) => void signInWith(deviceCode)}
+            onSignOut={() => void signOut()}
+            onOpenSignInPage={() => void openSignInPage()}
+          />
+        </section>
+        <Group index={0}>
+          <GroupMembersCard client={client} onError={showError} />
+          <MailboxAccessCard client={client} onError={showError} applied={applied} />
+        </Group>
+        <Group index={1}>
+          <UserAccessCard client={client} onError={showError} />
+          <SnapshotDiffCard client={client} onError={showError} />
+        </Group>
+        <Group index={2}>
+          <MailboxAccessWriteCard
+            client={client}
+            signedIn={signedIn}
+            exchangeError={noExchange}
+            onApplied={applied.publish}
+          />
+          <MailboxForwardingCard
+            client={client}
+            signedIn={signedIn}
+            exchangeError={noExchange}
+            onApplied={applied.publish}
+          />
+        </Group>
+      </main>
       <Toaster position="bottom-right" />
-    </main>
+    </div>
+  );
+}
+
+/** A group of cards the top bar links to (task 124): a section with the group's id and its name as the heading. */
+function Group({ index, children }: { index: number; children: ReactNode }) {
+  const { id, name } = pageGroups[index];
+  return (
+    <section id={id} tabIndex={-1} aria-labelledby={`${id}-heading`} className="scroll-mt-16 space-y-4 outline-none">
+      <h2 id={`${id}-heading`} className="text-sm font-semibold text-muted-foreground">
+        {name}
+      </h2>
+      {children}
+    </section>
   );
 }

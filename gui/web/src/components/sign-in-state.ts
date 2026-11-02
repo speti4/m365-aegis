@@ -72,3 +72,33 @@ function afterReply(state: SignInState, reply: Reply): SignInState {
 export function canSignIn(state: SignInState): boolean {
   return state.status === "signed-out" && state.info.profile !== undefined;
 }
+
+/**
+ * Why the window has no Exchange Online token though it is signed in (task 124): the error of the whoami reply's
+ * Exchange Online row, which the mailbox cards cannot work without; null when the row has a token, or when the window
+ * is not signed in.
+ */
+export function exchangeError(state: SignInState): string | null {
+  if (state.status !== "signed-in") {
+    return null;
+  }
+  return state.info.tokens.find((token) => token.resource === "exchange")?.error ?? null;
+}
+
+/** The state in a few words, as the badge on the sign-in card and the top bar write it; null while it is read. */
+export function statusLabel(state: SignInState): string | null {
+  switch (state.status) {
+    case "signed-in":
+      return exchangeError(state) === null ? "signed in" : "signed in · Exchange unavailable";
+    case "signed-out":
+      return "signed out";
+    case "signing-in":
+      return "signing in…";
+    case "signing-out":
+      return "signing out…";
+    case "unknown":
+      return "sign-in unknown";
+    default:
+      return null;
+  }
+}

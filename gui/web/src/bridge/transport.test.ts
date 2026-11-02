@@ -227,6 +227,20 @@ describe("the browser mock's sign-in and mailboxes", () => {
     expect((await signedOut.call(MessageType.access, { user: "dave@contoso.com" })).type).toBe("access-report");
   });
 
+  it("starts signed in without an Exchange Online token with ?mock=no-exchange, and with one otherwise (task 124)", async () => {
+    const exchangeRow = async (search: string) => {
+      const reply = await new BridgeClient(createTransport({ location: { search } }).transport).call(
+        MessageType.whoami,
+      );
+      return reply.type === MessageType.signedIn
+        ? reply.data.tokens.find((token) => token.resource === "exchange")
+        : null;
+    };
+
+    expect((await exchangeRow("?mock=no-exchange"))?.error).toBe("the consent for Exchange Online is missing (a mock)");
+    expect(await exchangeRow("")).toMatchObject({ expiresOn: "2026-10-29T15:00:00+01:00" });
+  });
+
   it("answers open-sign-in-page while a device-code sign-in waits, and refuses it otherwise (task 047)", async () => {
     const client = new BridgeClient(new MockTransport({ signedIn: false }));
     const opened: Promise<unknown>[] = [];

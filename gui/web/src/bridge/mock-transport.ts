@@ -29,6 +29,20 @@ const mockSignIn: SignInInfo = {
       scopes: ["User.Read", "Group.Read.All"],
       origin: "broker",
     },
+    {
+      resource: "exchange",
+      expiresOn: "2026-10-29T15:00:00+01:00",
+      scopes: ["Exchange.Manage"],
+      origin: "broker",
+    },
+  ],
+};
+
+/** The same account without an Exchange Online token, as `?mock=no-exchange` starts it (task 124). */
+const mockSignInWithoutExchange: SignInInfo = {
+  ...mockSignIn,
+  tokens: [
+    mockSignIn.tokens[0],
     { resource: "exchange", error: "the consent for Exchange Online is missing (a mock)", scopes: [] },
   ],
 };
@@ -159,6 +173,8 @@ export interface MockOptions {
   signedIn?: boolean;
   /** Whether the profile has snapshots for the access and the diff cards (the default) or none (tasks 102, 115). */
   snapshot?: boolean;
+  /** Whether the account has an Exchange Online token (the default) or its row carries an error (task 124). */
+  exchange?: boolean;
 }
 
 /**
@@ -178,6 +194,7 @@ export class MockTransport implements Transport {
   private readonly delayMs: number;
   private signedIn: boolean;
   private readonly snapshot: boolean;
+  private readonly exchange: boolean;
   /** The page of the device-code sign-in in flight, which `open-sign-in-page` "opens"; null when none waits. */
   private signInPage: string | null = null;
   /** The mailboxes' holders and forwarding, which an apply changes. */
@@ -186,10 +203,11 @@ export class MockTransport implements Transport {
   /** The plans waiting for their confirmation; a sign-in or a sign-out drops them, as the host does. */
   private writes = this.newWrites();
 
-  constructor({ delayMs = 0, signedIn = true, snapshot = true }: MockOptions = {}) {
+  constructor({ delayMs = 0, signedIn = true, snapshot = true, exchange = true }: MockOptions = {}) {
     this.delayMs = delayMs;
     this.signedIn = signedIn;
     this.snapshot = snapshot;
+    this.exchange = exchange;
   }
 
   send(message: BridgeMessage): void {
@@ -229,6 +247,10 @@ export class MockTransport implements Transport {
     };
   }
 
+  private account(): SignInInfo {
+    return this.exchange ? mockSignIn : mockSignInWithoutExchange;
+  }
+
   private newWrites(): MockWrites {
     return new MockWrites(find, this.holders, this.forwarding);
   }
@@ -250,7 +272,7 @@ export class MockTransport implements Transport {
         return { type: MessageType.pong, data: { product: "m365-aegis", version: "dev (browser mock)" } };
       case MessageType.whoami:
         return this.signedIn
-          ? { type: MessageType.signedIn, data: mockSignIn }
+          ? { type: MessageType.signedIn, data: this.account() }
           : {
               type: MessageType.signedOut,
               data: {
@@ -263,7 +285,7 @@ export class MockTransport implements Transport {
       case MessageType.login:
         this.signedIn = true;
         this.writes = this.newWrites();
-        return { type: MessageType.signedIn, data: mockSignIn };
+        return { type: MessageType.signedIn, data: this.account() };
       case MessageType.openSignInPage:
         // A plain browser has no host to hand the page to: the mock only answers as the host would.
         return this.signInPage

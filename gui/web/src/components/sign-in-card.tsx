@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { DeviceCodePrompt, ResourceToken } from "../bridge/protocol";
-import { canSignIn, type SignInState } from "./sign-in-state";
+import { canSignIn, exchangeError, type SignInState, statusLabel } from "./sign-in-state";
 
 export type { SignInState } from "./sign-in-state";
 
@@ -62,16 +62,21 @@ export function SignInCard({
   );
 }
 
+/**
+ * The state's badge: "signed in · Exchange unavailable" when the Exchange Online row has no token (task 124), which
+ * the row below names; nothing while the state is read.
+ */
 function StatusBadge({ state }: { state: SignInState }) {
+  const label = statusLabel(state);
   switch (state.status) {
     case "signed-in":
-      return <Badge>signed in</Badge>;
+      return <Badge variant={exchangeError(state) === null ? "default" : "outline"}>{label}</Badge>;
     case "signed-out":
-      return <Badge variant="destructive">signed out</Badge>;
+    case "unknown":
+      return <Badge variant="destructive">{label}</Badge>;
     case "signing-in":
-      return <Badge variant="secondary">signing in…</Badge>;
     case "signing-out":
-      return <Badge variant="secondary">signing out…</Badge>;
+      return <Badge variant="secondary">{label}</Badge>;
     default:
       return null;
   }

@@ -60,7 +60,9 @@ export class WebViewTransport implements Transport {
 /**
  * The transport of this page: WebView2's when the page runs in the window, the mock otherwise. In the browser,
  * `?mock=signed-out` in the address starts the mock signed out, so the sign-in card's flow can be tried, and
- * `?mock=no-snapshot` starts it without a snapshot, so the access and diff cards' plain states show (tasks 102, 115).
+ * `?mock=no-snapshot` starts it without a snapshot, so the access and diff cards' plain states show (tasks 102, 115),
+ * and `?mock=no-exchange` signed in without an Exchange Online token, so the sign-in's "Exchange unavailable" state
+ * shows (task 124).
  */
 export function createTransport(scope: unknown = globalThis): { transport: Transport; hosted: boolean } {
   const webview = findWebView(scope);
@@ -70,7 +72,12 @@ export function createTransport(scope: unknown = globalThis): { transport: Trans
   const search = (scope as { location?: { search?: unknown } } | undefined)?.location?.search;
   const mock = typeof search === "string" ? new URLSearchParams(search).get("mock") : null;
   return {
-    transport: new MockTransport({ delayMs: 300, signedIn: mock !== "signed-out", snapshot: mock !== "no-snapshot" }),
+    transport: new MockTransport({
+      delayMs: 300,
+      signedIn: mock !== "signed-out",
+      snapshot: mock !== "no-snapshot",
+      exchange: mock !== "no-exchange",
+    }),
     hosted: false,
   };
 }

@@ -416,7 +416,15 @@ fixes it, and `access` keeps answering from the last snapshot with its age.
 ## The window
 
 `m365-aegis-gui.exe` opens the window. It uses the same tenant profile, the same sign-in and the same plans as the
-command line; the first profile is written by `m365-aegis login` on the command line. Each task is a card.
+command line; the first profile is written by `m365-aegis login` on the command line. Each task is a card, and the
+cards come in three groups on one page: Look up (group members, mailbox access), Snapshots (user access, access
+changes) and Change (mailbox rights, mailbox forwarding).
+
+The bar at the top stays in place while the page scrolls. It shows the version, the links to the three groups
+(each scrolls its group to the top), and the sign-in: a dot and the state in words ("signed in", "signed in ·
+Exchange unavailable", "signed out"), the account, the tenant id shortened to its first eight characters (the whole
+id when you point at it), the profile, and "Sign in" or "Sign out". The state links to the sign-in card, which keeps
+the details.
 
 ### Sign-in
 
@@ -424,7 +432,9 @@ The card shows the account, the profile, the tenant and each token's expiry, rea
 does. Signed out, "Sign in" opens the Windows sign-in window over this one, and "Sign in with a code" shows a device
 code instead, with "Open in browser" for its page and "Copy the code"; the card updates when the sign-in completes.
 "Sign out" signs the account out; "Refresh" reads the state again. Without a profile the card says so: run
-`m365-aegis login` on the command line once.
+`m365-aegis login` on the command line once. "signed in · Exchange unavailable" means the account is signed in but
+the Exchange Online row has no token, usually because the Exchange Online permission is not consented yet: the row
+says why, and the mailbox write cards wait (see below) until an administrator consents and "Refresh" reads a token.
 
 ### Group members
 
@@ -491,12 +501,15 @@ Grants or revokes FullAccess, Send As or Send on Behalf on a mailbox, as `m365-a
    which stands for `--yes`. "Back to the plan" changes nothing.
 4. Result: "Done", "Partly done" or "Not done", each change with its result and the service's message. The apply is
    recorded like one from the command line, so `m365-aegis plan list` shows it and `--resume` continues a partial
-   one. "Done" starts the card over.
+   one. When the [Mailbox access](#mailbox-access) card shows the mailbox and reads it again after the change, the
+   result says so ("The Mailbox access card read Reception again after this change.") and "Show it" scrolls up to
+   that card. "Done" starts the card over.
 
 "Refused: nothing was changed" means the window did not send anything (a plan older than 15 minutes, for one: see
 the plan again). "Stopped: check the mailbox before you try again" means the apply broke off and some changes may
 have been made: look at the mailbox, or at `m365-aegis plan list`, before you try again. A card that needs a
-sign-in says so and waits for the sign-in card.
+sign-in says so and waits for the sign-in card; signed in without an Exchange Online token it says "Exchange Online
+unavailable" with the reason and waits too, since the plan reads the mailbox through Exchange Online.
 
 ### Mailbox forwarding
 

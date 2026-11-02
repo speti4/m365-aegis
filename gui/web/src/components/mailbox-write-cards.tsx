@@ -1,4 +1,4 @@
-import { ArrowLeft, CircleX, LogIn, TriangleAlert } from "lucide-react";
+import { ArrowLeft, CircleX, LogIn, TriangleAlert, Unplug } from "lucide-react";
 import { type ReactNode, useEffect, useReducer, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import {
   MessageType,
   type PlanReady,
 } from "../bridge/protocol";
-import { type AppliedWrite, detailAddresses, targetAddresses } from "./applied-writes";
+import { type AppliedWrite, detailAddresses, type ReRead, targetAddresses } from "./applied-writes";
 import { rightNames } from "./mailbox-access-card";
 import { ConfirmView, ErrorText, Notice, PlanView, ResultView, Stepper, Working } from "./plan-view";
 import { canConfirm, initialWriteState, type WriteState, writeReducer } from "./write-flow";
@@ -38,14 +38,17 @@ export function splitList(text: string): string[] {
  * A write card (task 082): the picks, then the plan the host computed (`--dry-run`'s, nothing sent), the confirmation
  * (the `apply-plan` with `confirm: true`, which stands for `--yes`) and the result of each change, as the task card
  * sketch of task 018 drew it. Going back before the confirmation sends nothing. Signed out, the card waits for a
- * sign-in and an open plan goes back to the picks. An apply that may have changed the mailbox (a `plan-applied`, or an
- * apply that broke off on the way) is told to `onApplied` (task 091), so the access card can read the mailbox again.
+ * sign-in and an open plan goes back to the picks; signed in without an Exchange Online token (`exchangeError`, task
+ * 124) it says so and waits too. An apply that may have changed the mailbox (a `plan-applied`, or an apply that broke
+ * off on the way) is told to `onApplied` (task 091), so the access card can read the mailbox again; when it did, the
+ * result step says so and "Show it" scrolls to that card (task 124).
  */
 export function WriteCard({
   title,
   description,
   client,
   signedIn,
+  exchangeError,
   request,
   picks,
   onApplied,
@@ -54,11 +57,16 @@ export function WriteCard({
   description: string;
   client: BridgeClient;
   signedIn: boolean;
+  exchangeError?: string | null;
   request: WriteRequest | null;
   picks: ReactNode;
   onApplied?: (write: AppliedWrite) => void;
 }) {
   const [state, dispatch] = useReducer(writeReducer, initialWriteState);
+  // The write the card told last, and a card's word that it read the mailbox again after it (task 124).
+  const told = useRef<AppliedWrite | null>(null);
+  const [reRead, setReRead] = useState<{ write: AppliedWrite; reRead: ReRead } | null>(null);
+  const canWrite = signedIn && !exchangeError;
   // The mailbox and the users of the request the plan on the card answers: the ones an apply touches.
   const plannedMailbox = useRef("");
   const plannedUsers = useRef<string[]>([]);
@@ -83,14 +91,18 @@ export function WriteCard({
     const mayHaveChanged =
       reply.type === MessageType.planApplied ||
       (reply.type === MessageType.error && !nothingSent.includes(reply.data.code));
+    told.current = null;
     if (mayHaveChanged) {
       const plan = reply.type === MessageType.planApplied ? reply.data.plan : ready.plan;
-      onApplied?.({
+      const write: AppliedWrite = {
         operation: plan.operation,
         mailbox: plannedMailbox.current,
         addresses: targetAddresses(plan),
         users: [...new Set([...plannedUsers.current, ...detailAddresses(plan)])],
-      });
+        onReRead: (answer) => setReRead({ write, reRead: answer }),
+      };
+      told.current = write;
+      onApplied?.(write);
     }
   }
 
@@ -105,9 +117,11 @@ export function WriteCard({
         <Body
           state={state}
           signedIn={signedIn}
+          exchangeError={exchangeError ?? null}
           picks={picks}
-          onSeePlan={request && signedIn ? () => void seePlan(request) : undefined}
+          onSeePlan={request && canWrite ? () => void seePlan(request) : undefined}
           onApply={(ready) => void apply(ready)}
+          reRead={reRead && reRead.write === told.current ? reRead.reRead : null}
           dispatch={dispatch}
         />
       </CardContent>
@@ -118,16 +132,20 @@ export function WriteCard({
 function Body({
   state,
   signedIn,
+  exchangeError,
   picks,
   onSeePlan,
   onApply,
+  reRead,
   dispatch,
 }: {
   state: WriteState;
   signedIn: boolean;
+  exchangeError: string | null;
   picks: ReactNode;
   onSeePlan: (() => void) | undefined;
   onApply: (ready: PlanReady) => void;
+  reRead: ReRead | null;
   dispatch: (event: Parameters<typeof writeReducer>[1]) => void;
 }) {
   switch (state.step) {
@@ -139,6 +157,15 @@ function Body({
               This card needs a sign-in: sign in on the sign-in card, then come back here.
             </Notice>
           )}
+          {signedIn && exchangeError ? (
+            <Notice tone="warning" icon={<Unplug aria-hidden />} title="Exchange Online unavailable">
+              <p>The account is signed in, but the window has no Exchange Online token: {exchangeError}.</p>
+              <p className="mt-1 text-muted-foreground">
+                What to do: an administrator consents to the Exchange Online permission, then Refresh on the sign-in
+                card.
+              </p>
+            </Notice>
+          ) : null}
           {picks}
           <Button disabled={onSeePlan === undefined} onClick={onSeePlan}>
             See the plan
@@ -177,6 +204,14 @@ function Body({
       return (
         <div className="space-y-4">
           <ResultView applied={state.applied} />
+          {reRead ? (
+            <p className="flex flex-wrap items-center gap-x-1 text-sm" role="status" data-testid="re-read">
+              The {reRead.card} card read <strong>{reRead.mailbox}</strong> again after this change.
+              <Button variant="link" size="sm" className="h-auto px-1" onClick={reRead.show}>
+                Show it
+              </Button>
+            </p>
+          ) : null}
           <Button onClick={() => dispatch({ type: "reset" })}>Done</Button>
         </div>
       );
@@ -244,10 +279,12 @@ const rights: readonly MailboxRight[] = ["full-access", "send-as", "send-on-beha
 export function MailboxAccessWriteCard({
   client,
   signedIn,
+  exchangeError,
   onApplied,
 }: {
   client: BridgeClient;
   signedIn: boolean;
+  exchangeError?: string | null;
   onApplied?: (write: AppliedWrite) => void;
 }) {
   const [mode, setMode] = useState<"grant" | "revoke">("grant");
@@ -323,6 +360,7 @@ export function MailboxAccessWriteCard({
       description="Grant or revoke FullAccess, Send As or Send on Behalf on a mailbox: the plan first, then your confirmation."
       client={client}
       signedIn={signedIn}
+      exchangeError={exchangeError}
       request={request}
       picks={picks}
       onApplied={onApplied}
@@ -337,10 +375,12 @@ export function MailboxAccessWriteCard({
 export function MailboxForwardingCard({
   client,
   signedIn,
+  exchangeError,
   onApplied,
 }: {
   client: BridgeClient;
   signedIn: boolean;
+  exchangeError?: string | null;
   onApplied?: (write: AppliedWrite) => void;
 }) {
   const [mode, setMode] = useState<"set" | "clear">("set");
@@ -398,6 +438,7 @@ export function MailboxForwardingCard({
       description="Forward a mailbox's mail to an address, or stop it: the plan first, then your confirmation."
       client={client}
       signedIn={signedIn}
+      exchangeError={exchangeError}
       request={request}
       picks={picks}
       onApplied={onApplied}
