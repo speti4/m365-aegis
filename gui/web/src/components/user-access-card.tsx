@@ -153,7 +153,7 @@ function Section({
   return (
     <section className="space-y-1">
       <h3 className="font-medium">
-        {title} <span className="text-muted-foreground">· {count}</span>
+        {title} <span className="text-muted-foreground tabular-nums">· {count}</span>
       </h3>
       {count === 0 ? (
         <p className="text-sm text-muted-foreground">{empty}</p>
@@ -185,7 +185,7 @@ export function AccessReportView({ report }: { report: AccessReport }) {
           {user.displayName && name ? <span className="text-muted-foreground">{name}</span> : null}
           {user.objectId ? null : <Badge variant="outline">no directory account</Badge>}
         </p>
-        <p className="text-sm text-muted-foreground" data-testid="snapshot">
+        <p className="text-sm text-muted-foreground tabular-nums" data-testid="snapshot">
           From the snapshot taken {describeTaken(report.taken)}, {describeAge(report.ageHours)}.
         </p>
       </div>
@@ -273,7 +273,7 @@ export function AccessReportView({ report }: { report: AccessReport }) {
           </TableRow>
         ))}
       </Section>
-      <p className="text-sm text-muted-foreground" data-testid="everyone">
+      <p className="text-sm text-muted-foreground tabular-nums" data-testid="everyone">
         Reaches everyone, this user too: {everyone.organizationLinks} link(s) anyone in the organization can open,{" "}
         {everyone.anonymousLinks} link(s) anyone can open, {everyone.defaultCalendars} calendar(s) open beyond free/busy
         to every user and {everyone.anonymousCalendars} to anonymous.

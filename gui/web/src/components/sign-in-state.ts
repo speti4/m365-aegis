@@ -10,7 +10,8 @@ import {
 export type SignInState =
   | { status: "checking" }
   | { status: "signed-in"; info: SignInInfo }
-  | { status: "signed-out"; info: SignedOutInfo }
+  /** `canceled` when the page stopped waiting for a sign-in (task 126). */
+  | { status: "signed-out"; info: SignedOutInfo; canceled?: boolean }
   /** A `login` in flight: the account picker over the window, or the device code once the host sent one. */
   | { status: "signing-in"; before: SignedOutInfo | null; deviceCode?: DeviceCodePrompt }
   | { status: "signing-out"; info: SignInInfo }
@@ -22,12 +23,17 @@ export type SignInEvent =
   | { type: "login" }
   | { type: "device-code"; prompt: DeviceCodePrompt }
   | { type: "logout" }
+  /** The colleague stops waiting for a sign-in in flight (task 126). */
+  | { type: "cancel" }
   | { type: "reply"; reply: Reply };
 
 /**
  * The sign-in card's state machine (task 040): `whoami` reads the state, `login` signs in (the device code shows
  * while it waits), `logout` signs out and the page reads the state again. A failed `login` goes back to where it
- * started, a failed `logout` keeps the account; the error itself is the page's toast.
+ * started, a failed `logout` keeps the account; the error itself is the page's toast. `cancel` drops a sign-in in
+ * flight back to where it started (task 126): the bridge has no message to stop the host's sign-in, so the host's
+ * account picker or device code runs on until it ends or times out, and the page ignores its late reply (`App` drops
+ * the reply of a sign-in it no longer waits for).
  */
 export function signInReducer(state: SignInState, event: SignInEvent): SignInState {
   switch (event.type) {
@@ -41,6 +47,11 @@ export function signInReducer(state: SignInState, event: SignInEvent): SignInSta
       return state.status === "signing-in" ? { ...state, deviceCode: event.prompt } : state;
     case "logout":
       return state.status === "signed-in" ? { status: "signing-out", info: state.info } : state;
+    case "cancel":
+      if (state.status !== "signing-in") {
+        return state;
+      }
+      return state.before ? { status: "signed-out", info: state.before, canceled: true } : { status: "unknown" };
     case "reply":
       return afterReply(state, event.reply);
   }
@@ -113,7 +124,7 @@ export function signInStatus(state: SignInState): string {
         ? `Signed in as ${state.info.account}`
         : `Signed in as ${state.info.account}; Exchange Online is unavailable`;
     case "signed-out":
-      return "Signed out";
+      return state.canceled ? "Sign-in canceled; signed out" : "Signed out";
     case "signing-in":
       return state.deviceCode
         ? "Waiting for the sign-in: enter the code in a browser"

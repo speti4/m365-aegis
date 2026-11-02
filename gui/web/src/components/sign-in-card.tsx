@@ -13,7 +13,8 @@ export type { SignInState } from "./sign-in-state";
  * broker's account picker opens over the window), "Sign in with a code" for a device code instead, shown here while
  * the sign-in waits for the browser step, with "Open in browser" for its page (task 047); "Sign out" when it is
  * signed in. A failure's hint is the window's own (task 046): the buttons here, or the administrator. Each change of
- * the state is said in the card's status region (task 121).
+ * the state is said in the card's status region (task 121). While a sign-in waits, "Cancel" stops the page waiting
+ * (task 126): the card is signed out again and says that a sign-in window still open can be closed.
  */
 export function SignInCard({
   state,
@@ -21,12 +22,14 @@ export function SignInCard({
   onSignIn,
   onSignOut,
   onOpenSignInPage,
+  onCancelSignIn,
 }: {
   state: SignInState;
   onRefresh: () => void;
   onSignIn: (deviceCode: boolean) => void;
   onSignOut: () => void;
   onOpenSignInPage: () => void;
+  onCancelSignIn: () => void;
 }) {
   const id = useId();
   const busy = state.status === "checking" || state.status === "signing-in" || state.status === "signing-out";
@@ -53,6 +56,11 @@ export function SignInCard({
       <CardContent className="space-y-4">
         <LiveStatus text={signInStatus(state)} />
         <SignInDetails state={state} onOpenSignInPage={onOpenSignInPage} />
+        {state.status === "signing-in" ? (
+          <Button variant="outline" onClick={onCancelSignIn}>
+            Cancel
+          </Button>
+        ) : null}
         {canSignIn(state) ? (
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => onSignIn(false)}>Sign in</Button>
@@ -104,6 +112,12 @@ function SignInDetails({ state, onOpenSignInPage }: { state: SignInState; onOpen
     case "signed-out":
       return (
         <div className="space-y-2">
+          {state.canceled ? (
+            <p data-testid="sign-in-canceled">
+              The window stopped waiting for the sign-in. A Windows sign-in window or a browser page still open for it
+              can be closed; Refresh reads the state again.
+            </p>
+          ) : null}
           {state.info.profile ? (
             <p>
               Profile <strong>{state.info.profile}</strong>

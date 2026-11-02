@@ -170,6 +170,10 @@ function recorded() {
 const holderRows = (card: HTMLElement) =>
   [...card.querySelectorAll("tbody tr")].map((row) => [...row.querySelectorAll("td")].map((cell) => cell.textContent));
 
+/** The layer each holder was read through, as the answer's "Details" line lists them (task 126). */
+const layers = (card: HTMLElement) =>
+  [...card.querySelectorAll('[data-testid="layers"] li')].map((item) => item.textContent);
+
 describe("the mailbox access card after an apply", () => {
   it("reads the mailbox it shows again once a grant is applied to it, and shows the new grant", async () => {
     const { transport, sent, types } = recorded();
@@ -188,7 +192,8 @@ describe("the mailbox access card after an apply", () => {
       MessageType.mailboxAccess,
     ]);
     expect(sent[3].data).toEqual({ mailbox: "finance@contoso.com" });
-    expect(holderRows(access)).toContainEqual(["FullAccess", "bob@contoso.com", "bob@contoso.com", "PowerShell"]);
+    expect(holderRows(access)).toContainEqual(["FullAccess", "bob@contoso.com", "bob@contoso.com"]);
+    expect(layers(access)).toContain("FullAccess, bob@contoso.com: read through PowerShell");
     expect(access.querySelector('[data-testid="refreshed"]')?.textContent).toBe(
       "Read again after a change on the Mailbox rights card.",
     );
@@ -241,14 +246,19 @@ describe("the mailbox access card after an apply", () => {
 
     expect(rights.textContent).toContain("Partly done");
     expect(types().filter((sentType) => sentType === MessageType.mailboxAccess)).toHaveLength(2);
-    expect(holderRows(access)).toContainEqual(["Send As", "alice@contoso.com", "alice@contoso.com", "PowerShell"]);
+    expect(holderRows(access)).toContainEqual(["Send As", "alice@contoso.com", "alice@contoso.com"]);
 
+    // "Start a new change" keeps the mailbox only (task 126): the revoke names the user and the right again.
     await click(button(rights, "Start a new change"));
+    expect(input(rights, "Mailbox").value).toBe("reception@contoso.com");
+    expect(input(rights, "Users").value).toBe("");
     await click(radio(rights, "Revoke"));
-    await apply(rights, {});
+    await click(button(rights, "FullAccess"));
+    await click(button(rights, "Send As"));
+    await apply(rights, { Users: "alice@contoso.com" });
     await settle();
     expect(types().filter((sentType) => sentType === MessageType.mailboxAccess)).toHaveLength(3);
-    expect(holderRows(access)).not.toContainEqual(["Send As", "alice@contoso.com", "alice@contoso.com", "PowerShell"]);
+    expect(holderRows(access)).not.toContainEqual(["Send As", "alice@contoso.com", "alice@contoso.com"]);
   });
 
   it("shows a Send on Behalf grant by name where the Admin API reads the mailbox", async () => {
@@ -260,7 +270,8 @@ describe("the mailbox access card after an apply", () => {
     await apply(rights, { Mailbox: "finance", Users: "alice@contoso.com" });
     await settle();
 
-    expect(holderRows(access)).toContainEqual(["Send on Behalf", "Alice Example", "alice@contoso.com", "Admin API"]);
+    expect(holderRows(access)).toContainEqual(["Send on Behalf", "Alice Example", "alice@contoso.com"]);
+    expect(layers(access)).toContain("Send on Behalf, Alice Example: read through Admin API");
   });
 
   it("sends nothing after an apply to another mailbox, a forwarding, or while it shows no mailbox", async () => {
@@ -462,7 +473,7 @@ describe("the mailbox access card's user view after an apply (task 103)", () => 
     // Another apply that names the user changes nothing more.
     await click(button(rights, "Start a new change"));
     await click(button(rights, "Send As"));
-    await apply(rights, {});
+    await apply(rights, { Users: "bob@contoso.com" });
     await settle();
     expect(types().filter((sentType) => sentType === MessageType.mailboxAccess)).toHaveLength(1);
 

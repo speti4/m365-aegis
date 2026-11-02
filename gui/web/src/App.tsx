@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { focusTarget } from "@/lib/focus";
@@ -54,14 +54,21 @@ export function App() {
     }
   }, [client, showError]);
 
+  // The sign-in the page waits for: a Cancel, or a newer sign-in, leaves an older one's late reply unread (task 126).
+  const signInAttempt = useRef(0);
   const signInWith = useCallback(
     async (deviceCode: boolean) => {
+      signInAttempt.current += 1;
+      const attempt = signInAttempt.current;
       dispatch({ type: "login" });
       const reply = await client.call(
         MessageType.login,
         deviceCode ? { deviceCode: true } : undefined,
         SIGN_IN_TIMEOUT_MS,
       );
+      if (attempt !== signInAttempt.current) {
+        return;
+      }
       dispatch({ type: "reply", reply });
       if (reply.type === MessageType.error) {
         showError(reply.data);
@@ -69,6 +76,11 @@ export function App() {
     },
     [client, showError],
   );
+
+  const cancelSignIn = useCallback(() => {
+    signInAttempt.current += 1;
+    dispatch({ type: "cancel" });
+  }, []);
 
   // The device-code card's "Open in browser" (task 047): the host opens the page it sent, nothing else.
   const openSignInPage = useCallback(async () => {
@@ -128,6 +140,7 @@ export function App() {
             onSignIn={(deviceCode) => void signInWith(deviceCode)}
             onSignOut={() => void signOut()}
             onOpenSignInPage={() => void openSignInPage()}
+            onCancelSignIn={cancelSignIn}
           />
         </section>
         <Group index={0}>

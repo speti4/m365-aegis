@@ -37,7 +37,10 @@ describe("the mailbox access card", () => {
     await click(button(container, "List the shared mailboxes"));
     await settle();
     expect(container.textContent).toContain("2 shared mailbox(es); pick one to see its access.");
-    expect(container.textContent).toMatch(/answered in \d+ ms/);
+    // The time the answer took is a detail, behind the collapsed "Details" line (task 126).
+    const listDetails = container.querySelector('[data-testid="details"]') as HTMLDetailsElement;
+    expect(listDetails.open).toBe(false);
+    expect(listDetails.textContent).toMatch(/^DetailsAnswered in \d+ ms\.$/);
     expect(liveStatus(container)).toBe("2 shared mailboxes");
 
     await click(button(container, "Reception"));
@@ -53,10 +56,27 @@ describe("the mailbox access card", () => {
       [...row.querySelectorAll("td")].map((cell) => cell.textContent),
     );
     expect(rows).toEqual([
-      ["FullAccess", "alice@contoso.com", "alice@contoso.com", "PowerShell"],
-      ["FullAccess", "bob@contoso.com", "bob@contoso.com", "PowerShell"],
-      ["Send As", "bob@contoso.com", "bob@contoso.com", "PowerShell"],
+      ["FullAccess", "alice@contoso.com", "alice@contoso.com"],
+      ["FullAccess", "bob@contoso.com", "bob@contoso.com"],
+      ["Send As", "bob@contoso.com", "bob@contoso.com"],
     ]);
+    // The layers are details too: the sentence and the layer of each row, not a column (task 126).
+    expect([...container.querySelectorAll("th")].map((head) => head.textContent)).toEqual([
+      "Right",
+      "Holder",
+      "Address",
+    ]);
+    const details = container.querySelector('[data-testid="details"]') as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(details.textContent).toContain(
+      "The mailbox and its Send on Behalf delegates by name come from the Admin API",
+    );
+    expect([...details.querySelectorAll("li")].map((item) => item.textContent)).toEqual([
+      "FullAccess, alice@contoso.com: read through PowerShell",
+      "FullAccess, bob@contoso.com: read through PowerShell",
+      "Send As, bob@contoso.com: read through PowerShell",
+    ]);
+    expect(details.textContent).toMatch(/Answered in \d+ ms\.$/);
     expect(container.textContent).toContain("· 3 grant(s)");
   });
 
@@ -130,7 +150,9 @@ describe("the mailbox access card", () => {
     const second = await card(scripted(() => ({ type: MessageType.mailboxHolders, data: access })));
     await second.lookUp("archive");
     const cells = [...second.container.querySelectorAll("tbody td")].map((cell) => cell.textContent);
-    expect(cells).toEqual(["Send on Behalf", "Finance team", "", ""]);
+    expect(cells).toEqual(["Send on Behalf", "Finance team", ""]);
+    // No layer named: the details have the time only.
+    expect(second.container.querySelector('[data-testid="layers"]')).toBeNull();
     expect(liveStatus(second.container)).toBe("Archive: 1 grant");
 
     const one: UserAccess = { ...grants, mailboxesScanned: 1, displayName: "Dave Example" };

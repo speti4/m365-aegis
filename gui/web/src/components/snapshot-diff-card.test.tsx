@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { act } from "react";
 import { describe, expect, it } from "vitest";
 import { BridgeClient } from "../bridge/client";
 import { mockBobSnapshotDiff, mockSnapshotDiff, mockTooFewSnapshots } from "../bridge/mock-snapshot-diff";
@@ -10,6 +11,7 @@ import { button, isDisabled, field as labeled, liveStatus, render, settle, submi
 import { ScriptedTransport } from "../test/scripted-transport";
 import { diffPart } from "./plan-wording";
 import { SnapshotDiffCard, SnapshotDiffView } from "./snapshot-diff-card";
+import { DEBOUNCE_MS } from "./suggest-field";
 
 const contracts = path.resolve(__dirname, "../../../../tests/contracts/bridge");
 
@@ -130,7 +132,9 @@ describe("the access changes card", () => {
       "neither 2026-10-31T060000Z.sqlite nor 2026-11-01T060000Z.sqlite knows a user 'nobody@contoso.com'",
     );
     expect(field("Only this user").getAttribute("aria-invalid")).toBe("true");
-    expect(field("From").getAttribute("aria-describedby")).toBe(alert.id);
+    // From is described by the line of what it takes, and by the error.
+    const hint = container.querySelector('[data-testid="sides-hint"]') as HTMLElement;
+    expect(field("From").getAttribute("aria-describedby")).toBe(`${hint.id} ${alert.id}`);
     expect(titles(container)).toHaveLength(0);
   });
 
@@ -232,5 +236,52 @@ describe("the changes view", () => {
       "Shared files",
       "Calendar permissions",
     ]);
+  });
+});
+
+describe("the access changes card's fields and tables (task 126)", () => {
+  it("says what From and To take, and picks the user from the suggestions", async () => {
+    const transport = new MockTransport();
+    const { container, field } = await card(transport);
+    const hint = container.querySelector('[data-testid="sides-hint"]') as HTMLElement;
+    expect(hint.textContent).toBe(
+      "Leave From and To empty to compare the newest snapshot with the one before it. Each also takes latest, yesterday, a date such as 2026-10-31, or a snapshot's name.",
+    );
+    expect(field("To").getAttribute("aria-describedby")).toBe(hint.id);
+
+    const user = field("Only this user");
+    expect(user.getAttribute("role")).toBe("combobox");
+    await type(user, "bob");
+    await settle(DEBOUNCE_MS);
+    await settle();
+    expect(liveStatus(container)).toBe("1 matching user: use the arrow keys to pick one.");
+    // Enter on the open list picks; the comparison waits for Enter on a closed one.
+    const enter = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+    await act(async () => {
+      user.dispatchEvent(enter);
+    });
+    expect(enter.defaultPrevented).toBe(true);
+    expect(user.value).toBe("bob@contoso.com");
+    await submit(container.querySelector("form") as HTMLFormElement);
+    await settle();
+    expect(container.querySelector('[data-testid="user"]')?.textContent).toContain("Bob Example");
+  });
+
+  it("lays every part's table out in the same fixed columns", async () => {
+    const { container } = await render(<SnapshotDiffView report={mockBobSnapshotDiff} />);
+    const tables = [...container.querySelectorAll("table")];
+    expect(tables.length).toBeGreaterThan(1);
+    for (const table of tables) {
+      expect(table.className).toContain("table-fixed");
+      expect([...table.querySelectorAll("col")].map((column) => column.className)).toEqual([
+        "w-24",
+        "",
+        "w-[28%]",
+        "w-[18%]",
+        "w-[18%]",
+      ]);
+    }
+    const whole = await render(<SnapshotDiffView report={mockSnapshotDiff} />);
+    expect(whole.container.querySelector("table")?.querySelectorAll("col")).toHaveLength(4);
   });
 });

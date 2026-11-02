@@ -1,11 +1,14 @@
 // @vitest-environment happy-dom
+import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { BridgeClient } from "../bridge/client";
 import { MockTransport } from "../bridge/mock-transport";
 import { type BridgeMessage, MessageType, type Plan } from "../bridge/protocol";
-import { button, click, isDisabled, liveStatus, press, render, settle, submit, type } from "../test/dom";
+import { button, click, hasButton, isDisabled, liveStatus, press, render, settle, submit, type } from "../test/dom";
 import { type Answer, ScriptedTransport } from "../test/scripted-transport";
+import { MAX_MAILBOXES, mailboxSuggestions } from "./mailbox-picker";
 import { MailboxAccessWriteCard, MailboxForwardingCard, splitList } from "./mailbox-write-cards";
+import { DEBOUNCE_MS } from "./suggest-field";
 
 /** A mock transport whose requests the test can read: what the page sent, in order. */
 function recorded() {
@@ -127,8 +130,14 @@ describe("the mailbox rights card", () => {
     expect(text()).toMatch(/The plan record: %LOCALAPPDATA%.*mailbox-access-grant\.json/);
     expect(container.querySelector('[aria-label="applied"]')).not.toBeNull();
 
+    // "Start a new change" keeps the mailbox and clears the rest (task 126): the user and the rights must not carry
+    // over to the next change.
+    expect(hasButton(container, "See the plan again")).toBe(false);
     await click(button(container, "Start a new change"));
-    expect(isDisabled(button(container, "See the plan"))).toBe(false);
+    expect(input(container, "Mailbox").value).toBe(" finance ");
+    expect(input(container, "Users").value).toBe("");
+    expect(button(container, "FullAccess").getAttribute("aria-checked")).toBe("true");
+    expect(container.textContent).toContain("Still needed: at least one user.");
   });
 
   it("sends nothing when the card goes back from the confirmation and from the plan", async () => {
@@ -552,5 +561,234 @@ describe("the list of users", () => {
       "dave",
     ]);
     expect(splitList(" , ")).toEqual([]);
+  });
+});
+
+/** Presses a key in a field; true when the field took it (the default prevented), false when it is left to the form. */
+async function key(element: HTMLElement, name: string): Promise<boolean> {
+  const event = new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true });
+  await act(async () => {
+    element.dispatchEvent(event);
+  });
+  return event.defaultPrevented;
+}
+
+/** Types into a picker and waits for its suggestions: the pause before it asks, then the answer. */
+async function typeAndWait(field: HTMLInputElement, text: string) {
+  // In the field, as the colleague is: leaving another field closes its list.
+  await act(async () => field.focus());
+  await type(field, text);
+  await settle(DEBOUNCE_MS);
+  await settle();
+}
+
+const options = (container: HTMLElement) =>
+  [...container.querySelectorAll('[role="option"]')].map((option) => option.textContent);
+
+const note = (container: HTMLElement) =>
+  [...(container.querySelector('[data-testid="suggestion-note"]')?.querySelectorAll("p") ?? [])].map(
+    (line) => line.textContent,
+  );
+
+describe("the pickers on the write cards (task 125)", () => {
+  it("picks the mailbox and two users with the keyboard, and plans with the picked addresses", async () => {
+    const { transport, sent } = recorded();
+    const { container } = await accessCard(transport);
+    const mailbox = input(container, "Mailbox");
+    const users = input(container, "Users");
+
+    // The mailbox: the shared mailboxes, listed once and filtered here; Enter on the open list picks the first.
+    await typeAndWait(mailbox, "fin");
+    expect(options(container)).toEqual(["Finance finance@contoso.com"]);
+    expect(mailbox.getAttribute("aria-expanded")).toBe("true");
+    expect(liveStatus(container)).toBe("1 matching shared mailbox: use the arrow keys to pick one.");
+    expect(note(container)).toEqual(["From the shared mailboxes; any other mailbox by its full address."]);
+    expect(await key(mailbox, "Enter")).toBe(true);
+    expect(mailbox.value).toBe("finance@contoso.com");
+    expect(options(container)).toEqual([]);
+
+    // The users: each pick joins the list, the arrow keys or Enter on the open list.
+    await typeAndWait(users, "ali");
+    expect(options(container)).toEqual(["Alice Example alice@contoso.com"]);
+    await key(users, "ArrowDown");
+    expect(await key(users, "Enter")).toBe(true);
+    expect(users.value).toBe("alice@contoso.com, ");
+    await typeAndWait(users, "alice@contoso.com, bob e");
+    expect(options(container)).toEqual(["Bob Example bob@contoso.com"]);
+    expect(await key(users, "Enter")).toBe(true);
+    expect(users.value).toBe("alice@contoso.com, bob@contoso.com, ");
+
+    // Enter on a closed list is the form's: "See the plan", with the addresses picked.
+    expect(await key(users, "Enter")).toBe(false);
+    await submit(container.querySelector("form") as HTMLFormElement);
+    await settle();
+    expect(sent.map((message) => message.type)).toEqual([
+      MessageType.mailboxList,
+      MessageType.userSearch,
+      MessageType.userSearch,
+      MessageType.mailboxAccessGrant,
+    ]);
+    expect(sent[0].data).toEqual({ shared: true });
+    expect(sent[3].data).toEqual({
+      mailbox: "finance@contoso.com",
+      users: ["alice@contoso.com", "bob@contoso.com"],
+      rights: ["full-access"],
+      noAutoMapping: false,
+    });
+    // The plan step says the plan, no longer what a list said: alice holds FullAccess on Finance already.
+    expect(liveStatus(container)).toBe("Plan: 1 change");
+  });
+
+  it("lets a typed address through, lists the shared mailboxes once, and says when nothing matches", async () => {
+    const { transport, sent } = recorded();
+    const container = (await forwardingCard(transport)).container;
+    const mailbox = input(container, "Mailbox");
+
+    await typeAndWait(mailbox, "f");
+    expect(options(container)).toEqual(["Finance finance@contoso.com"]);
+    await typeAndWait(mailbox, "alice@contoso.com");
+    expect(options(container)).toEqual([]);
+    expect(note(container)).toEqual([
+      'No shared mailbox starts with "alice@contoso.com": a full address still works.',
+      "From the shared mailboxes; any other mailbox by its full address.",
+    ]);
+    expect(mailbox.getAttribute("aria-expanded")).toBe("false");
+    expect(await key(mailbox, "Enter")).toBe(false);
+
+    // Forward to: a pick fills it; an outside address the directory does not know goes as typed.
+    const to = input(container, "Forward to");
+    await typeAndWait(to, "bob");
+    expect(options(container)).toEqual(["Bob Example bob@contoso.com"]);
+    await key(to, "Enter");
+    expect(to.value).toBe("bob@contoso.com");
+    await typeAndWait(to, "alice@fabrikam.com");
+    expect(note(container)).toEqual([
+      'No user starts with "alice@fabrikam.com": a full address still works.',
+      "From the directory.",
+    ]);
+    expect(await key(to, "Enter")).toBe(false);
+    await submit(container.querySelector("form") as HTMLFormElement);
+    await settle();
+
+    expect(sent.filter((message) => message.type === MessageType.mailboxList)).toHaveLength(1);
+    expect(sent.at(-1)).toMatchObject({
+      type: MessageType.mailboxForwardingSet,
+      data: { mailbox: "alice@contoso.com", to: "alice@fabrikam.com", keepCopy: true },
+    });
+  });
+
+  it("asks for no list signed out, and says when the shared mailboxes could not be listed", async () => {
+    const signedOut = recorded();
+    const card = await accessCard(signedOut.transport, false);
+    await typeAndWait(input(card.container, "Mailbox"), "rec");
+    expect(signedOut.sent).toEqual([]);
+    expect(options(card.container)).toEqual([]);
+    await card.unmount();
+
+    let answer: { type: string; data: unknown } = {
+      type: MessageType.error,
+      data: { code: "exchange", message: "the session did not start" },
+    };
+    const transport = new ScriptedTransport(() => answer);
+    const failed = await accessCard(transport);
+    const mailbox = input(failed.container, "Mailbox");
+    await typeAndWait(mailbox, "r");
+    const line =
+      "No suggestions: the shared mailboxes could not be listed (the session did not start). Type the mailbox's address.";
+    expect(note(failed.container)).toEqual([line]);
+    expect(liveStatus(failed.container)).toBe(line);
+
+    // A reply of another kind fails the same way; the next letter asks again.
+    answer = { type: MessageType.pong, data: { product: "m365-aegis", version: "1" } };
+    await typeAndWait(mailbox, "re");
+    expect(note(failed.container)[0]).toContain("the window answered with a 'pong'");
+    expect(transport.types.filter((sentType) => sentType === MessageType.mailboxList)).toHaveLength(2);
+  });
+
+  it("names more mailboxes than it shows, by a word of the name or the address", () => {
+    const many = Array.from({ length: 10 }, (_, index) => ({
+      displayName: `Room ${index}`,
+      primarySmtpAddress: `room${index}@contoso.com`,
+      type: "SharedMailbox",
+    }));
+    const found = mailboxSuggestions(many, "ro");
+    expect(found.options).toHaveLength(MAX_MAILBOXES);
+    expect(found.announce).toBe("8 matching shared mailboxes, and more: use the arrow keys to pick one.");
+    expect(found.note[0]).toBe("More mailboxes match: type more of the name.");
+    expect(mailboxSuggestions(many, "3").options.map((option) => option.value)).toEqual(["room3@contoso.com"]);
+    expect(mailboxSuggestions(many, "ROOM9@").options.map((option) => option.name)).toEqual(["Room 9"]);
+  });
+});
+
+describe("the result of an apply not done in full (task 126)", () => {
+  it("says it once, the code behind Details, and sees the plan again with what is still missing", async () => {
+    const { transport, sent } = recorded();
+    const { container } = await accessCard(transport);
+    await click(button(container, "FullAccess"));
+    await click(button(container, "Send As"));
+    await click(button(container, "Send on Behalf"));
+    await fill(container, { Mailbox: "reception", Users: "alice@contoso.com" });
+    await seePlan(container);
+    await confirmAndApply(container);
+
+    const notice = container.querySelector('[role="status"][tabindex="-1"]') as HTMLElement;
+    expect(notice.textContent).toContain("Partly done");
+    expect(notice.textContent).toContain("1 of 2 change(s) were made.");
+    // The host's summary repeats the list and the record: only its code stays, collapsed.
+    expect(notice.textContent).not.toContain("applied, 1 failed");
+    expect(notice.textContent).not.toContain("What to do");
+    const details = notice.querySelector('[data-testid="details"]') as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(details.textContent).toBe("DetailsError code: partial");
+    expect(container.textContent?.match(/%LOCALAPPDATA%/g)).toHaveLength(1);
+    expect(button(container, "Start a new change").className).not.toContain("bg-primary");
+
+    await click(button(container, "See the plan again"));
+    await settle();
+    expect(sent.map((message) => message.type)).toEqual([
+      MessageType.mailboxAccessGrant,
+      MessageType.applyPlan,
+      MessageType.mailboxAccessGrant,
+    ]);
+    expect(sent[2].data).toEqual(sent[0].data);
+    // What was made is left as it is; only the failed change is planned again.
+    expect(liveStatus(container)).toBe("Plan: 1 change");
+    expect(container.textContent).toContain("Send on Behalf for Alice Example (alice@contoso.com)");
+    expect(container.textContent).toContain("(holds Send As already)");
+  });
+
+  it("shows the host's sentence when no change carries a message of its own", async () => {
+    const skipped = { ...plan.changes[0], result: { status: "skipped" } };
+    const { container } = await accessCard(
+      scripted({
+        type: MessageType.planApplied,
+        data: {
+          plan: { ...plan, changes: [skipped], mode: "applied" },
+          error: { code: "internal", message: "the apply stopped", hint: "see the log" },
+        },
+      }),
+    );
+    await fill(container, { Mailbox: "finance", Users: "bob" });
+    await seePlan(container);
+    await confirmAndApply(container);
+
+    expect(container.textContent).toContain("the apply stopped");
+    expect(container.textContent).not.toContain("see the log");
+    expect(container.querySelector('[data-testid="details"]')?.textContent).toBe("DetailsError code: internal");
+  });
+
+  it("keeps the forwarding card's mailbox only when a new change starts", async () => {
+    const { container } = await forwardingCard(new MockTransport());
+    await fill(container, { Mailbox: "alice@contoso.com", "Forward to": "bob@contoso.com" });
+    await check(checkbox(container, "Keep a copy"));
+    await seePlan(container);
+    await confirmAndApply(container, "Start forwarding");
+    expect(hasButton(container, "See the plan again")).toBe(false);
+
+    await click(button(container, "Start a new change"));
+    expect(input(container, "Mailbox").value).toBe("alice@contoso.com");
+    expect(input(container, "Forward to").value).toBe("");
+    expect(checkbox(container, "Keep a copy").checked).toBe(true);
+    expect(radio(container, "Forward").getAttribute("aria-checked")).toBe("true");
   });
 });

@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { BridgeClient } from "../bridge/client";
 import { type GroupKind, type GroupMembers, MessageType } from "../bridge/protocol";
 import { AnswerFor, Field, LiveStatus, LookupError, SubmitButton, useLookup } from "./card-parts";
+import { DetailsLine } from "./details-line";
 import { count } from "./plan-wording";
 
 const kindNames: Record<GroupKind, string> = {
@@ -16,7 +17,8 @@ const kindNames: Record<GroupKind, string> = {
 };
 
 /**
- * `group members <group>`: the group's direct members, by name, in a table, under the name it was asked for. A failure
+ * `group members <group>`: the group's direct members, by name, in a table, under the name it was asked for; the
+ * object ids under a collapsed "Details" line (task 126). A failure
  * shows under the field, which it marks invalid, and drops the old table (task 120); the field stays usable while the
  * lookup runs, so the focus stays in it, and the card's status region says what is going on (task 121).
  */
@@ -97,7 +99,7 @@ function MembersTable({ result }: { result: GroupMembers }) {
         <Badge variant="secondary">{kindNames[group.kind]}</Badge>
         {group.synced ? <Badge variant="outline">synced</Badge> : null}
         {group.mail ? <span className="text-muted-foreground">{group.mail}</span> : null}
-        <span className="text-muted-foreground">· {members.length} direct member(s)</span>
+        <span className="text-muted-foreground tabular-nums">· {members.length} direct member(s)</span>
       </p>
       {members.length === 0 ? (
         <p className="text-muted-foreground">The group has no direct members.</p>
@@ -108,7 +110,6 @@ function MembersTable({ result }: { result: GroupMembers }) {
               <TableHead>Type</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Sign-in name or address</TableHead>
-              <TableHead>Id</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -117,12 +118,25 @@ function MembersTable({ result }: { result: GroupMembers }) {
                 <TableCell>{member.type}</TableCell>
                 <TableCell>{member.displayName ?? ""}</TableCell>
                 <TableCell className="font-mono text-xs">{member.userPrincipalName ?? member.mail ?? ""}</TableCell>
-                <TableCell className="font-mono text-xs">{member.id}</TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       )}
+      <DetailsLine>
+        <p>The group's object id: {idText(group.id)}</p>
+        {members.length > 0 ? (
+          <ul data-testid="member-ids">
+            {members.map((member) => (
+              <li key={member.id}>
+                {member.displayName ?? member.userPrincipalName ?? member.mail ?? member.type}: {idText(member.id)}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </DetailsLine>
     </div>
   );
 }
+
+const idText = (id: string) => <span className="font-mono select-all">{id}</span>;

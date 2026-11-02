@@ -81,6 +81,7 @@ describe("the status badges", () => {
         onSignIn={noop}
         onSignOut={noop}
         onOpenSignInPage={noop}
+        onCancelSignIn={noop}
       />,
     );
     const signedOut = await render(
@@ -90,6 +91,7 @@ describe("the status badges", () => {
         onSignIn={noop}
         onSignOut={noop}
         onOpenSignInPage={noop}
+        onCancelSignIn={noop}
       />,
     );
 
@@ -108,6 +110,7 @@ describe("the status badges", () => {
         onSignIn={noop}
         onSignOut={noop}
         onOpenSignInPage={noop}
+        onCancelSignIn={noop}
       />,
     );
     const unknown = await render(
@@ -117,6 +120,7 @@ describe("the status badges", () => {
         onSignIn={noop}
         onSignOut={noop}
         onOpenSignInPage={noop}
+        onCancelSignIn={noop}
       />,
     );
 

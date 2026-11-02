@@ -4,7 +4,8 @@ import { count } from "./plan-wording";
 /**
  * The flow of a write card (task 082), the sketch's flow of task 018 over the core's real `Plan`: pick the objects,
  * ask for the plan (the host plans it as `--dry-run` prints it; nothing is sent), see it or the refusal, go on to the
- * confirmation and confirm it (the `apply-plan` with `confirm: true`, which stands for `--yes`), see the result. Going
+ * confirmation and confirm it (the `apply-plan` with `confirm: true`, which stands for `--yes`), see the result, and
+ * from a result ask for the plan again (what is still missing, task 126). Going
  * back, at any step before the confirmation, sends nothing: the host's plan waits until its time runs out. Signed
  * out, the card is back at its picks. A reply the current step does not wait for leaves the state as it is.
  */
@@ -31,7 +32,10 @@ export const initialWriteState: WriteState = { step: "pick" };
 export function writeReducer(state: WriteState, event: WriteEvent): WriteState {
   switch (event.type) {
     case "request-plan":
-      return state.step === "pick" || state.step === "refused" ? { step: "planning" } : state;
+      // From a result too: "See the plan again" after an apply not done in full (task 126).
+      return state.step === "pick" || state.step === "refused" || state.step === "result"
+        ? { step: "planning" }
+        : state;
     case "reply":
       return onReply(state, event.reply);
     case "proceed":
