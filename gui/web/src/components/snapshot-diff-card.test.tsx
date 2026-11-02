@@ -1,12 +1,12 @@
 // @vitest-environment happy-dom
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { BridgeClient } from "../bridge/client";
 import { mockBobSnapshotDiff, mockSnapshotDiff, mockTooFewSnapshots } from "../bridge/mock-snapshot-diff";
 import { MockTransport } from "../bridge/mock-transport";
 import { MessageType, parseMessage, readReply, type SnapshotDiffReport } from "../bridge/protocol";
-import { button, render, settle, submit, type } from "../test/dom";
+import { button, isDisabled, field as labeled, liveStatus, render, settle, submit, type } from "../test/dom";
 import { ScriptedTransport } from "../test/scripted-transport";
 import { diffPart } from "./plan-wording";
 import { SnapshotDiffCard, SnapshotDiffView } from "./snapshot-diff-card";
@@ -24,9 +24,8 @@ function samplePayload(name: string): unknown {
 }
 
 async function card(transport: MockTransport | ScriptedTransport) {
-  const onError = vi.fn();
-  const rendered = await render(<SnapshotDiffCard client={new BridgeClient(transport)} onError={onError} />);
-  const field = (label: string) => rendered.container.querySelector(`input[aria-label="${label}"]`) as HTMLInputElement;
+  const rendered = await render(<SnapshotDiffCard client={new BridgeClient(transport)} />);
+  const field = (label: string) => labeled(rendered.container, label);
   const compare = async (picks: { from?: string; to?: string; user?: string } = {}) => {
     await type(field("From"), picks.from ?? "");
     await type(field("To"), picks.to ?? "");
@@ -34,13 +33,13 @@ async function card(transport: MockTransport | ScriptedTransport) {
     await submit(rendered.container.querySelector("form") as HTMLFormElement);
     await settle();
   };
-  return { ...rendered, onError, compare };
+  return { ...rendered, field, compare };
 }
 
 /** The rows of the section with the given title, cell by cell. */
 function rows(container: HTMLElement, title: string): string[][] {
   const section = [...container.querySelectorAll("section")].find((candidate) =>
-    candidate.querySelector("h3")?.textContent?.startsWith(title),
+    candidate.querySelector(":scope > h3")?.textContent?.startsWith(title),
   );
   return [...(section?.querySelectorAll("tbody tr") ?? [])].map((row) =>
     [...row.querySelectorAll("td")].map((cell) => cell.textContent ?? ""),
@@ -52,9 +51,10 @@ const titles = (container: HTMLElement) =>
 
 describe("the access changes card", () => {
   it("compares the newest snapshot with the one before it: one added and one removed row per part", async () => {
-    const { container, compare, onError } = await card(new MockTransport());
+    const { container, compare } = await card(new MockTransport());
 
     await compare();
+    expect(liveStatus(container)).toBe("8 added, 6 removed between the two snapshots");
 
     expect(container.querySelector('[data-testid="snapshots"]')?.textContent).toBe(
       "From the snapshot taken 2026-10-31 06:00 UTC (26 hour(s) ago) to the one taken 2026-11-01 06:00 UTC (2 hour(s) ago): 8 added, 6 removed.",
@@ -83,7 +83,7 @@ describe("the access changes card", () => {
     expect(container.querySelector('[data-testid="user"]')).toBeNull();
     expect(container.querySelector('[data-testid="unchanged"]')).toBeNull();
     expect(container.textContent).not.toContain("Through");
-    expect(onError).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
   it("narrows the changes to one user, with the group each row comes through", async () => {
@@ -111,23 +111,27 @@ describe("the access changes card", () => {
     await compare();
 
     expect(container.textContent).toContain("Nothing to compare yet");
+    expect(liveStatus(container)).toBe("Nothing to compare yet");
     expect(container.textContent).toContain("No snapshot of the profile 'contoso' yet.");
     expect(container.textContent).toContain("ask the administrator to take one every morning");
     expect(container.querySelector("table")).toBeNull();
   });
 
-  it("raises a user neither snapshot knows as the page's error and keeps what it showed", async () => {
-    const { container, compare, onError } = await card(new MockTransport());
+  it("shows a user neither snapshot knows under the fields and drops the old answer (task 120)", async () => {
+    const { container, field, compare } = await card(new MockTransport());
     await compare();
+    expect(titles(container)).toHaveLength(6);
 
     await compare({ user: "nobody@contoso.com" });
 
-    expect(onError).toHaveBeenCalledWith({
-      code: "not-found",
-      message: "neither 2026-10-31T060000Z.sqlite nor 2026-11-01T060000Z.sqlite knows a user 'nobody@contoso.com'",
-      hint: "check the name or the address and try again",
-    });
-    expect(titles(container)).toHaveLength(6);
+    const alert = container.querySelector('[role="alert"]') as HTMLElement;
+    expect(alert.textContent).toContain("The comparison failed");
+    expect(alert.textContent).toContain(
+      "neither 2026-10-31T060000Z.sqlite nor 2026-11-01T060000Z.sqlite knows a user 'nobody@contoso.com'",
+    );
+    expect(field("Only this user").getAttribute("aria-invalid")).toBe("true");
+    expect(field("From").getAttribute("aria-describedby")).toBe(alert.id);
+    expect(titles(container)).toHaveLength(0);
   });
 
   it("sends only the picks it was given, waits for the host, and ignores a reply that is no diff answer", async () => {
@@ -136,19 +140,32 @@ describe("the access changes card", () => {
         ? { type: MessageType.pong, data: { product: "m365-aegis", version: "1" } }
         : null,
     );
-    const { container, compare, onError } = await card(transport);
+    const { container, field, compare } = await card(transport);
 
     await compare({ from: " yesterday ", to: " " });
-    expect(button(container, "Compare").disabled).toBe(false);
-    expect(container.querySelector("section")).toBeNull();
+    expect(isDisabled(button(container, "Compare"))).toBe(false);
+    expect(container.querySelector("section section")).toBeNull();
+    expect(liveStatus(container)).toBe("");
 
     await compare({ from: "", to: "latest", user: "bob@contoso.com" });
-    expect(button(container, "Comparing…").disabled).toBe(true);
+    expect(isDisabled(button(container, "Comparing…"))).toBe(true);
+    expect(field("To").readOnly).toBe(true);
+    expect(liveStatus(container)).toBe("Comparing the snapshots…");
     expect(transport.sent.map((message) => message.data)).toEqual([
       { from: "yesterday" },
       { to: "latest", user: "bob@contoso.com" },
     ]);
-    expect(onError).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it("dims the old answer while the next comparison runs", async () => {
+    const transport = new MockTransport();
+    const { container, compare } = await card(transport);
+    await compare();
+    transport.send = () => {};
+    await compare();
+    expect(container.querySelector('[aria-busy="true"] [data-testid="snapshots"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="snapshots"]')?.closest(".opacity-50")).not.toBeNull();
   });
 });
 

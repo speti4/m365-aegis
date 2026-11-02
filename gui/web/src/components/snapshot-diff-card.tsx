@@ -1,19 +1,18 @@
 import { History, TriangleAlert } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { BridgeClient } from "../bridge/client";
 import {
-  type BridgeError,
   MessageType,
   type SnapshotDiffEntry,
   type SnapshotDiffReport,
   type SnapshotDiffSide,
   type TooFewSnapshotsInfo,
 } from "../bridge/protocol";
+import { Field, LiveStatus, LookupError, SubmitButton, useLookup } from "./card-parts";
 import { rightNames } from "./mailbox-access-card";
 import { Notice } from "./plan-view";
 import { diffPart, windowWarning } from "./plan-wording";
@@ -33,43 +32,56 @@ type Result = { kind: "report"; data: SnapshotDiffReport } | { kind: "too-few"; 
  * membership, owner, shared file, mailbox right, calendar permission and forwarding that appeared or disappeared, by
  * part of the tenant; with a user, that user's changes only, nested memberships and what comes through a group
  * included (task 114). The host reads the snapshot files on this computer only: no sign-in, no request to Microsoft
- * 365. With fewer than two snapshots the card says so plainly; an `error` reply is the page's toast.
+ * 365. With fewer than two snapshots the card says so plainly. A failure shows under the fields and drops the old
+ * answer (task 120); the fields stay usable while the host compares, and the status region says what is going on
+ * (task 121).
  */
-export function SnapshotDiffCard({ client, onError }: { client: BridgeClient; onError: (error: BridgeError) => void }) {
+export function SnapshotDiffCard({ client }: { client: BridgeClient }) {
+  const id = useId();
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [user, setUser] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<Result | null>(null);
+  const { busy, result, error, status, run } = useLookup<Result>();
 
-  async function compare(event: FormEvent<HTMLFormElement>) {
+  function compare(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setBusy(true);
-    try {
-      const picks = Object.entries({ from, to, user })
-        .map(([name, value]) => [name, value.trim()] as const)
-        .filter(([, value]) => value !== "");
-      const reply = await client.call(MessageType.snapshotDiff, Object.fromEntries(picks));
-      switch (reply.type) {
-        case MessageType.snapshotDiffReport:
-          setResult({ kind: "report", data: reply.data });
-          break;
-        case MessageType.tooFewSnapshots:
-          setResult({ kind: "too-few", data: reply.data });
-          break;
-        case MessageType.error:
-          onError(reply.data);
-          break;
-      }
-    } finally {
-      setBusy(false);
-    }
+    const picks = Object.entries({ from, to, user })
+      .map(([name, value]) => [name, value.trim()] as const)
+      .filter(([, value]) => value !== "");
+    void run(
+      "Comparing the snapshots…",
+      () => client.call(MessageType.snapshotDiff, Object.fromEntries(picks)),
+      (reply) => {
+        switch (reply.type) {
+          case MessageType.snapshotDiffReport:
+            return {
+              result: { kind: "report", data: reply.data },
+              status: `${reply.data.added} added, ${reply.data.removed} removed between the two snapshots`,
+            };
+          case MessageType.tooFewSnapshots:
+            return { result: { kind: "too-few", data: reply.data }, status: "Nothing to compare yet" };
+          default:
+            return undefined;
+        }
+      },
+    );
   }
 
+  const fields = [
+    { name: "from", label: "From", placeholder: "The one before", value: from, set: setFrom },
+    { name: "to", label: "To", placeholder: "The newest", value: to, set: setTo },
+    {
+      name: "user",
+      label: "Only this user",
+      placeholder: "Optional: a principal name or address",
+      value: user,
+      set: setUser,
+    },
+  ];
   return (
-    <Card>
+    <Card aria-labelledby={`${id}-title`}>
       <CardHeader>
-        <CardTitle>Access changes</CardTitle>
+        <CardTitle id={`${id}-title`}>Access changes</CardTitle>
         <CardDescription>
           Who gained or lost access between two snapshots of the tenant on this computer: the newest and the one before
           it, unless you name them. A user narrows it to that person, groups within groups included. Nothing is asked of
@@ -77,34 +89,35 @@ export function SnapshotDiffCard({ client, onError }: { client: BridgeClient; on
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <form className="grid gap-2 sm:grid-cols-[1fr_1fr_1.5fr_auto]" onSubmit={(event) => void compare(event)}>
-          <Input
-            aria-label="From"
-            placeholder="From: the one before"
-            value={from}
-            onChange={(event) => setFrom(event.target.value)}
-            disabled={busy}
-          />
-          <Input
-            aria-label="To"
-            placeholder="To: the newest"
-            value={to}
-            onChange={(event) => setTo(event.target.value)}
-            disabled={busy}
-          />
-          <Input
-            aria-label="Only this user"
-            placeholder="Only this user (optional)"
-            value={user}
-            onChange={(event) => setUser(event.target.value)}
-            disabled={busy}
-          />
-          <Button type="submit" disabled={busy}>
-            {busy ? "Comparing…" : "Compare"}
-          </Button>
+        <LiveStatus text={status} />
+        <form className="grid items-end gap-2 sm:grid-cols-[1fr_1fr_1.5fr_auto]" onSubmit={compare} aria-busy={busy}>
+          {fields.map((field) => (
+            <Field key={field.name} id={`${id}-${field.name}`} label={field.label}>
+              <Input
+                id={`${id}-${field.name}`}
+                placeholder={field.placeholder}
+                value={field.value}
+                onChange={(event) => field.set(event.target.value)}
+                readOnly={busy}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? `${id}-error` : undefined}
+              />
+            </Field>
+          ))}
+          <div>
+            <SubmitButton busy={busy} missing={null} hintId={`${id}-hint`} idle="Compare" working="Comparing…" />
+          </div>
         </form>
-        {result?.kind === "too-few" ? <TooFewSnapshotsView info={result.data} /> : null}
-        {result?.kind === "report" ? <SnapshotDiffView report={result.data} /> : null}
+        {error ? <LookupError id={`${id}-error`} title="The comparison failed" error={error} /> : null}
+        {result ? (
+          <div className={busy ? "opacity-50" : undefined} aria-busy={busy}>
+            {result.kind === "too-few" ? (
+              <TooFewSnapshotsView info={result.data} />
+            ) : (
+              <SnapshotDiffView report={result.data} />
+            )}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

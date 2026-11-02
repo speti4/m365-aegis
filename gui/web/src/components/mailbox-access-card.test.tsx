@@ -1,40 +1,54 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { BridgeClient } from "../bridge/client";
 import { MockTransport } from "../bridge/mock-transport";
 import { type MailboxAccess, MessageType, PROTOCOL_VERSION, type UserAccess } from "../bridge/protocol";
-import { button, click, render, settle, submit, type } from "../test/dom";
+import { button, click, isDisabled, liveStatus, press, render, settle, submit, type } from "../test/dom";
 import { type Answer, ScriptedTransport } from "../test/scripted-transport";
 import { MailboxAccessCard } from "./mailbox-access-card";
 import { DEBOUNCE_MS } from "./user-picker";
 
 async function card(transport: MockTransport | ScriptedTransport = new MockTransport()) {
-  const onError = vi.fn();
-  const rendered = await render(<MailboxAccessCard client={new BridgeClient(transport)} onError={onError} />);
-  const input = () => rendered.container.querySelector("input") as HTMLInputElement;
+  const rendered = await render(<MailboxAccessCard client={new BridgeClient(transport)} />);
+  // The field under the choice: its label is the choice's ("Mailbox" or "User").
+  const label = () => rendered.container.querySelector("form label") as HTMLLabelElement;
+  const input = () => document.getElementById(label().htmlFor) as HTMLInputElement;
   const form = rendered.container.querySelector("form") as HTMLFormElement;
   const lookUp = async (value: string) => {
     await type(input(), value);
     await submit(form);
     await settle();
   };
-  return { ...rendered, input, lookUp, onError };
+  return { ...rendered, label, input, form, lookUp };
 }
+
+/** An option of the "Look up by" choice, by its text. */
+const radio = (container: HTMLElement, name: string) =>
+  [...container.querySelectorAll('[role="radio"]')].find((item) => item.textContent === name) as HTMLElement;
 
 const scripted = (answer: Answer) => new ScriptedTransport(answer);
 
 describe("the mailbox access card", () => {
   it("lists the shared mailboxes and shows the access of the one picked", async () => {
     const { container, input } = await card();
+    // The list button is no option of the choice.
+    expect(button(container, "List the shared mailboxes").closest('[role="radiogroup"]')).toBeNull();
 
     await click(button(container, "List the shared mailboxes"));
     await settle();
     expect(container.textContent).toContain("2 shared mailbox(es); pick one to see its access.");
     expect(container.textContent).toMatch(/answered in \d+ ms/);
+    expect(liveStatus(container)).toBe("2 shared mailboxes");
 
     await click(button(container, "Reception"));
     await settle();
     expect(input().value).toBe("reception@contoso.com");
+    // The button picked is gone with the list: the focus is back in the field.
+    expect(document.activeElement).toBe(input());
+    expect(liveStatus(container)).toBe("Reception: 3 grants");
+    expect(container.querySelector('[data-testid="answer-for"]')?.textContent).toBe(
+      'Answer for "reception@contoso.com"',
+    );
     const rows = [...container.querySelectorAll("tbody tr")].map((row) =>
       [...row.querySelectorAll("td")].map((cell) => cell.textContent),
     );
@@ -56,15 +70,17 @@ describe("the mailbox access card", () => {
   });
 
   it("looks a user up, and shows a partial answer as a warning", async () => {
-    const { container, input, lookUp } = await card();
-    const byUser = button(container, "A user");
+    const { container, label, input, lookUp } = await card();
+    const byUser = radio(container, "A user");
+    expect(label().textContent).toBe("Mailbox");
 
     await click(byUser);
     expect(byUser.getAttribute("aria-checked")).toBe("true");
-    expect(input().getAttribute("aria-label")).toBe("User");
+    expect(label().textContent).toBe("User");
     expect(input().placeholder).toBe("Start typing a name, or a full address");
     expect(input().getAttribute("role")).toBe("combobox");
     await lookUp("bob@contoso.com");
+    expect(liveStatus(container)).toBe("Bob Example: 3 grants over 4 mailboxes");
 
     const text = container.textContent ?? "";
     expect(text).toContain("Bob Example");
@@ -73,8 +89,8 @@ describe("the mailbox access card", () => {
     expect(text).toContain("the FullAccess list of 'Archive' could not be read (a mock)");
     expect(container.querySelectorAll("tbody tr")).toHaveLength(3);
 
-    await click(button(container, "A mailbox"));
-    expect(input().getAttribute("aria-label")).toBe("Mailbox");
+    await click(radio(container, "A mailbox"));
+    expect(label().textContent).toBe("Mailbox");
   });
 
   it("looks up the user picked from the suggestions, and suggests no user for a mailbox (task 112)", async () => {
@@ -83,7 +99,7 @@ describe("the mailbox access card", () => {
     await settle(DEBOUNCE_MS);
     expect(container.querySelector('[role="option"]')).toBeNull();
 
-    await click(button(container, "A user"));
+    await click(radio(container, "A user"));
     // The text typed for the mailbox stays; the field suggests once the colleague types on.
     await type(input(), "bob ex");
     await settle(DEBOUNCE_MS);
@@ -98,9 +114,10 @@ describe("the mailbox access card", () => {
   it("looks a user up without a display name, a holder without an address, and nothing to list", async () => {
     const grants: UserAccess = { user: "dave@contoso.com", grants: [], mailboxesScanned: 4, failed: [] };
     const { container, lookUp } = await card(scripted(() => ({ type: MessageType.userGrants, data: grants })));
-    await click(button(container, "A user"));
+    await click(radio(container, "A user"));
 
     await lookUp("dave@contoso.com");
+    expect(liveStatus(container)).toBe("dave@contoso.com: 0 grants over 4 mailboxes");
 
     expect(container.textContent).toContain("dave@contoso.com· 0 grant(s) over 4 mailbox(es)");
     expect(container.textContent).not.toContain("partial");
@@ -114,25 +131,66 @@ describe("the mailbox access card", () => {
     await second.lookUp("archive");
     const cells = [...second.container.querySelectorAll("tbody td")].map((cell) => cell.textContent);
     expect(cells).toEqual(["Send on Behalf", "Finance team", "", ""]);
+    expect(liveStatus(second.container)).toBe("Archive: 1 grant");
+
+    const one: UserAccess = { ...grants, mailboxesScanned: 1, displayName: "Dave Example" };
+    const third = await card(scripted(() => ({ type: MessageType.userGrants, data: one })));
+    await click(radio(third.container, "A user"));
+    await third.lookUp("dave@contoso.com");
+    expect(liveStatus(third.container)).toBe("Dave Example: 0 grants over 1 mailbox");
   });
 
-  it("hands an error to onError", async () => {
-    const { lookUp, onError } = await card();
+  it("shows an error under the field and drops the old answer (task 120)", async () => {
+    const { container, input, lookUp } = await card();
+    await lookUp("finance");
+    expect(container.querySelector("table")).not.toBeNull();
 
     await lookUp("nobody");
 
-    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: "not-found" }));
+    const alert = container.querySelector('[role="alert"]') as HTMLElement;
+    expect(alert.textContent).toContain("The lookup failed");
+    expect(alert.textContent).toContain("not-found");
+    expect(input().getAttribute("aria-invalid")).toBe("true");
+    expect(input().getAttribute("aria-describedby")).toBe(alert.id);
+    expect(container.querySelector("table")).toBeNull();
+
+    // The user picker carries the same marks.
+    await click(radio(container, "A user"));
+    expect(input().getAttribute("aria-invalid")).toBe("true");
+    expect(input().getAttribute("aria-describedby")).toBe(alert.id);
+  });
+
+  it("sends nothing for an empty field, and moves the choice with the arrow keys", async () => {
+    const transport = new ScriptedTransport();
+    const { container, form } = await card(transport);
+    expect(isDisabled(button(container, "Look up"))).toBe(true);
+    await submit(form);
+    expect(transport.sent).toEqual([]);
+
+    const byMailbox = radio(container, "A mailbox");
+    byMailbox.focus();
+    await press(byMailbox, "ArrowRight");
+    expect(radio(container, "A user").getAttribute("aria-checked")).toBe("true");
+    // Enter on the choice submits no form: the choice is outside the card's form.
+    await press(radio(container, "A user"), "Enter");
+    expect(transport.sent).toEqual([]);
   });
 
   it("tells that the first lookup starts the session, and ignores a reply of another type", async () => {
     const transport = new ScriptedTransport();
-    const { container, input, onError } = await card(transport);
+    const { container, input } = await card(transport);
     await type(input(), "finance");
+    input().focus();
     await submit(container.querySelector("form") as HTMLFormElement);
 
     expect(container.textContent).toContain("The first lookup starts the Exchange Online session");
-    expect(button(container, "Looking up…").disabled).toBe(true);
-    expect(button(container, "List the shared mailboxes").disabled).toBe(true);
+    expect(liveStatus(container)).toBe(
+      "Looking up finance… The first lookup starts the Exchange Online session, which takes a few seconds.",
+    );
+    expect(isDisabled(button(container, "Looking up…"))).toBe(true);
+    expect(isDisabled(button(container, "List the shared mailboxes"))).toBe(true);
+    expect(input().readOnly).toBe(true);
+    expect(document.activeElement).toBe(input());
     transport.push({
       aegis: PROTOCOL_VERSION,
       id: transport.sent[0].id,
@@ -141,9 +199,9 @@ describe("the mailbox access card", () => {
     });
     await settle();
 
-    expect(onError).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(container.textContent).not.toContain("The first lookup starts");
-    expect(button(container, "Look up").disabled).toBe(false);
+    expect(isDisabled(button(container, "Look up"))).toBe(false);
   });
 
   it("keeps the last answer on screen while the next lookup runs", async () => {
@@ -162,6 +220,9 @@ describe("the mailbox access card", () => {
 
     expect(button(container, "Looking up…")).toBeDefined();
     expect(container.textContent).not.toContain("The first lookup starts");
+    expect(liveStatus(container)).toBe("Looking up finance…");
     expect(container.textContent).toContain("Nobody holds a right");
+    const shown = container.querySelector('[data-testid="answer-for"]')?.closest('[aria-busy="true"]');
+    expect(shown?.className).toContain("opacity-50");
   });
 });

@@ -1,6 +1,8 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
+import { focusTarget } from "@/lib/focus";
+import { cn } from "@/lib/utils";
 import { BridgeClient, SIGN_IN_TIMEOUT_MS } from "./bridge/client";
 import { type BridgeError, MessageType } from "./bridge/protocol";
 import { createTransport } from "./bridge/transport";
@@ -14,13 +16,18 @@ import { SnapshotDiffCard } from "./components/snapshot-diff-card";
 import { pageGroups, signInSection, TopBar } from "./components/top-bar";
 import { UserAccessCard } from "./components/user-access-card";
 
+/** How long a toast stays: long enough to read a sentence and its hint; its close button ends it sooner. */
+const TOAST_MS = 10_000;
+
 /**
  * The window's page: it tells the host it is ready (the smoke run waits for that), shows the sign-in state and
  * signs in or out from its card (task 040), looks up a group's members (task 017) and a mailbox's access over the
  * window's Exchange Online session (task 045), shows what one user reaches from the newest snapshot (task 102) and who
  * gained or lost access between two snapshots (task 115), and
  * grants or revokes mailbox rights and sets or clears a mailbox's forwarding on the write cards (task 082: the plan,
- * the confirmation, the result); an `error` reply of a lookup is a toast, a write card shows its own. A change a write
+ * the confirmation, the result). A card shows its own `error` reply under its form (task 120); the toast, with a close
+ * button, is for the page's own requests (the sign-in, the version). The write cards' confirmation names the account
+ * signed in (`runAs`). A change a write
  * card applied reaches the mailbox access card, which reads the mailbox it shows again (task 091) or marks the user's
  * list it shows as possibly out of date (task 103). The cards follow the design sketch of task 018, a dev-only page: `npm run dev`, then
  * `#/sketch/task-cards`. The top bar stays at the top with the sign-in and the links to the card groups (task 124):
@@ -32,6 +39,7 @@ export function App() {
   const [version, setVersion] = useState<string | null>(null);
   const [signIn, dispatch] = useReducer(signInReducer, { status: "checking" });
   const applied = useMemo(() => new AppliedWrites(), []);
+  const runAs = signIn.status === "signed-in" ? signIn.info : undefined;
 
   const showError = useCallback((error: BridgeError) => {
     toast.error(error.message, { description: error.hint });
@@ -113,7 +121,7 @@ export function App() {
         onSignOut={() => void signOut()}
       />
       <main className="mx-auto max-w-5xl space-y-8 p-6">
-        <section id={signInSection} tabIndex={-1} aria-label="Sign-in" className="scroll-mt-16 outline-none">
+        <section id={signInSection} tabIndex={-1} aria-label="Sign-in" className={cn("scroll-mt-16", focusTarget)}>
           <SignInCard
             state={signIn}
             onRefresh={() => void checkSignIn()}
@@ -123,29 +131,31 @@ export function App() {
           />
         </section>
         <Group index={0}>
-          <GroupMembersCard client={client} onError={showError} />
-          <MailboxAccessCard client={client} onError={showError} applied={applied} />
+          <GroupMembersCard client={client} />
+          <MailboxAccessCard client={client} applied={applied} />
         </Group>
         <Group index={1}>
-          <UserAccessCard client={client} onError={showError} />
-          <SnapshotDiffCard client={client} onError={showError} />
+          <UserAccessCard client={client} />
+          <SnapshotDiffCard client={client} />
         </Group>
         <Group index={2}>
           <MailboxAccessWriteCard
             client={client}
             signedIn={signedIn}
             exchangeError={noExchange}
+            runAs={runAs}
             onApplied={applied.publish}
           />
           <MailboxForwardingCard
             client={client}
             signedIn={signedIn}
             exchangeError={noExchange}
+            runAs={runAs}
             onApplied={applied.publish}
           />
         </Group>
       </main>
-      <Toaster position="bottom-right" />
+      <Toaster position="bottom-right" closeButton duration={TOAST_MS} />
     </div>
   );
 }
@@ -154,7 +164,12 @@ export function App() {
 function Group({ index, children }: { index: number; children: ReactNode }) {
   const { id, name } = pageGroups[index];
   return (
-    <section id={id} tabIndex={-1} aria-labelledby={`${id}-heading`} className="scroll-mt-16 space-y-4 outline-none">
+    <section
+      id={id}
+      tabIndex={-1}
+      aria-labelledby={`${id}-heading`}
+      className={cn("scroll-mt-16 space-y-4", focusTarget)}
+    >
       <h2 id={`${id}-heading`} className="text-sm font-semibold text-muted-foreground">
         {name}
       </h2>

@@ -1,12 +1,12 @@
 // @vitest-environment happy-dom
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { BridgeClient } from "../bridge/client";
 import { mockDaveAccess } from "../bridge/mock-access";
 import { MockTransport } from "../bridge/mock-transport";
 import { type AccessReport, MessageType, parseMessage, readReply } from "../bridge/protocol";
-import { button, click, render, settle, submit, type } from "../test/dom";
+import { button, click, field, isDisabled, liveStatus, render, settle, submit, type } from "../test/dom";
 import { ScriptedTransport } from "../test/scripted-transport";
 import { AccessReportView, describeAge, describeTaken, UserAccessCard } from "./user-access-card";
 import { DEBOUNCE_MS } from "./user-picker";
@@ -24,20 +24,19 @@ function sampleReport(): AccessReport {
 }
 
 async function card(transport: MockTransport | ScriptedTransport) {
-  const onError = vi.fn();
-  const rendered = await render(<UserAccessCard client={new BridgeClient(transport)} onError={onError} />);
+  const rendered = await render(<UserAccessCard client={new BridgeClient(transport)} />);
   const lookUp = async (user: string) => {
-    await type(rendered.container.querySelector('input[aria-label="User"]') as HTMLInputElement, user);
+    await type(field(rendered.container, "User"), user);
     await submit(rendered.container.querySelector("form") as HTMLFormElement);
     await settle();
   };
-  return { ...rendered, onError, lookUp };
+  return { ...rendered, lookUp };
 }
 
 /** The rows of the section with the given title, cell by cell. */
 function rows(container: HTMLElement, title: string): string[][] {
   const section = [...container.querySelectorAll("section")].find((candidate) =>
-    candidate.querySelector("h3")?.textContent?.startsWith(title),
+    candidate.querySelector(":scope > h3")?.textContent?.startsWith(title),
   );
   return [...(section?.querySelectorAll("tbody tr") ?? [])].map((row) =>
     [...row.querySelectorAll("td")].map((cell) => cell.textContent ?? ""),
@@ -46,13 +45,20 @@ function rows(container: HTMLElement, title: string): string[][] {
 
 describe("the user access card", () => {
   it("answers for a fixture user from the snapshot sample, its date and its warnings in the window's words", async () => {
-    const { container, lookUp, onError } = await card(new MockTransport());
-    expect(button(container, "Look up").disabled).toBe(true);
+    const { container, lookUp } = await card(new MockTransport());
+    expect(isDisabled(button(container, "Look up"))).toBe(true);
+    // The sections are headed a level below the card's heading.
+    expect(container.querySelector("h2")?.textContent).toBe("User access");
 
     await lookUp(" dave@contoso.com ");
 
     const text = container.textContent ?? "";
     expect(text).toContain("Dave Exampledave@contoso.com");
+    expect(container.querySelector('[data-testid="answer-for"]')?.textContent).toBe('Answer for "dave@contoso.com"');
+    expect(liveStatus(container)).toBe(
+      "dave@contoso.com: 4 groups, 2 sites, 3 shared files, 1 mailbox right, 1 calendar permission",
+    );
+    expect(container.querySelectorAll("h3")).toHaveLength(5);
     expect(container.querySelector('[data-testid="snapshot"]')?.textContent).toBe(
       "From the snapshot taken 2026-10-31 06:00 UTC, 2 hour(s) ago.",
     );
@@ -89,7 +95,7 @@ describe("the user access card", () => {
     );
     expect(text).not.toMatch(/Sites\.Read\.All|task \d{3}/);
     expect(text).not.toContain("`");
-    expect(onError).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
   it("looks up the user picked from the suggestions by the user principal name (task 112)", async () => {
@@ -100,18 +106,20 @@ describe("the user access card", () => {
       sent.push(`${message.type} ${JSON.stringify(message.data)}`);
       record(message);
     };
-    const { container, onError } = await card(transport);
+    const { container } = await card(transport);
 
-    await type(container.querySelector('input[aria-label="User"]') as HTMLInputElement, "Dav");
+    await type(field(container, "User"), "Dav");
     await settle(DEBOUNCE_MS);
     const option = container.querySelector('[role="option"]') as HTMLElement;
-    expect(option.textContent).toBe("Dave Exampledave@contoso.com");
+    // The name and the address are two words to a screen reader.
+    expect(option.textContent).toBe("Dave Example dave@contoso.com");
+    expect(liveStatus(container)).toBe("1 matching user: use the arrow keys to pick one.");
     await click(option);
     await settle();
 
     expect(sent).toEqual(['user-search {"text":"Dav"}', 'access {"user":"dave@contoso.com"}']);
     expect(container.querySelector('[data-testid="snapshot"]')).not.toBeNull();
-    expect(onError).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
   it("says plainly that there is no snapshot, and who takes one", async () => {
@@ -120,6 +128,7 @@ describe("the user access card", () => {
     await lookUp("dave@contoso.com");
 
     expect(container.textContent).toContain("No snapshot yet");
+    expect(liveStatus(container)).toBe("No snapshot yet");
     expect(container.textContent).toContain(
       "The card answers from a snapshot of the tenant, and this computer has none for the profile contoso.",
     );
@@ -129,18 +138,20 @@ describe("the user access card", () => {
     expect(container.querySelector("table")).toBeNull();
   });
 
-  it("raises an unknown user as the page's error and keeps what it showed", async () => {
-    const { container, lookUp, onError } = await card(new MockTransport());
+  it("shows an unknown user under the field and drops the old answer (task 120)", async () => {
+    const { container, lookUp } = await card(new MockTransport());
     await lookUp("dave@contoso.com");
 
     await lookUp("nobody@contoso.com");
 
-    expect(onError).toHaveBeenCalledWith({
-      code: "not-found",
-      message: "the snapshot 2026-10-31T060000Z.sqlite knows no user 'nobody@contoso.com'",
-      hint: "check the name or the address and try again",
-    });
-    expect(container.textContent).toContain("Dave Example");
+    const alert = container.querySelector('[role="alert"]') as HTMLElement;
+    expect(alert.textContent).toContain("The lookup failed");
+    expect(alert.textContent).toContain("the snapshot 2026-10-31T060000Z.sqlite knows no user 'nobody@contoso.com'");
+    expect(alert.textContent).toContain("What to do: check the name or the address and try again");
+    const input = field(container, "User");
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(input.getAttribute("aria-describedby")).toBe(alert.id);
+    expect(container.textContent).not.toContain("Dave Example");
   });
 
   it("waits for the host while it looks up, and ignores a reply that is no access answer", async () => {
@@ -149,19 +160,34 @@ describe("the user access card", () => {
         ? { type: MessageType.pong, data: { product: "m365-aegis", version: "1" } }
         : null,
     );
-    const { container, lookUp, onError } = await card(transport);
+    const { container, lookUp } = await card(transport);
 
     await lookUp("dave@contoso.com");
-    expect(button(container, "Look up").disabled).toBe(false);
-    expect(container.querySelector("section")).toBeNull();
+    expect(isDisabled(button(container, "Look up"))).toBe(false);
+    expect(container.querySelector("section section")).toBeNull();
 
     await lookUp("carol@contoso.com");
-    expect(button(container, "Looking up…").disabled).toBe(true);
+    expect(isDisabled(button(container, "Looking up…"))).toBe(true);
+    expect(field(container, "User").readOnly).toBe(true);
     expect(transport.sent.map((message) => message.data)).toEqual([
       { user: "dave@contoso.com" },
       { user: "carol@contoso.com" },
     ]);
-    expect(onError).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    // An empty field sends nothing.
+    const empty = await card(transport);
+    await empty.lookUp("  ");
+    expect(transport.sent).toHaveLength(2);
+  });
+
+  it("dims the old answer while the next lookup runs", async () => {
+    const transport = new MockTransport();
+    const { container, lookUp } = await card(transport);
+    await lookUp("dave@contoso.com");
+    transport.send = () => {};
+    await lookUp("carol@contoso.com");
+    const shown = container.querySelector('[data-testid="answer-for"]')?.closest('[aria-busy="true"]');
+    expect(shown?.className).toContain("opacity-50");
   });
 });
 

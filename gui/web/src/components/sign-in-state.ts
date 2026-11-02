@@ -102,3 +102,25 @@ export function statusLabel(state: SignInState): string | null {
       return null;
   }
 }
+
+/** What the sign-in card's status region says for a state (task 121): each change of the sign-in, in a few words. */
+export function signInStatus(state: SignInState): string {
+  switch (state.status) {
+    case "checking":
+      return "Checking the sign-in…";
+    case "signed-in":
+      return exchangeError(state) === null
+        ? `Signed in as ${state.info.account}`
+        : `Signed in as ${state.info.account}; Exchange Online is unavailable`;
+    case "signed-out":
+      return "Signed out";
+    case "signing-in":
+      return state.deviceCode
+        ? "Waiting for the sign-in: enter the code in a browser"
+        : "Waiting for the sign-in: choose the account in the Windows sign-in window";
+    case "signing-out":
+      return "Signing out…";
+    case "unknown":
+      return "The sign-in state could not be read";
+  }
+}

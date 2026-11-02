@@ -25,14 +25,16 @@ function sample(name: string): BridgeMessage {
 /** The picker in a form, as a card holds it: the value is the form's, a pick and a submit are recorded. */
 function Harness({
   client,
-  disabled,
+  busy,
   onPick,
   onSubmit,
+  onAnnounce,
 }: {
   client: BridgeClient;
-  disabled?: boolean;
+  busy?: boolean;
   onPick: (address: string) => void;
   onSubmit: (value: string) => void;
+  onAnnounce?: (text: string) => void;
 }) {
   const [value, setValue] = useState("");
   return (
@@ -42,7 +44,15 @@ function Harness({
         onSubmit(value);
       }}
     >
-      <UserPicker client={client} value={value} onChange={setValue} onPick={onPick} disabled={disabled} />
+      <UserPicker
+        client={client}
+        id="picker"
+        value={value}
+        onChange={setValue}
+        onPick={onPick}
+        busy={busy}
+        onAnnounce={onAnnounce}
+      />
     </form>
   );
 }
@@ -50,8 +60,11 @@ function Harness({
 async function picker(transport: MockTransport | ScriptedTransport = new MockTransport()) {
   const onPick = vi.fn();
   const onSubmit = vi.fn();
+  const onAnnounce = vi.fn();
   const client = new BridgeClient(transport);
-  const rendered = await render(<Harness client={client} onPick={onPick} onSubmit={onSubmit} />);
+  const rendered = await render(
+    <Harness client={client} onPick={onPick} onSubmit={onSubmit} onAnnounce={onAnnounce} />,
+  );
   const input = () => rendered.container.querySelector("input") as HTMLInputElement;
   const options = () =>
     [...rendered.container.querySelectorAll('[role="option"]')].map((option) => option.textContent ?? "");
@@ -66,9 +79,11 @@ async function picker(transport: MockTransport | ScriptedTransport = new MockTra
     await settleAfter(() => input().dispatchEvent(event));
     return event.defaultPrevented;
   };
-  const disable = (disabled: boolean) =>
-    rendered.rerender(<Harness client={client} onPick={onPick} onSubmit={onSubmit} disabled={disabled} />);
-  return { ...rendered, input, options, note, press, disable, onPick, onSubmit };
+  const disable = (busy: boolean) =>
+    rendered.rerender(
+      <Harness client={client} onPick={onPick} onSubmit={onSubmit} onAnnounce={onAnnounce} busy={busy} />,
+    );
+  return { ...rendered, input, options, note, press, disable, onPick, onSubmit, onAnnounce };
 }
 
 /** Runs a step that changes the page, then lets React settle. */
@@ -131,7 +146,7 @@ describe("the user picker", () => {
     await settle(1);
 
     expect(searches(transport)).toEqual([{ text: "carol" }]);
-    expect(options()).toEqual(["Carol Examplecarol@contoso.com"]);
+    expect(options()).toEqual(["Carol Example carol@contoso.com"]);
     expect(input().getAttribute("aria-expanded")).toBe("true");
   });
 
@@ -147,7 +162,7 @@ describe("the user picker", () => {
     expect(document.getElementById(first as string)?.getAttribute("aria-selected")).toBe("true");
     expect(await press("ArrowUp")).toBe(true);
     expect(document.getElementById(input().getAttribute("aria-activedescendant") as string)?.textContent).toBe(
-      "Eve Exampleeve@contoso.com",
+      "Eve Example eve@contoso.com",
     );
     await press("ArrowDown");
     await press("ArrowDown");
@@ -164,14 +179,14 @@ describe("the user picker", () => {
   it("closes on Escape and on leaving the field, and the arrows open it again from the top", async () => {
     const { container, input, options, press } = await picker();
     await typeAndWait(input(), "ali");
-    expect(options()).toEqual(["Alice Examplealice@contoso.com"]);
+    expect(options()).toEqual(["Alice Example alice@contoso.com"]);
 
     await press("ArrowDown");
     expect(await press("Escape")).toBe(false);
     expect(options()).toEqual([]);
     await press("ArrowUp");
-    expect(options()).toEqual(["Alice Examplealice@contoso.com"]);
-    expect(container.querySelector('[aria-selected="true"]')?.textContent).toBe("Alice Examplealice@contoso.com");
+    expect(options()).toEqual(["Alice Example alice@contoso.com"]);
+    expect(container.querySelector('[aria-selected="true"]')?.textContent).toBe("Alice Example alice@contoso.com");
 
     await settleAfter(() => input().dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
     expect(options()).toEqual([]);
@@ -207,12 +222,30 @@ describe("the user picker", () => {
     await typeAndWait(empty.input(), "zzz");
     expect(empty.options()).toEqual([]);
     expect(empty.note()).toEqual(['No user starts with "zzz": a full address still works.', "From the directory."]);
+    // No list to pick from: the field is not expanded and controls nothing (task 121), and the card hears why.
+    expect(empty.container.querySelector('[role="listbox"]')).toBeNull();
+    expect(empty.input().getAttribute("aria-expanded")).toBe("false");
+    expect(empty.input().hasAttribute("aria-controls")).toBe(false);
+    expect(empty.onAnnounce).toHaveBeenLastCalledWith('No user starts with "zzz": a full address still works.');
+  });
+
+  it("tells the card how many users match, and is expanded with them (task 121)", async () => {
+    const found = await picker();
+    await typeAndWait(found.input(), "exa");
+    const listbox = found.container.querySelector('[role="listbox"]') as HTMLElement;
+    expect(found.input().getAttribute("aria-expanded")).toBe("true");
+    expect(found.input().getAttribute("aria-controls")).toBe(listbox.id);
+    expect(found.onAnnounce).toHaveBeenLastCalledWith(
+      `${found.options().length} matching users: use the arrow keys to pick one.`,
+    );
+    expect(found.input().id).toBe("picker");
+    expect(found.input().hasAttribute("aria-invalid")).toBe(false);
   });
 
   it("signed out, suggests from the snapshot and says so, or says there is no source at all", async () => {
     const offline = await picker(new MockTransport({ signedIn: false }));
     await typeAndWait(offline.input(), "dav");
-    expect(offline.options()).toEqual(["Dave Exampledave@contoso.com"]);
+    expect(offline.options()).toEqual(["Dave Example dave@contoso.com"]);
     expect(offline.note()).toEqual([
       "From the snapshot taken 2026-10-31 06:00 UTC: the directory cannot be searched now (signed out, or it did not answer).",
     ]);
@@ -223,6 +256,9 @@ describe("the user picker", () => {
     expect(none.note()).toEqual([
       "No suggestions: the directory cannot be searched now and this computer has no snapshot. Type the full address.",
     ]);
+    expect(none.onAnnounce).toHaveBeenLastCalledWith(
+      "No suggestions: the directory cannot be searched now and this computer has no snapshot. Type the full address.",
+    );
     expect(await none.press("ArrowDown")).toBe(false);
   });
 
@@ -241,12 +277,13 @@ describe("the user picker", () => {
         more: true,
       },
     }));
-    const { input, options, note } = await picker(transport);
+    const { input, options, note, onAnnounce } = await picker(transport);
 
     await typeAndWait(input(), "roo");
 
     expect(options()).toEqual(["room@contoso.com", "00000000-0000-0000-0000-000000000099"]);
     expect(note()).toEqual(["More users match: type more of the name.", "From the directory."]);
+    expect(onAnnounce).toHaveBeenLastCalledWith("2 matching users, and more: use the arrow keys to pick one.");
   });
 
   it("drops the answer to an older text, shows no list after a failed search, and clears it under three letters", async () => {
@@ -265,7 +302,7 @@ describe("the user picker", () => {
     await answer(0, matches("old"));
     expect(options()).toEqual([]);
     await answer(1, matches("new"));
-    expect(options()).toEqual(["newnew@contoso.com"]);
+    expect(options()).toEqual(["new new@contoso.com"]);
 
     await typeAndWait(input(), "abcde");
     await answer(2, { type: MessageType.error, data: { code: "auth", message: "no profile" } });
@@ -285,6 +322,9 @@ describe("the user picker", () => {
     const busy = await picker(transport);
     await type(busy.input(), "exa");
     await busy.disable(true);
+    // Busy, the field is read-only, not disabled: the focus stays in it (task 121).
+    expect(busy.input().readOnly).toBe(true);
+    expect(busy.input().disabled).toBe(false);
     await settle(DEBOUNCE_MS * 2);
     expect(searches(transport)).toEqual([]);
     await busy.disable(false);

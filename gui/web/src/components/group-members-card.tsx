@@ -1,11 +1,12 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { BridgeClient } from "../bridge/client";
-import { type BridgeError, type GroupKind, type GroupMembers, MessageType } from "../bridge/protocol";
+import { type GroupKind, type GroupMembers, MessageType } from "../bridge/protocol";
+import { AnswerFor, Field, LiveStatus, LookupError, SubmitButton, useLookup } from "./card-parts";
+import { count } from "./plan-wording";
 
 const kindNames: Record<GroupKind, string> = {
   microsoft365: "Microsoft 365",
@@ -14,49 +15,74 @@ const kindNames: Record<GroupKind, string> = {
   distribution: "Distribution",
 };
 
-/** `group members <group>`: the group's direct members, by name, in a table; a failure goes to `onError`. */
-export function GroupMembersCard({ client, onError }: { client: BridgeClient; onError: (error: BridgeError) => void }) {
+/**
+ * `group members <group>`: the group's direct members, by name, in a table, under the name it was asked for. A failure
+ * shows under the field, which it marks invalid, and drops the old table (task 120); the field stays usable while the
+ * lookup runs, so the focus stays in it, and the card's status region says what is going on (task 121).
+ */
+export function GroupMembersCard({ client }: { client: BridgeClient }) {
+  const id = useId();
   const [group, setGroup] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<GroupMembers | null>(null);
+  const { busy, result, error, status, run } = useLookup<{ asked: string; data: GroupMembers }>();
 
-  async function lookUp(event: FormEvent<HTMLFormElement>) {
+  function lookUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setBusy(true);
-    try {
-      const reply = await client.call(MessageType.groupMembers, { group: group.trim() });
-      if (reply.type === MessageType.members) {
-        setResult(reply.data);
-      } else if (reply.type === MessageType.error) {
-        onError(reply.data);
-      }
-    } finally {
-      setBusy(false);
+    const asked = group.trim();
+    if (asked === "") {
+      return;
     }
+    void run(
+      `Looking up ${asked}…`,
+      () => client.call(MessageType.groupMembers, { group: asked }),
+      (reply) =>
+        reply.type === MessageType.members
+          ? {
+              result: { asked, data: reply.data },
+              status: `${reply.data.group.displayName}: ${count(reply.data.members.length, "direct member")}`,
+            }
+          : undefined,
+    );
   }
 
   return (
-    <Card>
+    <Card aria-labelledby={`${id}-title`}>
       <CardHeader>
-        <CardTitle>Group members</CardTitle>
+        <CardTitle id={`${id}-title`}>Group members</CardTitle>
         <CardDescription>
           A group's direct members, by the group's object id, its exact name or address, or a word of its name.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <form className="flex gap-2" onSubmit={lookUp}>
-          <Input
-            aria-label="Group"
-            placeholder="Group name, address or object id"
-            value={group}
-            onChange={(event) => setGroup(event.target.value)}
-            disabled={busy}
-          />
-          <Button type="submit" disabled={busy || group.trim() === ""}>
-            {busy ? "Looking up…" : "Look up"}
-          </Button>
+        <LiveStatus text={status} />
+        <form onSubmit={lookUp} aria-busy={busy}>
+          <Field id={`${id}-group`} label="Group">
+            <div className="flex items-start gap-2">
+              <Input
+                id={`${id}-group`}
+                placeholder="Group name, address or object id"
+                value={group}
+                onChange={(event) => setGroup(event.target.value)}
+                readOnly={busy}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? `${id}-error` : undefined}
+              />
+              <SubmitButton
+                busy={busy}
+                missing={group.trim() === "" ? "Type a group's name, address or object id first." : null}
+                hintId={`${id}-hint`}
+                idle="Look up"
+                working="Looking up…"
+              />
+            </div>
+          </Field>
         </form>
-        {result ? <MembersTable result={result} /> : null}
+        {error ? <LookupError id={`${id}-error`} title="The lookup failed" error={error} /> : null}
+        {result ? (
+          <div className={busy ? "space-y-2 opacity-50" : "space-y-2"} aria-busy={busy}>
+            <AnswerFor query={result.asked} />
+            <MembersTable result={result.data} />
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { DeviceCodePrompt, ResourceToken } from "../bridge/protocol";
-import { canSignIn, exchangeError, type SignInState, statusLabel } from "./sign-in-state";
+import { LiveStatus } from "./card-parts";
+import { canSignIn, exchangeError, type SignInState, signInStatus, statusLabel } from "./sign-in-state";
 
 export type { SignInState } from "./sign-in-state";
 
@@ -11,7 +12,8 @@ export type { SignInState } from "./sign-in-state";
  * The sign-in (task 040): the state as `m365-aegis whoami` reads it, silently; "Sign in" when it is signed out (the
  * broker's account picker opens over the window), "Sign in with a code" for a device code instead, shown here while
  * the sign-in waits for the browser step, with "Open in browser" for its page (task 047); "Sign out" when it is
- * signed in. A failure's hint is the window's own (task 046): the buttons here, or the administrator.
+ * signed in. A failure's hint is the window's own (task 046): the buttons here, or the administrator. Each change of
+ * the state is said in the card's status region (task 121).
  */
 export function SignInCard({
   state,
@@ -26,11 +28,12 @@ export function SignInCard({
   onSignOut: () => void;
   onOpenSignInPage: () => void;
 }) {
+  const id = useId();
   const busy = state.status === "checking" || state.status === "signing-in" || state.status === "signing-out";
   return (
-    <Card>
+    <Card aria-labelledby={`${id}-title`}>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle id={`${id}-title`} className="flex items-center gap-2">
           Sign-in <StatusBadge state={state} />
         </CardTitle>
         <CardDescription>
@@ -48,6 +51,7 @@ export function SignInCard({
         </CardAction>
       </CardHeader>
       <CardContent className="space-y-4">
+        <LiveStatus text={signInStatus(state)} />
         <SignInDetails state={state} onOpenSignInPage={onOpenSignInPage} />
         {canSignIn(state) ? (
           <div className="flex flex-wrap gap-2">

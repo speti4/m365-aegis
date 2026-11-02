@@ -1,14 +1,14 @@
 import { DatabaseZap, TriangleAlert } from "lucide-react";
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { BridgeClient } from "../bridge/client";
-import { type AccessReport, type BridgeError, MessageType, type NoSnapshotInfo } from "../bridge/protocol";
+import { type AccessReport, MessageType, type NoSnapshotInfo } from "../bridge/protocol";
+import { AnswerFor, Field, LiveStatus, LookupError, SubmitButton, useLookup } from "./card-parts";
 import { rightNames } from "./mailbox-access-card";
 import { Notice } from "./plan-view";
-import { windowWarning } from "./plan-wording";
+import { count, windowWarning } from "./plan-wording";
 import { describeTaken } from "./snapshot-time";
 import { UserPicker } from "./user-picker";
 
@@ -22,7 +22,13 @@ export function describeAge(hours: number): string {
 /** What a right or a permission comes through: the group, or "direct" for one granted to the user. */
 const through = (group: string | undefined) => group ?? "direct";
 
-type Result = { kind: "report"; data: AccessReport } | { kind: "none"; data: NoSnapshotInfo };
+type Result = { kind: "report"; asked: string; data: AccessReport } | { kind: "none"; data: NoSnapshotInfo };
+
+/** The status line of an access view: the user as asked, and how much of each section. */
+function reportStatus(asked: string, report: AccessReport): string {
+  const { groups, sites, sharedItems, mailboxes, calendars } = report;
+  return `${asked}: ${count(groups.length, "group")}, ${count(sites.length, "site")}, ${count(sharedItems.length, "shared file")}, ${count(mailboxes.length, "mailbox right")}, ${count(calendars.length, "calendar permission")}`;
+}
 
 /**
  * What one user reaches (task 102), as `access <user>` answers it from the newest snapshot (task 084): the groups and
@@ -31,63 +37,90 @@ type Result = { kind: "report"; data: AccessReport } | { kind: "none"; data: NoS
  * time and age, and its warnings in the window's words. The user is picked from the suggestions (the directory, else the snapshot) as the colleague
  * types a name (the user picker, task 112), or typed in full. The host reads the snapshot file on this computer only: no
  * sign-in, no request to Microsoft 365, so the card works signed out too. Without a snapshot the card says so plainly
- * and names who takes one; an `error` reply is the page's toast.
+ * and names who takes one. A failure shows under the field and drops the old answer (task 120); the field stays usable
+ * while the lookup runs and the status region says what is going on (task 121).
  */
-export function UserAccessCard({ client, onError }: { client: BridgeClient; onError: (error: BridgeError) => void }) {
+export function UserAccessCard({ client }: { client: BridgeClient }) {
+  const id = useId();
   const [query, setQuery] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<Result | null>(null);
+  const lookup = useLookup<Result>();
+  const { busy, result, error, status, setStatus, run } = lookup;
 
-  async function lookUp(user: string) {
-    setBusy(true);
-    try {
-      const reply = await client.call(MessageType.access, { user: user.trim() });
-      switch (reply.type) {
-        case MessageType.accessReport:
-          setResult({ kind: "report", data: reply.data });
-          break;
-        case MessageType.noSnapshot:
-          setResult({ kind: "none", data: reply.data });
-          break;
-        case MessageType.error:
-          onError(reply.data);
-          break;
-      }
-    } finally {
-      setBusy(false);
+  function lookUp(user: string) {
+    const asked = user.trim();
+    if (asked === "") {
+      return;
     }
+    void run(
+      `Looking up ${asked}…`,
+      () => client.call(MessageType.access, { user: asked }),
+      (reply) => {
+        switch (reply.type) {
+          case MessageType.accessReport:
+            return { result: { kind: "report", asked, data: reply.data }, status: reportStatus(asked, reply.data) };
+          case MessageType.noSnapshot:
+            return { result: { kind: "none", data: reply.data }, status: "No snapshot yet" };
+          default:
+            return undefined;
+        }
+      },
+    );
   }
 
   return (
-    <Card>
+    <Card aria-labelledby={`${id}-title`}>
       <CardHeader>
-        <CardTitle>User access</CardTitle>
+        <CardTitle id={`${id}-title`}>User access</CardTitle>
         <CardDescription>
           What one user reaches: groups, sites, shared files, mailboxes and calendars, from the newest snapshot of the
           tenant on this computer. Nothing is asked of Microsoft 365, so the answer is as old as the snapshot.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <LiveStatus text={status} />
         <form
-          className="flex items-start gap-2"
+          aria-busy={busy}
           onSubmit={(event: FormEvent<HTMLFormElement>) => {
             event.preventDefault();
-            void lookUp(query);
+            lookUp(query);
           }}
         >
-          <UserPicker
-            client={client}
-            value={query}
-            onChange={setQuery}
-            onPick={(user) => void lookUp(user)}
-            disabled={busy}
-          />
-          <Button type="submit" disabled={busy || query.trim() === ""}>
-            {busy ? "Looking up…" : "Look up"}
-          </Button>
+          <Field id={`${id}-user`} label="User">
+            <div className="flex items-start gap-2">
+              <UserPicker
+                client={client}
+                id={`${id}-user`}
+                value={query}
+                onChange={setQuery}
+                onPick={lookUp}
+                busy={busy}
+                invalid={error !== null}
+                describedBy={error ? `${id}-error` : undefined}
+                onAnnounce={setStatus}
+              />
+              <SubmitButton
+                busy={busy}
+                missing={query.trim() === "" ? "Type a user's name or address first." : null}
+                hintId={`${id}-hint`}
+                idle="Look up"
+                working="Looking up…"
+              />
+            </div>
+          </Field>
         </form>
-        {result?.kind === "none" ? <NoSnapshotView info={result.data} /> : null}
-        {result?.kind === "report" ? <AccessReportView report={result.data} /> : null}
+        {error ? <LookupError id={`${id}-error`} title="The lookup failed" error={error} /> : null}
+        {result ? (
+          <div className={busy ? "opacity-50" : undefined} aria-busy={busy}>
+            {result.kind === "none" ? (
+              <NoSnapshotView info={result.data} />
+            ) : (
+              <div className="space-y-2">
+                <AnswerFor query={result.asked} />
+                <AccessReportView report={result.data} />
+              </div>
+            )}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

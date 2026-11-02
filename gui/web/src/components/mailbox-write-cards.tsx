@@ -1,5 +1,15 @@
 import { ArrowLeft, Check, CircleX, LogIn, TriangleAlert, Unplug } from "lucide-react";
-import { type ReactNode, useEffect, useReducer, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useId,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,9 +23,10 @@ import {
   type PlanReady,
 } from "../bridge/protocol";
 import { type AppliedWrite, detailAddresses, type ReRead, targetAddresses } from "./applied-writes";
+import { Choice, Field, LiveStatus, submitOnEnter } from "./card-parts";
 import { rightNames } from "./mailbox-access-card";
-import { ConfirmView, ErrorText, Notice, PlanView, ResultView, Stepper, Working } from "./plan-view";
-import { canConfirm, initialWriteState, type WriteState, writeReducer } from "./write-flow";
+import { ConfirmView, ErrorText, Notice, PlanView, ResultView, type RunAs, Stepper, Working } from "./plan-view";
+import { canConfirm, initialWriteState, type WriteState, writeReducer, writeStatus } from "./write-flow";
 
 /** A write the card's picks ask for: the request's type and payload; null while a pick is missing. */
 export interface WriteRequest {
@@ -34,6 +45,11 @@ export function splitList(text: string): string[] {
     .filter((item) => item !== "");
 }
 
+/** The picks still missing before the card can plan, as the line beside "See the plan" lists them. */
+export function describeMissing(missing: readonly string[]): string {
+  return `Still needed: ${missing.join(", ")}.`;
+}
+
 /**
  * A write card (task 082): the picks, then the plan the host computed (`--dry-run`'s, nothing sent), the confirmation
  * (the `apply-plan` with `confirm: true`, which stands for `--yes`) and the result of each change, as the task card
@@ -42,6 +58,12 @@ export function splitList(text: string): string[] {
  * 124) it says so and waits too. An apply that may have changed the mailbox (a `plan-applied`, or an apply that broke
  * off on the way) is told to `onApplied` (task 091), so the access card can read the mailbox again; when it did, the
  * result step says so and "Show it" scrolls to that card (task 124).
+ *
+ * The keyboard (tasks 120 and 121): the picks are a form, so Enter in a field means "See the plan" (it only computes a
+ * plan); Escape goes back a step from the plan, the confirmation or a refusal, never while an apply runs. "See the
+ * plan" stays in the Tab order while a pick is missing, and the line beside it says which (`missing`). On every step
+ * the focus moves to the step's heading or first control, `pickTarget` (the mailbox field) on the picks, and the
+ * card's status region says what the step shows.
  */
 export function WriteCard({
   title,
@@ -49,8 +71,11 @@ export function WriteCard({
   client,
   signedIn,
   exchangeError,
+  runAs,
   request,
+  missing,
   picks,
+  pickTarget,
   onApplied,
 }: {
   title: string;
@@ -58,10 +83,14 @@ export function WriteCard({
   client: BridgeClient;
   signedIn: boolean;
   exchangeError?: string | null;
+  runAs?: RunAs;
   request: WriteRequest | null;
+  missing: readonly string[];
   picks: ReactNode;
+  pickTarget: RefObject<HTMLInputElement | null>;
   onApplied?: (write: AppliedWrite) => void;
 }) {
+  const id = useId();
   const [state, dispatch] = useReducer(writeReducer, initialWriteState);
   // The write the card told last, and a card's word that it read the mailbox again after it (task 124).
   const told = useRef<AppliedWrite | null>(null);
@@ -70,12 +99,26 @@ export function WriteCard({
   // The mailbox and the users of the request the plan on the card answers: the ones an apply touches.
   const plannedMailbox = useRef("");
   const plannedUsers = useRef<string[]>([]);
+  // The element the step shows first (its heading, the result, the refusal), and the step the focus was moved for.
+  const stepTarget = useRef<HTMLElement>(null);
+  const focusedStep = useRef(state.step);
   // A plan was read for the account signed in then; signed out, the card starts over.
   useEffect(() => {
     if (!signedIn) {
       dispatch({ type: "reset" });
     }
   }, [signedIn]);
+  // A step that replaces the focused button takes the focus to its own first element; the first render and a reset
+  // by a sign-out move nothing.
+  useEffect(() => {
+    if (focusedStep.current === state.step) {
+      return;
+    }
+    focusedStep.current = state.step;
+    if (signedIn) {
+      (state.step === "pick" ? pickTarget.current : stepTarget.current)?.focus();
+    }
+  }, [state.step, signedIn, pickTarget]);
 
   async function seePlan(asked: WriteRequest): Promise<void> {
     plannedMailbox.current = asked.data.mailbox;
@@ -106,19 +149,37 @@ export function WriteCard({
     }
   }
 
+  function goBackOnEscape(event: KeyboardEvent<HTMLDivElement>) {
+    // The reducer goes back from the plan, the confirmation and a refusal only; an apply under way stays.
+    if (event.key === "Escape") {
+      dispatch({ type: "back" });
+    }
+  }
+
+  const needed = [
+    ...(signedIn ? [] : ["a sign-in on the Sign-in card"]),
+    ...(signedIn && exchangeError ? ["an Exchange Online token"] : []),
+    ...missing,
+  ];
   return (
-    <Card>
+    <Card aria-labelledby={`${id}-title`}>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <CardTitle id={`${id}-title`}>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5">
+      {/* Escape is a shortcut of the step's own "Back" buttons, which the keyboard reaches too. */}
+      <CardContent className="space-y-5" onKeyDown={goBackOnEscape}>
+        <LiveStatus text={writeStatus(state)} />
         <Stepper state={state} />
         <Body
           state={state}
           signedIn={signedIn}
           exchangeError={exchangeError ?? null}
+          runAs={runAs}
           picks={picks}
+          hint={request && canWrite ? null : describeMissing(needed)}
+          hintId={`${id}-hint`}
+          stepTarget={stepTarget}
           onSeePlan={request && canWrite ? () => void seePlan(request) : undefined}
           onApply={(ready) => void apply(ready)}
           reRead={reRead && reRead.write === told.current ? reRead.reRead : null}
@@ -133,7 +194,11 @@ function Body({
   state,
   signedIn,
   exchangeError,
+  runAs,
   picks,
+  hint,
+  hintId,
+  stepTarget,
   onSeePlan,
   onApply,
   reRead,
@@ -142,16 +207,28 @@ function Body({
   state: WriteState;
   signedIn: boolean;
   exchangeError: string | null;
+  runAs: RunAs | undefined;
   picks: ReactNode;
+  hint: string | null;
+  hintId: string;
+  stepTarget: RefObject<HTMLElement | null>;
   onSeePlan: (() => void) | undefined;
   onApply: (ready: PlanReady) => void;
   reRead: ReRead | null;
   dispatch: (event: Parameters<typeof writeReducer>[1]) => void;
 }) {
+  // Each step's first element takes the ref as the element type it is.
+  const target = stepTarget as RefObject<never>;
   switch (state.step) {
     case "pick":
       return (
-        <div className="space-y-4">
+        <form
+          className="space-y-4"
+          onSubmit={(event: FormEvent<HTMLFormElement>) => {
+            event.preventDefault();
+            onSeePlan?.();
+          }}
+        >
           {signedIn ? null : (
             <Notice tone="warning" icon={<LogIn aria-hidden />} title="Signed out">
               This card needs a sign-in: sign in on the sign-in card, then come back here.
@@ -167,19 +244,38 @@ function Body({
             </Notice>
           ) : null}
           {picks}
-          <Button disabled={onSeePlan === undefined} onClick={onSeePlan}>
-            See the plan
-          </Button>
-        </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="submit"
+              disabled={onSeePlan === undefined}
+              focusableWhenDisabled
+              aria-describedby={hint ? hintId : undefined}
+            >
+              See the plan
+            </Button>
+            {hint ? (
+              <p id={hintId} className="text-sm text-muted-foreground">
+                {hint}
+              </p>
+            ) : null}
+          </div>
+        </form>
       );
     case "planning":
-      return <Working text="The window is computing the plan; nothing is changed yet…" />;
+      return <Working ref={target} text="The window is computing the plan; nothing is changed yet…" />;
     case "refused":
-      return <Refused error={state.error} applying={state.applying} onBack={() => dispatch({ type: "back" })} />;
+      return (
+        <Refused
+          error={state.error}
+          applying={state.applying}
+          noticeRef={target}
+          onBack={() => dispatch({ type: "back" })}
+        />
+      );
     case "plan":
       return (
         <div className="space-y-4">
-          <PlanView plan={state.ready.plan} />
+          <PlanView plan={state.ready.plan} titleRef={target} />
           <div className="flex flex-wrap gap-2">
             {canConfirm(state.ready) ? (
               <Button onClick={() => dispatch({ type: "proceed" })}>Continue to confirm</Button>
@@ -194,16 +290,19 @@ function Body({
       return (
         <ConfirmView
           plan={state.ready.plan}
+          runAs={runAs}
+          leadRef={target}
           onConfirm={() => onApply(state.ready)}
           onBack={() => dispatch({ type: "back" })}
+          onCancel={() => dispatch({ type: "reset" })}
         />
       );
     case "applying":
-      return <Working text="Applying the plan: one change at a time…" />;
+      return <Working ref={target} text="Applying the plan: one change at a time…" />;
     case "result":
       return (
         <div className="space-y-4">
-          <ResultView applied={state.applied} />
+          <ResultView applied={state.applied} noticeRef={target} />
           {reRead ? (
             <p className="flex flex-wrap items-center gap-x-1 text-sm" role="status" data-testid="re-read">
               The {reRead.card} card read <strong>{reRead.mailbox}</strong> again after this change.
@@ -212,7 +311,7 @@ function Body({
               </Button>
             </p>
           ) : null}
-          <Button onClick={() => dispatch({ type: "reset" })}>Done</Button>
+          <Button onClick={() => dispatch({ type: "reset" })}>Start a new change</Button>
         </div>
       );
   }
@@ -222,11 +321,22 @@ function Body({
  * Why the host would not plan or apply: a plan it could not compute, or an apply it refused (nothing sent); an apply
  * that broke off for any other reason (an internal error, no answer in time) may have sent some changes.
  */
-function Refused({ error, applying, onBack }: { error: BridgeError; applying: boolean; onBack: () => void }) {
+function Refused({
+  error,
+  applying,
+  noticeRef,
+  onBack,
+}: {
+  error: BridgeError;
+  applying: boolean;
+  noticeRef: RefObject<never>;
+  onBack: () => void;
+}) {
   const unknown = applying && !nothingSent.includes(error.code);
   return (
     <div className="space-y-4">
       <Notice
+        ref={noticeRef}
         tone="error"
         icon={unknown ? <TriangleAlert aria-hidden /> : <CircleX aria-hidden />}
         title={unknown ? "Stopped: check the mailbox before you try again" : "Refused: nothing was changed"}
@@ -236,37 +346,6 @@ function Refused({ error, applying, onBack }: { error: BridgeError; applying: bo
       <Button variant="outline" onClick={onBack}>
         <ArrowLeft aria-hidden /> Change the picks
       </Button>
-    </div>
-  );
-}
-
-/** A choice of two, as the sketch's buttons. */
-function Choice<T extends string>({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: T;
-  options: ReadonlyArray<readonly [T, string]>;
-  onChange: (value: T) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={label}>
-      {options.map(([option, text]) => (
-        <Button
-          key={option}
-          size="sm"
-          variant={value === option ? "default" : "outline"}
-          role="radio"
-          aria-checked={value === option}
-          onClick={() => onChange(option)}
-        >
-          {value === option ? <Check aria-hidden data-icon="inline-start" /> : null}
-          {text}
-        </Button>
-      ))}
     </div>
   );
 }
@@ -281,13 +360,17 @@ export function MailboxAccessWriteCard({
   client,
   signedIn,
   exchangeError,
+  runAs,
   onApplied,
 }: {
   client: BridgeClient;
   signedIn: boolean;
   exchangeError?: string | null;
+  runAs?: RunAs;
   onApplied?: (write: AppliedWrite) => void;
 }) {
+  const id = useId();
+  const mailboxField = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<"grant" | "revoke">("grant");
   const [mailbox, setMailbox] = useState("");
   const [users, setUsers] = useState("");
@@ -296,8 +379,13 @@ export function MailboxAccessWriteCard({
   const grant = mode === "grant";
   const named = splitList(users);
   const automapping = grant && chosen.includes("full-access");
+  const missing = [
+    ...(mailbox.trim() === "" ? ["the mailbox"] : []),
+    ...(named.length === 0 ? ["at least one user"] : []),
+    ...(chosen.length === 0 ? ["at least one right"] : []),
+  ];
   const request: WriteRequest | null =
-    mailbox.trim() !== "" && named.length > 0 && chosen.length > 0
+    missing.length === 0
       ? {
           type: grant ? MessageType.mailboxAccessGrant : MessageType.mailboxAccessRevoke,
           data: { mailbox: mailbox.trim(), users: named, rights: chosen, noAutoMapping: automapping && noAutoMapping },
@@ -314,35 +402,44 @@ export function MailboxAccessWriteCard({
         ]}
         onChange={setMode}
       />
-      <Input
-        aria-label="Mailbox"
-        placeholder="Mailbox address, name or object id"
-        value={mailbox}
-        onChange={(event) => setMailbox(event.target.value)}
-      />
-      <Input
-        aria-label="Users"
-        placeholder="User principal names or addresses, separated by commas"
-        value={users}
-        onChange={(event) => setUsers(event.target.value)}
-      />
-      <fieldset className="flex flex-wrap gap-2" aria-label="Rights">
-        {rights.map((right) => {
-          const on = chosen.includes(right);
-          return (
-            <Button
-              key={right}
-              size="sm"
-              variant={on ? "default" : "outline"}
-              role="checkbox"
-              aria-checked={on}
-              onClick={() => setChosen(on ? chosen.filter((item) => item !== right) : [...chosen, right])}
-            >
-              {on ? <Check aria-hidden data-icon="inline-start" /> : null}
-              {rightNames[right]}
-            </Button>
-          );
-        })}
+      <Field id={`${id}-mailbox`} label="Mailbox">
+        <Input
+          id={`${id}-mailbox`}
+          ref={mailboxField}
+          placeholder="Mailbox address, name or object id"
+          value={mailbox}
+          onChange={(event) => setMailbox(event.target.value)}
+        />
+      </Field>
+      <Field id={`${id}-users`} label="Users">
+        <Input
+          id={`${id}-users`}
+          placeholder="User principal names or addresses, separated by commas"
+          value={users}
+          onChange={(event) => setUsers(event.target.value)}
+        />
+      </Field>
+      <fieldset className="space-y-1.5">
+        <legend className="mb-1.5 text-sm font-medium">Rights</legend>
+        <div className="flex flex-wrap gap-2">
+          {rights.map((right) => {
+            const on = chosen.includes(right);
+            return (
+              <Button
+                key={right}
+                size="sm"
+                variant={on ? "default" : "outline"}
+                role="checkbox"
+                aria-checked={on}
+                onKeyDown={submitOnEnter}
+                onClick={() => setChosen(on ? chosen.filter((item) => item !== right) : [...chosen, right])}
+              >
+                {on ? <Check aria-hidden data-icon="inline-start" /> : null}
+                {rightNames[right]}
+              </Button>
+            );
+          })}
+        </div>
       </fieldset>
       <label className={automapping ? "flex items-center gap-2" : "flex items-center gap-2 text-muted-foreground"}>
         <input
@@ -363,8 +460,11 @@ export function MailboxAccessWriteCard({
       client={client}
       signedIn={signedIn}
       exchangeError={exchangeError}
+      runAs={runAs}
       request={request}
+      missing={missing}
       picks={picks}
+      pickTarget={mailboxField}
       onApplied={onApplied}
     />
   );
@@ -378,20 +478,28 @@ export function MailboxForwardingCard({
   client,
   signedIn,
   exchangeError,
+  runAs,
   onApplied,
 }: {
   client: BridgeClient;
   signedIn: boolean;
   exchangeError?: string | null;
+  runAs?: RunAs;
   onApplied?: (write: AppliedWrite) => void;
 }) {
+  const id = useId();
+  const mailboxField = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<"set" | "clear">("set");
   const [mailbox, setMailbox] = useState("");
   const [to, setTo] = useState("");
   const [keepCopy, setKeepCopy] = useState(true);
   const set = mode === "set";
+  const missing = [
+    ...(mailbox.trim() === "" ? ["the mailbox"] : []),
+    ...(set && to.trim() === "" ? ["the address to forward to"] : []),
+  ];
   const request: WriteRequest | null =
-    mailbox.trim() !== "" && (!set || to.trim() !== "")
+    missing.length === 0
       ? set
         ? { type: MessageType.mailboxForwardingSet, data: { mailbox: mailbox.trim(), to: to.trim(), keepCopy } }
         : { type: MessageType.mailboxForwardingClear, data: { mailbox: mailbox.trim() } }
@@ -407,20 +515,25 @@ export function MailboxForwardingCard({
         ]}
         onChange={setMode}
       />
-      <Input
-        aria-label="Mailbox"
-        placeholder="Mailbox address, name or object id"
-        value={mailbox}
-        onChange={(event) => setMailbox(event.target.value)}
-      />
+      <Field id={`${id}-mailbox`} label="Mailbox">
+        <Input
+          id={`${id}-mailbox`}
+          ref={mailboxField}
+          placeholder="Mailbox address, name or object id"
+          value={mailbox}
+          onChange={(event) => setMailbox(event.target.value)}
+        />
+      </Field>
       {set ? (
         <>
-          <Input
-            aria-label="Forward to"
-            placeholder="The address to forward to"
-            value={to}
-            onChange={(event) => setTo(event.target.value)}
-          />
+          <Field id={`${id}-to`} label="Forward to">
+            <Input
+              id={`${id}-to`}
+              placeholder="The address to forward to"
+              value={to}
+              onChange={(event) => setTo(event.target.value)}
+            />
+          </Field>
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -441,8 +554,11 @@ export function MailboxForwardingCard({
       client={client}
       signedIn={signedIn}
       exchangeError={exchangeError}
+      runAs={runAs}
       request={request}
+      missing={missing}
       picks={picks}
+      pickTarget={mailboxField}
       onApplied={onApplied}
     />
   );

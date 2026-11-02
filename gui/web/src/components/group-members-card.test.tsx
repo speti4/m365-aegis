@@ -1,19 +1,18 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { BridgeClient } from "../bridge/client";
 import { MockTransport } from "../bridge/mock-transport";
 import { type GroupMembers, MessageType, PROTOCOL_VERSION } from "../bridge/protocol";
-import { button, render, settle, submit, type } from "../test/dom";
+import { button, field, isDisabled, liveStatus, render, settle, submit, type } from "../test/dom";
 import { type Answer, ScriptedTransport } from "../test/scripted-transport";
 import { GroupMembersCard } from "./group-members-card";
 
 async function card(answer: Answer | "mock") {
   const transport = answer === "mock" ? new MockTransport() : new ScriptedTransport(answer);
-  const onError = vi.fn();
-  const rendered = await render(<GroupMembersCard client={new BridgeClient(transport)} onError={onError} />);
-  const input = rendered.container.querySelector("input") as HTMLInputElement;
+  const rendered = await render(<GroupMembersCard client={new BridgeClient(transport)} />);
+  const input = field(rendered.container, "Group");
   const form = rendered.container.querySelector("form") as HTMLFormElement;
-  return { ...rendered, input, form, onError, transport };
+  return { ...rendered, input, form, transport };
 }
 
 const synced: GroupMembers = {
@@ -24,13 +23,27 @@ const synced: GroupMembers = {
 describe("the group members card", () => {
   it("looks a group up by its name and lists the direct members", async () => {
     const { container, input, form, unmount } = await card("mock");
-    expect(button(container, "Look up").disabled).toBe(true);
+    // A card is a region named by its heading, a level below the page's.
+    const heading = container.querySelector("h2") as HTMLElement;
+    expect(heading.textContent).toBe("Group members");
+    expect(container.querySelector("section")?.getAttribute("aria-labelledby")).toBe(heading.id);
+    // "Look up" waits for a group, in the Tab order, and says why.
+    const lookUp = button(container, "Look up");
+    expect(isDisabled(lookUp)).toBe(true);
+    expect(lookUp.disabled).toBe(false);
+    expect(document.getElementById(lookUp.getAttribute("aria-describedby") ?? "")?.textContent).toBe(
+      "Type a group's name, address or object id first.",
+    );
 
     await type(input, "  Finance ");
+    expect(isDisabled(lookUp)).toBe(false);
+    expect(lookUp.hasAttribute("aria-describedby")).toBe(false);
     await submit(form);
     await settle();
 
     const text = container.textContent ?? "";
+    expect(liveStatus(container)).toBe("Finance: 4 direct members");
+    expect(container.querySelector('[data-testid="answer-for"]')?.textContent).toBe('Answer for "Finance"');
     expect(text).toContain("Microsoft 365");
     expect(text).toContain("finance@contoso.com");
     expect(text).toContain("· 4 direct member(s)");
@@ -74,28 +87,59 @@ describe("the group members card", () => {
     expect(cells).toEqual(["servicePrincipal", "", "", "00000000-0000-0000-0000-000000000040"]);
   });
 
-  it("hands an error reply to onError and shows no table", async () => {
-    const { container, input, form, onError } = await card("mock");
+  it("shows a failed lookup under the field, marks the field, and drops the old table (task 120)", async () => {
+    const { container, input, form } = await card("mock");
+    await type(input, "Finance");
+    await submit(form);
+    await settle();
+    expect(container.querySelector("table")).not.toBeNull();
 
     await type(input, "Nope");
     await submit(form);
     await settle();
 
-    expect(onError).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "not-found", message: "no group named 'Nope'" }),
-    );
+    const alert = container.querySelector('[role="alert"]') as HTMLElement;
+    expect(alert.textContent).toContain("The lookup failed");
+    expect(alert.textContent).toContain("no group named 'Nope'");
+    expect(alert.textContent).toContain("not-found");
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(input.getAttribute("aria-describedby")).toBe(alert.id);
     expect(container.querySelector("table")).toBeNull();
+    expect(liveStatus(container)).toBe("");
+
+    // The next lookup clears the error.
+    await type(input, "Finance");
+    await submit(form);
+    await settle();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(input.hasAttribute("aria-invalid")).toBe(false);
+    expect(input.hasAttribute("aria-describedby")).toBe(false);
   });
 
-  it("waits while the host works and ignores a reply of another type", async () => {
-    const transport = new ScriptedTransport();
-    const onError = vi.fn();
-    const { container } = await render(<GroupMembersCard client={new BridgeClient(transport)} onError={onError} />);
-    await type(container.querySelector("input") as HTMLInputElement, "Finance");
-    await submit(container.querySelector("form") as HTMLFormElement);
+  it("sends nothing for an empty field", async () => {
+    const { form, transport } = await card(() => null);
+    await submit(form);
+    expect((transport as ScriptedTransport).sent).toEqual([]);
+  });
 
-    expect(button(container, "Looking up…").disabled).toBe(true);
-    expect((container.querySelector("input") as HTMLInputElement).disabled).toBe(true);
+  it("keeps the focus in the field while the host works, sends one lookup at a time, and ignores a reply of another type", async () => {
+    const transport = new ScriptedTransport();
+    const { container } = await render(<GroupMembersCard client={new BridgeClient(transport)} />);
+    const input = field(container, "Group");
+    const form = container.querySelector("form") as HTMLFormElement;
+    await type(input, "Finance");
+    input.focus();
+    await submit(form);
+
+    expect(isDisabled(button(container, "Looking up…"))).toBe(true);
+    expect(input.disabled).toBe(false);
+    expect(input.readOnly).toBe(true);
+    expect(document.activeElement).toBe(input);
+    expect(form.getAttribute("aria-busy")).toBe("true");
+    expect(liveStatus(container)).toBe("Looking up Finance…");
+    // A second Enter while the first lookup runs sends nothing.
+    await submit(form);
+    expect(transport.sent).toHaveLength(1);
     transport.push({
       aegis: PROTOCOL_VERSION,
       id: transport.sent[0].id,
@@ -104,8 +148,29 @@ describe("the group members card", () => {
     });
     await settle();
 
-    expect(button(container, "Look up").disabled).toBe(false);
-    expect(onError).not.toHaveBeenCalled();
+    expect(isDisabled(button(container, "Look up"))).toBe(false);
+    expect(input.readOnly).toBe(false);
+    expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(container.querySelector("table")).toBeNull();
+    expect(liveStatus(container)).toBe("");
+  });
+
+  it("dims the old answer while the next lookup runs, and names one member in the singular", async () => {
+    const one: GroupMembers = {
+      group: synced.group,
+      members: [{ type: "user", id: "00000000-0000-0000-0000-000000000041", displayName: "Dave Example" }],
+    };
+    let answer = true;
+    const { container, input, form } = await card(() => (answer ? { type: MessageType.members, data: one } : null));
+    await type(input, "Sales");
+    await submit(form);
+    await settle();
+    expect(liveStatus(container)).toBe("Sales: 1 direct member");
+
+    answer = false;
+    await submit(form);
+    const shown = container.querySelector('[data-testid="answer-for"]')?.parentElement as HTMLElement;
+    expect(shown.className).toContain("opacity-50");
+    expect(shown.getAttribute("aria-busy")).toBe("true");
   });
 });

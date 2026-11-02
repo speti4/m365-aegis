@@ -94,3 +94,30 @@ export async function settle(ms = 0): Promise<void> {
     }
   });
 }
+
+/** The field whose visible label is `label` (exact), through the label's `for` (tasks 120); throws when there is none. */
+export function field(container: ParentNode, label: string): HTMLInputElement {
+  const found = [...container.querySelectorAll("label")].find((candidate) => candidate.textContent?.trim() === label);
+  const control = found?.htmlFor ? document.getElementById(found.htmlFor) : null;
+  if (!control) {
+    throw new Error(`no field labeled '${label}' in ${container.textContent}`);
+  }
+  return control as HTMLInputElement;
+}
+
+/** Whether a button does nothing now: disabled, or disabled but kept in the Tab order (`aria-disabled`). */
+export function isDisabled(element: HTMLButtonElement): boolean {
+  return element.disabled || element.getAttribute("aria-disabled") === "true";
+}
+
+/** Presses a key on the element (a `keydown` that bubbles) and lets React settle. */
+export async function press(element: Element, key: string): Promise<void> {
+  await act(async () => {
+    element.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+  });
+}
+
+/** What the card's status region says now (task 121). */
+export function liveStatus(container: ParentNode): string {
+  return container.querySelector('[data-testid="live-status"]')?.textContent ?? "";
+}

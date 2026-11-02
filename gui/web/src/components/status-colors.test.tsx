@@ -149,37 +149,38 @@ describe("the results of an applied plan", () => {
 
 describe("a selected choice", () => {
   const checks = (element: Element) => element.querySelectorAll("svg.lucide-check").length;
+  /** An option of a choice, a radio of base-ui's radio group (task 121), by its text. */
+  const radio = (container: HTMLElement, name: string) =>
+    [...container.querySelectorAll('[role="radio"]')].find((item) => item.textContent === name) as HTMLElement;
 
   it("carries a check on the write card's choices and rights", async () => {
     const { container } = await render(
       <MailboxAccessWriteCard client={new BridgeClient(new MockTransport())} signedIn />,
     );
 
-    expect(checks(button(container, "Grant"))).toBe(1);
-    expect(checks(button(container, "Revoke"))).toBe(0);
+    expect(checks(radio(container, "Grant"))).toBe(1);
+    expect(checks(radio(container, "Revoke"))).toBe(0);
     expect(checks(button(container, "FullAccess"))).toBe(1);
     expect(checks(button(container, "Send As"))).toBe(0);
 
-    await click(button(container, "Revoke"));
+    await click(radio(container, "Revoke"));
     await click(button(container, "Send As"));
 
-    expect(checks(button(container, "Grant"))).toBe(0);
-    expect(checks(button(container, "Revoke"))).toBe(1);
+    expect(checks(radio(container, "Grant"))).toBe(0);
+    expect(checks(radio(container, "Revoke"))).toBe(1);
     expect(checks(button(container, "Send As"))).toBe(1);
-    expect(button(container, "Revoke").className).toContain("forced-colors:aria-checked:bg-[color:Highlight]");
+    expect(radio(container, "Revoke").className).toContain("forced-colors:aria-checked:bg-[color:Highlight]");
   });
 
   it("carries a check on the lookup's mode", async () => {
-    const { container } = await render(
-      <MailboxAccessCard client={new BridgeClient(new MockTransport())} onError={noop} />,
-    );
+    const { container } = await render(<MailboxAccessCard client={new BridgeClient(new MockTransport())} />);
 
-    expect(checks(button(container, "A mailbox"))).toBe(1);
-    expect(checks(button(container, "A user"))).toBe(0);
+    expect(checks(radio(container, "A mailbox"))).toBe(1);
+    expect(checks(radio(container, "A user"))).toBe(0);
 
-    await click(button(container, "A user"));
+    await click(radio(container, "A user"));
 
-    expect(checks(button(container, "A mailbox"))).toBe(0);
-    expect(checks(button(container, "A user"))).toBe(1);
+    expect(checks(radio(container, "A mailbox"))).toBe(0);
+    expect(checks(radio(container, "A user"))).toBe(1);
   });
 });

@@ -14,7 +14,7 @@ import {
   parseMessage,
 } from "./bridge/protocol";
 import type { WebViewBridge } from "./bridge/transport";
-import { button, click, hasButton, render, settle, submit, type } from "./test/dom";
+import { button, click, field, hasButton, isDisabled, render, settle, submit, type } from "./test/dom";
 
 /** The mock's answer time (createTransport); its device-code sign-in takes ten times as long. */
 const MOCK_MS = 300;
@@ -80,7 +80,7 @@ describe("the window's page", () => {
     expect(container.querySelector('[data-testid="status"]')?.textContent).toBe("signed in");
     expect(container.querySelector('[data-testid="bar-account"]')?.textContent).toBe("alice@contoso.com");
     expect(
-      [...container.querySelectorAll("section h2")].map((heading) => [
+      [...container.querySelectorAll("section > h2")].map((heading) => [
         heading.closest("section")?.id,
         heading.textContent,
       ]),
@@ -217,9 +217,6 @@ describe("the window's page", () => {
     const { container } = await render(<App />);
     await settle(MOCK_MS);
     const [, , access, , , rights] = [...container.querySelectorAll('[data-slot="card"]')] as HTMLElement[];
-    const field = (card: HTMLElement, label: string) =>
-      card.querySelector(`input[aria-label="${label}"]`) as HTMLInputElement;
-
     await type(field(access, "Mailbox"), "finance");
     await submit(access.querySelector("form") as HTMLFormElement);
     await settle(MOCK_MS);
@@ -230,8 +227,12 @@ describe("the window's page", () => {
     await click(button(rights, "See the plan"));
     await settle(MOCK_MS);
     await click(button(rights, "Continue to confirm"));
+    // The confirmation names the account it runs as, from the sign-in card.
+    expect(rights.querySelector('[data-testid="confirm-lead"]')?.textContent).toMatch(
+      / as \S+@contoso\.com \(profile \w+\):$/,
+    );
     await click(rights.querySelector('input[type="checkbox"]') as HTMLInputElement);
-    await click(button(rights, "Confirm and apply"));
+    await click(button(rights, "Grant permissions"));
     await settle(MOCK_MS);
     expect(access.textContent).toContain("A change was applied to this mailbox: reading its access again…");
     await settle(MOCK_MS);
@@ -248,20 +249,22 @@ describe("the window's page", () => {
     await settle(MOCK_MS);
     const user = [...container.querySelectorAll('[data-slot="card"]')][3] as HTMLElement;
 
-    await type(user.querySelector('input[aria-label="User"]') as HTMLInputElement, "dave@contoso.com");
+    await type(field(user, "User"), "dave@contoso.com");
     await submit(user.querySelector("form") as HTMLFormElement);
-    expect(button(user, "Looking up…").disabled).toBe(true);
+    expect(isDisabled(button(user, "Looking up…"))).toBe(true);
     await settle(MOCK_MS);
 
     expect(user.querySelector('[data-testid="snapshot"]')?.textContent).toBe(
       "From the snapshot taken 2026-10-31 06:00 UTC, 2 hour(s) ago.",
     );
-    await type(user.querySelector('input[aria-label="User"]') as HTMLInputElement, "nobody@contoso.com");
+    await type(field(user, "User"), "nobody@contoso.com");
     await submit(user.querySelector("form") as HTMLFormElement);
     await settle(MOCK_MS);
-    expect(toasts).toHaveBeenCalledWith("the snapshot 2026-10-31T060000Z.sqlite knows no user 'nobody@contoso.com'", {
-      description: "check the name or the address and try again",
-    });
+    // A card's error is the card's, under its field (task 120): no toast.
+    expect(user.querySelector('[role="alert"]')?.textContent).toContain(
+      "the snapshot 2026-10-31T060000Z.sqlite knows no user 'nobody@contoso.com'",
+    );
+    expect(toasts).not.toHaveBeenCalled();
   });
 
   it("in a plain browser: the access changes card compares the two snapshots under the user access card", async () => {
@@ -302,7 +305,8 @@ describe("the window's page", () => {
     expect(change.textContent?.match(/Exchange Online unavailable/g)).toHaveLength(2);
     expect(change.textContent).toContain("no Exchange Online token: the consent is missing.");
     for (const card of change.querySelectorAll('[data-slot="card"]')) {
-      expect(button(card, "See the plan").disabled).toBe(true);
+      expect(isDisabled(button(card, "See the plan"))).toBe(true);
+      expect(card.textContent).toContain("Still needed: an Exchange Online token,");
     }
   });
 

@@ -146,3 +146,33 @@ export function windowWarning(warning: string): string {
   }
   return warning;
 }
+
+/** A count with its noun, singular for one: "1 change", "4 direct members" (task 121's announcements). */
+export function count(n: number, one: string, many = `${one}s`): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** The button that applies a confirmed plan: its name, and whether it removes something (task 120). */
+export interface ConfirmAction {
+  label: string;
+  destructive: boolean;
+}
+
+/**
+ * The confirmation's button by the plan's operation (task 120): it names what the click does, and a removal is drawn
+ * as a destructive button; the one place these names live, so the vocabulary sweep (task 122) renames them here. An
+ * operation this list does not know keeps the neutral "Confirm and apply".
+ */
+export const confirmActions: Readonly<Record<string, ConfirmAction>> = {
+  "mailbox-access-grant": { label: "Grant permissions", destructive: false },
+  "mailbox-access-revoke": { label: "Revoke permissions", destructive: true },
+  "mailbox-forwarding-set": { label: "Start forwarding", destructive: false },
+  "mailbox-forwarding-clear": { label: "Stop forwarding", destructive: true },
+};
+
+/** The confirmation's button for a plan's operation. */
+export function confirmAction(operation: string): ConfirmAction {
+  return Object.hasOwn(confirmActions, operation)
+    ? confirmActions[operation]
+    : { label: "Confirm and apply", destructive: false };
+}

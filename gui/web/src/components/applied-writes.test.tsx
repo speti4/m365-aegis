@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { BridgeClient } from "../bridge/client";
 import { MockTransport } from "../bridge/mock-transport";
 import { type BridgeMessage, type MailboxInfo, MessageType, type Plan, type PlanChange } from "../bridge/protocol";
-import { button, click, render, settle, submit, type } from "../test/dom";
+import { button, click, isDisabled, liveStatus, render, settle, submit, type } from "../test/dom";
 import { type Answer, ScriptedTransport } from "../test/scripted-transport";
 import {
   type AppliedWrite,
@@ -15,6 +15,7 @@ import {
 } from "./applied-writes";
 import { MailboxAccessCard } from "./mailbox-access-card";
 import { MailboxAccessWriteCard, MailboxForwardingCard } from "./mailbox-write-cards";
+import { confirmActions } from "./plan-wording";
 
 const finance: MailboxInfo = {
   displayName: "Finance",
@@ -104,20 +105,32 @@ describe("the applies the write cards tell", () => {
 async function page(transport: MockTransport | ScriptedTransport) {
   const client = new BridgeClient(transport);
   const applied = new AppliedWrites();
-  const onError = vi.fn();
   const rendered = await render(
     <>
-      <MailboxAccessCard client={client} onError={onError} applied={applied} />
+      <MailboxAccessCard client={client} applied={applied} />
       <MailboxAccessWriteCard client={client} signedIn onApplied={applied.publish} />
       <MailboxForwardingCard client={client} signedIn onApplied={applied.publish} />
     </>,
   );
   const [access, rights, forwarding] = [...rendered.container.querySelectorAll('[data-slot="card"]')] as HTMLElement[];
-  return { ...rendered, access, rights, forwarding, onError };
+  return { ...rendered, access, rights, forwarding };
 }
 
-const input = (card: HTMLElement, label: string) =>
-  card.querySelector(`input[aria-label="${label}"]`) as HTMLInputElement;
+/** The card's field under the visible label. */
+const input = (card: HTMLElement, label: string) => {
+  const found = [...card.querySelectorAll("label")].find((candidate) => candidate.textContent === label);
+  return document.getElementById(found?.htmlFor ?? "") as HTMLInputElement;
+};
+
+/** An option of a card's choice (a radio), by its text. */
+const radio = (card: HTMLElement, name: string) =>
+  [...card.querySelectorAll('[role="radio"]')].find((item) => item.textContent === name) as HTMLElement;
+
+/** The confirmation's button, whatever the operation names it. */
+const confirmButton = (card: HTMLElement) =>
+  [...card.querySelectorAll("button")].find((item) =>
+    Object.values(confirmActions).some((action) => action.label === item.textContent),
+  ) as HTMLButtonElement;
 
 async function lookUp(card: HTMLElement, mailbox: string) {
   await type(input(card, "Mailbox"), mailbox);
@@ -135,10 +148,10 @@ async function apply(card: HTMLElement, values: Record<string, string>) {
   await click(button(card, "Continue to confirm"));
   await click(
     [...card.querySelectorAll("label")]
-      .find((label) => label.textContent?.includes("I checked"))
+      .find((label) => label.textContent?.includes("I've reviewed"))
       ?.querySelector("input") as HTMLInputElement,
   );
-  await click(button(card, "Confirm and apply"));
+  await click(confirmButton(card));
 }
 
 /** A mock transport whose requests the test can read. */
@@ -204,9 +217,10 @@ describe("the mailbox access card after an apply", () => {
     expect(scrolled).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
     expect(document.activeElement).toBe(access);
 
-    // Done starts the card over; the next apply, to a mailbox the access card does not show, has no such line.
-    await click(button(rights, "Done"));
-    await click(button(rights, "Revoke"));
+    // "Start a new change" starts the card over; the next apply, to a mailbox the access card does not show, has no
+    // such line.
+    await click(button(rights, "Start a new change"));
+    await click(radio(rights, "Revoke"));
     await apply(rights, { Mailbox: "reception@contoso.com", Users: "bob@contoso.com" });
     await settle();
     expect(rights.textContent).toContain("Every change was made.");
@@ -229,8 +243,8 @@ describe("the mailbox access card after an apply", () => {
     expect(types().filter((sentType) => sentType === MessageType.mailboxAccess)).toHaveLength(2);
     expect(holderRows(access)).toContainEqual(["Send As", "alice@contoso.com", "alice@contoso.com", "PowerShell"]);
 
-    await click(button(rights, "Done"));
-    await click(button(rights, "Revoke"));
+    await click(button(rights, "Start a new change"));
+    await click(radio(rights, "Revoke"));
     await apply(rights, {});
     await settle();
     expect(types().filter((sentType) => sentType === MessageType.mailboxAccess)).toHaveLength(3);
@@ -259,7 +273,7 @@ describe("the mailbox access card after an apply", () => {
     expect(types()).toEqual([MessageType.mailboxAccessGrant, MessageType.applyPlan]);
 
     await lookUp(access, "finance");
-    await click(button(rights, "Done"));
+    await click(button(rights, "Start a new change"));
     await apply(rights, { Mailbox: "bob@contoso.com", Users: "alice@contoso.com" });
     await settle();
     expect(rights.textContent).toContain("Every change was made.");
@@ -274,7 +288,7 @@ describe("the mailbox access card after an apply", () => {
   it("sends nothing while it shows a user's grants", async () => {
     const { transport, types } = recorded();
     const { access, rights } = await page(transport);
-    await click(button(access, "A user"));
+    await click(radio(access, "A user"));
     await type(input(access, "User"), "bob@contoso.com");
     await submit(access.querySelector("form") as HTMLFormElement);
     await settle();
@@ -318,12 +332,12 @@ describe("the write card's apply, as the access card hears it", () => {
     });
 
   async function lookUpThenApply(transport: ScriptedTransport) {
-    const { access, rights, onError } = await page(transport);
+    const { access, rights } = await page(transport);
     await lookUp(access, "finance");
     await apply(rights, { Mailbox: "fin", Users: "bob" });
     await settle();
     return {
-      onError,
+      access,
       rights,
       lookups: transport.types.filter((sentType) => sentType === MessageType.mailboxAccess).length,
     };
@@ -370,7 +384,8 @@ describe("the write card's apply, as the access card hears it", () => {
     await settle();
 
     expect(access.textContent).toContain("A change was applied to this mailbox: reading its access again…");
-    expect(button(access, "Looking up…").disabled).toBe(true);
+    expect(liveStatus(access)).toBe("A change was applied to this mailbox: reading its access again…");
+    expect(isDisabled(button(access, "Looking up…"))).toBe(true);
   });
 
   it("raises a failed read again as the card's error", async () => {
@@ -386,15 +401,18 @@ describe("the write card's apply, as the access card hears it", () => {
         ? { type: MessageType.planApplied, data: { plan: { ...plan, mode: "applied" } } }
         : { type: MessageType.plan, data: { planId: "p1", plan } };
     });
-    const { onError, rights } = await lookUpThenApply(transport);
-    expect(onError).toHaveBeenCalledWith({ code: "sidecar-unavailable", message: "the session ended" });
+    const { access, rights } = await lookUpThenApply(transport);
+    const alert = access.querySelector('[role="alert"]') as HTMLElement;
+    expect(alert.textContent).toContain("the session ended");
+    expect(alert.textContent).toContain("sidecar-unavailable");
+    expect(access.querySelector('[data-testid="refreshed"]')).toBeNull();
     expect(rights.querySelector('[data-testid="re-read"]')).toBeNull();
   });
 });
 
 describe("the mailbox access card's user view after an apply (task 103)", () => {
   async function showUser(card: HTMLElement, user: string) {
-    await click(button(card, "A user"));
+    await click(radio(card, "A user"));
     await type(input(card, "User"), user);
     await submit(card.querySelector("form") as HTMLFormElement);
     await settle();
@@ -439,9 +457,10 @@ describe("the mailbox access card's user view after an apply (task 103)", () => 
       "A change on the Mailbox rights card named this user since this list was read, so it may be out of date.",
     );
     expect(types().filter((sentType) => sentType === MessageType.mailboxAccess)).toHaveLength(1);
+    expect(liveStatus(access)).toContain("so it may be out of date");
 
     // Another apply that names the user changes nothing more.
-    await click(button(rights, "Done"));
+    await click(button(rights, "Start a new change"));
     await click(button(rights, "Send As"));
     await apply(rights, {});
     await settle();
@@ -454,13 +473,15 @@ describe("the mailbox access card's user view after an apply (task 103)", () => 
     expect(sent.at(-1)?.data).toEqual({ user: "bob@contoso.com" });
     expect(access.querySelector('[data-testid="stale"]')).toBeNull();
     expect(grantRows(access)).toContainEqual(["Finance", "finance@contoso.com", "SharedMailbox", "FullAccess"]);
+    // "Read again" is gone with the mark: the focus is back in the user field.
+    expect(document.activeElement).toBe(input(access, "User"));
   });
 
   it("marks it after a revoke that names the user", async () => {
     const { access, rights } = await page(new MockTransport());
     await showUser(access, "bob@contoso.com");
 
-    await click(button(rights, "Revoke"));
+    await click(radio(rights, "Revoke"));
     await apply(rights, { Mailbox: "reception", Users: "BOB@contoso.com" });
     await settle();
 
@@ -510,7 +531,7 @@ describe("the mailbox access card's user view after an apply (task 103)", () => 
     await click(button(access, "Read again"));
     await settle();
 
-    expect(button(access, "Read again").disabled).toBe(true);
+    expect(isDisabled(button(access, "Read again"))).toBe(true);
     expect(transport.types.filter((sentType) => sentType === MessageType.mailboxAccess)).toHaveLength(2);
   });
 });
