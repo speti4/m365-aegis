@@ -7,6 +7,13 @@ not the list. The summary under a heading is written by hand and kept by the gen
 
 ## Unreleased
 
+Snapshots and the views over them: `snapshot take` stores who reaches which group, site, sharing link and mailbox
+under the home folder, the sharing read incrementally; `access <user>` and `snapshot diff` (for one user too) answer
+from it, on the command line and as window cards. The window's access cards share a user picker and word their
+warnings in the window's own terms. The doctor checks the per-permission consent and the account's Entra roles against
+the setup guide's table and pins the release certificate, and the release zip carries the setup and usage guides, the
+license and a readme.
+
 <!-- The summary above is written by hand; the list below is generated from tasks/done/ by scripts/changelog.py. -->
 
 ### M3 Writes with safety

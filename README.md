@@ -94,9 +94,8 @@ mailbox forwarding. The [usage guide](docs/usage.md) covers every command and ca
 
 ## Status
 
-Version 0.1.0, for Windows 11 only, under active development: each release adds commands, while the exit codes and the
-plan-first rule for writes stay as they are. Next: the setup guide verified against another tenant, a user picker for
-the window's access cards, and one person's changes between two snapshots.
+Version 0.2.0, for Windows 11 only, under active development: each release adds commands, while the exit codes and the
+plan-first rule for writes stay as they are. Next: the snapshot's calendar reads measured at a higher parallel ceiling.
 
 ## License
 
