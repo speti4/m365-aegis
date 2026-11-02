@@ -187,6 +187,33 @@ describe("the mailbox access card after an apply", () => {
     expect(access.querySelector('[data-testid="refreshed"]')).toBeNull();
   });
 
+  it("tells the rights card it read the mailbox again, whose Show it scrolls the access card into view (task 124)", async () => {
+    const scrolled = vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(() => {});
+    const { access, rights } = await page(new MockTransport());
+    await lookUp(access, "finance@contoso.com");
+
+    await apply(rights, { Mailbox: "Finance", Users: "bob@contoso.com" });
+    await settle();
+    expect(rights.querySelector('[data-testid="re-read"]')?.textContent).toBe(
+      "The Mailbox access card read Finance again after this change.Show it",
+    );
+
+    await click(button(rights, "Show it"));
+    expect(scrolled).toHaveBeenCalledOnce();
+    expect(scrolled.mock.contexts[0]).toBe(access);
+    expect(scrolled).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+    expect(document.activeElement).toBe(access);
+
+    // Done starts the card over; the next apply, to a mailbox the access card does not show, has no such line.
+    await click(button(rights, "Done"));
+    await click(button(rights, "Revoke"));
+    await apply(rights, { Mailbox: "reception@contoso.com", Users: "bob@contoso.com" });
+    await settle();
+    expect(rights.textContent).toContain("Every change was made.");
+    expect(rights.querySelector('[data-testid="re-read"]')).toBeNull();
+    scrolled.mockRestore();
+  });
+
   it("reads it again after a partial apply too, and after a revoke, with the delegate the Admin API names", async () => {
     const { transport, types } = recorded();
     const { access, rights } = await page(transport);
@@ -295,7 +322,11 @@ describe("the write card's apply, as the access card hears it", () => {
     await lookUp(access, "finance");
     await apply(rights, { Mailbox: "fin", Users: "bob" });
     await settle();
-    return { onError, lookups: transport.types.filter((sentType) => sentType === MessageType.mailboxAccess).length };
+    return {
+      onError,
+      rights,
+      lookups: transport.types.filter((sentType) => sentType === MessageType.mailboxAccess).length,
+    };
   }
 
   it("is told after an apply where no change was made, and after one that broke off on the way", async () => {
@@ -355,8 +386,9 @@ describe("the write card's apply, as the access card hears it", () => {
         ? { type: MessageType.planApplied, data: { plan: { ...plan, mode: "applied" } } }
         : { type: MessageType.plan, data: { planId: "p1", plan } };
     });
-    const { onError } = await lookUpThenApply(transport);
+    const { onError, rights } = await lookUpThenApply(transport);
     expect(onError).toHaveBeenCalledWith({ code: "sidecar-unavailable", message: "the session ended" });
+    expect(rights.querySelector('[data-testid="re-read"]')).toBeNull();
   });
 });
 

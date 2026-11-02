@@ -70,12 +70,26 @@ afterEach(() => {
 describe("the window's page", () => {
   it("in a plain browser: the mock's version and account, a sign-out and both sign-ins", async () => {
     const { container } = await render(<App />);
-    expect(container.textContent).toContain("browser mock: made-up data, no host");
+    expect(container.querySelector('[title="The browser mock: made-up data, no host"]')?.textContent).toBe("mock");
     expect(container.textContent).toContain("Checking the sign-in…");
 
     await settle(MOCK_MS);
     expect(container.querySelector('[data-testid="version"]')?.textContent).toBe("dev (browser mock)");
     expect(container.textContent).toContain("Alice Example · alice@contoso.com");
+    // The top bar (task 124): the state, the account and the links to the groups, which are sections of the page.
+    expect(container.querySelector('[data-testid="status"]')?.textContent).toBe("signed in");
+    expect(container.querySelector('[data-testid="bar-account"]')?.textContent).toBe("alice@contoso.com");
+    expect(
+      [...container.querySelectorAll("section h2")].map((heading) => [
+        heading.closest("section")?.id,
+        heading.textContent,
+      ]),
+    ).toEqual([
+      ["look-up", "Look up"],
+      ["snapshots", "Snapshots"],
+      ["change", "Change"],
+    ]);
+    expect(container.querySelector("section#change")?.textContent).toContain("Mailbox forwarding");
 
     // Signed out, the page reads the state again.
     await click(button(container, "Sign out"));
@@ -88,7 +102,8 @@ describe("the window's page", () => {
     await settle(MOCK_MS);
     expect(container.textContent).toContain("Alice Example · alice@contoso.com");
 
-    await click(button(container, "Sign out"));
+    // The sign-in card's own Sign out, under the bar's.
+    await click(button(container.querySelector("section#sign-in") as HTMLElement, "Sign out"));
     await settle(MOCK_MS);
     await settle(MOCK_MS);
     await click(button(container, "Sign in with a code"));
@@ -119,6 +134,7 @@ describe("the window's page", () => {
     expect(container.textContent).not.toContain("browser mock");
     expect(container.querySelector('[data-testid="version"]')?.textContent).toBe("…");
     expect(container.textContent).toContain("The sign-in state could not be read.");
+    expect(container.querySelector('[data-testid="status"]')?.textContent).toBe("sign-in unknown");
     expect(toasts).toHaveBeenCalledWith("the cache could not be read", { description: "try again" });
     expect(posted.map((message) => message.type).slice(0, 3)).toEqual([
       MessageType.ready,
@@ -260,6 +276,34 @@ describe("the window's page", () => {
     expect(changes.querySelector('[data-testid="snapshots"]')?.textContent).toBe(
       "From the snapshot taken 2026-10-31 06:00 UTC (26 hour(s) ago) to the one taken 2026-11-01 06:00 UTC (2 hour(s) ago): 8 added, 6 removed.",
     );
+  });
+
+  it("in the window: without an Exchange Online token, the bar and the write cards say so (task 124)", async () => {
+    hostWith((message) =>
+      message.type === MessageType.whoami
+        ? {
+            type: MessageType.signedIn,
+            data: {
+              profile: "work",
+              account: "alice@contoso.com",
+              tokens: [
+                { resource: "graph", scopes: [] },
+                { resource: "exchange", error: "the consent is missing", scopes: [] },
+              ],
+            },
+          }
+        : null,
+    );
+    const { container } = await render(<App />);
+    await settle();
+
+    expect(container.querySelector('[data-testid="status"]')?.textContent).toBe("signed in · Exchange unavailable");
+    const change = container.querySelector("section#change") as HTMLElement;
+    expect(change.textContent?.match(/Exchange Online unavailable/g)).toHaveLength(2);
+    expect(change.textContent).toContain("no Exchange Online token: the consent is missing.");
+    for (const card of change.querySelectorAll('[data-slot="card"]')) {
+      expect(button(card, "See the plan").disabled).toBe(true);
+    }
   });
 
   it("leaves the sign-in as it is on a host notification of another kind", async () => {

@@ -1,9 +1,10 @@
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { reveal } from "@/lib/scroll";
 import type { BridgeClient } from "../bridge/client";
 import {
   type BridgeError,
@@ -92,9 +93,11 @@ export function MailboxAccessCard({
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
+  /** Sends the request and shows its answer; true when the answer is a mailbox's holders. */
   const run = useCallback(
-    async (type: string, data: unknown, refreshed = false): Promise<void> => {
+    async (type: string, data: unknown, refreshed = false): Promise<boolean> => {
       setBusy(true);
       setRefreshing(refreshed);
       const started = performance.now();
@@ -104,7 +107,7 @@ export function MailboxAccessCard({
         switch (reply.type) {
           case MessageType.mailboxHolders:
             setResult({ kind: "holders", data: reply.data, ms, refreshed });
-            break;
+            return true;
           case MessageType.userGrants:
             setResult({ kind: "grants", data: reply.data, ms, stale: false });
             break;
@@ -115,6 +118,7 @@ export function MailboxAccessCard({
             onError(reply.data);
             break;
         }
+        return false;
       } finally {
         setBusy(false);
         setRefreshing(false);
@@ -123,7 +127,8 @@ export function MailboxAccessCard({
     [client, onError],
   );
 
-  // The mailbox on the card; a grant or a revoke applied to it reads it again (task 091).
+  // The mailbox on the card; a grant or a revoke applied to it reads it again (task 091), and the write card is told
+  // once the new answer shows, so its result step can offer to show this card (task 124).
   const shown = result?.kind === "holders" ? result.data.mailbox : null;
   useEffect(() => {
     if (!applied || !shown) {
@@ -131,7 +136,15 @@ export function MailboxAccessCard({
     }
     return applied.subscribe((write) => {
       if (accessWrites.includes(write.operation) && touches(write, shown)) {
-        void run(MessageType.mailboxAccess, { mailbox: shown.primarySmtpAddress }, true);
+        void run(MessageType.mailboxAccess, { mailbox: shown.primarySmtpAddress }, true).then((read) => {
+          if (read) {
+            write.onReRead?.({
+              card: "Mailbox access",
+              mailbox: shown.displayName,
+              show: () => reveal(cardRef.current),
+            });
+          }
+        });
       }
     });
   }, [applied, shown, run]);
@@ -161,7 +174,11 @@ export function MailboxAccessCard({
   }
 
   return (
-    <Card>
+    <Card
+      ref={cardRef}
+      tabIndex={-1}
+      className="scroll-mt-20 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+    >
       <CardHeader>
         <CardTitle>Mailbox access</CardTitle>
         <CardDescription>

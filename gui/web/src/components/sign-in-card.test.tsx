@@ -40,7 +40,7 @@ describe("the sign-in card", () => {
   it("shows the account, the tenant and a line per token, and signs out", async () => {
     const { container, on, text } = await card({ status: "signed-in", info: alice });
 
-    expect(text()).toContain("signed in");
+    expect(text()).toContain("signed in · Exchange unavailable");
     expect(container.querySelector('[data-testid="account"]')?.textContent).toBe("Alice Example · alice@contoso.com");
     expect(text()).toContain("00000000-0000-0000-0000-000000000002");
     expect(text()).toContain("Microsoft Graph");

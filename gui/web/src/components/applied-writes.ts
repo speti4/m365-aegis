@@ -13,6 +13,18 @@ export interface AppliedWrite {
   mailbox: string;
   addresses: string[];
   users: string[];
+  /**
+   * How a card that read the mailbox again after this write tells the write card (task 124), so its result step can
+   * say so and offer to show it: the write card that applied the change passes it.
+   */
+  onReRead?: (reRead: ReRead) => void;
+}
+
+/** A card read what a write changed again (task 124): the card's title, the mailbox's name, and how to show the card. */
+export interface ReRead {
+  card: string;
+  mailbox: string;
+  show: () => void;
 }
 
 /** The page's one channel from the write cards to the cards that read what they change. */
