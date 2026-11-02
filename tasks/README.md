@@ -14,11 +14,15 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-11-02 — edit the files, not this section._
 
-**State:** 8 backlog (0 ready · 0 blocked · 0 waiting · 8 ideas) · 0 in progress · 118 done · 0 dropped · 15 decisions
+**State:** 9 backlog (1 ready · 0 blocked · 0 waiting · 8 ideas) · 0 in progress · 118 done · 0 dropped · 15 decisions
 
 ### Ready
 
-_none_
+#### M4 Window
+
+| # | Task | Size | Created |
+|---|---|---|---|
+| 127 | [Typography, surfaces and the change ticket of the design direction (D-015)](backlog/127-typography-surfaces-and-the-change-ticket-of-the-design-direction.md) | M | 2026-11-02 |
 
 ### Needs decision
 
@@ -77,7 +81,7 @@ _108 more in `done/`._
 
 | # | Decision | Status | Date |
 |---|---|---|---|
-| D-015 | [The window follows one design direction, a Windows-native operations console](decisions/D-015-a-design-direction-for-the-window.md) | proposed | 2026-11-02 |
+| D-015 | [The window follows one design direction, a Windows-native operations console](decisions/D-015-a-design-direction-for-the-window.md) | decided | 2026-11-02 |
 | D-014 | [The snapshot is taken on demand; a schedule is an option, not the model](decisions/D-014-snapshot-on-demand-not-nightly.md) | decided | 2026-11-01 |
 | D-013 | [No Teams chat export, and no managed distribution for now](decisions/D-013-no-teams-chat-export-and-no-managed-distribution-for-now.md) | decided | 2026-11-01 |
 | D-011 | [The snapshot store's format, place, query path and retention](decisions/D-011-snapshot-store-format.md) | decided | 2026-10-31 |

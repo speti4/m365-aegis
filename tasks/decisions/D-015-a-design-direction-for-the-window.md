@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: decided
 date: 2026-11-02
 cost: medium
 sources: [done/018-task-card-design-sketch-for-the-support-team.md, backlog/123-status-color-tokens-one-dark-palette-forced-colors-and-focus-contrast.md, D-009-winforms-webview2-window-host.md]
@@ -19,15 +19,15 @@ part that is a taste decision, and the maintainer wanted it decided before any s
 
 ## Decision
 
-Proposed: the window adopts a "Windows-native operations console" direction. Segoe UI Variable, the system font,
+The window adopts a "Windows-native operations console" direction. Segoe UI Variable, the system font,
 replaces Geist so the page matches the WinForms chrome and ships no web font; Cascadia Mono or Consolas is used
 only for real identifiers (object ids, addresses, the plan record); a 20 / 15 / 13 px scale with muted table
 headers; a tinted page in light (surface white on a light grey page) with the dark counterparts; one steel-blue
 accent for selection and focus; the status triad (green, amber, red) as tokens; 6 px radii and 32 px table rows.
 The boldness goes to one place, the plan and confirm step, rendered as a "change ticket": a tinted surface with an
 amber left rule, before → after rows with the after value strong, and a confirm button colored by the action.
-Everything else stays quiet. The decision is `proposed` until the maintainer decides it; the implementing task is
-filed only then.
+Everything else stays quiet. The status tokens, the theming and the contrast fixes are task 123; the typography,
+the surfaces and the change ticket are task 127. Decided by the maintainer in the session of 2026-11-02.
 
 ## Not chosen
 
