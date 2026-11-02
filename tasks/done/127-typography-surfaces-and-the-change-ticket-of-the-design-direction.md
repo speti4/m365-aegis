@@ -3,6 +3,7 @@ size: M
 origin: session 2026-11-02
 created: 2026-11-02
 started: 2026-11-02
+closed: 2026-11-02
 plan: none
 milestone: M4 Window
 ---
@@ -76,6 +77,8 @@ is retaken from the mock, and the front-end checks pass with the web font gone.
   package reasons out; `docs/images/window-group-members.png` retaken from the mock (Group members answering
   "Finance", light, 1280 px, the card alone as before, 976 px wide).
 
+- 2026-11-02 — merged as #181 (squash); closed on `main` by the main session; no follow-up
+
 ## Deviations from the plan
 
 - The scale is set by redefining Tailwind's `text-sm`, `text-base` and `text-xl` in `@theme` rather than new classes
@@ -106,5 +109,5 @@ is retaken from the mock, and the front-end checks pass with the web font gone.
       (a task session of a parallel-sessions repo: listed in the pull request under `## Follow-ups`, the main session files them)
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] `tasks_check` green, README index regenerated
+- [x] moved to `done/` with `closed: 2026-11-02`

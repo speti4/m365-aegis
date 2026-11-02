@@ -14,15 +14,11 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-11-02 — edit the files, not this section._
 
-**State:** 6 backlog (1 ready · 0 blocked · 0 waiting · 5 ideas) · 0 in progress · 122 done · 0 dropped · 15 decisions
+**State:** 5 backlog (0 ready · 0 blocked · 0 waiting · 5 ideas) · 0 in progress · 123 done · 0 dropped · 15 decisions
 
 ### Ready
 
-#### M4 Window
-
-| # | Task | Size | Created |
-|---|---|---|---|
-| 127 | [Typography, surfaces and the change ticket of the design direction (D-015)](backlog/127-typography-surfaces-and-the-change-ticket-of-the-design-direction.md) | M | 2026-11-02 |
+_none_
 
 ### Needs decision
 
@@ -66,6 +62,7 @@ _none_
 
 | # | Task | Closed |
 |---|---|---|
+| 127 | [Typography, surfaces and the change ticket of the design direction (D-015)](done/127-typography-surfaces-and-the-change-ticket-of-the-design-direction.md) | 2026-11-02 |
 | 124 | [A sticky top bar with the account, the tenant and the sign-in state, and in-pag…](done/124-a-sticky-top-bar-with-the-account-the-tenant-and-in-page-navigation.md) | 2026-11-02 |
 | 123 | [Status color tokens, one dark palette, forced colors and the focus ring's contr…](done/123-status-color-tokens-one-dark-palette-forced-colors-and-focus-contrast.md) | 2026-11-02 |
 | 121 | [Focus management and status announcements in the window, with card headings, ra…](done/121-focus-management-and-status-announcements-in-the-window.md) | 2026-11-02 |
@@ -75,9 +72,8 @@ _none_
 | 117 | [The folderPermissions domain of the take reads the calendar permissions in para…](done/117-folder-permissions-domain-read-in-parallel.md) | 2026-11-01 |
 | 116 | [A periodic full sharing read when the incremental base is older than a configur…](done/116-periodic-full-sharing-read-when-the-base-is-old.md) | 2026-11-01 |
 | 115 | [The snapshot diff as a window card](done/115-snapshot-diff-as-a-window-card.md) | 2026-11-01 |
-| 114 | [snapshot diff --user <x>: one person's gained and lost access between two snaps…](done/114-snapshot-diff-for-one-user.md) | 2026-11-01 |
 
-_112 more in `done/`._
+_113 more in `done/`._
 
 ### Decisions
 

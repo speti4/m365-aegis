@@ -15,6 +15,7 @@ not the list. The summary under a heading is written by hand and kept by the gen
 - Focus management and status announcements in the window, with card headings, radio groups and the stepper's semantics ([121](https://github.com/speti4/m365-aegis/blob/main/tasks/done/121-focus-management-and-status-announcements-in-the-window.md))
 - Status color tokens, one dark palette, forced colors and the focus ring's contrast ([123](https://github.com/speti4/m365-aegis/blob/main/tasks/done/123-status-color-tokens-one-dark-palette-forced-colors-and-focus-contrast.md))
 - A sticky top bar with the account, the tenant and the sign-in state, and in-page navigation ([124](https://github.com/speti4/m365-aegis/blob/main/tasks/done/124-a-sticky-top-bar-with-the-account-the-tenant-and-in-page-navigation.md))
+- Typography, surfaces and the change ticket of the design direction (D-015) ([127](https://github.com/speti4/m365-aegis/blob/main/tasks/done/127-typography-surfaces-and-the-change-ticket-of-the-design-direction.md))
 
 ## 0.2.0 — 2026-11-02
 
