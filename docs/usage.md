@@ -430,16 +430,25 @@ Every field has its name above it (Group, Mailbox, User, Users, Forward to, From
 in an empty field is an example. Enter in a field looks up, compares or, on a write card, shows the plan. A button
 that waits for a field stays reachable with Tab and says what it still needs. While a lookup runs the field keeps the
 cursor and the previous answer stays on the card, dimmed; the answer then names what it answers ("Answer for
-"Finance""). A lookup that fails says so under the field, with what to do and the error's code, and the previous
-answer goes, so an old table never stands for a misspelled name. A screen reader hears each step of a card (a lookup
-under way, its answer, the plan, the result) as the card's status, and an error as an alert. A notice at the bottom
-right, with a close button, is left for the page's own requests, such as a failed sign-in.
+"Finance""). A lookup that fails says so under the field, with what to do, and the previous answer goes, so an old
+table never stands for a misspelled name. A screen reader hears each step of a card (a lookup under way, its answer,
+the plan, the result) as the card's status, and an error as an alert. A notice at the bottom right, with a close
+button, is left for the page's own requests, such as a failed sign-in.
+
+The technical side of an answer sits under a "Details" line, closed until you open it (a click, or Enter or Space on
+it): how long the answer took, the layer that read each mailbox right (the Admin API or the PowerShell session), the
+object ids of a group and its members, and an error's code. Tables keep their headers small and grey and their
+numbers in even columns.
 
 ### Sign-in
 
 The card shows the account, the profile, the tenant and each token's expiry, read silently as `m365-aegis whoami`
 does. Signed out, "Sign in" opens the Windows sign-in window over this one, and "Sign in with a code" shows a device
 code instead, with "Open in browser" for its page and "Copy the code"; the card updates when the sign-in completes.
+While a sign-in waits (the Windows sign-in window is open, which over Remote Desktop easily ends up behind the
+window, or a device code is shown), "Cancel" stops the window waiting: the card is signed out again and says that a
+sign-in window or a browser page still open for it can be closed. A sign-in finished there afterwards is not picked up
+on its own; "Refresh" reads the state again.
 "Sign out" signs the account out; "Refresh" reads the state again. Without a profile the card says so: run
 `m365-aegis login` on the command line once. "signed in · Exchange unavailable" means the account is signed in but
 the Exchange Online row has no token, usually because the Exchange Online permission is not consented yet: the row
@@ -448,7 +457,7 @@ says why, and the mailbox write cards wait (see below) until an administrator co
 ### Group members
 
 A group's name, address or object id, then "Look up": the group's type and its direct members in a table, as
-`m365-aegis group members` lists them.
+`m365-aegis group members` lists them; the object ids of the group and of each member are under "Details".
 
 ### Mailbox access
 
@@ -457,7 +466,8 @@ mailbox, or the mailboxes the user holds them on, as `m365-aegis mailbox access`
 is the user picker of the [User access](#user-access) card: type three letters of a name and pick the user, which looks
 the user up at once. "List the shared
 mailboxes" lists them as buttons; pick one to see its access. A right held by a group is listed as the group. The
-first lookup starts the Exchange Online session, which takes a few seconds. When the Mailbox rights card grants or
+first lookup starts the Exchange Online session, which takes a few seconds. "Details" under a mailbox's table says
+which layer read each right and how long the answer took. When the Mailbox rights card grants or
 revokes a right on the mailbox shown here, the card reads the mailbox again on its own and says "Read again after a
 change on the Mailbox rights card." over the table.
 
@@ -491,9 +501,11 @@ line (`m365-aegis snapshot take`, or [a snapshot every morning](#a-snapshot-ever
 lists it (see [What changed between two snapshots](#what-changed-between-two-snapshots)). Under the two snapshots'
 times and ages, a table for each part of the tenant that changed (group members and owners, shared files, mailbox
 rights, calendars, forwarding), each row "added" or "removed", and a line for the parts without a change. "From" and
-"To" pick other snapshots, the way the command line picks them: a snapshot's name, `latest`, `yesterday` or a date.
-"Only this user" narrows the changes to one person, as `--user` does: the groups, groups within groups included, the
-sites, the shared files, the mailboxes and the calendars, with the group each row comes through. "Good to know" says
+"To" pick other snapshots, the way the command line picks them: a snapshot's name, `latest`, `yesterday` or a date
+such as 2026-10-31; the line under the fields says so, and empty they compare the newest two. "Only this user"
+narrows the changes to one person, as `--user` does: the groups, groups within groups included, the sites, the shared
+files, the mailboxes and the calendars, with the group each row comes through. The field is the user picker: a pick
+fills it, and Enter then compares. The tables of the parts share their columns, so they line up. "Good to know" says
 when a part of a snapshot could not be read. Like the user access card, it reads the snapshots on this computer only
 and needs no sign-in; with fewer than two snapshots it says "Nothing to compare yet".
 
@@ -503,8 +515,13 @@ Grants or revokes FullAccess, Send As or Send on Behalf on a mailbox, as `m365-a
 `revoke` do. The steps are the same on every write card: Pick, Plan, Confirm, Result.
 
 1. Pick: "Grant" or "Revoke", the mailbox, the users (several, separated by commas) and the rights; for a FullAccess
-   grant, "Without automapping" keeps Outlook from adding the mailbox on its own. "See the plan", or Enter in any of
-   the picks; until every pick is there, the line beside the button says what is still needed.
+   grant, "Without automapping" keeps Outlook from adding the mailbox on its own. The mailbox field suggests the shared
+   mailboxes as you type (the window lists them once, which may take a few seconds the first time); the Users field
+   is the user picker of the [User access](#user-access) card, and each user picked joins the list with a comma after
+   it, so the next name can follow. Enter on an open list picks the highlighted entry, or the first; Enter with no
+   list open, or "See the plan", shows the plan. A full address, a name or an object id typed by hand still goes as
+   typed, a user mailbox or an outside address among them. Until every pick is there, the line beside the button says
+   what is still needed.
 2. Plan: the window computes the plan, the same one `--dry-run` prints, and nothing is changed yet: what changes, from
    what to what, what is already as asked, the warnings ("Good to know"). "Change the picks", or Escape, goes back.
 3. Confirm: the plan once more: each change with its action and from what to what, the warnings in short, and the
@@ -513,11 +530,15 @@ Grants or revokes FullAccess, Send As or Send on Behalf on a mailbox, as `m365-a
    "Revoke permissions" here, "Start forwarding" or "Stop forwarding" on the forwarding card; a removal's button is
    red. It stands for `--yes`. "Back to the plan" (or Escape) and "Cancel", which goes back to the picks, change
    nothing.
-4. Result: "Done", "Partly done" or "Not done", each change with its result and the service's message. The apply is
-   recorded like one from the command line, so `m365-aegis plan list` shows it and `--resume` continues a partial
-   one. When the [Mailbox access](#mailbox-access) card shows the mailbox and reads it again after the change, the
-   result says so ("The Mailbox access card read Reception again after this change.") and "Show it" scrolls up to
-   that card. "Start a new change" starts the card over.
+4. Result: "Done", "Partly done" or "Not done", each change with its result and the service's message; a result not
+   done in full says how many changes were made once, with the error's code under "Details". The apply is recorded
+   like one from the command line, so `m365-aegis plan list` shows it and `--resume` continues a partial one. When
+   the [Mailbox access](#mailbox-access) card shows the mailbox and reads it again after the change, the result says
+   so ("The Mailbox access card read Reception again after this change.") and "Show it" scrolls up to that card.
+   After a result not done in full, "See the plan again" asks for the plan once more with the same picks: what was
+   made is now left as it is, so the plan holds only what is still missing. "Start a new change" goes back to the
+   picks with the mailbox kept and everything else cleared (the users or the address, the rights, Grant and Forward,
+   the boxes as they start), since the next change is usually on the same mailbox but never for the same people.
 
 With the keyboard, each step puts the cursor on its own first line (the plan's title, the confirmation's sentence,
 the result), and going back puts it in the mailbox field.
@@ -531,7 +552,8 @@ unavailable" with the reason and waits too, since the plan reads the mailbox thr
 ### Mailbox forwarding
 
 Forwards a mailbox's mail to an address, or stops it, as `m365-aegis mailbox forwarding set` and `clear` do:
-"Forward" or "Stop forwarding", the mailbox, the address, and "Keep a copy in the mailbox" (ticked by default here;
+"Forward" or "Stop forwarding", the mailbox, the address (the user picker; an outside address is typed in full), and
+"Keep a copy in the mailbox" (ticked by default here;
 on the command line a copy needs `--keep-copy`). Then the same steps as the mailbox rights card; without the copy, the
 plan's "Good to know" says that the mail reaches the address only and that ticking the box keeps one.
 
