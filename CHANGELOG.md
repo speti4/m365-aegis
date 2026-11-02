@@ -9,7 +9,9 @@ not the list. The summary under a heading is written by hand and kept by the gen
 
 <!-- The summary above is written by hand; the list below is generated from tasks/done/ by scripts/changelog.py. -->
 
-No task closed yet.
+### M4 Window
+
+- A sticky top bar with the account, the tenant and the sign-in state, and in-page navigation ([124](https://github.com/speti4/m365-aegis/blob/main/tasks/done/124-a-sticky-top-bar-with-the-account-the-tenant-and-in-page-navigation.md))
 
 ## 0.2.0 — 2026-11-02
 

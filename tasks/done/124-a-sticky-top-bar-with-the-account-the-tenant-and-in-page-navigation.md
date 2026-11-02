@@ -3,6 +3,7 @@ size: M
 origin: session 2026-11-02
 created: 2026-11-02
 started: 2026-11-02
+closed: 2026-11-02
 plan: none
 milestone: M4 Window
 ---
@@ -78,6 +79,7 @@ variant shows on the mock's missing-token state, and the "show it" line appears 
   the Exchange-unavailable page in the window), `transport.test.ts` (`?mock=no-exchange`); docs: `usage.md` "The
   window", `development.md` (the mock flag, the top bar and the "Show it" line)
 - 2026-11-02 — follow-ups: none found; the pull request lists none
+- 2026-11-02 — merged as #177 (squash, `f5076ac`); closed on `main` by the main session
 
 ## Deviations from the plan
 
@@ -114,5 +116,5 @@ variant shows on the mock's missing-token state, and the "show it" line appears 
       (a task session of a parallel-sessions repo: listed in the pull request under `## Follow-ups`, the main session files them)
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] `tasks_check` green, README index regenerated
+- [x] moved to `done/` with `closed: 2026-11-02`
