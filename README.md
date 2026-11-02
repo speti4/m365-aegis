@@ -94,8 +94,9 @@ permissions and mailbox forwarding. The [usage guide](docs/usage.md) covers ever
 
 ## Status
 
-Version 0.2.0, for Windows 11 only, under active development: each release adds commands, while the exit codes and the
-plan-first rule for writes stay as they are. Next: the snapshot's calendar reads measured at a higher parallel ceiling.
+Version 0.3.0, for Windows 11 only, under active development: each release adds commands, while the exit codes and the
+plan-first rule for writes stay as they are. Next: the snapshot's calendar reads measured at a higher parallel ceiling,
+and the hanging-sidecar test made independent of the machine's load.
 
 ## License
 

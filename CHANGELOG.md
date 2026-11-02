@@ -7,6 +7,16 @@ not the list. The summary under a heading is written by hand and kept by the gen
 
 ## Unreleased
 
+The window after its UX review: a bar that stays at the top with the account, the tenant and the sign-in state and
+links to the card groups; a lookup's error shown in the card under a labeled field instead of a toast over a stale
+answer; the keyboard kept in place and every step announced to a screen reader; the write cards pick users and
+mailboxes from the directory, and their confirmation shows each change with its action, its before and after, the
+warnings and the account it runs as, on a change ticket, with a button that names the action; one vocabulary in
+Microsoft's terms (Full Access, mailbox permissions, Grant and Revoke from the card to the plan) in the window and
+in the plan texts the command line prints; status colors as tokens, one dark palette, high-contrast mode, and the
+system font with a tinted page (D-015). The technical details of an answer sit behind a Details line, a sign-in in
+progress can be canceled, and the command line still takes `FullAccess` as an argument.
+
 <!-- The summary above is written by hand; the list below is generated from tasks/done/ by scripts/changelog.py. -->
 
 ### M4 Window
