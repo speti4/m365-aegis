@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-11-02 — edit the files, not this section._
 
-**State:** 3 backlog (0 ready · 0 blocked · 0 waiting · 3 ideas) · 0 in progress · 125 done · 0 dropped · 15 decisions
+**State:** 2 backlog (0 ready · 0 blocked · 0 waiting · 2 ideas) · 0 in progress · 126 done · 0 dropped · 15 decisions
 
 ### Ready
 
@@ -29,12 +29,6 @@ _none_
 _none_
 
 ### Ideas
-
-#### M4 Window
-
-| # | Task | Size | Created |
-|---|---|---|---|
-| 122 | [The window's vocabulary: Microsoft's terms, one verb per action from the card t…](backlog/122-the-windows-vocabulary-microsofts-terms-one-verb-per-action-no-raw-values.md) | M | 2026-11-02 |
 
 #### M5 Snapshot and views
 
@@ -65,13 +59,13 @@ _none_
 | 125 | [The user picker on the write cards](done/125-the-user-picker-on-the-write-cards.md) | 2026-11-02 |
 | 124 | [A sticky top bar with the account, the tenant and the sign-in state, and in-pag…](done/124-a-sticky-top-bar-with-the-account-the-tenant-and-in-page-navigation.md) | 2026-11-02 |
 | 123 | [Status color tokens, one dark palette, forced colors and the focus ring's contr…](done/123-status-color-tokens-one-dark-palette-forced-colors-and-focus-contrast.md) | 2026-11-02 |
+| 122 | [The window's vocabulary: Microsoft's terms, one verb per action from the card t…](done/122-the-windows-vocabulary-microsofts-terms-one-verb-per-action-no-raw-values.md) | 2026-11-02 |
 | 121 | [Focus management and status announcements in the window, with card headings, ra…](done/121-focus-management-and-status-announcements-in-the-window.md) | 2026-11-02 |
 | 120 | [Lookup errors shown in the card, labeled fields, Enter and Escape on the write …](done/120-lookup-errors-in-the-card-labeled-fields-and-a-complete-confirmation-step.md) | 2026-11-02 |
 | 111 | [The doctor reads the account's Entra roles for the permissions table's role col…](done/111-doctor-reads-the-entra-roles-from-the-token-for-the-role-column.md) | 2026-11-02 |
 | 118 | [A skipped snapshot domain's note in the window's words on the access cards](done/118-skipped-domain-note-in-the-windows-words.md) | 2026-11-01 |
-| 117 | [The folderPermissions domain of the take reads the calendar permissions in para…](done/117-folder-permissions-domain-read-in-parallel.md) | 2026-11-01 |
 
-_115 more in `done/`._
+_116 more in `done/`._
 
 ### Decisions
 

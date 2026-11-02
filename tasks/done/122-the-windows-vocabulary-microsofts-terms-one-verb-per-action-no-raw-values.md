@@ -3,6 +3,7 @@ size: M
 origin: session 2026-11-02
 created: 2026-11-02
 started: 2026-11-02
+closed: 2026-11-02
 plan: none
 milestone: M4 Window
 ---
@@ -102,6 +103,9 @@ glossary, and the review's seven usage.md mismatches are gone.
   mentions of mailbox rights; `docs/images/window-group-members.png` retaken (Finance, light, 1280 px viewport, the
   card alone, 976 × 420 px, field not focused).
 
+- 2026-11-02 — merged as #183 (squash); closed on `main` by the main session; no follow-up. The maintainer
+  accepted that the CLI's `--dry-run` plan text shares the window's words (Full Access, "Forward the mail of")
+
 ## Deviations from the plan
 
 - The Core's plan texts are shared with the command line, so `--dry-run` and the plan records now read "Full
@@ -137,5 +141,5 @@ glossary, and the review's seven usage.md mismatches are gone.
       (a task session of a parallel-sessions repo: listed in the pull request under `## Follow-ups`, the main session files them)
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] `tasks_check` green, README index regenerated
+- [x] moved to `done/` with `closed: 2026-11-02`
