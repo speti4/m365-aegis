@@ -3,6 +3,7 @@ size: S
 origin: session 2026-11-02
 created: 2026-11-02
 started: 2026-11-02
+closed: 2026-11-02
 plan: none
 milestone: M4 Window
 ---
@@ -90,6 +91,9 @@ Done when: light, dark and forced colors show the states, focus and selection ap
   the bar in the mock in light, dark and forced colors, signed in and out, a link focused by Tab (2 px outline in the
   accent; the dot is supplementary to the state's words and paints as the canvas under forced colors).
 
+- 2026-11-02 — merged as #178 (squash, `7d53397`); closed on `main` by the main session; the flaky sidecar test
+  the pull request listed is backlog 128
+
 ## Deviations from the plan
 
 - `outline-hidden` was tried and dropped: under emulated forced colors its `2px solid transparent` outline is painted
@@ -136,5 +140,5 @@ Done when: light, dark and forced colors show the states, focus and selection ap
       (a task session of a parallel-sessions repo: listed in the pull request under `## Follow-ups`, the main session files them)
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] `tasks_check` green, README index regenerated
+- [x] moved to `done/` with `closed: 2026-11-02`
