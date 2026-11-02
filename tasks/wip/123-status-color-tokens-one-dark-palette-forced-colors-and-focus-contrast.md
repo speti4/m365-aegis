@@ -60,7 +60,7 @@ Done when: light, dark and forced colors show the states, focus and selection ap
 ## Log
 
 - 2026-11-02 — promoted on `task/123-status-tokens-and-theming` by the main session
-- 2026-11-02 — tokens and theme (`1000ebf`): one `:root` block in `index.css`, every color
+- 2026-11-02 — tokens and theme (`d46e295`): one `:root` block in `index.css`, every color
   `light-dark(<light>, <dark>)` under `color-scheme: light dark`; the old `.dark` block (neutral) and the media block
   (zinc, hue 285) merged into one neutral dark palette; the unused `chart-*` and `sidebar-*` tokens dropped. The
   `dark` variant is a custom variant on `@media (prefers-color-scheme: dark)` (or a `.dark` parent, minus a `.light`
@@ -70,7 +70,7 @@ Done when: light, dark and forced colors show the states, focus and selection ap
   oklch(0.52) / oklch(0.72). Badge variants `success`, `warning`, `danger` (+ a `CanvasText` border under forced
   colors). `next-themes` uninstalled; `ui/sonner.tsx` passes `theme="system"`; `main.tsx` had no provider to drop.
   Contrast of every pair computed before (oklch → sRGB): status text on the card and on its soft background 5.4–10.1:1.
-- 2026-11-02 — components (`483485e`): plan actions add → success, remove/clear → danger, set/send → warning; result
+- 2026-11-02 — components (`cbcffea`): plan actions add → success, remove/clear → danger, set/send → warning; result
   icons applied → `text-success`, failed → `text-danger`; diff added → success, removed → danger; sign-in signed in →
   success, signed out → warning; `partial` → warning, the stale notice `border-warning/50`; `Notice` and the sketch's
   copy on the tokens. Button and input: no `outline-none`, focus = `outline-2 outline-offset-2 outline-solid
@@ -79,8 +79,16 @@ Done when: light, dark and forced colors show the states, focus and selection ap
   a lucide `Check` (`data-icon="inline-start"`) on the selected `Choice`, right and lookup mode; card
   `forced-colors:border`; the stepper's done circles `CanvasText` under forced colors. New
   `status-colors.test.tsx` (7 tests) asserts the variants, the icons' classes and the check on the selected choice.
-- 2026-11-02 — docs (`f07f920`): `docs/development.md`, "The front end": a "The theme" paragraph; the `next-themes`
+- 2026-11-02 — docs (`8ec7cc0`): `docs/development.md`, "The front end": a "The theme" paragraph; the `next-themes`
   reason line removed.
+- 2026-11-02 — rebased onto `main` after #177 (task 124): conflicts in the imports of `mailbox-access-card.tsx` and
+  `mailbox-write-cards.tsx` (both sides kept) and in the sign-in card's badge, now on `statusLabel`: signed in green,
+  "signed in · Exchange unavailable" and signed out amber, "sign-in unknown" red. The top bar's dot reads the same
+  tokens (`bg-success`, `bg-warning`, `bg-danger`) and its two links take the 2 px `--ring` outline instead of
+  `outline-none` + `ring-ring/50`; `top-bar.test.tsx` follows, `status-colors.test.tsx` adds the two new badge states.
+  Checks again: lint, typecheck, `test:coverage` (25 files, 242 tests, 100%), build, `check-fixtures.py` (0 findings);
+  the bar in the mock in light, dark and forced colors, signed in and out, a link focused by Tab (2 px outline in the
+  accent; the dot is supplementary to the state's words and paints as the canvas under forced colors).
 
 ## Deviations from the plan
 
