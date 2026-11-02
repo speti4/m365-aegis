@@ -426,6 +426,15 @@ Exchange unavailable", "signed out"), the account, the tenant id shortened to it
 id when you point at it), the profile, and "Sign in" or "Sign out". The state links to the sign-in card, which keeps
 the details.
 
+Every field has its name above it (Group, Mailbox, User, Users, Forward to, From, To, Only this user); the grey text
+in an empty field is an example. Enter in a field looks up, compares or, on a write card, shows the plan. A button
+that waits for a field stays reachable with Tab and says what it still needs. While a lookup runs the field keeps the
+cursor and the previous answer stays on the card, dimmed; the answer then names what it answers ("Answer for
+"Finance""). A lookup that fails says so under the field, with what to do and the error's code, and the previous
+answer goes, so an old table never stands for a misspelled name. A screen reader hears each step of a card (a lookup
+under way, its answer, the plan, the result) as the card's status, and an error as an alert. A notice at the bottom
+right, with a close button, is left for the page's own requests, such as a failed sign-in.
+
 ### Sign-in
 
 The card shows the account, the profile, the tenant and each token's expiry, read silently as `m365-aegis whoami`
@@ -443,7 +452,7 @@ A group's name, address or object id, then "Look up": the group's type and its d
 
 ### Mailbox access
 
-"A mailbox" or "A user", then the address and "Look up": who holds FullAccess, Send As and Send on Behalf on the
+"A mailbox" or "A user" (the arrow keys move between them), then the address and "Look up": who holds FullAccess, Send As and Send on Behalf on the
 mailbox, or the mailboxes the user holds them on, as `m365-aegis mailbox access` reads them. For "A user" the field
 is the user picker of the [User access](#user-access) card: type three letters of a name and pick the user, which looks
 the user up at once. "List the shared
@@ -494,16 +503,24 @@ Grants or revokes FullAccess, Send As or Send on Behalf on a mailbox, as `m365-a
 `revoke` do. The steps are the same on every write card: Pick, Plan, Confirm, Result.
 
 1. Pick: "Grant" or "Revoke", the mailbox, the users (several, separated by commas) and the rights; for a FullAccess
-   grant, "Without automapping" keeps Outlook from adding the mailbox on its own. "See the plan".
-2. Plan: the window computes the plan, the same one `--dry-run` prints, and nothing is changed yet: what changes, what
-   is already as asked, the warnings ("Good to know"). "Change the picks" goes back.
-3. Confirm: the changes once more; tick "I checked the plan; make these changes." and press "Confirm and apply",
-   which stands for `--yes`. "Back to the plan" changes nothing.
+   grant, "Without automapping" keeps Outlook from adding the mailbox on its own. "See the plan", or Enter in any of
+   the picks; until every pick is there, the line beside the button says what is still needed.
+2. Plan: the window computes the plan, the same one `--dry-run` prints, and nothing is changed yet: what changes, from
+   what to what, what is already as asked, the warnings ("Good to know"). "Change the picks", or Escape, goes back.
+3. Confirm: the plan once more: each change with its action and from what to what, the warnings in short, and the
+   account and profile the change is made as ("You're about to make these 2 changes as alice@contoso.com (profile
+   work):"). Tick "I've reviewed these changes." and press the button that names the change: "Grant permissions" or
+   "Revoke permissions" here, "Start forwarding" or "Stop forwarding" on the forwarding card; a removal's button is
+   red. It stands for `--yes`. "Back to the plan" (or Escape) and "Cancel", which goes back to the picks, change
+   nothing.
 4. Result: "Done", "Partly done" or "Not done", each change with its result and the service's message. The apply is
    recorded like one from the command line, so `m365-aegis plan list` shows it and `--resume` continues a partial
    one. When the [Mailbox access](#mailbox-access) card shows the mailbox and reads it again after the change, the
    result says so ("The Mailbox access card read Reception again after this change.") and "Show it" scrolls up to
-   that card. "Done" starts the card over.
+   that card. "Start a new change" starts the card over.
+
+With the keyboard, each step puts the cursor on its own first line (the plan's title, the confirmation's sentence,
+the result), and going back puts it in the mailbox field.
 
 "Refused: nothing was changed" means the window did not send anything (a plan older than 15 minutes, for one: see
 the plan again). "Stopped: check the mailbox before you try again" means the apply broke off and some changes may
