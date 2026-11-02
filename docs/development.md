@@ -1307,13 +1307,27 @@ the badge variants on them, and one steel-blue accent for selection and focus (`
 `--ring` outline, which forced colors keeps; a selected choice carries a check icon and, under forced colors, the
 system's `Highlight`.
 
+**The look** (task 127, D-015, "a Windows-native operations console"): the system's font, Segoe UI Variable (with
+Segoe UI and `system-ui` behind it), as the WinForms chrome around the page has it, so the window ships no web font;
+Cascadia Mono or Consolas (`font-mono`) for identifiers only: object ids, addresses in the tables, the tenant id, the
+plan record, an error's code. One scale in `@theme`: `text-xl` 20 px for the page's title, `text-base` 15 px for a
+card's title and the plan's, `text-sm` 13 px for the body (the page's default), `text-xs` 12 px. A tinted page
+(`--background`) under white cards in light and a cool near-black page under a lighter card in dark, 6 px radii
+(`--radius`), card descriptions held to 70 characters a line, 32 px table rows. Everything is quiet but the one moment
+the window changes the tenant: the plan and the confirmation sit on a **change ticket** (`ChangeTicket` in
+`plan-view.tsx`), a warm surface (`--ticket`) with an amber (`--warning`) rule on the left, a row per change with its
+action badge and the state now → after, the after state strong; the confirmation's checkbox and its button, named and
+colored by the action (task 120), sit under the ticket, and a plan with nothing to change is no ticket. The stepper
+above stays small and grey.
+
 The front end's packages, with their reasons (`package.json` carries no comments): `react` and `react-dom`
 (the UI); `vite` and `@vitejs/plugin-react` (the build and the dev server); `typescript` (strict types; the 7.x
 native compiler, which dropped `baseUrl`, so the `@/*` mapping in `tsconfig.json` is relative to the config and
 Vite's `resolve.alias` resolves it at build time); `tailwindcss` and `@tailwindcss/vite` (the utility CSS the shadcn
 components are written in); `@base-ui/react`, `class-variance-authority`, `cn`, `lucide-react`,
-`tw-animate-css` and `@fontsource-variable/geist` (what `shadcn init` and its components import: the component
-primitives, variant classes, the class-name helper, the icons, the animations, the font; the `shadcn` package itself
+`tw-animate-css` (what `shadcn init` and its components import: the component primitives, variant classes, the
+class-name helper, the icons, the animations; the web font it brought, Geist, went with task 127, the page uses the
+system's font; the `shadcn` package itself
 is not a dependency since 2026-11-01: its CLI's dependency tree carried two npm advisories with no fix, so its one
 build-time file, `tailwind.css`, is vendored as `src/styles/shadcn-tailwind.css` with its MIT notice in the header,
 and a component is added with `npx shadcn@4.23.0 add <component>` from `gui/web`, with `components.json` as its

@@ -116,7 +116,7 @@ function MembersTable({ result }: { result: GroupMembers }) {
               <TableRow key={member.id}>
                 <TableCell>{member.type}</TableCell>
                 <TableCell>{member.displayName ?? ""}</TableCell>
-                <TableCell>{member.userPrincipalName ?? member.mail ?? ""}</TableCell>
+                <TableCell className="font-mono text-xs">{member.userPrincipalName ?? member.mail ?? ""}</TableCell>
                 <TableCell className="font-mono text-xs">{member.id}</TableCell>
               </TableRow>
             ))}
