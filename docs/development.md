@@ -1270,6 +1270,16 @@ Microsoft's WebView2 SDK, in `src/M365Aegis.Gui/Host/WinFormsWebView2Host.cs` be
 - The WebView2 browser processes outlive a closed window by a few seconds (about six, measured 2026-10-29), so a
   `Start-Process -Wait` on the exe, as the `windows` job's smoke step runs it, waits for them too.
 
+**The theme** (task 123, D-015): one token block in `src/index.css`, each color `light-dark(<light>, <dark>)`
+resolved by `color-scheme`, which follows the system's mode (`prefers-color-scheme`), so the window has one dark
+palette and its `dark:` utilities, a custom variant on the same media query, apply under it (a `.light` or `.dark`
+class pins a part of the page, the design sketch's switch only; in the build Lightning CSS lowers `light-dark()` to
+variables set on `:root`). Besides shadcn/ui's names: the status triad `success`, `warning` and `danger` (each a strong
+color for text, icons and rules, at least 4.5:1 on the card and on its soft background, and a `-soft` background),
+the badge variants on them, and one steel-blue accent for selection and focus (`--primary`, `--ring`). Focus is a 2 px
+`--ring` outline, which forced colors keeps; a selected choice carries a check icon and, under forced colors, the
+system's `Highlight`.
+
 The front end's packages, with their reasons (`package.json` carries no comments): `react` and `react-dom`
 (the UI); `vite` and `@vitejs/plugin-react` (the build and the dev server); `typescript` (strict types; the 7.x
 native compiler, which dropped `baseUrl`, so the `@/*` mapping in `tsconfig.json` is relative to the config and
@@ -1280,9 +1290,9 @@ primitives, variant classes, the class-name helper, the icons, the animations, t
 is not a dependency since 2026-11-01: its CLI's dependency tree carried two npm advisories with no fix, so its one
 build-time file, `tailwind.css`, is vendored as `src/styles/shadcn-tailwind.css` with its MIT notice in the header,
 and a component is added with `npx shadcn@4.23.0 add <component>` from `gui/web`, with `components.json` as its
-config; a newer release replaces the vendored file whole); `sonner` and
-`next-themes` (the toast of shadcn's `sonner` component, which reads the theme through `next-themes`; without a
-theme provider it follows the system's light or dark mode, as the page does); `vitest` (the tests);
+config; a newer release replaces the vendored file whole); `sonner` (the
+toast of shadcn's `sonner` component, set to follow the system's light or dark mode, as the page does; `next-themes`,
+which the generated component imported, went with task 123: the window has no theme switch to wire); `vitest` (the tests);
 `@biomejs/biome` (lint and format in one pinned binary); `@types/*` (the type definitions).
 
 The test-only packages of the coverage (task 070): `@vitest/coverage-v8` (Vitest's V8 coverage provider, for the

@@ -50,7 +50,7 @@ describe("the top bar (task 124)", () => {
     expect(view.container.querySelector("header")?.className).toContain("sticky");
     expect(view.container.querySelector('[data-testid="version"]')?.textContent).toBe("0.2.0");
     expect(view.status()).toBe("signed in");
-    expect(view.dot()).toContain("bg-emerald-500");
+    expect(view.dot()).toContain("bg-success");
     expect(view.account()?.textContent).toBe("alice@contoso.com");
     expect(view.account()?.getAttribute("title")).toBe("Alice Example");
     expect(view.tenant()?.textContent).toBe("tenant 00000000…");
@@ -67,7 +67,7 @@ describe("the top bar (task 124)", () => {
     const view = await bar({ status: "signed-in", info: withoutExchange });
 
     expect(view.status()).toBe("signed in · Exchange unavailable");
-    expect(view.dot()).toContain("bg-amber-500");
+    expect(view.dot()).toContain("bg-warning");
     expect(hasButton(view.container, "Sign out")).toBe(true);
   });
 
@@ -78,7 +78,7 @@ describe("the top bar (task 124)", () => {
     );
 
     expect(view.status()).toBe("signed out");
-    expect(view.dot()).toContain("bg-destructive");
+    expect(view.dot()).toContain("bg-warning");
     expect(view.account()?.className).toContain("text-muted-foreground");
     expect(view.tenant()).toBeNull();
     expect(view.container.querySelector('[title="The browser mock: made-up data, no host"]')?.textContent).toBe("mock");
@@ -102,7 +102,7 @@ describe("the top bar (task 124)", () => {
 
     const unknown = await bar({ status: "unknown" });
     expect(unknown.status()).toBe("sign-in unknown");
-    expect(unknown.dot()).toContain("bg-destructive");
+    expect(unknown.dot()).toContain("bg-danger");
     await unknown.unmount();
 
     const signingOut = await bar({ status: "signing-out", info: { ...alice, tenantId: undefined } });

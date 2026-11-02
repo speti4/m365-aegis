@@ -176,7 +176,7 @@ export function SnapshotDiffView({ report }: { report: SnapshotDiffReport }) {
                 .map((entry) => (
                   <TableRow key={`${entry.change}:${entry.what}:${entry.who}:${entry.how}:${entry.through}`}>
                     <TableCell>
-                      <Badge variant={entry.change === "added" ? "secondary" : "outline"}>{entry.change}</Badge>
+                      <Badge variant={entry.change === "added" ? "success" : "danger"}>{entry.change}</Badge>
                     </TableCell>
                     <TableCell>{entry.what}</TableCell>
                     <TableCell>{entry.who}</TableCell>

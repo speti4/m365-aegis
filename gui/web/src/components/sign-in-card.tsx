@@ -70,10 +70,11 @@ function StatusBadge({ state }: { state: SignInState }) {
   const label = statusLabel(state);
   switch (state.status) {
     case "signed-in":
-      return <Badge variant={exchangeError(state) === null ? "default" : "outline"}>{label}</Badge>;
+      return <Badge variant={exchangeError(state) === null ? "success" : "warning"}>{label}</Badge>;
     case "signed-out":
+      return <Badge variant="warning">{label}</Badge>;
     case "unknown":
-      return <Badge variant="destructive">{label}</Badge>;
+      return <Badge variant="danger">{label}</Badge>;
     case "signing-in":
     case "signing-out":
       return <Badge variant="secondary">{label}</Badge>;

@@ -67,7 +67,7 @@ export function TopBar({
                 <a
                   href={`#${group.id}`}
                   onClick={(event) => follow(event, group.id)}
-                  className="rounded-md px-2 py-1 text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  className="rounded-md px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring"
                 >
                   {group.name}
                 </a>
@@ -81,14 +81,15 @@ export function TopBar({
   );
 }
 
-/** The dot's color per state: the bar's one color. */
+/** The dot's color per state, the sign-in badge's status token: the bar's one color. */
 function dotColor(state: SignInState): string {
   switch (state.status) {
     case "signed-in":
-      return exchangeError(state) === null ? "bg-emerald-500" : "bg-amber-500";
+      return exchangeError(state) === null ? "bg-success" : "bg-warning";
     case "signed-out":
+      return "bg-warning";
     case "unknown":
-      return "bg-destructive";
+      return "bg-danger";
     default:
       return "bg-muted-foreground/50";
   }
@@ -103,7 +104,7 @@ function Session({ state, onSignIn, onSignOut }: { state: SignInState; onSignIn:
       <a
         href={`#${signInSection}`}
         onClick={(event) => follow(event, signInSection)}
-        className="flex items-center gap-2 rounded-md outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="flex items-center gap-2 rounded-md hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring"
         title="The sign-in card: the profile, the tokens, Refresh"
       >
         <span className={cn("size-2 shrink-0 rounded-full", dotColor(state))} aria-hidden data-testid="status-dot" />

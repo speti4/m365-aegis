@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -195,7 +196,7 @@ export function MailboxAccessCard({
             aria-checked={mode === "mailbox"}
             onClick={() => setMode("mailbox")}
           >
-            A mailbox
+            {mode === "mailbox" ? <Check aria-hidden data-icon="inline-start" /> : null}A mailbox
           </Button>
           <Button
             variant={mode === "user" ? "default" : "outline"}
@@ -204,7 +205,7 @@ export function MailboxAccessCard({
             aria-checked={mode === "user"}
             onClick={() => setMode("user")}
           >
-            A user
+            {mode === "user" ? <Check aria-hidden data-icon="inline-start" /> : null}A user
           </Button>
           <Button
             variant="ghost"
@@ -346,11 +347,11 @@ function ResultView({
             <span className="text-muted-foreground">
               · {grants.length} grant(s) over {mailboxesScanned} mailbox(es)
             </span>
-            {failed.length > 0 ? <Badge variant="destructive">partial</Badge> : null}
+            {failed.length > 0 ? <Badge variant="warning">partial</Badge> : null}
           </p>
           {result.stale ? (
             <div
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/50 p-3 text-sm"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/50 p-3 text-sm"
               role="status"
               data-testid="stale"
             >
