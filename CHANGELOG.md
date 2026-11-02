@@ -7,6 +7,12 @@ not the list. The summary under a heading is written by hand and kept by the gen
 
 ## Unreleased
 
+<!-- The summary above is written by hand; the list below is generated from tasks/done/ by scripts/changelog.py. -->
+
+No task closed yet.
+
+## 0.2.0 — 2026-11-02
+
 Snapshots and the views over them: `snapshot take` stores who reaches which group, site, sharing link and mailbox
 under the home folder, the sharing read incrementally; `access <user>` and `snapshot diff` (for one user too) answer
 from it, on the command line and as window cards. The window's access cards share a user picker and word their
