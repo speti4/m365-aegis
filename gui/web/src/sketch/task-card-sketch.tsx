@@ -536,8 +536,8 @@ function Notice({
       className={cn(
         "flex gap-3 rounded-lg border p-3 text-sm [&>svg]:mt-0.5 [&>svg]:size-4 [&>svg]:shrink-0",
         tone === "error" && "border-destructive/50 [&>svg]:text-destructive",
-        tone === "warning" && "border-amber-500/50 [&>svg]:text-amber-600 dark:[&>svg]:text-amber-400",
-        tone === "success" && "border-emerald-500/50 [&>svg]:text-emerald-600 dark:[&>svg]:text-emerald-400",
+        tone === "warning" && "border-warning/50 [&>svg]:text-warning",
+        tone === "success" && "border-success/50 [&>svg]:text-success",
       )}
       role={tone === "error" ? "alert" : "status"}
     >

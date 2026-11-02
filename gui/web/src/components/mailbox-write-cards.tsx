@@ -1,4 +1,4 @@
-import { ArrowLeft, CircleX, LogIn, TriangleAlert, Unplug } from "lucide-react";
+import { ArrowLeft, Check, CircleX, LogIn, TriangleAlert, Unplug } from "lucide-react";
 import { type ReactNode, useEffect, useReducer, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -263,6 +263,7 @@ function Choice<T extends string>({
           aria-checked={value === option}
           onClick={() => onChange(option)}
         >
+          {value === option ? <Check aria-hidden data-icon="inline-start" /> : null}
           {text}
         </Button>
       ))}
@@ -337,6 +338,7 @@ export function MailboxAccessWriteCard({
               aria-checked={on}
               onClick={() => setChosen(on ? chosen.filter((item) => item !== right) : [...chosen, right])}
             >
+              {on ? <Check aria-hidden data-icon="inline-start" /> : null}
               {rightNames[right]}
             </Button>
           );

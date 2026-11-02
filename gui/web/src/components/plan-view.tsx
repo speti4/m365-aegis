@@ -24,7 +24,8 @@ export function Stepper({ state }: { state: WriteState }) {
           <span
             className={cn(
               "flex size-6 items-center justify-center rounded-full border text-xs",
-              position < index && "border-primary bg-primary text-primary-foreground",
+              position < index &&
+                "border-primary bg-primary text-primary-foreground forced-colors:bg-[color:CanvasText] forced-colors:text-[color:Canvas] forced-colors:forced-color-adjust-none",
               position === index && "border-primary font-semibold",
               position > index && "text-muted-foreground",
             )}
@@ -66,8 +67,8 @@ export function Notice({
       className={cn(
         "flex gap-3 rounded-lg border p-3 text-sm [&>svg]:mt-0.5 [&>svg]:size-4 [&>svg]:shrink-0",
         tone === "error" && "border-destructive/50 [&>svg]:text-destructive",
-        tone === "warning" && "border-amber-500/50 [&>svg]:text-amber-600 dark:[&>svg]:text-amber-400",
-        tone === "success" && "border-emerald-500/50 [&>svg]:text-emerald-600 dark:[&>svg]:text-emerald-400",
+        tone === "warning" && "border-warning/50 [&>svg]:text-warning",
+        tone === "success" && "border-success/50 [&>svg]:text-success",
       )}
       role={tone === "error" ? "alert" : "status"}
     >
@@ -89,6 +90,14 @@ export function ErrorText({ error }: { error: BridgeError }) {
       <p className="mt-1 font-mono text-xs text-muted-foreground">{error.code}</p>
     </>
   );
+}
+
+/** A change's badge by what it does: green adds, red takes away, amber changes a value. */
+function actionVariant(action: PlanChange["action"]): "success" | "danger" | "warning" {
+  if (action === "add") {
+    return "success";
+  }
+  return action === "remove" || action === "clear" ? "danger" : "warning";
 }
 
 function ChangeLine({ change }: { change: PlanChange }) {
@@ -122,9 +131,7 @@ export function PlanView({ plan }: { plan: Plan }) {
           <ul className="space-y-2">
             {plan.changes.map((change) => (
               <li key={`${change.target}:${change.detail}`} className="flex items-start gap-2">
-                <Badge variant={change.action === "remove" || change.action === "clear" ? "destructive" : "default"}>
-                  {change.action}
-                </Badge>
+                <Badge variant={actionVariant(change.action)}>{change.action}</Badge>
                 <ChangeLine change={change} />
               </li>
             ))}
@@ -197,9 +204,9 @@ export function ConfirmView({ plan, onConfirm, onBack }: { plan: Plan; onConfirm
 function ResultIcon({ change }: { change: PlanChange }) {
   switch (change.result?.status) {
     case "applied":
-      return <CircleCheck className="mt-0.5 size-4 shrink-0" aria-label="applied" />;
+      return <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" aria-label="applied" />;
     case "failed":
-      return <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" aria-label="failed" />;
+      return <CircleX className="mt-0.5 size-4 shrink-0 text-danger" aria-label="failed" />;
     default:
       return <CircleMinus className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-label="skipped" />;
   }
