@@ -3,7 +3,7 @@
 <Project>
 
   <PropertyGroup>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>speti4</Authors>
     <Product>m365-aegis</Product>
     <Copyright>Copyright (c) 2026 speti4</Copyright>
