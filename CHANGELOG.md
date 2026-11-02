@@ -7,6 +7,12 @@ not the list. The summary under a heading is written by hand and kept by the gen
 
 ## Unreleased
 
+<!-- The summary above is written by hand; the list below is generated from tasks/done/ by scripts/changelog.py. -->
+
+No task closed yet.
+
+## 0.3.0 — 2026-11-02
+
 The window after its UX review: a bar that stays at the top with the account, the tenant and the sign-in state and
 links to the card groups; a lookup's error shown in the card under a labeled field instead of a toast over a stale
 answer; the keyboard kept in place and every step announced to a screen reader; the write cards pick users and
