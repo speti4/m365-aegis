@@ -250,7 +250,7 @@ export function AccessReportView({ report }: { report: AccessReport }) {
         {mailboxes.map((mailbox) => (
           <TableRow key={`${mailbox.address}:${mailbox.right}:${mailbox.through}`}>
             <TableCell>{mailbox.mailbox}</TableCell>
-            <TableCell>{mailbox.address}</TableCell>
+            <TableCell className="font-mono text-xs">{mailbox.address}</TableCell>
             <TableCell>{rightNames[mailbox.right]}</TableCell>
             <TableCell>{through(mailbox.through)}</TableCell>
           </TableRow>

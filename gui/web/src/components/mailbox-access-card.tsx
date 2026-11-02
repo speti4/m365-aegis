@@ -383,7 +383,7 @@ function ResultView({
                   <TableRow key={`${holder.right}:${holder.holder}`}>
                     <TableCell>{rightNames[holder.right]}</TableCell>
                     <TableCell>{holder.holder}</TableCell>
-                    <TableCell>{holder.address ?? ""}</TableCell>
+                    <TableCell className="font-mono text-xs">{holder.address ?? ""}</TableCell>
                     <TableCell>
                       {holder.layer ? <Badge variant="outline">{layerNames[holder.layer]}</Badge> : null}
                     </TableCell>
@@ -454,7 +454,7 @@ function ResultView({
                 {grants.map((grant) => (
                   <TableRow key={`${grant.mailbox.primarySmtpAddress}:${grant.right}`}>
                     <TableCell>{grant.mailbox.displayName}</TableCell>
-                    <TableCell>{grant.mailbox.primarySmtpAddress}</TableCell>
+                    <TableCell className="font-mono text-xs">{grant.mailbox.primarySmtpAddress}</TableCell>
                     <TableCell>{grant.mailbox.type}</TableCell>
                     <TableCell>{rightNames[grant.right]}</TableCell>
                   </TableRow>

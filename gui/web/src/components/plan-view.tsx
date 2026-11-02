@@ -23,14 +23,14 @@ import { outcome, type WriteState, writeStepIndex, writeStepNames } from "./writ
 export function Stepper({ state }: { state: WriteState }) {
   const index = writeStepIndex(state);
   return (
-    <ol className="flex flex-wrap items-center gap-2 text-sm" aria-label="Steps">
+    <ol className="flex flex-wrap items-center gap-2 text-xs" aria-label="Steps">
       {writeStepNames.map((name, position) => (
         <li key={name} className="flex items-center gap-2" aria-current={position === index ? "step" : undefined}>
           <span
             className={cn(
-              "flex size-6 items-center justify-center rounded-full border text-xs",
+              "flex size-5 items-center justify-center rounded-full border text-xs",
               position < index &&
-                "border-primary bg-primary text-primary-foreground forced-colors:bg-[color:CanvasText] forced-colors:text-[color:Canvas] forced-colors:forced-color-adjust-none",
+                "border-transparent bg-muted text-muted-foreground forced-colors:bg-[color:CanvasText] forced-colors:text-[color:Canvas] forced-colors:forced-color-adjust-none",
               position === index && "border-primary font-semibold",
               position > index && "text-muted-foreground",
             )}
@@ -128,18 +128,30 @@ function actionVariant(action: PlanChange["action"]): "success" | "danger" | "wa
   return action === "remove" || action === "clear" ? "danger" : "warning";
 }
 
-/** One change: the action's badge, the target, what changes, and the state now → after, the after state stronger. */
+/** One change: the action's badge, the target, what changes, and the state now → after, the after state strong. */
 function ChangeItem({ change }: { change: PlanChange }) {
   return (
-    <li className="flex items-start gap-2">
+    <li className="flex items-start gap-2 py-2 first:pt-0 last:pb-0">
       <Badge variant={actionVariant(change.action)}>{change.action}</Badge>
       <span>
         <strong>{change.target}</strong>: {change.detail}
         <span className="block text-sm text-muted-foreground">
-          {change.current} → <span className="font-medium text-foreground">{change.desired}</span>
+          {change.current} → <span className="font-semibold text-foreground">{change.desired}</span>
         </span>
       </span>
     </li>
+  );
+}
+
+/**
+ * The change ticket of D-015 (task 127): the plan and the confirmation, the one moment the window changes the tenant,
+ * on a warm surface with an amber rule on the left; everything else on the page stays quiet.
+ */
+function ChangeTicket({ children }: { children: ReactNode }) {
+  return (
+    <div className="space-y-3 rounded-lg border border-l-4 border-l-warning bg-ticket p-4" data-testid="change-ticket">
+      {children}
+    </div>
   );
 }
 
@@ -148,9 +160,10 @@ function ChangeItem({ change }: { change: PlanChange }) {
  * that names a flag in the window's words (`windowWarning`, task 090).
  */
 export function PlanView({ plan, titleRef }: { plan: Plan; titleRef?: Ref<HTMLParagraphElement> }) {
+  const Surface = plan.changes.length === 0 ? PlainSurface : ChangeTicket;
   return (
-    <div className="space-y-3">
-      <p ref={titleRef} tabIndex={-1} className={cn("font-medium", focusTarget)}>
+    <Surface>
+      <p ref={titleRef} tabIndex={-1} className={cn("text-base font-medium", focusTarget)}>
         {plan.title}
       </p>
       {plan.changes.length === 0 ? (
@@ -162,7 +175,7 @@ export function PlanView({ plan, titleRef }: { plan: Plan; titleRef?: Ref<HTMLPa
           <p className="text-sm text-muted-foreground">
             {plan.changes.length} change(s) when you confirm, and none before:
           </p>
-          <ul className="space-y-2">
+          <ul className="divide-y">
             {plan.changes.map((change) => (
               <ChangeItem key={`${change.target}:${change.detail}`} change={change} />
             ))}
@@ -186,8 +199,13 @@ export function PlanView({ plan, titleRef }: { plan: Plan; titleRef?: Ref<HTMLPa
           {windowWarning(warning)}
         </Notice>
       ))}
-    </div>
+    </Surface>
   );
+}
+
+/** A plan with nothing to change is no ticket. */
+function PlainSurface({ children }: { children: ReactNode }) {
+  return <div className="space-y-3">{children}</div>;
 }
 
 /** The account a change runs as, from the sign-in card's state. */
@@ -223,36 +241,38 @@ export function ConfirmView({
   const changes = plan.changes.length === 1 ? "this change" : `these ${count(plan.changes.length, "change")}`;
   return (
     <div className="space-y-4">
-      <div className="space-y-1">
-        <p ref={leadRef} tabIndex={-1} className={focusTarget} data-testid="confirm-lead">
-          You're about to make {changes}
-          {runAs ? (
-            <>
-              {" "}
-              as <strong>{runAs.account}</strong> (profile {runAs.profile})
-            </>
-          ) : null}
-          :
-        </p>
-        <p className="font-medium">{plan.title}</p>
-      </div>
-      <ul className="space-y-2">
-        {plan.changes.map((change) => (
-          <ChangeItem key={`${change.target}:${change.detail}`} change={change} />
-        ))}
-      </ul>
-      {plan.warnings.length > 0 ? (
-        <div className="rounded-lg border border-warning/50 p-3 text-sm" data-testid="confirm-warnings">
-          <p className="flex items-center gap-2 font-medium">
-            <TriangleAlert className="size-4 text-warning" aria-hidden /> Good to know
+      <ChangeTicket>
+        <div className="space-y-1">
+          <p ref={leadRef} tabIndex={-1} className={focusTarget} data-testid="confirm-lead">
+            You're about to make {changes}
+            {runAs ? (
+              <>
+                {" "}
+                as <strong>{runAs.account}</strong> (profile {runAs.profile})
+              </>
+            ) : null}
+            :
           </p>
-          <ul className="mt-1 list-disc space-y-1 pl-5">
-            {plan.warnings.map((warning) => (
-              <li key={warning}>{windowWarning(warning)}</li>
-            ))}
-          </ul>
+          <p className="text-base font-medium">{plan.title}</p>
         </div>
-      ) : null}
+        <ul className="divide-y">
+          {plan.changes.map((change) => (
+            <ChangeItem key={`${change.target}:${change.detail}`} change={change} />
+          ))}
+        </ul>
+        {plan.warnings.length > 0 ? (
+          <div className="rounded-lg border border-warning/50 p-3 text-sm" data-testid="confirm-warnings">
+            <p className="flex items-center gap-2 font-medium">
+              <TriangleAlert className="size-4 text-warning" aria-hidden /> Good to know
+            </p>
+            <ul className="mt-1 list-disc space-y-1 pl-5">
+              {plan.warnings.map((warning) => (
+                <li key={warning}>{windowWarning(warning)}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </ChangeTicket>
       <label className="flex items-center gap-2">
         <input
           type="checkbox"
