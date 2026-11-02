@@ -3,6 +3,7 @@ size: M
 origin: session 2026-11-02
 created: 2026-11-02
 started: 2026-11-02
+closed: 2026-11-02
 plan: none
 milestone: M4 Window
 ---
@@ -97,6 +98,8 @@ on the write cards, a confirmation that names the action and the account; the te
   (now base-ui radios); a focusable-disabled button looks like 123's disabled one (`aria-disabled:` in
   `ui/button.tsx`). Checks, keyboard walk and axe ran again on the rebased tree (260 tests, 100%).
 
+- 2026-11-02 — merged as #179 (squash); closed on `main` by the main session; no follow-up
+
 ## Deviations from the plan
 
 - The lookup cards' `onError` prop is gone rather than kept for page-level errors: no lookup error is page-level, and
@@ -127,5 +130,5 @@ on the write cards, a confirmation that names the action and the account; the te
       (a task session of a parallel-sessions repo: listed in the pull request under `## Follow-ups`, the main session files them)
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] `tasks_check` green, README index regenerated
+- [x] moved to `done/` with `closed: 2026-11-02`

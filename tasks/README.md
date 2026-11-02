@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-11-02 — edit the files, not this section._
 
-**State:** 8 backlog (1 ready · 0 blocked · 0 waiting · 7 ideas) · 0 in progress · 120 done · 0 dropped · 15 decisions
+**State:** 6 backlog (1 ready · 0 blocked · 0 waiting · 5 ideas) · 0 in progress · 122 done · 0 dropped · 15 decisions
 
 ### Ready
 
@@ -38,8 +38,6 @@ _none_
 
 | # | Task | Size | Created |
 |---|---|---|---|
-| 120 | [Lookup errors shown in the card, labeled fields, Enter and Escape on the write …](backlog/120-lookup-errors-in-the-card-labeled-fields-and-a-complete-confirmation-step.md) | M | 2026-11-02 |
-| 121 | [Focus management and status announcements in the window, with card headings, ra…](backlog/121-focus-management-and-status-announcements-in-the-window.md) | M | 2026-11-02 |
 | 122 | [The window's vocabulary: Microsoft's terms, one verb per action from the card t…](backlog/122-the-windows-vocabulary-microsofts-terms-one-verb-per-action-no-raw-values.md) | M | 2026-11-02 |
 | 125 | [The user picker on the write cards](backlog/125-the-user-picker-on-the-write-cards.md) | M | 2026-11-02 |
 | 126 | [Small flow fixes in the window](backlog/126-small-flow-fixes-in-the-window.md) | S | 2026-11-02 |
@@ -70,16 +68,16 @@ _none_
 |---|---|---|
 | 124 | [A sticky top bar with the account, the tenant and the sign-in state, and in-pag…](done/124-a-sticky-top-bar-with-the-account-the-tenant-and-in-page-navigation.md) | 2026-11-02 |
 | 123 | [Status color tokens, one dark palette, forced colors and the focus ring's contr…](done/123-status-color-tokens-one-dark-palette-forced-colors-and-focus-contrast.md) | 2026-11-02 |
+| 121 | [Focus management and status announcements in the window, with card headings, ra…](done/121-focus-management-and-status-announcements-in-the-window.md) | 2026-11-02 |
+| 120 | [Lookup errors shown in the card, labeled fields, Enter and Escape on the write …](done/120-lookup-errors-in-the-card-labeled-fields-and-a-complete-confirmation-step.md) | 2026-11-02 |
 | 111 | [The doctor reads the account's Entra roles for the permissions table's role col…](done/111-doctor-reads-the-entra-roles-from-the-token-for-the-role-column.md) | 2026-11-02 |
 | 118 | [A skipped snapshot domain's note in the window's words on the access cards](done/118-skipped-domain-note-in-the-windows-words.md) | 2026-11-01 |
 | 117 | [The folderPermissions domain of the take reads the calendar permissions in para…](done/117-folder-permissions-domain-read-in-parallel.md) | 2026-11-01 |
 | 116 | [A periodic full sharing read when the incremental base is older than a configur…](done/116-periodic-full-sharing-read-when-the-base-is-old.md) | 2026-11-01 |
 | 115 | [The snapshot diff as a window card](done/115-snapshot-diff-as-a-window-card.md) | 2026-11-01 |
 | 114 | [snapshot diff --user <x>: one person's gained and lost access between two snaps…](done/114-snapshot-diff-for-one-user.md) | 2026-11-01 |
-| 113 | [The window's own names for the snapshot parts in the access card's warnings](done/113-window-names-for-the-snapshot-parts-in-the-access-cards-warnings.md) | 2026-11-01 |
-| 112 | [A user picker shared by the User access and the Mailbox access cards](done/112-user-picker-shared-by-the-access-cards.md) | 2026-11-01 |
 
-_110 more in `done/`._
+_112 more in `done/`._
 
 ### Decisions
 

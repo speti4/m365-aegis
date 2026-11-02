@@ -11,6 +11,8 @@ not the list. The summary under a heading is written by hand and kept by the gen
 
 ### M4 Window
 
+- Lookup errors shown in the card, labeled fields, Enter and Escape on the write cards, and a complete confirmation step ([120](https://github.com/speti4/m365-aegis/blob/main/tasks/done/120-lookup-errors-in-the-card-labeled-fields-and-a-complete-confirmation-step.md))
+- Focus management and status announcements in the window, with card headings, radio groups and the stepper's semantics ([121](https://github.com/speti4/m365-aegis/blob/main/tasks/done/121-focus-management-and-status-announcements-in-the-window.md))
 - Status color tokens, one dark palette, forced colors and the focus ring's contrast ([123](https://github.com/speti4/m365-aegis/blob/main/tasks/done/123-status-color-tokens-one-dark-palette-forced-colors-and-focus-contrast.md))
 - A sticky top bar with the account, the tenant and the sign-in state, and in-page navigation ([124](https://github.com/speti4/m365-aegis/blob/main/tasks/done/124-a-sticky-top-bar-with-the-account-the-tenant-and-in-page-navigation.md))
 

@@ -3,6 +3,7 @@ size: M
 origin: session 2026-11-02
 created: 2026-11-02
 started: 2026-11-02
+closed: 2026-11-02
 plan: none
 milestone: M4 Window
 ---
@@ -92,6 +93,8 @@ Done when: a keyboard-only lookup and write flow keeps the focus on a named cont
   2 px `outline-ring` under `focus-visible`, so a keyboard user sees where the focus went. Walk: each step's target
   shows the 2 px outline; axe 0 violations signed in and signed out (the 4.02:1 badge is gone with 123's tokens).
 
+- 2026-11-02 — merged as #179 (squash); closed on `main` by the main session; no follow-up
+
 ## Deviations from the plan
 
 - The working line ("computing the plan", "applying") is a focus target too, so the focus never falls to the page
@@ -128,5 +131,5 @@ Done when: a keyboard-only lookup and write flow keeps the focus on a named cont
       (a task session of a parallel-sessions repo: listed in the pull request under `## Follow-ups`, the main session files them)
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] `tasks_check` green, README index regenerated
+- [x] moved to `done/` with `closed: 2026-11-02`
