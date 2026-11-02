@@ -133,6 +133,11 @@ carries.
 A part of a snapshot the account cannot read is recorded as failed and the rest is kept. The other users' OneDrives
 are never read: that would need a permission m365-aegis does not ask for.
 
+`m365-aegis doctor` checks both columns for the signed-in account: the `consent` row the permissions, the `roles` row
+the Microsoft Entra roles (Reports Reader, Groups Administrator and the others). An Exchange Online role group such as
+Recipient Management does not show in Microsoft Entra, so the doctor counts only Exchange Administrator, Global
+Administrator and Global Reader for those rows and otherwise leaves them to the commands.
+
 ## The message trace service principal
 
 `trace` reads Microsoft Graph's message trace, which needs a service principal of Microsoft's message trace

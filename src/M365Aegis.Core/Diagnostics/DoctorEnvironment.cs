@@ -5,6 +5,8 @@ using System.Security.AccessControl;
 using System.Security.Principal;
 using M365Aegis.Core.Auth;
 using M365Aegis.Core.Exchange;
+using M365Aegis.Core.Graph;
+using M365Aegis.Core.Output;
 using Microsoft.Win32;
 
 namespace M365Aegis.Core.Diagnostics;
@@ -93,6 +95,13 @@ public sealed record DoctorEnvironment
     /// <summary>The silent sign-in of <c>whoami</c> for a profile (the profile name, or null for the default).</summary>
     public Func<string?, CancellationToken, Task<SignInInfo>> SignIn { get; init; } =
         (profile, cancellationToken) => AuthService.Create().WhoAmIAsync(profile, cancellationToken);
+
+    /// <summary>
+    /// The role template ids of the signed-in account's active Microsoft Entra roles for a profile (task 111), through
+    /// Microsoft Graph with the sign-in's cached token.
+    /// </summary>
+    public Func<string?, CancellationToken, Task<IReadOnlyList<Guid>>> ReadDirectoryRoles { get; init; } =
+        (profile, cancellationToken) => DirectoryRoles.ReadAsync(GraphConnection.Create(profile, new RequestLog()), cancellationToken);
 
     /// <summary>Asks an endpoint for any HTTP answer.</summary>
     public Func<Uri, CancellationToken, Task<EndpointAnswer>> Probe { get; init; } = Network.ProbeAsync;

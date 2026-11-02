@@ -1340,7 +1340,7 @@ opening a diff tool in a non-interactive run.
 framework-dependent publish relies on (D-007; task 008). Each check is a row with `pass`, `warn`, `fail` (`FAIL`
 when it is required) or `skip`; a warning or a failure carries a hint, which the table prints under the rows as a
 `fix <check>: …` line and the envelope as the check's `hint`. A required check that fails makes the report fail
-with exit code 10; every other outcome exits 0. `--offline` skips the sign-in, its consent and the endpoints, the
+with exit code 10; every other outcome exits 0. `--offline` skips the sign-in, its consent, the roles and the endpoints, the
 checks that need the network.
 
 | check | required | pass | warn | fail (with the fix) |
@@ -1358,13 +1358,15 @@ checks that need the network.
 | `device` | no | Entra-joined with a primary refresh token | registered only, or joined without a primary refresh token (task 013: the silent sign-in as the Windows account fails, the profile's account signs in instead), or `dsregcmd` unreadable | neither joined nor registered (Settings > Accounts > Access work or school) |
 | `sign-in` | no | the silent sign-in of `whoami`: the account and each token's expiry | no profile, or a resource without a token (the consent) | the silent sign-in failed (`login`) |
 | `consent` | no | every permission of the setup guide's permissions table is in the scopes of its API's token, named per API | a permission is not, with each table row that misses one and the permissions it misses, and the consent of the missing ones as the fix; or a resource has no token, so its permissions are not read | none; skipped offline and when the sign-in read no token |
+| `roles` | no | every row of the permissions table whose role column names a role is answered by one of the account's active Microsoft Entra roles, named; an Exchange Online row no Entra role carries is noted | a row that needs an Entra role has none of the roles that answer it, named with them (the group writes: unless the account owns the group), and the assignment as the fix | none; skipped offline, without a Graph token, and when the read fails |
 | `endpoint-login`, `endpoint-graph`, `endpoint-exchange` | yes | any HTTP answer from `login.microsoftonline.com`, `graph.microsoft.com`, `outlook.office365.com` | a proxy asks for authentication (407), or slower than 3 s | no answer within 10 s (the network, the proxy, the firewall) |
 
 The pwsh and module checks are one pwsh call; the device check reads `AzureAdJoined`, `WorkplaceJoined` and
 `AzureAdPrt` of `dsregcmd /status` and nothing that names the tenant. Everything a check reads comes through
 `DoctorEnvironment` (`Diagnostics/DoctorEnvironment.cs`), which the tests replace part by part: the home folder's
 access list, the pwsh call, the registry, `dsregcmd` (the made-up outputs under `tests/fixtures/doctor/dsregcmd-*.txt`),
-the installed Desktop Runtime versions, the two copies of the script, the signatures, the sign-in and the endpoint probe.
+the installed Desktop Runtime versions, the two copies of the script, the signatures, the sign-in, the role read and the
+endpoint probe.
 
 The `signature` check (task 085) asks `WinVerifyTrust` (the Authenticode policy, `Diagnostics/Authenticode.cs`)
 about each product file in `AppContext.BaseDirectory`, the same names `scripts/sign-release.ps1` signs, with no
@@ -1398,9 +1400,25 @@ permission renamed in one place fails the test. A table row that names no permis
 not in the map. The warning names each row that misses a permission, with the permissions it misses, and its fix line
 names the missing permissions per API for the administrator to consent to, then `login`, since a consent reaches the
 tool with the next sign-in. A resource without a token is named as unread (the `sign-in` row says why) and its rows are
-not weighed. The roles of the table's last column are not checked: no token carries the account's Exchange Online
-roles, and the consent is what a skipped row of the guide leaves out. The check is not required: a permission left out
+not weighed. The roles of the table's last column are the `roles` check's. The check is not required: a permission left out
 costs only its commands, which end with exit code 8.
+
+The `roles` check (task 111) reads the account's active Microsoft Entra roles through Microsoft Graph,
+`/me/transitiveMemberOf/microsoft.graph.directoryRole` with `$select=roleTemplateId` as an advanced query
+(`Auth/DirectoryRoles.cs`), under `User.Read`, so a role that comes through a role-assignable group counts and the
+Graph token is never parsed (the `wids` claim of a token issued for Graph is not the client's to read, and it carries
+only the roles assigned directly). A role that comes back without its template id fails the read, which skips the row
+rather than report a missing role. `RoleMap` (`Auth/RoleMap.cs`) holds the built-in roles the guide names, with their
+template ids from the Entra built-in roles reference, and one entry per table row whose role column names a role: the
+Entra roles any one of which answers it (Global Administrator answers every row) and its kind. An Entra row is a
+warning when no role answers it; a group write's row adds that the group's owner needs no role; an Exchange Online row
+(a role group such as Recipient Management) counts Exchange Administrator and Global Administrator, which carry
+Organization Management, and Global Reader where View-Only Organization Management is enough, and is otherwise only
+noted, since a direct role group membership does not show in Microsoft Entra; the commands still end with exit code 8
+when it is missing. `RoleMapTests` holds the map to the guide: the rows whose role column names a role, in the
+guide's order, every Entra role a row's column names among the roles the row accepts, and the Exchange and owner kinds
+where the column names a role group or the group's owner. Eligible roles of Privileged Identity Management count only
+while they are active.
 
 The `home-access` check (tasks 078 and 088) reads the home folder's access list by SID: an allow entry that carries a
 read right (list the folder, or the generic read or all right of an inheritable entry) for any account but the

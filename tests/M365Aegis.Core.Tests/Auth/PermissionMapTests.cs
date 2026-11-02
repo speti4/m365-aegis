@@ -12,7 +12,7 @@ namespace M365Aegis.Core.Tests.Auth;
 /// </summary>
 public sealed partial class PermissionMapTests
 {
-    private static readonly string[] Guide = File.ReadAllLines(Path.Combine(RepoRoot(), "docs", "setup.md"));
+    private static readonly string[] Guide = SetupGuide.Lines;
 
     [Fact]
     public void TheMapHoldsEveryRowOfTheTableThatNamesAPermissionInTheGuidesOrder()
@@ -58,37 +58,13 @@ public sealed partial class PermissionMapTests
     /// cell (a flag such as <c>--all-types</c> is not one), each once. The resource is left to the map; the Azure CLI
     /// lists hold it.
     /// </summary>
-    private static List<string> TableRows()
-    {
-        int start = Array.IndexOf(Guide, "## Permissions");
-        Assert.True(start >= 0, "docs/setup.md has no section '## Permissions'");
-        int end = Array.FindIndex(Guide, start + 1, line => line.StartsWith("## ", StringComparison.Ordinal));
-        string section = "";
-        var rows = new List<string>();
-        foreach (string line in Guide[(start + 1)..end])
-        {
-            if (line.StartsWith("### ", StringComparison.Ordinal))
-            {
-                section = line[4..];
-                continue;
-            }
-
-            if (!line.StartsWith("| ", StringComparison.Ordinal) || line.StartsWith("| command group |", StringComparison.Ordinal) || line.StartsWith("| ---", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            string[] cells = [.. line.Split('|')[1..^1].Select(cell => cell.Trim())];
-            Assert.True(cells.Length == 4, $"a permissions row that does not have four cells: {line}");
-            List<string> permissions = [.. PermissionName().Matches(cells[1]).Select(match => match.Groups["name"].Value).Distinct(StringComparer.Ordinal)];
-            if (permissions.Count > 0)
-            {
-                rows.Add(Row(section, cells[0].Replace("`", "", StringComparison.Ordinal), permissions));
-            }
-        }
-
-        return rows;
-    }
+    private static List<string> TableRows() =>
+    [
+        .. SetupGuide.PermissionsTable()
+            .Select(row => (row, Permissions: PermissionName().Matches(row.Cells[1]).Select(match => match.Groups["name"].Value).Distinct(StringComparer.Ordinal).ToList()))
+            .Where(row => row.Permissions.Count > 0)
+            .Select(row => Row(row.row.Section, row.row.Commands, row.Permissions)),
+    ];
 
     /// <summary>The names of one <c>Add-DelegatedPermission $graph …</c> or <c>$exchange …</c> call of the Azure CLI block.</summary>
     private static List<string> CliList(string api)
@@ -98,19 +74,6 @@ public sealed partial class PermissionMapTests
         // The call goes on over the indented lines below it.
         IEnumerable<string> lines = Guide.Skip(call + 1).TakeWhile(line => line.StartsWith("    ", StringComparison.Ordinal)).Prepend(Guide[call][$"Add-DelegatedPermission ${api} ".Length..]);
         return [.. string.Join(" ", lines).Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)];
-    }
-
-    private static string RepoRoot()
-    {
-        for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "docs", "setup.md")))
-            {
-                return directory.FullName;
-            }
-        }
-
-        throw new InvalidOperationException("no docs/setup.md above the test's folder");
     }
 
     /// <summary>A delegated permission's name in backticks: dotted words, the first capitalized (<c>User.ReadBasic.All</c>).</summary>

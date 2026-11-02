@@ -32,7 +32,7 @@ public sealed class DoctorTests
         Assert.True(report.Healthy);
         Assert.All(report.Checks, check => Assert.Equal(CheckStatus.Pass, check.Status));
         Assert.Equal(
-            ["home", "home-access", "dotnet-runtime", "dotnet-desktop-runtime", "pwsh", "exchange-online-module", "sidecar-script", "signature", "webview2-runtime", "config", "device", "sign-in", "consent", "endpoint-login", "endpoint-graph", "endpoint-exchange"],
+            ["home", "home-access", "dotnet-runtime", "dotnet-desktop-runtime", "pwsh", "exchange-online-module", "sidecar-script", "signature", "webview2-runtime", "config", "device", "sign-in", "consent", "roles", "endpoint-login", "endpoint-graph", "endpoint-exchange"],
             report.Checks.Select(check => check.Name));
         Assert.All(report.Checks, check => Assert.Null(check.Hint));
         Assert.Equal(ExitCode.Ok, report.ToResult().ExitCode);
@@ -45,12 +45,13 @@ public sealed class DoctorTests
         DoctorEnvironment environment = Fake(WithProfile(), signIn: (_, _) => { called = true; return Task.FromResult(AuthSamples.SignedIn); }) with
         {
             Probe = (_, _) => { called = true; return Task.FromResult(new EndpointAnswer(200, TimeSpan.Zero, null)); },
+            ReadDirectoryRoles = (_, _) => { called = true; return Task.FromResult<IReadOnlyList<Guid>>([]); },
         };
 
         DoctorReport report = await Doctor.RunAsync(environment, offline: true, CancellationToken.None);
 
         Assert.False(called);
-        Assert.All(report.Checks.Where(check => check.Name is "sign-in" or "consent" || check.Name.StartsWith("endpoint-", StringComparison.Ordinal)),
+        Assert.All(report.Checks.Where(check => check.Name is "sign-in" or "consent" or "roles" || check.Name.StartsWith("endpoint-", StringComparison.Ordinal)),
             check => Assert.Equal(CheckStatus.Skipped, check.Status));
         Assert.True(report.Healthy);
     }
@@ -544,6 +545,110 @@ public sealed class DoctorTests
     }
 
     [Fact]
+    public void RolesPassForAGlobalAdministrator()
+    {
+        DoctorCheck check = Doctor.CheckRoles([RoleMap.GlobalAdministrator.TemplateId]);
+
+        Assert.Equal(CheckStatus.Pass, check.Status);
+        Assert.False(check.Required);
+        Assert.Null(check.Hint);
+        Assert.Equal("Global Administrator; every role of the setup guide's table", check.Detail);
+    }
+
+    [Fact]
+    public void WithoutARoleEveryEntraRowIsNamedAndTheExchangeRowsAreNoted()
+    {
+        DoctorCheck check = Doctor.CheckRoles([]);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.False(check.Required);
+        Assert.Equal(
+            "no Microsoft Entra role; no role for: signin list, audit list (Reports Reader, Security Reader, Global Reader or Global Administrator); " +
+            "mailbox size over every mailbox (Reports Reader, Global Reader or Global Administrator); " +
+            "group members add, group members remove (Microsoft 365 and security groups) (Groups Administrator, User Administrator or Global Administrator, unless the account owns the group); " +
+            "group owners add, group owners remove (Microsoft 365 and security groups) (Groups Administrator, User Administrator or Global Administrator, unless the account owns the group); " +
+            "not read from Microsoft Entra: group members, group owners, group owners-missing; trace, trace details; " +
+            "mailbox list, mailbox access, mailbox forwarders, mailbox folder-permissions, mailbox group-members, mailbox organization, mailbox size <mailbox>, the window's mailbox cards; " +
+            "the same four writes on a distribution group or a mail-enabled security group; " +
+            "mailbox access grant, mailbox access revoke, mailbox forwarding set, mailbox forwarding clear, the window's Mailbox rights and Mailbox forwarding cards; " +
+            "snapshot take (the mailboxes, their rights, calendars and forwarding, the distribution lists' owners) " +
+            "(an Exchange Online role group, as the setup guide's table names it; the commands tell when it is missing)",
+            check.Detail);
+        Assert.Contains("Microsoft Entra admin center", check.Hint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AGlobalReaderMissesTheGroupWritesAndTheExchangeWritesAreNoted()
+    {
+        DoctorCheck check = Doctor.CheckRoles([RoleMap.GlobalReader.TemplateId]);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.StartsWith("Global Reader; no role for: group members add, group members remove", check.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("signin list", check.Detail, StringComparison.Ordinal);
+        Assert.Contains("not read from Microsoft Entra: trace, trace details; the same four writes", check.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("mailbox list", check.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheEntraRowsAnsweredPassWithTheExchangeRowsNotedAndTheOtherRolesCounted()
+    {
+        DoctorCheck check = Doctor.CheckRoles([RoleMap.ReportsReader.TemplateId, RoleMap.GroupsAdministrator.TemplateId, Guid.Empty, RoleMap.ReportsReader.TemplateId]);
+
+        Assert.Equal(CheckStatus.Pass, check.Status);
+        Assert.Null(check.Hint);
+        Assert.StartsWith("Reports Reader, Groups Administrator and 1 other role; not read from Microsoft Entra: group members, group owners", check.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RolesTheTableDoesNotNameAreCounted()
+    {
+        DoctorCheck check = Doctor.CheckRoles([Guid.Empty, new Guid("00000000-0000-0000-0000-000000000099")]);
+
+        Assert.Equal(CheckStatus.Warn, check.Status);
+        Assert.StartsWith("2 Microsoft Entra roles the setup guide's table does not name; no role for: signin list", check.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheRolesAreSkippedWithoutAGraphTokenAndWhenTheReadFails()
+    {
+        DoctorEnvironment environment = Fake(WithProfile());
+        SignInInfo noGraph = AuthSamples.SignedIn with
+        {
+            Tokens = [.. AuthSamples.SignedIn.Tokens.Select(token => token.Resource == Resource.Graph ? ResourceToken.Failed(Resource.Graph, "consent_required") : token)],
+        };
+
+        DoctorCheck none = await Doctor.CheckRolesAsync(environment, null, CancellationToken.None);
+        DoctorCheck withoutGraph = await Doctor.CheckRolesAsync(environment, noGraph, CancellationToken.None);
+        DoctorCheck refused = await Doctor.CheckRolesAsync(
+            environment with { ReadDirectoryRoles = (_, _) => throw new AegisException(FailureKind.Forbidden, "Microsoft Graph refused the request") },
+            AuthSamples.EveryPermission, CancellationToken.None);
+        DoctorCheck broker = await Doctor.CheckRolesAsync(
+            environment with { ReadDirectoryRoles = (_, _) => Task.FromException<IReadOnlyList<Guid>>(new BrokerException(BrokerErrorKind.Other, "wam_provider_error_0", "the broker did not answer")) },
+            AuthSamples.EveryPermission, CancellationToken.None);
+
+        Assert.All([none, withoutGraph, refused, broker], check => Assert.Equal(CheckStatus.Skipped, check.Status));
+        Assert.Equal("no Microsoft Graph token to read the roles with; the sign-in row says why", withoutGraph.Detail);
+        Assert.Equal("the roles were not read: Microsoft Graph refused the request", refused.Detail);
+        Assert.Equal("the roles were not read: the broker did not answer (wam_provider_error_0)", broker.Detail);
+    }
+
+    [Fact]
+    public async Task TheRolesAreReadForTheDoctorsProfile()
+    {
+        string? asked = "unset";
+        DoctorEnvironment environment = Fake(WithProfile()) with
+        {
+            Profile = "work",
+            ReadDirectoryRoles = (profile, _) => { asked = profile; return Task.FromResult<IReadOnlyList<Guid>>([RoleMap.GlobalAdministrator.TemplateId]); },
+        };
+
+        DoctorCheck check = await Doctor.CheckRolesAsync(environment, AuthSamples.EveryPermission, CancellationToken.None);
+
+        Assert.Equal(CheckStatus.Pass, check.Status);
+        Assert.Equal("work", asked);
+    }
+
+    [Fact]
     public void ConsentPassesWhenEveryPermissionOfTheTableIsThere()
     {
         DoctorCheck check = Doctor.CheckConsent(AuthSamples.EveryPermission);
@@ -727,7 +832,7 @@ public sealed class DoctorTests
         // No assumption about the machine: the checks run and each has an outcome; nothing touches the network.
         DoctorReport report = await Doctor.RunAsync(ProfileStoreTests.TempHome(), null, offline: true, CancellationToken.None);
 
-        Assert.Equal(16, report.Checks.Count);
+        Assert.Equal(17, report.Checks.Count);
         Assert.Equal(CheckStatus.Skipped, Assert.Single(report.Checks, check => check.Name == "home-access").Status);
         DoctorCheck pwsh = Assert.Single(report.Checks, check => check.Name == "pwsh");
         string? found = Doctor.FindPwsh();
@@ -896,6 +1001,7 @@ public sealed class DoctorTests
             ReadSignatures = () => Signed(SignatureState.Valid),
             PinOverride = null,
             SignIn = signIn ?? ((_, _) => Task.FromResult(AuthSamples.EveryPermission)),
+            ReadDirectoryRoles = (_, _) => Task.FromResult<IReadOnlyList<Guid>>([RoleMap.GlobalAdministrator.TemplateId]),
             Probe = (_, _) => Task.FromResult(new EndpointAnswer(200, TimeSpan.FromMilliseconds(80), null)),
         };
 }
