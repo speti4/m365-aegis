@@ -842,13 +842,28 @@ public sealed class SnapshotEdgeTests
             }
         }
 
-        /// <summary>Answers the oldest pending read (throttled past the budget, or one entry) and lets its release run.</summary>
+        /// <summary>
+        /// Answers the oldest pending read (throttled past the budget, or one entry) and lets its release run. A read the
+        /// gate let in may not have started yet on a busy machine, so it waits for one (five seconds at the most).
+        /// </summary>
         internal async Task AnswerAsync(bool throttled)
         {
-            TaskCompletionSource<ExoResult> answer;
-            lock (_lock)
+            DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+            TaskCompletionSource<ExoResult>? answer;
+            while (true)
             {
-                answer = _pending.Dequeue();
+                lock (_lock)
+                {
+                    _pending.TryDequeue(out answer);
+                }
+
+                if (answer is not null)
+                {
+                    break;
+                }
+
+                Assert.True(DateTimeOffset.UtcNow < deadline, $"no read pending after {Started} started");
+                await Task.Delay(10, TestContext.Current.CancellationToken);
             }
 
             if (throttled)
