@@ -126,5 +126,17 @@ describe("what the sign-in card's status region says (task 121)", () => {
     );
     expect(signInStatus({ status: "signing-out", info })).toBe("Signing out…");
     expect(signInStatus({ status: "unknown" })).toBe("The sign-in state could not be read");
+    expect(signInStatus({ status: "signed-out", info: { message: "m" }, canceled: true })).toBe(
+      "Sign-in canceled; signed out",
+    );
+  });
+
+  it("stops waiting for a sign-in on Cancel, back to where it started (task 126)", () => {
+    const waiting = run({ status: "signed-out", info: signedOut }, { type: "login" }, { type: "device-code", prompt });
+    expect(run(waiting, { type: "cancel" })).toEqual({ status: "signed-out", info: signedOut, canceled: true });
+    expect(run({ status: "unknown" }, { type: "login" }, { type: "cancel" })).toEqual({ status: "unknown" });
+    // Nothing to cancel: the state stays.
+    const signedIn: SignInState = { status: "signed-in", info: alice };
+    expect(run(signedIn, { type: "cancel" })).toBe(signedIn);
   });
 });

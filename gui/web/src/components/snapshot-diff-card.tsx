@@ -17,6 +17,7 @@ import { rightNames } from "./mailbox-access-card";
 import { Notice } from "./plan-view";
 import { diffPart, windowWarning } from "./plan-wording";
 import { describeAge, describeTaken } from "./user-access-card";
+import { UserPicker } from "./user-picker";
 
 /** How a row holds what it holds, a mailbox right in the window's words. */
 const howShown = (entry: SnapshotDiffEntry) => (rightNames as Record<string, string>)[entry.how] ?? entry.how;
@@ -34,14 +35,15 @@ type Result = { kind: "report"; data: SnapshotDiffReport } | { kind: "too-few"; 
  * included (task 114). The host reads the snapshot files on this computer only: no sign-in, no request to Microsoft
  * 365. With fewer than two snapshots the card says so plainly. A failure shows under the fields and drops the old
  * answer (task 120); the fields stay usable while the host compares, and the status region says what is going on
- * (task 121).
+ * (task 121). A line under the fields says what From and To take, and the user field is the user picker (task 126):
+ * a pick fills it, Enter on a closed list compares.
  */
 export function SnapshotDiffCard({ client }: { client: BridgeClient }) {
   const id = useId();
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [user, setUser] = useState("");
-  const { busy, result, error, status, run } = useLookup<Result>();
+  const { busy, result, error, status, setStatus, run } = useLookup<Result>();
 
   function compare(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -67,17 +69,12 @@ export function SnapshotDiffCard({ client }: { client: BridgeClient }) {
     );
   }
 
-  const fields = [
+  const sides = [
     { name: "from", label: "From", placeholder: "The one before", value: from, set: setFrom },
     { name: "to", label: "To", placeholder: "The newest", value: to, set: setTo },
-    {
-      name: "user",
-      label: "Only this user",
-      placeholder: "Optional: a principal name or address",
-      value: user,
-      set: setUser,
-    },
   ];
+  const errorId = `${id}-error`;
+  const hintId = `${id}-sides-hint`;
   return (
     <Card aria-labelledby={`${id}-title`}>
       <CardHeader>
@@ -90,25 +87,44 @@ export function SnapshotDiffCard({ client }: { client: BridgeClient }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <LiveStatus text={status} />
-        <form className="grid items-end gap-2 sm:grid-cols-[1fr_1fr_1.5fr_auto]" onSubmit={compare} aria-busy={busy}>
-          {fields.map((field) => (
-            <Field key={field.name} id={`${id}-${field.name}`} label={field.label}>
-              <Input
-                id={`${id}-${field.name}`}
-                placeholder={field.placeholder}
-                value={field.value}
-                onChange={(event) => field.set(event.target.value)}
-                readOnly={busy}
-                aria-invalid={error ? true : undefined}
-                aria-describedby={error ? `${id}-error` : undefined}
+        <form className="space-y-3" onSubmit={compare} aria-busy={busy}>
+          {/* Aligned at the top: the user picker's list opens under its field, in the flow. */}
+          <div className="grid items-start gap-2 sm:grid-cols-[1fr_1fr_1.5fr]">
+            {sides.map((side) => (
+              <Field key={side.name} id={`${id}-${side.name}`} label={side.label}>
+                <Input
+                  id={`${id}-${side.name}`}
+                  placeholder={side.placeholder}
+                  value={side.value}
+                  onChange={(event) => side.set(event.target.value)}
+                  readOnly={busy}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? `${hintId} ${errorId}` : hintId}
+                />
+              </Field>
+            ))}
+            <Field id={`${id}-user`} label="Only this user">
+              <UserPicker
+                client={client}
+                id={`${id}-user`}
+                placeholder="Optional: start typing a name"
+                value={user}
+                onChange={setUser}
+                busy={busy}
+                invalid={error !== null}
+                describedBy={error ? errorId : undefined}
+                onAnnounce={setStatus}
+                enterPicksFirst
               />
             </Field>
-          ))}
-          <div>
-            <SubmitButton busy={busy} missing={null} hintId={`${id}-hint`} idle="Compare" working="Comparing…" />
           </div>
+          <p id={hintId} className="text-xs text-muted-foreground" data-testid="sides-hint">
+            Leave From and To empty to compare the newest snapshot with the one before it. Each also takes{" "}
+            <code>latest</code>, <code>yesterday</code>, a date such as <code>2026-10-31</code>, or a snapshot's name.
+          </p>
+          <SubmitButton busy={busy} missing={null} hintId={`${id}-hint`} idle="Compare" working="Comparing…" />
         </form>
-        {error ? <LookupError id={`${id}-error`} title="The comparison failed" error={error} /> : null}
+        {error ? <LookupError id={errorId} title="The comparison failed" error={error} /> : null}
         {result ? (
           <div className={busy ? "opacity-50" : undefined} aria-busy={busy}>
             {result.kind === "too-few" ? (
@@ -155,7 +171,7 @@ export function SnapshotDiffView({ report }: { report: SnapshotDiffReport }) {
             {user.displayName && name ? <span className="text-muted-foreground">{name}</span> : null}
           </p>
         ) : null}
-        <p className="text-sm text-muted-foreground" data-testid="snapshots">
+        <p className="text-sm text-muted-foreground tabular-nums" data-testid="snapshots">
           From the snapshot taken {side(report.from)} to the one taken {side(report.to)}: {report.added} added,{" "}
           {report.removed} removed.
         </p>
@@ -169,11 +185,19 @@ export function SnapshotDiffView({ report }: { report: SnapshotDiffReport }) {
         <section key={domain.name} className="space-y-1">
           <h3 className="font-medium">
             {diffPart(domain.name)}{" "}
-            <span className="text-muted-foreground">
+            <span className="text-muted-foreground tabular-nums">
               · {domain.added} added, {domain.removed} removed
             </span>
           </h3>
-          <Table>
+          {/* One fixed column layout for every part, so the columns line up from one table to the next (task 126). */}
+          <Table className="table-fixed [&_td]:break-words [&_td]:whitespace-normal">
+            <colgroup>
+              <col className="w-24" />
+              <col />
+              <col className="w-[28%]" />
+              <col className="w-[18%]" />
+              {user ? <col className="w-[18%]" /> : null}
+            </colgroup>
             <TableHeader>
               <TableRow>
                 <TableHead>Change</TableHead>

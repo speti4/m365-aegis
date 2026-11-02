@@ -63,7 +63,9 @@ export function AnswerFor({ query }: { query: string }) {
 
 /**
  * A card's submit button: disabled while the card waits or a field is missing, but still in the Tab order, so the
- * focus does not fall out of the card and a screen reader hears why it does nothing (`missing`).
+ * focus does not fall out of the card and a screen reader hears why it does nothing (`missing`). It is as wide as the
+ * longer of its two labels (task 126): a hidden copy with the working label sits in the same grid cell, so "Look up" →
+ * "Looking up…" moves nothing beside it.
  */
 export function SubmitButton({
   busy,
@@ -81,14 +83,19 @@ export function SubmitButton({
   const hint = busy ? null : missing;
   return (
     <>
-      <Button
-        type="submit"
-        disabled={busy || missing !== null}
-        focusableWhenDisabled
-        aria-describedby={hint ? hintId : undefined}
-      >
-        {busy ? working : idle}
-      </Button>
+      <span className="inline-grid shrink-0 *:col-start-1 *:row-start-1">
+        <Button
+          type="submit"
+          disabled={busy || missing !== null}
+          focusableWhenDisabled
+          aria-describedby={hint ? hintId : undefined}
+        >
+          {busy ? working : idle}
+        </Button>
+        <span aria-hidden className={cn(buttonVariants(), "invisible")} data-testid="button-sizer">
+          {working}
+        </span>
+      </span>
       {hint ? (
         <span id={hintId} className="sr-only">
           {hint}

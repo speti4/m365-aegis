@@ -12,7 +12,6 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import type { BridgeClient } from "../bridge/client";
 import {
   type BridgeError,
@@ -25,8 +24,10 @@ import {
 import { type AppliedWrite, detailAddresses, type ReRead, targetAddresses } from "./applied-writes";
 import { Choice, Field, LiveStatus, submitOnEnter } from "./card-parts";
 import { rightNames } from "./mailbox-access-card";
+import { MailboxPicker } from "./mailbox-picker";
 import { ConfirmView, ErrorText, Notice, PlanView, ResultView, type RunAs, Stepper, Working } from "./plan-view";
-import { canConfirm, initialWriteState, type WriteState, writeReducer, writeStatus } from "./write-flow";
+import { UserPicker } from "./user-picker";
+import { canConfirm, initialWriteState, outcome, type WriteState, writeReducer, writeStatus } from "./write-flow";
 
 /** A write the card's picks ask for: the request's type and payload; null while a pick is missing. */
 export interface WriteRequest {
@@ -63,7 +64,12 @@ export function describeMissing(missing: readonly string[]): string {
  * plan); Escape goes back a step from the plan, the confirmation or a refusal, never while an apply runs. "See the
  * plan" stays in the Tab order while a pick is missing, and the line beside it says which (`missing`). On every step
  * the focus moves to the step's heading or first control, `pickTarget` (the mailbox field) on the picks, and the
- * card's status region says what the step shows.
+ * card's status region says what the step shows; on the picks it says what a picker's list says (`picks` gets the
+ * function to tell it, task 125).
+ *
+ * The result (task 126): "Start a new change" goes back to the picks and tells the card (`onStartOver`), which keeps
+ * the mailbox and clears the rest; after an apply not done in full, "See the plan again" sends the same request once
+ * more, and the host plans only what is still missing.
  */
 export function WriteCard({
   title,
@@ -77,6 +83,7 @@ export function WriteCard({
   picks,
   pickTarget,
   onApplied,
+  onStartOver,
 }: {
   title: string;
   description: string;
@@ -86,12 +93,17 @@ export function WriteCard({
   runAs?: RunAs;
   request: WriteRequest | null;
   missing: readonly string[];
-  picks: ReactNode;
+  picks: (announce: (text: string) => void) => ReactNode;
   pickTarget: RefObject<HTMLInputElement | null>;
   onApplied?: (write: AppliedWrite) => void;
+  onStartOver?: () => void;
 }) {
   const id = useId();
   const [state, dispatch] = useReducer(writeReducer, initialWriteState);
+  // What a picker's list said last, the card's status on the picks; a new step drops it.
+  const [pickStatus, setPickStatus] = useState("");
+  // The request the plan on the card answers: "See the plan again" sends it once more.
+  const asked = useRef<WriteRequest | null>(null);
   // The write the card told last, and a card's word that it read the mailbox again after it (task 124).
   const told = useRef<AppliedWrite | null>(null);
   const [reRead, setReRead] = useState<{ write: AppliedWrite; reRead: ReRead } | null>(null);
@@ -115,16 +127,18 @@ export function WriteCard({
       return;
     }
     focusedStep.current = state.step;
+    setPickStatus("");
     if (signedIn) {
       (state.step === "pick" ? pickTarget.current : stepTarget.current)?.focus();
     }
   }, [state.step, signedIn, pickTarget]);
 
-  async function seePlan(asked: WriteRequest): Promise<void> {
-    plannedMailbox.current = asked.data.mailbox;
-    plannedUsers.current = "users" in asked.data ? asked.data.users : [];
+  async function seePlan(request: WriteRequest): Promise<void> {
+    asked.current = request;
+    plannedMailbox.current = request.data.mailbox;
+    plannedUsers.current = "users" in request.data ? request.data.users : [];
     dispatch({ type: "request-plan" });
-    dispatch({ type: "reply", reply: await client.call(asked.type, asked.data) });
+    dispatch({ type: "reply", reply: await client.call(request.type, request.data) });
   }
 
   async function apply(ready: PlanReady): Promise<void> {
@@ -169,19 +183,24 @@ export function WriteCard({
       </CardHeader>
       {/* Escape is a shortcut of the step's own "Back" buttons, which the keyboard reaches too. */}
       <CardContent className="space-y-5" onKeyDown={goBackOnEscape}>
-        <LiveStatus text={writeStatus(state)} />
+        <LiveStatus text={state.step === "pick" ? pickStatus : writeStatus(state)} />
         <Stepper state={state} />
         <Body
           state={state}
           signedIn={signedIn}
           exchangeError={exchangeError ?? null}
           runAs={runAs}
-          picks={picks}
+          picks={picks(setPickStatus)}
           hint={request && canWrite ? null : describeMissing(needed)}
           hintId={`${id}-hint`}
           stepTarget={stepTarget}
           onSeePlan={request && canWrite ? () => void seePlan(request) : undefined}
           onApply={(ready) => void apply(ready)}
+          onSeePlanAgain={canWrite && asked.current ? () => void seePlan(asked.current as WriteRequest) : undefined}
+          onStartOver={() => {
+            dispatch({ type: "reset" });
+            onStartOver?.();
+          }}
           reRead={reRead && reRead.write === told.current ? reRead.reRead : null}
           dispatch={dispatch}
         />
@@ -201,6 +220,8 @@ function Body({
   stepTarget,
   onSeePlan,
   onApply,
+  onSeePlanAgain,
+  onStartOver,
   reRead,
   dispatch,
 }: {
@@ -214,6 +235,8 @@ function Body({
   stepTarget: RefObject<HTMLElement | null>;
   onSeePlan: (() => void) | undefined;
   onApply: (ready: PlanReady) => void;
+  onSeePlanAgain: (() => void) | undefined;
+  onStartOver: () => void;
   reRead: ReRead | null;
   dispatch: (event: Parameters<typeof writeReducer>[1]) => void;
 }) {
@@ -299,7 +322,9 @@ function Body({
       );
     case "applying":
       return <Working ref={target} text="Applying the plan: one change at a time…" />;
-    case "result":
+    case "result": {
+      // Not done in full: the plan again, with what is still missing, is the likely next step.
+      const again = outcome(state.applied) === "done" ? undefined : onSeePlanAgain;
       return (
         <div className="space-y-4">
           <ResultView applied={state.applied} noticeRef={target} />
@@ -311,9 +336,15 @@ function Body({
               </Button>
             </p>
           ) : null}
-          <Button onClick={() => dispatch({ type: "reset" })}>Start a new change</Button>
+          <div className="flex flex-wrap gap-2">
+            {again ? <Button onClick={again}>See the plan again</Button> : null}
+            <Button variant={again ? "outline" : "default"} onClick={onStartOver}>
+              Start a new change
+            </Button>
+          </div>
         </div>
       );
+    }
   }
 }
 
@@ -354,7 +385,9 @@ const rights: readonly MailboxRight[] = ["full-access", "send-as", "send-on-beha
 
 /**
  * Grant or revoke FullAccess, Send As or Send on Behalf on a mailbox, as `m365-aegis mailbox access grant|revoke`
- * does (task 082); a FullAccess grant can go without automapping (`--no-automapping`).
+ * does (task 082); a FullAccess grant can go without automapping (`--no-automapping`). The mailbox is picked from the
+ * shared mailboxes and the users from the directory or the snapshot, each pick added to the list (task 125); a name or
+ * an address typed in full still goes as typed. "Start a new change" keeps the mailbox and clears the rest (task 126).
  */
 export function MailboxAccessWriteCard({
   client,
@@ -376,6 +409,13 @@ export function MailboxAccessWriteCard({
   const [users, setUsers] = useState("");
   const [chosen, setChosen] = useState<MailboxRight[]>(["full-access"]);
   const [noAutoMapping, setNoAutoMapping] = useState(false);
+  // The next change is usually on the same mailbox; who and which rights must not carry over (task 126).
+  function startOver() {
+    setMode("grant");
+    setUsers("");
+    setChosen(["full-access"]);
+    setNoAutoMapping(false);
+  }
   const grant = mode === "grant";
   const named = splitList(users);
   const automapping = grant && chosen.includes("full-access");
@@ -391,7 +431,7 @@ export function MailboxAccessWriteCard({
           data: { mailbox: mailbox.trim(), users: named, rights: chosen, noAutoMapping: automapping && noAutoMapping },
         }
       : null;
-  const picks = (
+  const picks = (announce: (text: string) => void) => (
     <div className="space-y-4">
       <Choice
         label="Grant or revoke"
@@ -403,20 +443,26 @@ export function MailboxAccessWriteCard({
         onChange={setMode}
       />
       <Field id={`${id}-mailbox`} label="Mailbox">
-        <Input
+        <MailboxPicker
+          client={client}
+          enabled={signedIn && !exchangeError}
           id={`${id}-mailbox`}
-          ref={mailboxField}
-          placeholder="Mailbox address, name or object id"
+          inputRef={mailboxField}
           value={mailbox}
-          onChange={(event) => setMailbox(event.target.value)}
+          onChange={setMailbox}
+          onAnnounce={announce}
         />
       </Field>
       <Field id={`${id}-users`} label="Users">
-        <Input
+        <UserPicker
+          client={client}
           id={`${id}-users`}
-          placeholder="User principal names or addresses, separated by commas"
+          placeholder="Start typing a name; several, separated by commas"
           value={users}
-          onChange={(event) => setUsers(event.target.value)}
+          onChange={setUsers}
+          onAnnounce={announce}
+          multiple
+          enterPicksFirst
         />
       </Field>
       <fieldset className="space-y-1.5">
@@ -466,13 +512,16 @@ export function MailboxAccessWriteCard({
       picks={picks}
       pickTarget={mailboxField}
       onApplied={onApplied}
+      onStartOver={startOver}
     />
   );
 }
 
 /**
  * Forward a mailbox's mail to an address, or stop it, as `m365-aegis mailbox forwarding set|clear` does (task 082);
- * a forwarding keeps a copy in the mailbox unless the card is told not to (`--keep-copy`).
+ * a forwarding keeps a copy in the mailbox unless the card is told not to (`--keep-copy`). The mailbox is picked from
+ * the shared mailboxes and the address from the directory or the snapshot (task 125); an outside address typed in full
+ * goes as typed. "Start a new change" keeps the mailbox and clears the rest (task 126).
  */
 export function MailboxForwardingCard({
   client,
@@ -493,6 +542,11 @@ export function MailboxForwardingCard({
   const [mailbox, setMailbox] = useState("");
   const [to, setTo] = useState("");
   const [keepCopy, setKeepCopy] = useState(true);
+  function startOver() {
+    setMode("set");
+    setTo("");
+    setKeepCopy(true);
+  }
   const set = mode === "set";
   const missing = [
     ...(mailbox.trim() === "" ? ["the mailbox"] : []),
@@ -504,7 +558,7 @@ export function MailboxForwardingCard({
         ? { type: MessageType.mailboxForwardingSet, data: { mailbox: mailbox.trim(), to: to.trim(), keepCopy } }
         : { type: MessageType.mailboxForwardingClear, data: { mailbox: mailbox.trim() } }
       : null;
-  const picks = (
+  const picks = (announce: (text: string) => void) => (
     <div className="space-y-4">
       <Choice
         label="Set or clear"
@@ -516,22 +570,27 @@ export function MailboxForwardingCard({
         onChange={setMode}
       />
       <Field id={`${id}-mailbox`} label="Mailbox">
-        <Input
+        <MailboxPicker
+          client={client}
+          enabled={signedIn && !exchangeError}
           id={`${id}-mailbox`}
-          ref={mailboxField}
-          placeholder="Mailbox address, name or object id"
+          inputRef={mailboxField}
           value={mailbox}
-          onChange={(event) => setMailbox(event.target.value)}
+          onChange={setMailbox}
+          onAnnounce={announce}
         />
       </Field>
       {set ? (
         <>
           <Field id={`${id}-to`} label="Forward to">
-            <Input
+            <UserPicker
+              client={client}
               id={`${id}-to`}
-              placeholder="The address to forward to"
+              placeholder="Start typing a name, or an outside address in full"
               value={to}
-              onChange={(event) => setTo(event.target.value)}
+              onChange={setTo}
+              onAnnounce={announce}
+              enterPicksFirst
             />
           </Field>
           <label className="flex items-center gap-2">
@@ -560,6 +619,7 @@ export function MailboxForwardingCard({
       picks={picks}
       pickTarget={mailboxField}
       onApplied={onApplied}
+      onStartOver={startOver}
     />
   );
 }

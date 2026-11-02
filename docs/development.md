@@ -1069,8 +1069,9 @@ Send As, side by side over the window's one token; the session alone when the wi
 API cannot answer for that mailbox (a missing mailbox is the `not-found` error either way). The result names its
 layers: `mailboxLayer` (`admin-api`, or `pwsh` after the fallback) and each holder's `layer` (`admin-api` for a
 delegate the Admin API listed, `pwsh` for the rest), written by the layered read only, so the command line's
-`--json` carries them too and the sidecar-only lookup's envelope is unchanged. The card shows a "Read through"
-column (Admin API or PowerShell) and one line under the mailbox on what each layer read. Under `--verbose` the
+`--json` carries them too and the sidecar-only lookup's envelope is unchanged. The card names the layer of each
+row (Admin API or PowerShell) and says what each layer read under the answer's collapsed "Details" line (task 126:
+it was a "Read through" column and a line over the table). Under `--verbose` the
 request's `window:` line names what each layer read, by counts only: `mailbox-access answered in … ms through
 admin-api+pwsh (the mailbox and 1 Send on Behalf delegate(s) from admin-api, 2 FullAccess and Send As grant(s) from
 pwsh); exchange session 1, sidecar starts 1, …`, or `(the Admin API could not answer: the mailbox, … from pwsh)` or
@@ -1091,11 +1092,14 @@ over 4 sidecar(s): the window's session and 3 started for this request); exchang
 
 The page (`src/App.tsx`, `src/components/`): the sign-in card (its state machine in
 `components/sign-in-state.ts`: `whoami` reads it, `login` waits with the device code when one comes, `logout`
-reads it again; "Sign in" and "Sign in with a code" when signed out with a profile, with the window's hint for the
-state, the device code with "Copy the code" and "Open in browser" while it waits, "Sign out" when signed in), the
-group members card with the table, the mailbox access card (a mailbox or a user, the shared mailboxes to pick
-from, the holders or the grants in a table, each holder with the layer that read it, the partial warning, and the
-time of the answer under the table; it reads the mailbox it shows again after a grant or a revoke, below), the write
+reads it again, `cancel` (task 126) drops a waiting sign-in back to signed out with a "stopped waiting" line, and
+`App` counts its sign-ins so the reply of one it no longer waits for is dropped: the bridge has no cancel message, the
+host's sign-in runs on until it ends or times out; "Sign in" and "Sign in with a code" when signed out with a profile, with the window's hint for the
+state, the device code with "Copy the code" and "Open in browser" while it waits, "Cancel" while it waits, "Sign
+out" when signed in), the group members card with the table (the object ids under "Details"), the mailbox access card
+(a mailbox or a user, the shared mailboxes to pick from, the holders or the grants in a table, the partial warning,
+and under "Details" the layer that read each holder and the time of the answer; it reads the mailbox it shows again
+after a grant or a revoke, below), the write
 cards (task 082, `components/mailbox-write-cards.tsx`: "Mailbox rights" and "Mailbox forwarding"), and a toast
 (sonner, with a close button and ten seconds) for an `error` reply of the page's own requests (the sign-in, the
 sign-out, the device code's page).
@@ -1108,7 +1112,12 @@ while it runs, never `disabled`, so the focus stays in the field; the previous a
 for …" line; an `error` reply clears it and shows `LookupError` (the write cards' `Notice` and `ErrorText`) under the
 form, which the field names with `aria-invalid` and `aria-describedby`. A submit button that waits stays in the Tab
 order (base-ui's `focusableWhenDisabled`, `aria-disabled`, which `ui/button.tsx` draws as its disabled muted outline)
-and is described by what it still needs. An element the page focuses on its own (a step's first line, a result, a
+and is described by what it still needs; it is as wide as its longer label (task 126: an invisible, `aria-hidden`
+copy of the working label in the same grid cell), so "Look up" → "Looking up…" moves nothing beside it.
+`DetailsLine` (`components/details-line.tsx`, task 126) is a `<details>` closed by default, its `summary` "Details"
+reachable with Tab, for the technical side of an answer: the time an answer took, the layers, the object ids, an
+error's code (`ErrorText` puts the code there). The tables (`ui/table.tsx`) have small muted headers and
+`tabular-nums`; counts and times in the cards' lines are `tabular-nums` too. An element the page focuses on its own (a step's first line, a result, a
 group of cards, the card "Show it" reveals) carries `focusTarget` (`src/lib/focus.ts`): no outline after a click, the
 buttons' 2 px outline when the keyboard brought the focus there. Each card keeps
 one `LiveStatus`, a visually hidden `role="status"` paragraph always in the page, whose text the card sets on each
@@ -1136,7 +1145,13 @@ changes."); the one button that sends a write is named by the plan's operation (
 a removal, "Confirm and apply" for an operation the map does not know) and sends `apply-plan` with `"confirm":
 true`. "Back to the plan", "Cancel" (back to the picks) and "Change the picks" send nothing (the host's plan runs out
 after 15 minutes). The result says "Done", "Partly done" or "Not done", each change with its result and the service's
-sentence, and the plan record's file; "Start a new change" starts over. The picks are a form, so Enter means "See
+sentence, and the plan record's file (task 126: a result not done in full says how many changes were made once,
+over the list, and leaves out the host's summary, whose sentence and hint repeat the list and the record, but for its
+code under "Details"; its sentence shows when no change carries a message of its own). "See the plan again", after a
+result not done in full, sends the write request the plan answered once more (`request-plan` is allowed from the
+result): the host plans only what is not so yet. "Start a new change" goes back to the picks and calls the card's
+`onStartOver`, which keeps the mailbox and resets the rest; "Cancel" on the confirmation keeps every pick. The picks
+are a form, so Enter means "See
 the plan" (Enter on a rights toggle or a choice submits too, instead of toggling it), and the line beside the button
 lists what is still needed; Escape goes back from the plan, the confirmation and a refusal, never while an apply
 runs. On a step change the card moves the focus to the step's first element (`tabIndex={-1}`: the plan's title, the
@@ -1192,7 +1207,16 @@ sign-in card's "signed in · Exchange unavailable" and the write cards' "Exchang
 the mock's own Exchange Online answers do not change.
 
 **The user picker** (task 112, `components/user-picker.tsx`): the user field of the user access card and of the
-mailbox access card's "A user". Once three letters are typed it sends `user-search` after a pause of 250 ms, so a word
+mailbox access card's "A user", and since task 125 the Users and Forward to fields of the write cards and "Only this
+user" of the access changes card. The combobox itself is `SuggestField` (`components/suggest-field.tsx`), which the
+user picker fills from `user-search` and the write cards' mailbox field (`MailboxPicker`,
+`components/mailbox-picker.tsx`) from the shared mailboxes: one `mailbox-list` with `shared: true` at the first
+letter typed while the card can write, kept until a sign-out and asked again after a failure, then filtered on the
+page by the start of the name, a word of it, the address or the principal name (eight at most). On the write cards
+and the access changes card (`enterPicksFirst`, a form of several fields) Enter on an open list picks the highlighted
+suggestion or the first, and only Enter on a closed list submits; the Users field is `multiple`: the field searches
+for the item after the last comma or semicolon, and a pick replaces it, once, with a comma after it (`addToList`).
+What a list says goes to the write card's status region on the picks step. Once three letters are typed it sends `user-search` after a pause of 250 ms, so a word
 typed at speed sends one request, and drops an answer to an older text; the list is an ARIA combobox (the arrow keys,
 Enter and Escape on the field, a click on an option), and a pick hands the user principal name (else the address, else
 the object id) to the card, which looks the user up at once. Enter with no option highlighted submits the text as
@@ -1205,9 +1229,12 @@ signed-in answer equal to the `user-matches.json` sample, which a Core test hold
 answer.
 
 **The access changes card** (task 115, `components/snapshot-diff-card.tsx`): "From", "To" and "Only this user", each
-optional and sent only when filled, then `snapshot-diff`; the two snapshots' times and ages with the counts, the
-warnings through the wording map, a table per part of the tenant that changed (change, what, who, how, and `through`
-for one user), a line for the parts without a change and one for the parts left out. The parts are named by
+optional and sent only when filled, then `snapshot-diff`; a line under the fields, which From and To name as their
+description, says what they take (task 126), and "Only this user" is the user picker. The answer: the two snapshots'
+times and ages with the counts, the warnings through the wording map, a table per part of the tenant that changed
+(change, what, who, how, and `through` for one user; `table-fixed` with one `colgroup` for every part, so the columns
+line up from table to table, and the cells wrap), a line for the parts without a change and one for the parts left
+out. The parts are named by
 `diffPart` in `plan-wording.ts`: task 113's `snapshotPart`, with one user's `sharedItems` and `calendars` named by the
 part they read; the wording map rewords the diff's partial and left-out warnings with the same names, so no warning
 starts with a store identifier. `too-few-snapshots` is a plain "Nothing to compare yet"

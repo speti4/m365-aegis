@@ -18,6 +18,7 @@ import {
 } from "../bridge/protocol";
 import { type AppliedWrites, namesUser, touches } from "./applied-writes";
 import { AnswerFor, Choice, Field, LiveStatus, LookupError, SubmitButton, useLookup } from "./card-parts";
+import { DetailsLine } from "./details-line";
 import { count } from "./plan-wording";
 import { UserPicker } from "./user-picker";
 
@@ -27,7 +28,7 @@ export const rightNames: Record<MailboxRight, string> = {
   "send-on-behalf": "Send on Behalf",
 };
 
-/** The layers a grant can come from, as the card names them in its "Read through" column (task 063). */
+/** The layers a grant can come from, as the card names them under its "Details" line (tasks 063 and 126). */
 export const layerNames: Record<ExchangeLayer, string> = {
   "admin-api": "Admin API",
   pwsh: "PowerShell",
@@ -74,8 +75,9 @@ type Result =
  * which mailboxes a user holds them on, as `m365-aegis mailbox access` reads them, and the shared mailboxes to pick
  * one from. The user is picked from the suggestions (the directory, else the snapshot) as the colleague types a name (the user picker, task 112), or
  * typed in full. The window keeps one Exchange Online session: the first lookup starts it (a few seconds), the later
- * ones answer in the cmdlet's own time, which the line under the table shows. A mailbox's grants come over the
- * layers as on the command line (task 063): each row names the layer that read it. When the mailbox rights card applies a
+ * ones answer in the cmdlet's own time, which the answer's "Details" line shows. A mailbox's grants come over the
+ * layers as on the command line (task 063): the "Details" line under the answer names the layer that read each row,
+ * with the time the answer took (task 126). When the mailbox rights card applies a
  * grant or a revoke to the mailbox the card shows (`applied`, task 091), the card reads it again with one
  * `mailbox-access` request and says so; an apply to another mailbox, or a forwarding, sends nothing. A user's grants
  * are not read again on their own (the reverse lookup goes over every mailbox, task 043): when a grant or a revoke names
@@ -330,7 +332,7 @@ function ResultView({
   onPick: (mailbox: MailboxInfo) => void;
   onReadAgain: (user: string) => void;
 }) {
-  const elapsed = <p className="text-xs text-muted-foreground">answered in {describeElapsed(result.ms)}</p>;
+  const elapsed = <p className="tabular-nums">Answered in {describeElapsed(result.ms)}.</p>;
   switch (result.kind) {
     case "shared":
       return (
@@ -345,12 +347,14 @@ function ResultView({
               </li>
             ))}
           </ul>
-          {elapsed}
+          <DetailsLine>{elapsed}</DetailsLine>
         </div>
       );
     case "holders": {
       const { mailbox, holders } = result.data;
       const layers = describeLayers(result.data);
+      // The rows whose reply names the layer that read them (a host before task 063 names none).
+      const read = holders.filter((holder) => holder.layer !== undefined);
       return (
         <div className="space-y-2">
           <AnswerFor query={result.asked} />
@@ -358,14 +362,13 @@ function ResultView({
             <strong>{mailbox.displayName}</strong>
             <Badge variant="secondary">{mailbox.type}</Badge>
             <span className="text-muted-foreground">{mailbox.primarySmtpAddress}</span>
-            <span className="text-muted-foreground">· {holders.length} grant(s)</span>
+            <span className="text-muted-foreground tabular-nums">· {holders.length} grant(s)</span>
           </p>
           {result.refreshed ? (
             <p className="text-xs text-muted-foreground" data-testid="refreshed">
               Read again after a change on the Mailbox rights card.
             </p>
           ) : null}
-          {layers ? <p className="text-xs text-muted-foreground">{layers}</p> : null}
           {holders.length === 0 ? (
             <p className="text-muted-foreground">Nobody holds a right on this mailbox but its own account.</p>
           ) : (
@@ -375,7 +378,6 @@ function ResultView({
                   <TableHead>Right</TableHead>
                   <TableHead>Holder</TableHead>
                   <TableHead>Address</TableHead>
-                  <TableHead>Read through</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -384,15 +386,25 @@ function ResultView({
                     <TableCell>{rightNames[holder.right]}</TableCell>
                     <TableCell>{holder.holder}</TableCell>
                     <TableCell className="font-mono text-xs">{holder.address ?? ""}</TableCell>
-                    <TableCell>
-                      {holder.layer ? <Badge variant="outline">{layerNames[holder.layer]}</Badge> : null}
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           )}
-          {elapsed}
+          <DetailsLine>
+            {layers ? <p>{layers}</p> : null}
+            {read.length > 0 ? (
+              <ul data-testid="layers">
+                {read.map((holder) => (
+                  <li key={`${holder.right}:${holder.holder}`}>
+                    {rightNames[holder.right]}, {holder.holder}: read through{" "}
+                    {layerNames[holder.layer as ExchangeLayer]}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {elapsed}
+          </DetailsLine>
         </div>
       );
     }
@@ -404,7 +416,7 @@ function ResultView({
           <p className="flex flex-wrap items-center gap-2">
             <strong>{displayName ?? user}</strong>
             {displayName ? <span className="text-muted-foreground">{user}</span> : null}
-            <span className="text-muted-foreground">
+            <span className="text-muted-foreground tabular-nums">
               · {grants.length} grant(s) over {mailboxesScanned} mailbox(es)
             </span>
             {failed.length > 0 ? <Badge variant="warning">partial</Badge> : null}
@@ -462,7 +474,7 @@ function ResultView({
               </TableBody>
             </Table>
           )}
-          {elapsed}
+          <DetailsLine>{elapsed}</DetailsLine>
         </div>
       );
     }

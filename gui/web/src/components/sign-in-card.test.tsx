@@ -23,7 +23,13 @@ const prompt: DeviceCodePrompt = {
 };
 
 function handlers() {
-  return { onRefresh: vi.fn(), onSignIn: vi.fn(), onSignOut: vi.fn(), onOpenSignInPage: vi.fn() };
+  return {
+    onRefresh: vi.fn(),
+    onSignIn: vi.fn(),
+    onSignOut: vi.fn(),
+    onOpenSignInPage: vi.fn(),
+    onCancelSignIn: vi.fn(),
+  };
 }
 
 async function card(state: SignInState) {
@@ -128,5 +134,19 @@ describe("the sign-in card", () => {
     const unknown = await card({ status: "unknown" });
     expect(unknown.text()).toContain("The sign-in state could not be read.");
     expect(button(unknown.container, "Refresh").disabled).toBe(false);
+    expect(hasButton(unknown.container, "Cancel")).toBe(false);
+  });
+
+  it("cancels a sign-in that waits, and says so once signed out (task 126)", async () => {
+    const waiting = await card({ status: "signing-in", before: null, deviceCode: prompt });
+    await click(button(waiting.container, "Cancel"));
+    expect(waiting.on.onCancelSignIn).toHaveBeenCalledOnce();
+
+    const canceled = await card({ status: "signed-out", info: { profile: "work", message: "m" }, canceled: true });
+    expect(canceled.container.querySelector('[data-testid="sign-in-canceled"]')?.textContent).toContain(
+      "The window stopped waiting for the sign-in.",
+    );
+    expect(hasButton(canceled.container, "Sign in")).toBe(true);
+    expect(hasButton(canceled.container, "Cancel")).toBe(false);
   });
 });

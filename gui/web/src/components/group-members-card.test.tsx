@@ -51,9 +51,16 @@ describe("the group members card", () => {
     const rows = [...container.querySelectorAll("tbody tr")].map((row) =>
       [...row.querySelectorAll("td")].map((cell) => cell.textContent),
     );
-    expect(rows[2]).toEqual(["user", "Carol Example", "carol@contoso.com", "00000000-0000-0000-0000-000000000004"]);
+    expect(rows[2]).toEqual(["user", "Carol Example", "carol@contoso.com"]);
     // A member without a sign-in name shows its address.
-    expect(rows[3]).toEqual(["group", "Finance EU", "finance-eu@contoso.com", "00000000-0000-0000-0000-000000000032"]);
+    expect(rows[3]).toEqual(["group", "Finance EU", "finance-eu@contoso.com"]);
+    // The object ids are details, behind a collapsed line (task 126).
+    const details = container.querySelector('[data-testid="details"]') as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(details.textContent).toContain("The group's object id: 00000000-0000-0000-0000-000000000031");
+    expect([...details.querySelectorAll("li")].map((item) => item.textContent)[2]).toBe(
+      "Carol Example: 00000000-0000-0000-0000-000000000004",
+    );
     await unmount();
   });
 
@@ -84,7 +91,11 @@ describe("the group members card", () => {
     await settle();
 
     const cells = [...container.querySelectorAll("tbody td")].map((cell) => cell.textContent);
-    expect(cells).toEqual(["servicePrincipal", "", "", "00000000-0000-0000-0000-000000000040"]);
+    expect(cells).toEqual(["servicePrincipal", "", ""]);
+    // In the details, a member without a name or an address goes by its type.
+    expect(container.querySelector('[data-testid="member-ids"]')?.textContent).toBe(
+      "servicePrincipal: 00000000-0000-0000-0000-000000000040",
+    );
   });
 
   it("shows a failed lookup under the field, marks the field, and drops the old table (task 120)", async () => {

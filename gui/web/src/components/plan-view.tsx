@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { focusTarget } from "@/lib/focus";
 import { cn } from "@/lib/utils";
 import type { BridgeError, Plan, PlanApplied, PlanChange } from "../bridge/protocol";
+import { DetailsLine } from "./details-line";
 import { confirmAction, count, windowWarning } from "./plan-wording";
 import { outcome, type WriteState, writeStepIndex, writeStepNames } from "./write-flow";
 
@@ -109,14 +110,25 @@ export function Notice({
   );
 }
 
-/** A failure's sentence, what to do about it, and its code. */
+/** A failure's sentence, what to do about it, and its code in a collapsed details line (task 126). */
 export function ErrorText({ error }: { error: BridgeError }) {
   return (
     <>
       <p>{error.message}</p>
       {error.hint ? <p className="mt-1 text-muted-foreground">What to do: {error.hint}</p> : null}
-      <p className="mt-1 font-mono text-xs text-muted-foreground">{error.code}</p>
+      <ErrorCode code={error.code} />
     </>
+  );
+}
+
+/** An error's code, for whoever reads the log or the plan record, behind the "Details" line (task 126). */
+function ErrorCode({ code }: { code: string }) {
+  return (
+    <DetailsLine className="mt-1">
+      <p>
+        Error code: <span className="font-mono">{code}</span>
+      </p>
+    </DetailsLine>
   );
 }
 
@@ -313,13 +325,17 @@ function ResultIcon({ change }: { change: PlanChange }) {
 
 /**
  * The applied plan: how it ended, each change's result with the service's message, and the plan record's file;
- * `noticeRef` makes how it ended the card's focus target (task 121).
+ * `noticeRef` makes how it ended the card's focus target (task 121). A plan not done in full says so once (task 126):
+ * how many changes were made, over the list that gives each failed change's message; the host's summary of the
+ * failure (its sentence and hint repeat the list and the record) is left out but its code, behind "Details", and its
+ * sentence shows only when no change carries a message of its own.
  */
 export function ResultView({ applied, noticeRef }: { applied: PlanApplied; noticeRef?: Ref<HTMLDivElement> }) {
   const { plan, error } = applied;
   const total = plan.changes.length;
   const done = plan.changes.filter((change) => change.result?.status === "applied").length;
   const ended = outcome(applied);
+  const explained = plan.changes.some((change) => change.result?.error);
   return (
     <div className="space-y-3">
       {ended === "done" ? (
@@ -336,7 +352,8 @@ export function ResultView({ applied, noticeRef }: { applied: PlanApplied; notic
           <p>
             {done} of {total} change(s) were made.
           </p>
-          {error ? <ErrorText error={error} /> : null}
+          {error && !explained ? <p className="mt-1">{error.message}</p> : null}
+          {error ? <ErrorCode code={error.code} /> : null}
         </Notice>
       )}
       <ul className="space-y-2">

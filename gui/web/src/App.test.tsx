@@ -310,6 +310,32 @@ describe("the window's page", () => {
     }
   });
 
+  it("in the window: Cancel stops waiting for a sign-in, and its late reply is ignored (task 126)", async () => {
+    const { posted, post } = hostWith((message) => (message.type === MessageType.whoami ? signedOut : null));
+    const { container } = await render(<App />);
+    await settle();
+    const signInCard = () => container.querySelector("section#sign-in") as HTMLElement;
+
+    await click(button(signInCard(), "Sign in"));
+    expect(isDisabled(button(signInCard(), "Refresh"))).toBe(true);
+    await click(button(signInCard(), "Cancel"));
+    expect(signInCard().querySelector('[data-testid="sign-in-canceled"]')).not.toBeNull();
+    expect(isDisabled(button(signInCard(), "Refresh"))).toBe(false);
+
+    // The host's sign-in ends later: the page no longer waits for it.
+    const login = posted.find((message) => message.type === MessageType.login) as BridgeMessage;
+    post({
+      aegis: PROTOCOL_VERSION,
+      id: login.id,
+      type: MessageType.signedIn,
+      data: { profile: "work", account: "alice@contoso.com", tokens: [] },
+    });
+    await settle();
+    expect(container.textContent).toContain("Profile work has no usable sign-in.");
+    expect(container.querySelector('[data-testid="account"]')).toBeNull();
+    expect(toasts).not.toHaveBeenCalled();
+  });
+
   it("leaves the sign-in as it is on a host notification of another kind", async () => {
     const register = vi.spyOn(BridgeClient.prototype, "onNotification");
     hostWith((message) => (message.type === MessageType.whoami ? signedOut : null));
