@@ -3,6 +3,7 @@ size: M
 origin: wip/109-doctor-per-permission-consent-check.md
 created: 2026-11-01
 started: 2026-11-02
+closed: 2026-11-02
 plan: none
 milestone: M6 Release and team
 ---
@@ -72,6 +73,10 @@ maintainer's token passes.
   - **The test helper**: the guide's table reader moved out of `PermissionMapTests` into `Auth/SetupGuide.cs`, which
     both map tests use.
 
+- 2026-11-02 — merged in #165 (squash); closed on `main` by the main session. The pull request's one follow-up
+  (two timing tests that failed once each under the coverage collector) was dropped by the maintainer: they passed
+  when rerun and in CI
+
 ## Deviations from the plan
 
 - Step 3 said "null on a failure". Instead the seam throws, and the check catches the failure (`AegisException`,
@@ -114,5 +119,5 @@ maintainer's token passes.
 - [x] every follow-up is listed in the pull request under `## Follow-ups`, the main session proposes and files them
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] `tasks_check` green, README index regenerated
+- [x] moved to `done/` with `closed: 2026-11-02`

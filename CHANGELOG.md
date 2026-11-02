@@ -51,6 +51,7 @@ not the list. The summary under a heading is written by hand and kept by the gen
 - Verify the setup guide in a live round: the Azure CLI registration block and the least role for the message trace ([108](https://github.com/speti4/m365-aegis/blob/main/tasks/done/108-verify-the-setup-guide-in-a-live-round.md))
 - Doctor: a per-permission consent check that names the missing row of the setup guide's table ([109](https://github.com/speti4/m365-aegis/blob/main/tasks/done/109-doctor-per-permission-consent-check.md))
 - The setup guide's "Sign in once and check it" points the first run at the doctor's consent row ([110](https://github.com/speti4/m365-aegis/blob/main/tasks/done/110-setup-guide-points-the-first-run-at-the-doctors-consent-row.md))
+- The doctor reads the account's Entra roles for the permissions table's role column ([111](https://github.com/speti4/m365-aegis/blob/main/tasks/done/111-doctor-reads-the-entra-roles-from-the-token-for-the-role-column.md))
 
 ### Project housekeeping
 

@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-11-02 — edit the files, not this section._
 
-**State:** 1 backlog (0 ready · 0 blocked · 0 waiting · 1 idea) · 1 in progress · 117 done · 0 dropped · 14 decisions
+**State:** 1 backlog (0 ready · 0 blocked · 0 waiting · 1 idea) · 0 in progress · 118 done · 0 dropped · 14 decisions
 
 ### Ready
 
@@ -38,11 +38,7 @@ _none_
 
 ### In progress
 
-#### M6 Release and team
-
-| # | Task | Started | Plan |
-|---|---|---|---|
-| 111 | [The doctor reads the account's Entra roles for the permissions table's role col…](wip/111-doctor-reads-the-entra-roles-from-the-token-for-the-role-column.md) | 2026-11-02 | `none` |
+_none_
 
 ### Closed – do not reopen
 
@@ -52,6 +48,7 @@ _none_
 
 | # | Task | Closed |
 |---|---|---|
+| 111 | [The doctor reads the account's Entra roles for the permissions table's role col…](done/111-doctor-reads-the-entra-roles-from-the-token-for-the-role-column.md) | 2026-11-02 |
 | 118 | [A skipped snapshot domain's note in the window's words on the access cards](done/118-skipped-domain-note-in-the-windows-words.md) | 2026-11-01 |
 | 117 | [The folderPermissions domain of the take reads the calendar permissions in para…](done/117-folder-permissions-domain-read-in-parallel.md) | 2026-11-01 |
 | 116 | [A periodic full sharing read when the incremental base is older than a configur…](done/116-periodic-full-sharing-read-when-the-base-is-old.md) | 2026-11-01 |
@@ -61,9 +58,8 @@ _none_
 | 112 | [A user picker shared by the User access and the Mailbox access cards](done/112-user-picker-shared-by-the-access-cards.md) | 2026-11-01 |
 | 110 | [The setup guide's "Sign in once and check it" points the first run at the docto…](done/110-setup-guide-points-the-first-run-at-the-doctors-consent-row.md) | 2026-11-01 |
 | 109 | [Doctor: a per-permission consent check that names the missing row of the setup …](done/109-doctor-per-permission-consent-check.md) | 2026-11-01 |
-| 108 | [Verify the setup guide in a live round: the Azure CLI registration block and th…](done/108-verify-the-setup-guide-in-a-live-round.md) | 2026-11-01 |
 
-_107 more in `done/`._
+_108 more in `done/`._
 
 ### Decisions
 
