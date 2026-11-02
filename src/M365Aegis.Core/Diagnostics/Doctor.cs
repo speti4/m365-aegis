@@ -121,6 +121,7 @@ public static class Doctor
         {
             checks.Add(new("sign-in", CheckStatus.Skipped, "offline run", Required: false));
             checks.Add(new("consent", CheckStatus.Skipped, "offline run", Required: false));
+            checks.Add(new("roles", CheckStatus.Skipped, "offline run", Required: false));
             checks.AddRange(Endpoints.Select(endpoint => new DoctorCheck(endpoint.Name, CheckStatus.Skipped, "offline run", Required: true)));
         }
         else
@@ -128,6 +129,7 @@ public static class Doctor
             (DoctorCheck signIn, SignInInfo? info) = await CheckSignInAsync(environment, cancellationToken).ConfigureAwait(false);
             checks.Add(signIn);
             checks.Add(CheckConsent(info));
+            checks.Add(await CheckRolesAsync(environment, info, cancellationToken).ConfigureAwait(false));
             DoctorCheck[] endpoints = await Task.WhenAll(Endpoints.Select(async endpoint =>
                 CheckEndpoint(endpoint.Name, endpoint.Uri, await environment.Probe(endpoint.Uri, cancellationToken).ConfigureAwait(false)))).ConfigureAwait(false);
             checks.AddRange(endpoints);
@@ -635,6 +637,93 @@ public static class Doctor
     private static string ByApi(IEnumerable<NeededScope> permissions) =>
         string.Join(" and ", permissions.GroupBy(permission => permission.Resource)
             .Select(api => $"{string.Join(", ", api.Select(permission => permission.Name))} ({PermissionMap.ApiName(api.Key)})"));
+
+    /// <summary>
+    /// The roles (task 111): the account's active Microsoft Entra roles, read through Microsoft Graph with the sign-in's
+    /// token, against <see cref="RoleMap"/>. Skipped without a Graph token or when the read fails; otherwise
+    /// <see cref="CheckRoles"/> weighs them.
+    /// </summary>
+    internal static async Task<DoctorCheck> CheckRolesAsync(DoctorEnvironment environment, SignInInfo? info, CancellationToken cancellationToken)
+    {
+        const string name = "roles";
+        if (info is null || !info.Tokens.Any(token => token.Resource == Resource.Graph && token.ExpiresOn is not null))
+        {
+            return new(name, CheckStatus.Skipped, "no Microsoft Graph token to read the roles with; the sign-in row says why", Required: false);
+        }
+
+        IReadOnlyList<Guid> roles;
+        try
+        {
+            roles = await environment.ReadDirectoryRoles(environment.Profile, cancellationToken).ConfigureAwait(false);
+        }
+        catch (AegisException exception)
+        {
+            return new(name, CheckStatus.Skipped, $"the roles were not read: {exception.Failure.Message}", Required: false);
+        }
+        catch (BrokerException exception)
+        {
+            return new(name, CheckStatus.Skipped, $"the roles were not read: the broker did not answer ({exception.Code})", Required: false);
+        }
+
+        return CheckRoles(roles);
+    }
+
+    /// <summary>
+    /// The account's role template ids against the role column of the setup guide's table: a pass when every row that
+    /// an Entra role decides is answered; a warning that names each row no role of the account answers, with the roles
+    /// that would; a row of the group writes adds that the group's owner needs no role. A row that needs an Exchange
+    /// Online role group none of the account's Entra roles carries is noted, never warned: a direct role group
+    /// membership does not show in Microsoft Entra.
+    /// </summary>
+    internal static DoctorCheck CheckRoles(IReadOnlyList<Guid> roles)
+    {
+        ArgumentNullException.ThrowIfNull(roles);
+        const string name = "roles";
+        var held = new HashSet<Guid>(roles);
+        bool Answered(RoleRow row) => row.AnyOf.Any(role => held.Contains(role.TemplateId));
+
+        List<string> known = [.. RoleMap.Roles.Where(role => held.Contains(role.TemplateId)).Select(role => role.Name)];
+        int others = held.Count(id => RoleMap.Roles.All(role => role.TemplateId != id));
+        string holds = (known.Count, others) switch
+        {
+            (0, 0) => "no Microsoft Entra role",
+            (0, _) => Count(others, "Microsoft Entra role") + " the setup guide's table does not name",
+            (_, 0) => string.Join(", ", known),
+            _ => $"{string.Join(", ", known)} and {Count(others, "other role")}",
+        };
+
+        List<RoleRow> gaps = [.. RoleMap.Rows.Where(row => row.Kind != RoleKind.Exchange && !Answered(row))];
+        List<RoleRow> unread = [.. RoleMap.Rows.Where(row => row.Kind == RoleKind.Exchange && !Answered(row))];
+        var parts = new List<string> { holds };
+        if (gaps.Count > 0)
+        {
+            parts.Add("no role for: " + string.Join("; ", gaps.Select(row =>
+                $"{row.Commands} ({Either(row.AnyOf)}{(row.Kind == RoleKind.EntraOrOwner ? ", unless the account owns the group" : "")})")));
+        }
+
+        if (unread.Count > 0)
+        {
+            parts.Add("not read from Microsoft Entra: " + string.Join("; ", unread.Select(row => row.Commands)) +
+                " (an Exchange Online role group, as the setup guide's table names it; the commands tell when it is missing)");
+        }
+
+        if (gaps.Count == 0 && unread.Count == 0)
+        {
+            parts.Add("every role of the setup guide's table");
+        }
+
+        return gaps.Count == 0
+            ? new(name, CheckStatus.Pass, string.Join("; ", parts), Required: false)
+            : new(name, CheckStatus.Warn, string.Join("; ", parts), Required: false,
+                "where the account needs those commands, an administrator assigns one of the named roles in the Microsoft Entra admin center (the setup guide's Permissions table)");
+    }
+
+    /// <summary>Role names as a choice, <c>A, B or C</c> (every row of the map names at least two).</summary>
+    private static string Either(IReadOnlyList<EntraRole> roles) =>
+        $"{string.Join(", ", roles.SkipLast(1).Select(role => role.Name))} or {roles[^1].Name}";
+
+    private static string Count(int count, string noun) =>
+        string.Create(CultureInfo.InvariantCulture, $"{count} {noun}{(count == 1 ? "" : "s")}");
 
     internal static DoctorCheck CheckEndpoint(string name, Uri endpoint, EndpointAnswer answer)
     {
