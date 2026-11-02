@@ -14,7 +14,7 @@ into a GitHub issue by `scripts/sync-issues.py` — edit the file, never the iss
 <!-- tasks:index:start -->
 _Generated 2026-11-02 — edit the files, not this section._
 
-**State:** 5 backlog (0 ready · 0 blocked · 0 waiting · 5 ideas) · 0 in progress · 123 done · 0 dropped · 15 decisions
+**State:** 3 backlog (0 ready · 0 blocked · 0 waiting · 3 ideas) · 0 in progress · 125 done · 0 dropped · 15 decisions
 
 ### Ready
 
@@ -35,8 +35,6 @@ _none_
 | # | Task | Size | Created |
 |---|---|---|---|
 | 122 | [The window's vocabulary: Microsoft's terms, one verb per action from the card t…](backlog/122-the-windows-vocabulary-microsofts-terms-one-verb-per-action-no-raw-values.md) | M | 2026-11-02 |
-| 125 | [The user picker on the write cards](backlog/125-the-user-picker-on-the-write-cards.md) | M | 2026-11-02 |
-| 126 | [Small flow fixes in the window](backlog/126-small-flow-fixes-in-the-window.md) | S | 2026-11-02 |
 
 #### M5 Snapshot and views
 
@@ -63,6 +61,8 @@ _none_
 | # | Task | Closed |
 |---|---|---|
 | 127 | [Typography, surfaces and the change ticket of the design direction (D-015)](done/127-typography-surfaces-and-the-change-ticket-of-the-design-direction.md) | 2026-11-02 |
+| 126 | [Small flow fixes in the window](done/126-small-flow-fixes-in-the-window.md) | 2026-11-02 |
+| 125 | [The user picker on the write cards](done/125-the-user-picker-on-the-write-cards.md) | 2026-11-02 |
 | 124 | [A sticky top bar with the account, the tenant and the sign-in state, and in-pag…](done/124-a-sticky-top-bar-with-the-account-the-tenant-and-in-page-navigation.md) | 2026-11-02 |
 | 123 | [Status color tokens, one dark palette, forced colors and the focus ring's contr…](done/123-status-color-tokens-one-dark-palette-forced-colors-and-focus-contrast.md) | 2026-11-02 |
 | 121 | [Focus management and status announcements in the window, with card headings, ra…](done/121-focus-management-and-status-announcements-in-the-window.md) | 2026-11-02 |
@@ -70,10 +70,8 @@ _none_
 | 111 | [The doctor reads the account's Entra roles for the permissions table's role col…](done/111-doctor-reads-the-entra-roles-from-the-token-for-the-role-column.md) | 2026-11-02 |
 | 118 | [A skipped snapshot domain's note in the window's words on the access cards](done/118-skipped-domain-note-in-the-windows-words.md) | 2026-11-01 |
 | 117 | [The folderPermissions domain of the take reads the calendar permissions in para…](done/117-folder-permissions-domain-read-in-parallel.md) | 2026-11-01 |
-| 116 | [A periodic full sharing read when the incremental base is older than a configur…](done/116-periodic-full-sharing-read-when-the-base-is-old.md) | 2026-11-01 |
-| 115 | [The snapshot diff as a window card](done/115-snapshot-diff-as-a-window-card.md) | 2026-11-01 |
 
-_113 more in `done/`._
+_115 more in `done/`._
 
 ### Decisions
 

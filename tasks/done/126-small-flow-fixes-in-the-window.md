@@ -3,6 +3,7 @@ size: S
 origin: session 2026-11-02
 created: 2026-11-02
 started: 2026-11-02
+closed: 2026-11-02
 plan: none
 milestone: M4 Window
 ---
@@ -81,6 +82,9 @@ Done when: each item is ticked with its check in the mock, and usage.md says wha
   address cells beside this change's header classes and dropped columns; `npm ci` (Geist removed), the front-end checks
   again green (commits `710c62e`, `a67a60a`)
 
+- 2026-11-02 — merged as #182 (squash); closed on `main` by the main session; no follow-up (the README picture
+  is retaken by task 122, which rewrites the same card's strings)
+
 ## Deviations from the plan
 
 - U-9: "Start a new change" also sets Grant / Forward and the boxes back to their start, not only the users and rights
@@ -112,5 +116,5 @@ Done when: each item is ticked with its check in the mock, and usage.md says wha
       (a task session of a parallel-sessions repo: listed in the pull request under `## Follow-ups`, the main session files them)
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] `tasks_check` green, README index regenerated
+- [x] moved to `done/` with `closed: 2026-11-02`

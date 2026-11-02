@@ -3,6 +3,7 @@ size: M
 origin: session 2026-11-02
 created: 2026-11-02
 started: 2026-11-02
+closed: 2026-11-02
 plan: none
 milestone: M4 Window
 ---
@@ -67,6 +68,9 @@ the picked addresses, and the tests cover a pick and a typed address.
   "The front end" (the user picker paragraph: `SuggestField`, `MailboxPicker`, `multiple`, `enterPicksFirst`)
   (commit `a67a60a`)
 
+- 2026-11-02 — merged as #182 (squash); closed on `main` by the main session; no follow-up (the README picture
+  is retaken by task 122, which rewrites the same card's strings)
+
 ## Deviations from the plan
 
 - The mailbox suggestions are the shared mailboxes only (`mailbox-list` with `shared: true`, as the access card's
@@ -88,5 +92,5 @@ the picked addresses, and the tests cover a pick and a typed address.
       (a task session of a parallel-sessions repo: listed in the pull request under `## Follow-ups`, the main session files them)
 - [x] every doc under *Docs that move* changed in this change
 - [x] Verification written, dated
-- [ ] `tasks_check` green, README index regenerated
-- [ ] moved to `done/` with `closed: YYYY-MM-DD`
+- [x] `tasks_check` green, README index regenerated
+- [x] moved to `done/` with `closed: 2026-11-02`
