@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "./styles/shadcn-tailwind.css"; /* the shadcn package's tailwind.css, vendored: see the file's header */
-@import "@fontsource-variable/geist";
 
 /* The dark variant follows the same switch as the tokens below: the system's dark mode, unless a part of the page is
    set apart with `.light`, or `.dark` on an element (the task card design sketch's theme switch, task 018, dev server
@@ -22,27 +21,28 @@
    follow it too) and is pinned by `.light` or `.dark`. The names are shadcn/ui's, which the components under
    src/components/ui read; on top of them the status triad of D-015, each a strong color for text, icons and rules
    (at least 4.5:1 on the card and on its soft background) and a soft background, and one steel-blue accent for
-   selection and focus (`--primary`, `--ring`). Neutral greys in both modes. The build's Lightning CSS lowers
+   selection and focus (`--primary`, `--ring`). The surfaces of D-015 (task 127): a tinted page under white cards in
+   light, a cool near-black page under a lighter card in dark, and `--ticket`, the change ticket's warm surface. The build's Lightning CSS lowers
    `light-dark()` to two variables that `color-scheme` sets, and the tokens take their value where they are declared,
    on `:root`: the window follows the system's mode either way, and the `.light`/`.dark` pin, which the dev server's
    sketch alone uses, switches the tokens only in the dev server. */
 :root {
   color-scheme: light dark;
-  --background: light-dark(oklch(1 0 0), oklch(0.145 0 0));
-  --foreground: light-dark(oklch(0.145 0 0), oklch(0.985 0 0));
-  --card: light-dark(oklch(1 0 0), oklch(0.205 0 0));
-  --card-foreground: light-dark(oklch(0.145 0 0), oklch(0.985 0 0));
-  --popover: light-dark(oklch(1 0 0), oklch(0.205 0 0));
-  --popover-foreground: light-dark(oklch(0.145 0 0), oklch(0.985 0 0));
+  --background: light-dark(oklch(0.972 0.003 248), oklch(0.16 0.005 250));
+  --foreground: light-dark(oklch(0.237 0.011 254), oklch(0.97 0.003 250));
+  --card: light-dark(oklch(1 0 0), oklch(0.215 0.006 250));
+  --card-foreground: light-dark(oklch(0.237 0.011 254), oklch(0.97 0.003 250));
+  --popover: light-dark(oklch(1 0 0), oklch(0.215 0.006 250));
+  --popover-foreground: light-dark(oklch(0.237 0.011 254), oklch(0.97 0.003 250));
   --primary: light-dark(oklch(0.48 0.1 245), oklch(0.78 0.09 240));
   --primary-foreground: light-dark(oklch(0.985 0 0), oklch(0.18 0.02 240));
-  --secondary: light-dark(oklch(0.97 0 0), oklch(0.269 0 0));
-  --secondary-foreground: light-dark(oklch(0.205 0 0), oklch(0.985 0 0));
-  --muted: light-dark(oklch(0.97 0 0), oklch(0.269 0 0));
-  --muted-foreground: light-dark(oklch(0.52 0 0), oklch(0.72 0 0));
-  --accent: light-dark(oklch(0.97 0 0), oklch(0.269 0 0));
-  --accent-foreground: light-dark(oklch(0.205 0 0), oklch(0.985 0 0));
-  --border: light-dark(oklch(0.922 0 0), oklch(1 0 0 / 10%));
+  --secondary: light-dark(oklch(0.96 0.004 248), oklch(0.275 0.006 250));
+  --secondary-foreground: light-dark(oklch(0.237 0.011 254), oklch(0.97 0.003 250));
+  --muted: light-dark(oklch(0.96 0.004 248), oklch(0.275 0.006 250));
+  --muted-foreground: light-dark(oklch(0.5 0.022 256), oklch(0.73 0.01 250));
+  --accent: light-dark(oklch(0.96 0.004 248), oklch(0.275 0.006 250));
+  --accent-foreground: light-dark(oklch(0.237 0.011 254), oklch(0.97 0.003 250));
+  --border: light-dark(oklch(0.911 0.01 253), oklch(1 0 0 / 11%));
   --input: light-dark(oklch(0.64 0 0), oklch(0.52 0 0));
   --ring: light-dark(oklch(0.48 0.1 245), oklch(0.8 0.09 240));
   --success: light-dark(oklch(0.46 0.13 150), oklch(0.8 0.14 150));
@@ -52,7 +52,8 @@
   --danger: light-dark(oklch(0.51 0.19 27), oklch(0.76 0.15 25));
   --danger-soft: light-dark(oklch(0.96 0.03 20), oklch(0.31 0.08 25));
   --destructive: var(--danger);
-  --radius: 0.625rem;
+  --ticket: light-dark(oklch(0.988 0.012 85), oklch(0.245 0.018 75));
+  --radius: 0.375rem;
 }
 
 /* A part of the page in one mode whatever the system's: the task card design sketch's theme switch (task 018, dev
@@ -79,8 +80,19 @@
   --color-warning-soft: var(--warning-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+  --color-ticket: var(--ticket);
+  /* The system's font, as the WinForms chrome around the page has it (D-015); a mono face for identifiers only. */
   --font-heading: var(--font-sans);
-  --font-sans: "Geist Variable", sans-serif;
+  --font-sans: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  /* The scale of D-015: 20 px for the page's title (text-xl), 15 px for a card's title (text-base), 13 px for the
+     body (text-sm); text-xs stays 12 px. */
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.9375rem;
+  --text-base--line-height: 1.375rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-accent-foreground: var(--accent-foreground);
@@ -106,7 +118,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-sm text-foreground;
   }
   html {
     @apply font-sans;
