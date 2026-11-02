@@ -92,10 +92,14 @@ Done when: a keyboard-only lookup and write flow keeps the focus on a named cont
   between "See the plan" and the plan, or between the apply and the result.
 - `docs/development.md` "The front end" got a paragraph on the cards' shared parts (the status region, the focus rule,
   the headings, the choice), since the section describes the cards.
+- Card titles are `h2` as planned. Task 124, merged meanwhile, groups the cards under `h2` group headings (Look up,
+  Snapshots, Change), so a card's `h2` sits beside its group's rather than under it; axe has no `heading-order` hit,
+  and the outline stays navigable. Card titles one level lower would need a heading for the sign-in section and the
+  answers' sections at `h4`; left as it is.
 
 ## Verification
 
-- 2026-11-02 — the checks of task 120's Verification (the same run: 243 front-end tests at 100% coverage, lint,
+- 2026-11-02 — the checks of task 120's Verification (the same runs: 243, then 253 after the rebase, front-end tests at 100% coverage, lint,
   typecheck, build; the .NET and script checks).
 - 2026-11-02 — keyboard walk of the browser mock (Playwright, port 5173), `document.activeElement` and the card's
   status after each step: group lookup — the field (`Looking up Finance…`, then `Finance: 4 direct members`); a miss —
@@ -108,7 +112,8 @@ Done when: a keyboard-only lookup and write flow keeps the focus on a named cont
   choose the account…" → "Signed in as alice@contoso.com".
 - 2026-11-02 — axe-core 4.10.2 (cdnjs, `addScriptTag`) on the mock: 0 violations on the initial page and 0 after a
   lookup error, three answers, a diff and a forwarding confirmation; headings H1, then H2 per card, H3 inside the
-  answers (no `heading-order`). Signed out (`?mock=signed-out`) the one finding is `color-contrast` on the
+  answers (no `heading-order`); after the rebase onto task 124 again 0 violations, headings H1, the group and card
+  H2s, H3 inside the answers. Signed out (`?mock=signed-out`) the one finding is `color-contrast` on the
   "signed out" destructive badge (4.02:1), the existing badge colors that task 123 changes.
 
 ## Closing checklist

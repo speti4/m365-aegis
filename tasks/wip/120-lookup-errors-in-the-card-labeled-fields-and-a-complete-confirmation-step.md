@@ -85,6 +85,12 @@ on the write cards, a confirmation that names the action and the account; the te
   usage.md "The window" (labels, Enter, the inline error, the confirmation and its buttons, Cancel, "Start a new
   change"), development.md "The front end" and the window's writes, SECURITY.md's name of the confirmation button.
 
+- 2026-11-02 — rebased onto `main` after task 124 (#177): the write cards keep its `exchangeError` notice and the
+  "Show it" line on the result (with "Start a new change" for its "Done"), the access card its `reveal` ref (a
+  `section` now); the "Still needed" line names "an Exchange Online token" when the window has none, and the sign-in
+  card's status says "Signed in as …; Exchange Online is unavailable". The checks and the walk below ran again on the
+  rebased tree (253 tests).
+
 ## Deviations from the plan
 
 - The lookup cards' `onError` prop is gone rather than kept for page-level errors: no lookup error is page-level, and
@@ -97,7 +103,7 @@ on the write cards, a confirmation that names the action and the account; the te
 
 ## Verification
 
-- 2026-11-02 — `npm ci`, `npm run lint`, `npm run typecheck`, `npm run test:coverage` (243 tests, 100% statements,
+- 2026-11-02 — `npm ci`, `npm run lint`, `npm run typecheck`, `npm run test:coverage` (243 tests before the rebase onto task 124, 253 after it; 100% statements,
   branches, functions and lines), `npm run build` clean; `dotnet restore --locked-mode`, `dotnet format
   --verify-no-changes`, `dotnet build -c Release -p:SkipFrontendBuild=true`, `dotnet test` (1658 passed),
   `python -I scripts/changelog.py --check`, `check-fixtures.py` (self-test and 539 files, 0 findings) clean.
