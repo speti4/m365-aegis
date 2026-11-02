@@ -5,10 +5,18 @@ import { describe, expect, it } from "vitest";
 import { BridgeClient } from "../bridge/client";
 import { MockTransport } from "../bridge/mock-transport";
 import { type BridgeMessage, type Plan, parseMessage, readReply } from "../bridge/protocol";
-import { button, click, render, settle, submit, type } from "../test/dom";
+import { button, click, field, render, settle, submit, type } from "../test/dom";
 import { MailboxForwardingCard } from "./mailbox-write-cards";
 import { ConfirmView, ErrorText, PlanView, ResultView } from "./plan-view";
-import { skippedPartNote, skippedPartNotes, snapshotPart, snapshotPartNames, windowWarning } from "./plan-wording";
+import {
+  confirmAction,
+  count,
+  skippedPartNote,
+  skippedPartNotes,
+  snapshotPart,
+  snapshotPartNames,
+  windowWarning,
+} from "./plan-wording";
 import { AccessReportView, NoSnapshotView, UserAccessCard } from "./user-access-card";
 
 /** A flag of the command line as a card would show it: `--keep-copy`, `(--yes)`. */
@@ -111,6 +119,22 @@ function skippedParts(): Array<{ part: string; note: string }> {
  * `grants could not be read`, `oneDrive was not read`.
  */
 const bareDomain = new RegExp(`\\b(${takeParts().join("|")}) (is partial|could not be read|was not read)\\b`);
+
+describe("the words of a count and of the confirmation's button (tasks 120 and 121)", () => {
+  it("counts in the singular for one", () => {
+    expect(count(0, "change")).toBe("0 changes");
+    expect(count(1, "change")).toBe("1 change");
+    expect(count(3, "mailbox", "mailboxes")).toBe("3 mailboxes");
+  });
+
+  it("names the button by the operation, a removal destructive, an unknown one neutral", () => {
+    expect(confirmAction("mailbox-access-grant")).toEqual({ label: "Grant permissions", destructive: false });
+    expect(confirmAction("mailbox-access-revoke")).toEqual({ label: "Revoke permissions", destructive: true });
+    expect(confirmAction("mailbox-forwarding-set")).toEqual({ label: "Start forwarding", destructive: false });
+    expect(confirmAction("mailbox-forwarding-clear")).toEqual({ label: "Stop forwarding", destructive: true });
+    expect(confirmAction("group-owner-add")).toEqual({ label: "Confirm and apply", destructive: false });
+  });
+});
 
 describe("a plan warning in the window's words", () => {
   it("rewords the forwarding without a copy for the card's box", () => {
@@ -302,13 +326,13 @@ describe("no card renders a command of the command line (task 104), a permission
 
     const views = [
       await render(<PlanView plan={planned.data.plan} />),
-      await render(<ConfirmView plan={planned.data.plan} onConfirm={() => {}} onBack={() => {}} />),
+      await render(<ConfirmView plan={planned.data.plan} onConfirm={() => {}} onBack={() => {}} onCancel={() => {}} />),
       await render(<AccessReportView report={old} />),
       await render(<NoSnapshotView info={none.data} />),
-      await render(<UserAccessCard client={new BridgeClient(new MockTransport())} onError={() => {}} />),
+      await render(<UserAccessCard client={new BridgeClient(new MockTransport())} />),
     ];
     const card = views[4].container;
-    await type(card.querySelector('input[aria-label="User"]') as HTMLInputElement, "dave@contoso.com");
+    await type(field(card, "User"), "dave@contoso.com");
     await submit(card.querySelector("form") as HTMLFormElement);
     await settle();
 
@@ -349,12 +373,21 @@ describe("no card renders a flag of the command line", () => {
 
     const views = [
       await render(<PlanView plan={withWarnings(planned.data.plan)} />),
-      await render(<ConfirmView plan={planned.data.plan} onConfirm={() => {}} onBack={() => {}} />),
+      await render(
+        <ConfirmView
+          plan={withWarnings(planned.data.plan)}
+          onConfirm={() => {}}
+          onBack={() => {}}
+          onCancel={() => {}}
+        />,
+      ),
       await render(<ResultView applied={{ ...applied.data, plan: withWarnings(applied.data.plan) }} />),
       await render(<ErrorText error={failed.data} />),
     ];
 
     expect(views[0].container.textContent).toContain('tick "Keep a copy in the mailbox"');
+    // The confirmation repeats the warnings in the window's words too (task 120).
+    expect(views[1].container.textContent).toContain('tick "Keep a copy in the mailbox"');
     for (const view of views) {
       expect(view.container.textContent).not.toMatch(flag);
       expect(view.container.textContent).not.toMatch(command);
@@ -369,8 +402,8 @@ describe("no card renders a flag of the command line", () => {
     const text = () => container.textContent ?? "";
     const seen: string[] = [text()];
 
-    await type(container.querySelector('input[aria-label="Mailbox"]') as HTMLInputElement, "alice@contoso.com");
-    await type(container.querySelector('input[aria-label="Forward to"]') as HTMLInputElement, "alice@fabrikam.com");
+    await type(field(container, "Mailbox"), "alice@contoso.com");
+    await type(field(container, "Forward to"), "alice@fabrikam.com");
     await click(container.querySelector("label input") as HTMLInputElement);
     await click(button(container, "See the plan"));
     await settle();
@@ -382,7 +415,7 @@ describe("no card renders a flag of the command line", () => {
     await click(button(container, "Continue to confirm"));
     seen.push(text());
     await click(container.querySelector("label input") as HTMLInputElement);
-    await click(button(container, "Confirm and apply"));
+    await click(button(container, "Start forwarding"));
     await settle();
     seen.push(text());
     expect(text()).toContain("Every change was made.");

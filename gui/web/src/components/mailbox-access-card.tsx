@@ -1,14 +1,14 @@
-import { Check } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { focusTarget } from "@/lib/focus";
 import { reveal } from "@/lib/scroll";
+import { cn } from "@/lib/utils";
 import type { BridgeClient } from "../bridge/client";
 import {
-  type BridgeError,
   type ExchangeLayer,
   type MailboxAccess,
   type MailboxInfo,
@@ -17,6 +17,8 @@ import {
   type UserAccess,
 } from "../bridge/protocol";
 import { type AppliedWrites, namesUser, touches } from "./applied-writes";
+import { AnswerFor, Choice, Field, LiveStatus, LookupError, SubmitButton, useLookup } from "./card-parts";
+import { count } from "./plan-wording";
 import { UserPicker } from "./user-picker";
 
 export const rightNames: Record<MailboxRight, string> = {
@@ -59,12 +61,12 @@ const accessWrites: readonly string[] = [MessageType.mailboxAccessGrant, Message
 
 type Result =
   /** `refreshed` when the card read the mailbox again after a write card applied a change to it (task 091). */
-  | { kind: "holders"; data: MailboxAccess; ms: number; refreshed: boolean }
+  | { kind: "holders"; asked: string; data: MailboxAccess; ms: number; refreshed: boolean }
   /**
    * `stale` when a write card applied a grant or a revoke that names the user after the card read the grants (task
    * 103): the card marks the list and offers to read it again, which is the slow reverse lookup.
    */
-  | { kind: "grants"; data: UserAccess; ms: number; stale: boolean }
+  | { kind: "grants"; asked: string; data: UserAccess; ms: number; stale: boolean }
   | { kind: "shared"; data: MailboxInfo[]; ms: number };
 
 /**
@@ -79,54 +81,86 @@ type Result =
  * are not read again on their own (the reverse lookup goes over every mailbox, task 043): when a grant or a revoke names
  * the user the card shows, the card marks the list as possibly out of date and offers "Read again" (task 103), which
  * sends one `mailbox-access` request for the user; an apply that names another user marks nothing.
+ *
+ * "A mailbox" or "A user" is a radio group (task 121), and the field under it is labeled by the choice. A failure
+ * shows under the field and drops the old answer (task 120); the field stays usable while a lookup runs, a pick from
+ * the shared mailboxes or "Read again" takes the focus back to it, and the card's status region says what is going on.
  */
-export function MailboxAccessCard({
-  client,
-  onError,
-  applied,
-}: {
-  client: BridgeClient;
-  onError: (error: BridgeError) => void;
-  applied?: AppliedWrites;
-}) {
+export function MailboxAccessCard({ client, applied }: { client: BridgeClient; applied?: AppliedWrites }) {
+  const id = useId();
+  const field = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<Mode>("mailbox");
   const [query, setQuery] = useState("");
-  const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [result, setResult] = useState<Result | null>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
+  // Whether the window's Exchange Online session has answered once: the first lookup starts it.
+  const [answered, setAnswered] = useState(false);
+  // A pick or "Read again" removes the button that had the focus: the field takes it once the card has drawn.
+  const focusField = useRef(false);
+  const { busy, result, setResult, error, status, setStatus, run: runLookup } = useLookup<Result>();
+  const cardRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (focusField.current) {
+      focusField.current = false;
+      field.current?.focus();
+    }
+  });
 
-  /** Sends the request and shows its answer; true when the answer is a mailbox's holders. */
   const run = useCallback(
-    async (type: string, data: unknown, refreshed = false): Promise<boolean> => {
-      setBusy(true);
+    async (
+      type: string,
+      data: Record<string, string | boolean>,
+      announce: string,
+      refreshed = false,
+    ): Promise<boolean> => {
       setRefreshing(refreshed);
       const started = performance.now();
+      const asked = String(data.mailbox ?? data.user ?? "");
+      // Whether the answer is a mailbox's holders: a read again tells the write card so (task 124).
+      let holders = false;
       try {
-        const reply = await client.call(type, data);
-        const ms = performance.now() - started;
-        switch (reply.type) {
-          case MessageType.mailboxHolders:
-            setResult({ kind: "holders", data: reply.data, ms, refreshed });
-            return true;
-          case MessageType.userGrants:
-            setResult({ kind: "grants", data: reply.data, ms, stale: false });
-            break;
-          case MessageType.mailboxes:
-            setResult({ kind: "shared", data: reply.data.mailboxes, ms });
-            break;
-          case MessageType.error:
-            onError(reply.data);
-            break;
-        }
-        return false;
+        await runLookup(
+          announce,
+          () => client.call(type, data),
+          (reply) => {
+            const ms = performance.now() - started;
+            switch (reply.type) {
+              case MessageType.mailboxHolders:
+                setAnswered(true);
+                holders = true;
+                return {
+                  result: { kind: "holders", asked, data: reply.data, ms, refreshed },
+                  status: `${reply.data.mailbox.displayName}: ${count(reply.data.holders.length, "grant")}`,
+                };
+              case MessageType.userGrants:
+                setAnswered(true);
+                return {
+                  result: { kind: "grants", asked, data: reply.data, ms, stale: false },
+                  status: `${reply.data.displayName ?? reply.data.user}: ${count(reply.data.grants.length, "grant")} over ${count(reply.data.mailboxesScanned, "mailbox", "mailboxes")}`,
+                };
+              case MessageType.mailboxes:
+                setAnswered(true);
+                return {
+                  result: { kind: "shared", data: reply.data.mailboxes, ms },
+                  status: count(reply.data.mailboxes.length, "shared mailbox", "shared mailboxes"),
+                };
+              default:
+                return undefined;
+            }
+          },
+        );
+        return holders;
       } finally {
-        setBusy(false);
         setRefreshing(false);
       }
     },
-    [client, onError],
+    [client, runLookup],
   );
+
+  /** What the status region says as a lookup starts: the first one also says that it starts the session. */
+  const looking = (what: string) =>
+    answered
+      ? `Looking up ${what}…`
+      : `Looking up ${what}… The first lookup starts the Exchange Online session, which takes a few seconds.`;
 
   // The mailbox on the card; a grant or a revoke applied to it reads it again (task 091), and the write card is told
   // once the new answer shows, so its result step can offer to show this card (task 124).
@@ -137,7 +171,12 @@ export function MailboxAccessCard({
     }
     return applied.subscribe((write) => {
       if (accessWrites.includes(write.operation) && touches(write, shown)) {
-        void run(MessageType.mailboxAccess, { mailbox: shown.primarySmtpAddress }, true).then((read) => {
+        void run(
+          MessageType.mailboxAccess,
+          { mailbox: shown.primarySmtpAddress },
+          "A change was applied to this mailbox: reading its access again…",
+          true,
+        ).then((read) => {
           if (read) {
             write.onReRead?.({
               card: "Mailbox access",
@@ -159,107 +198,126 @@ export function MailboxAccessCard({
     return applied.subscribe((write) => {
       if (accessWrites.includes(write.operation) && namesUser(write, grants.data)) {
         setResult({ ...grants, stale: true });
+        setStatus(staleText);
       }
     });
-  }, [applied, grants]);
+  }, [applied, grants, setResult, setStatus]);
 
   function lookUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void run(MessageType.mailboxAccess, { [mode]: query.trim() });
+    const asked = query.trim();
+    if (asked !== "") {
+      void run(MessageType.mailboxAccess, { [mode]: asked }, looking(asked));
+    }
   }
 
   function pick(mailbox: MailboxInfo) {
     setMode("mailbox");
     setQuery(mailbox.primarySmtpAddress);
-    void run(MessageType.mailboxAccess, { mailbox: mailbox.primarySmtpAddress });
+    focusField.current = true;
+    void run(MessageType.mailboxAccess, { mailbox: mailbox.primarySmtpAddress }, looking(mailbox.displayName));
   }
 
+  function readAgain(user: string) {
+    focusField.current = true;
+    void run(MessageType.mailboxAccess, { user }, looking(user));
+  }
+
+  const fieldId = `${id}-field`;
+  const errorId = `${id}-error`;
   return (
-    <Card
-      ref={cardRef}
-      tabIndex={-1}
-      className="scroll-mt-20 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-    >
+    <Card ref={cardRef} tabIndex={-1} aria-labelledby={`${id}-title`} className={cn("scroll-mt-20", focusTarget)}>
       <CardHeader>
-        <CardTitle>Mailbox access</CardTitle>
+        <CardTitle id={`${id}-title`}>Mailbox access</CardTitle>
         <CardDescription>
           Who can open a mailbox or send as it, or which mailboxes a user can: direct grants only, a group is listed as
           the group.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Look up by">
-          <Button
-            variant={mode === "mailbox" ? "default" : "outline"}
-            size="sm"
-            role="radio"
-            aria-checked={mode === "mailbox"}
-            onClick={() => setMode("mailbox")}
-          >
-            {mode === "mailbox" ? <Check aria-hidden data-icon="inline-start" /> : null}A mailbox
-          </Button>
-          <Button
-            variant={mode === "user" ? "default" : "outline"}
-            size="sm"
-            role="radio"
-            aria-checked={mode === "user"}
-            onClick={() => setMode("user")}
-          >
-            {mode === "user" ? <Check aria-hidden data-icon="inline-start" /> : null}A user
-          </Button>
+        <LiveStatus text={status} />
+        <div className="flex flex-wrap items-center gap-2">
+          <Choice
+            label="Look up by"
+            value={mode}
+            options={[
+              ["mailbox", "A mailbox"],
+              ["user", "A user"],
+            ]}
+            onChange={setMode}
+          />
           <Button
             variant="ghost"
             size="sm"
             disabled={busy}
-            onClick={() => void run(MessageType.mailboxList, { shared: true })}
+            focusableWhenDisabled
+            onClick={() => void run(MessageType.mailboxList, { shared: true }, "Listing the shared mailboxes…")}
           >
             List the shared mailboxes
           </Button>
         </div>
-        <form className="flex items-start gap-2" onSubmit={lookUp}>
-          {mode === "mailbox" ? (
-            <Input
-              aria-label="Mailbox"
-              placeholder="Mailbox address, name or object id"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              disabled={busy}
-            />
-          ) : (
-            <UserPicker
-              client={client}
-              value={query}
-              onChange={setQuery}
-              onPick={(user) => void run(MessageType.mailboxAccess, { user })}
-              disabled={busy}
-            />
-          )}
-          <Button type="submit" disabled={busy || query.trim() === ""}>
-            {busy ? "Looking up…" : "Look up"}
-          </Button>
+        <form onSubmit={lookUp} aria-busy={busy}>
+          <Field id={fieldId} label={mode === "mailbox" ? "Mailbox" : "User"}>
+            <div className="flex items-start gap-2">
+              {mode === "mailbox" ? (
+                <Input
+                  id={fieldId}
+                  ref={field}
+                  placeholder="Mailbox address, name or object id"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  readOnly={busy}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? errorId : undefined}
+                />
+              ) : (
+                <UserPicker
+                  client={client}
+                  id={fieldId}
+                  inputRef={field}
+                  value={query}
+                  onChange={setQuery}
+                  onPick={(user) => void run(MessageType.mailboxAccess, { user }, looking(user))}
+                  busy={busy}
+                  invalid={error !== null}
+                  describedBy={error ? errorId : undefined}
+                  onAnnounce={setStatus}
+                />
+              )}
+              <SubmitButton
+                busy={busy}
+                missing={query.trim() === "" ? `Type a ${mode === "mailbox" ? "mailbox" : "user"} first.` : null}
+                hintId={`${id}-hint`}
+                idle="Look up"
+                working="Looking up…"
+              />
+            </div>
+          </Field>
         </form>
         {refreshing ? (
-          <p className="text-sm text-muted-foreground" role="status">
+          <p className="text-sm text-muted-foreground">
             A change was applied to this mailbox: reading its access again…
           </p>
         ) : null}
-        {busy && result === null ? (
+        {busy && !answered ? (
           <p className="text-sm text-muted-foreground">
             The first lookup starts the Exchange Online session, which takes a few seconds.
           </p>
         ) : null}
+        {error ? <LookupError id={errorId} title="The lookup failed" error={error} /> : null}
         {result ? (
-          <ResultView
-            result={result}
-            busy={busy}
-            onPick={pick}
-            onReadAgain={(user) => void run(MessageType.mailboxAccess, { user })}
-          />
+          <div className={busy ? "opacity-50" : undefined} aria-busy={busy}>
+            <ResultView result={result} busy={busy} onPick={pick} onReadAgain={readAgain} />
+          </div>
         ) : null}
       </CardContent>
     </Card>
   );
 }
+
+/** The stale mark's sentence, on the card and in its status region. */
+const staleText =
+  "A change on the Mailbox rights card named this user since this list was read, so it may be out of date. Reading it again goes over every mailbox and takes a while.";
 
 function ResultView({
   result,
@@ -295,6 +353,7 @@ function ResultView({
       const layers = describeLayers(result.data);
       return (
         <div className="space-y-2">
+          <AnswerFor query={result.asked} />
           <p className="flex flex-wrap items-center gap-2">
             <strong>{mailbox.displayName}</strong>
             <Badge variant="secondary">{mailbox.type}</Badge>
@@ -341,6 +400,7 @@ function ResultView({
       const { user, displayName, grants, mailboxesScanned, failed } = result.data;
       return (
         <div className="space-y-2">
+          <AnswerFor query={result.asked} />
           <p className="flex flex-wrap items-center gap-2">
             <strong>{displayName ?? user}</strong>
             {displayName ? <span className="text-muted-foreground">{user}</span> : null}
@@ -352,20 +412,22 @@ function ResultView({
           {result.stale ? (
             <div
               className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/50 p-3 text-sm"
-              role="status"
               data-testid="stale"
             >
-              <span>
-                A change on the Mailbox rights card named this user since this list was read, so it may be out of date.
-                Reading it again goes over every mailbox and takes a while.
-              </span>
-              <Button size="sm" variant="outline" disabled={busy} onClick={() => onReadAgain(user)}>
+              <span>{staleText}</span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                focusableWhenDisabled
+                onClick={() => onReadAgain(user)}
+              >
                 Read again
               </Button>
             </div>
           ) : null}
           {failed.length > 0 ? (
-            <div className="rounded-lg border border-destructive/50 p-3 text-sm">
+            <div className="rounded-lg border border-danger/50 p-3 text-sm">
               <p className="font-medium">
                 {failed.length} list(s) could not be read; the grants below may be incomplete.
               </p>

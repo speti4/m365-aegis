@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
+import { type KeyboardEvent, type Ref, useEffect, useId, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { BridgeClient } from "../bridge/client";
@@ -29,20 +29,35 @@ type Suggestions = { kind: "none" } | { kind: "users"; text: string; matches: Us
  * closes the list. Enter without a highlighted user submits the card's form with the text as typed, so a full address
  * still works, and so does a user the suggestions do not know. A failed search shows no list: the card's own lookup
  * reports the error.
+ *
+ * The field is the card's (tasks 120 and 121): its `id` for the card's label, `invalid` and `describedBy` for the
+ * card's error, `inputRef` for the card's focus. While the card looks up (`busy`) the field is read-only, not
+ * disabled, so the focus stays in it. What the list says (how many users match, none, no source) goes to the card's
+ * status region through `onAnnounce`; the field is `expanded` only while the list has a user to pick.
  */
 export function UserPicker({
   client,
+  id,
+  inputRef,
   value,
   onChange,
   onPick,
-  disabled = false,
+  busy = false,
+  invalid = false,
+  describedBy,
+  onAnnounce,
   placeholder = "Start typing a name, or a full address",
 }: {
   client: BridgeClient;
+  id: string;
+  inputRef?: Ref<HTMLInputElement>;
   value: string;
   onChange: (value: string) => void;
   onPick: (address: string) => void;
-  disabled?: boolean;
+  busy?: boolean;
+  invalid?: boolean;
+  describedBy?: string;
+  onAnnounce?: (text: string) => void;
   placeholder?: string;
 }) {
   const listId = useId();
@@ -55,12 +70,12 @@ export function UserPicker({
 
   // A card that starts its lookup cancels the wait and closes the list; leaving the page cancels the wait too.
   useEffect(() => {
-    if (disabled) {
+    if (busy) {
       clearTimeout(timer.current);
       latest.current = "";
       setOpen(false);
     }
-  }, [disabled]);
+  }, [busy]);
   useEffect(() => () => clearTimeout(timer.current), []);
 
   async function search(text: string) {
@@ -72,9 +87,11 @@ export function UserPicker({
     switch (reply.type) {
       case MessageType.userMatches:
         setSuggestions({ kind: "users", text, matches: reply.data });
+        onAnnounce?.(suggestionLines({ kind: "users", text, matches: reply.data })[0]);
         break;
       case MessageType.noSnapshot:
         setSuggestions({ kind: "no-snapshot" });
+        onAnnounce?.(suggestionLines({ kind: "no-snapshot" })[0]);
         break;
       default:
         setSuggestions({ kind: "none" });
@@ -140,44 +157,49 @@ export function UserPicker({
   return (
     <div className="w-full">
       <Input
-        aria-label="User"
+        id={id}
+        ref={inputRef}
         role="combobox"
         aria-autocomplete="list"
-        aria-expanded={shown}
-        aria-controls={listId}
+        aria-expanded={users.length > 0}
+        aria-controls={users.length > 0 ? listId : undefined}
         aria-activedescendant={users[active] ? `${listId}-${active}` : undefined}
+        aria-invalid={invalid ? true : undefined}
+        aria-describedby={describedBy}
         autoComplete="off"
         placeholder={placeholder}
         value={value}
         onChange={(event) => type(event.target.value)}
         onKeyDown={key}
         onBlur={() => setOpen(false)}
-        disabled={disabled}
+        readOnly={busy}
       />
-      {open && suggestions.kind !== "none" ? (
+      {shown ? (
         // In the flow under the field, not floating over the card: the card clips what overflows it.
         <div className="mt-1 rounded-lg border bg-popover text-popover-foreground shadow-sm">
-          <div id={listId} role="listbox" aria-label="Matching users" className="max-h-72 overflow-auto py-1">
-            {users.map((user, index) => (
-              // The keys are the field's (the combobox pattern): the arrows and Enter act on the list from there.
-              // biome-ignore lint/a11y/useKeyWithClickEvents: the field handles the keys for every option.
-              <div
-                key={pickedAddress(user)}
-                id={`${listId}-${index}`}
-                role="option"
-                tabIndex={-1}
-                aria-selected={index === active}
-                className={cn("cursor-pointer px-2.5 py-1.5 text-sm", index === active && "bg-accent")}
-                // The field keeps the focus, so the list stays open until the click picks.
-                onMouseDown={(event) => event.preventDefault()}
-                onMouseEnter={() => setActive(index)}
-                onClick={() => pick(user)}
-              >
-                <span className="font-medium">{user.displayName ?? pickedAddress(user)}</span>
-                {user.displayName ? <span className="ml-2 text-muted-foreground">{pickedAddress(user)}</span> : null}
-              </div>
-            ))}
-          </div>
+          {users.length > 0 ? (
+            <div id={listId} role="listbox" aria-label="Matching users" className="max-h-72 overflow-auto py-1">
+              {users.map((user, index) => (
+                // The keys are the field's (the combobox pattern): the arrows and Enter act on the list from there.
+                // biome-ignore lint/a11y/useKeyWithClickEvents: the field handles the keys for every option.
+                <div
+                  key={pickedAddress(user)}
+                  id={`${listId}-${index}`}
+                  role="option"
+                  tabIndex={-1}
+                  aria-selected={index === active}
+                  className={cn("cursor-pointer px-2.5 py-1.5 text-sm", index === active && "bg-accent")}
+                  // The field keeps the focus, so the list stays open until the click picks.
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseEnter={() => setActive(index)}
+                  onClick={() => pick(user)}
+                >
+                  <span className="font-medium">{user.displayName ?? pickedAddress(user)}</span>
+                  {user.displayName ? <span className="text-muted-foreground"> {pickedAddress(user)}</span> : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
           <SuggestionNote suggestions={suggestions} />
         </div>
       ) : null}
@@ -194,22 +216,34 @@ export function describeSource(matches: UserMatches): string {
   return `From the snapshot${taken}: the directory cannot be searched now (signed out, or it did not answer).`;
 }
 
-/** The lines under the list: where the users came from, then no match or more matches than shown; or no source at all. */
-function SuggestionNote({ suggestions }: { suggestions: Exclude<Suggestions, { kind: "none" }> }) {
-  const lines: string[] = [];
+/**
+ * The lines under the list: no match, or how many match (for the status region only) and more than shown, then where
+ * the users came from; or no source at all. The first line is what the card announces.
+ */
+function suggestionLines(suggestions: Exclude<Suggestions, { kind: "none" }>): string[] {
   if (suggestions.kind === "no-snapshot") {
-    lines.push(
+    return [
       "No suggestions: the directory cannot be searched now and this computer has no snapshot. Type the full address.",
-    );
-  } else {
-    const { matches, text } = suggestions;
-    if (matches.users.length === 0) {
-      lines.push(`No user starts with "${text}": a full address still works.`);
-    } else if (matches.more) {
-      lines.push("More users match: type more of the name.");
-    }
-    lines.push(describeSource(matches));
+    ];
   }
+  const { matches, text } = suggestions;
+  const found = matches.users.length;
+  const lines = [
+    found === 0
+      ? `No user starts with "${text}": a full address still works.`
+      : `${found} matching user${found === 1 ? "" : "s"}${matches.more ? ", and more" : ""}: use the arrow keys to pick one.`,
+  ];
+  if (found > 0 && matches.more) {
+    lines.push("More users match: type more of the name.");
+  }
+  lines.push(describeSource(matches));
+  return lines;
+}
+
+/** The note under the list, its lines but the count of matches, which the list itself shows. */
+function SuggestionNote({ suggestions }: { suggestions: Exclude<Suggestions, { kind: "none" }> }) {
+  const all = suggestionLines(suggestions);
+  const lines = suggestions.kind === "users" && suggestions.matches.users.length > 0 ? all.slice(1) : all;
   return (
     <div className="border-t px-2.5 py-1.5 text-xs text-muted-foreground" data-testid="suggestion-note">
       {lines.map((line) => (

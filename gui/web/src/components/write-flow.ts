@@ -1,4 +1,5 @@
 import { type BridgeError, MessageType, type PlanApplied, type PlanReady, type Reply } from "../bridge/protocol";
+import { count } from "./plan-wording";
 
 /**
  * The flow of a write card (task 082), the sketch's flow of task 018 over the core's real `Plan`: pick the objects,
@@ -95,4 +96,38 @@ export function outcome(applied: PlanApplied): "done" | "partial" | "failed" {
     return "done";
   }
   return done === 0 ? "failed" : "partial";
+}
+
+/**
+ * What the card's status region says on each step (task 121): the plan's size, the confirmation, the end of an apply;
+ * nothing on the picks, and nothing for a refusal, which is an alert of its own.
+ */
+export function writeStatus(state: WriteState): string {
+  switch (state.step) {
+    case "pick":
+    case "refused":
+      return "";
+    case "planning":
+      return "Computing the plan…";
+    case "plan": {
+      const changes = state.ready.plan.changes.length;
+      return changes === 0 ? "Plan: nothing to change" : `Plan: ${count(changes, "change")}`;
+    }
+    case "confirming":
+      return `Confirm: ${count(state.ready.plan.changes.length, "change")}`;
+    case "applying":
+      return "Applying the plan…";
+    case "result": {
+      const { changes } = state.applied.plan;
+      const done = changes.filter((change) => change.result?.status === "applied").length;
+      switch (outcome(state.applied)) {
+        case "done":
+          return "Done: every change was made";
+        case "partial":
+          return `Partly done: ${done} of ${count(changes.length, "change")} made`;
+        case "failed":
+          return "Not done: no change was made";
+      }
+    }
+  }
 }

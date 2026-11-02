@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DeviceCodePrompt, Reply, SignedOutInfo, SignInInfo } from "../bridge/protocol";
 import { describeElapsed, rightNames } from "./mailbox-access-card";
-import { canSignIn, type SignInState, signInReducer } from "./sign-in-state";
+import { canSignIn, type SignInState, signInReducer, signInStatus } from "./sign-in-state";
 
 const alice: SignInInfo = { profile: "work", account: "alice@contoso.com", tokens: [] };
 const signedOut: SignedOutInfo = {
@@ -109,5 +109,22 @@ describe("the sign-in card's state at its edges (task 070)", () => {
     expect(signInReducer(checking, { type: "logout" })).toBe(checking);
     const pong: Reply = { type: "pong", data: { product: "m365-aegis", version: "0.1.0" } };
     expect(signInReducer(checking, { type: "reply", reply: pong })).toBe(checking);
+  });
+});
+
+describe("what the sign-in card's status region says (task 121)", () => {
+  it("names each state in a few words", () => {
+    const info = alice;
+    expect(signInStatus({ status: "checking" })).toBe("Checking the sign-in…");
+    expect(signInStatus({ status: "signed-in", info })).toBe("Signed in as alice@contoso.com");
+    expect(signInStatus({ status: "signed-out", info: { message: "m" } })).toBe("Signed out");
+    expect(signInStatus({ status: "signing-in", before: null })).toBe(
+      "Waiting for the sign-in: choose the account in the Windows sign-in window",
+    );
+    expect(signInStatus({ status: "signing-in", before: null, deviceCode: prompt })).toBe(
+      "Waiting for the sign-in: enter the code in a browser",
+    );
+    expect(signInStatus({ status: "signing-out", info })).toBe("Signing out…");
+    expect(signInStatus({ status: "unknown" })).toBe("The sign-in state could not be read");
   });
 });

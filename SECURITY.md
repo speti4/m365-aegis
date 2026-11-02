@@ -56,7 +56,7 @@ The places where m365-aegis handles credentials, untrusted input or writes:
   its home folder readable by the signed-in user alone, and `m365-aegis doctor` warns when an existing one is
   readable by `Everyone`, `Users` or `Authenticated Users`.
 - **Writes.** Every change to the tenant goes through a plan and needs `--yes` on the command line or a
-  confirmation in the window (decision D-006 in `tasks/decisions/`): a write card's "Confirm and apply", which sends
+  confirmation in the window (decision D-006 in `tasks/decisions/`): a write card's confirmation button, which sends
   the bridge's `apply-plan` with `"confirm": true` for a plan the window computed and holds, applied once. A write
   that happens without one, an apply of a plan the window did not show, or a plan that shows one change and applies
   another, is a vulnerability.

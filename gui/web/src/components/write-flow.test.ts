@@ -7,6 +7,7 @@ import {
   type WriteEvent,
   type WriteState,
   writeReducer,
+  writeStatus,
   writeStepIndex,
 } from "./write-flow";
 
@@ -116,5 +117,39 @@ describe("the write card's flow", () => {
     expect(outcome(applied(["applied", "applied"]))).toBe("done");
     expect(outcome(applied(["applied", "failed"]))).toBe("partial");
     expect(outcome(applied(["failed", "skipped"]))).toBe("failed");
+  });
+});
+
+describe("what a write card's status region says (task 121)", () => {
+  const applied = (statuses: Array<"applied" | "failed" | "skipped">): PlanApplied => ({
+    plan: {
+      ...plan,
+      mode: "applied",
+      changes: statuses.map((status, index) => ({ ...plan.changes[0], detail: `d${index}`, result: { status } })),
+    },
+  });
+
+  it("names each step, and nothing on the picks or a refusal", () => {
+    const two = { ...ready, plan: { ...plan, changes: [plan.changes[0], { ...plan.changes[0], detail: "d" }] } };
+    expect(writeStatus({ step: "pick" })).toBe("");
+    expect(writeStatus({ step: "refused", error: { code: "usage", message: "m" }, applying: false })).toBe("");
+    expect(writeStatus({ step: "planning" })).toBe("Computing the plan…");
+    expect(writeStatus({ step: "plan", ready })).toBe("Plan: 1 change");
+    expect(writeStatus({ step: "plan", ready: two })).toBe("Plan: 2 changes");
+    expect(writeStatus({ step: "plan", ready: { ...ready, plan: { ...plan, changes: [] } } })).toBe(
+      "Plan: nothing to change",
+    );
+    expect(writeStatus({ step: "confirming", ready: two })).toBe("Confirm: 2 changes");
+    expect(writeStatus({ step: "applying", ready })).toBe("Applying the plan…");
+  });
+
+  it("says how an apply ended", () => {
+    expect(writeStatus({ step: "result", applied: applied(["applied", "applied"]) })).toBe(
+      "Done: every change was made",
+    );
+    expect(writeStatus({ step: "result", applied: applied(["applied", "failed", "skipped"]) })).toBe(
+      "Partly done: 1 of 3 changes made",
+    );
+    expect(writeStatus({ step: "result", applied: applied(["failed"]) })).toBe("Not done: no change was made");
   });
 });

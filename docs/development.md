@@ -663,7 +663,7 @@ rows as the command does and plans them over the window's layers (`MailboxLookup
 `PlanForwardingAsync` on the window's `ExchangeBackends`); `PlanGuard.RunAsync` under `WriteMode.DryRun` prints the
 plan, so the `plan` reply is the `Plan` `--dry-run` prints (`mode: dry-run`, or `up-to-date`), nothing sent and
 nothing recorded. The dispatcher holds a plan with a change under a new id (32 hex digits) with its `PlanStore`;
-`apply-plan` with that id and `"confirm": true`, the card's "Confirm and apply", which stands for `--yes`, takes it
+`apply-plan` with that id and `"confirm": true`, the card's confirmation button, which stands for `--yes`, takes it
 out and runs `PlanGuard.RunAsync` under `WriteMode.Apply`: the steps go through the window's warm session (the
 sidecar of the plan's `ExchangeBackends` is the window's `WindowExchange`), and the `plan-applied` reply is the
 applied plan with each change's result and the record, and the failure the envelope would carry beside it when not
@@ -1020,7 +1020,7 @@ default of `AuthService`, `SignInFlow` and `ProfileStore`; `BridgeServices.ForWi
 `AuthService` with `SignInHints.Window`, which names the sign-in card's buttons ("choose Sign in…", "Sign in with a
 code") or, for a missing or broken tenant profile, which only the command line writes, the administrator. A
 failure's kind and sentence are the same on both surfaces, so the silent token of a lookup carries the window's hint
-too; the card shows the hint under every signed-out state, and an `error` reply's toast shows it as its description.
+too; the card shows the hint under every signed-out state, and an `error` reply shows it under the card's error.
 The failures that reach the window after the sign-in (task 057: Graph's, the Admin API's, the sidecar's, the
 dispatcher's own and an internal error) keep their kind and sentence, and their hint goes through
 `SignInHints.ForSurface`: a hint that names something only a shell runs (`SignInHints.NamesACommand`: a command in
@@ -1097,7 +1097,25 @@ group members card with the table, the mailbox access card (a mailbox or a user,
 from, the holders or the grants in a table, each holder with the layer that read it, the partial warning, and the
 time of the answer under the table; it reads the mailbox it shows again after a grant or a revoke, below), the write
 cards (task 082, `components/mailbox-write-cards.tsx`: "Mailbox rights" and "Mailbox forwarding"), and a toast
-(sonner) for every `error` reply of the other cards.
+(sonner, with a close button and ten seconds) for an `error` reply of the page's own requests (the sign-in, the
+sign-out, the device code's page).
+
+**The cards' shared parts** (tasks 120 and 121, `components/card-parts.tsx`): every card is a `section` named by its
+title, an `h2` (`ui/card.tsx`; the sections inside an answer are `h3`). Every field has a visible `Label` above it
+(`ui/label.tsx`, shadcn's) tied by `useId`; the placeholder is an example. `useLookup` holds a lookup card's state:
+one lookup at a time (a second submit while one runs is dropped), the field `readOnly` and the form `aria-busy`
+while it runs, never `disabled`, so the focus stays in the field; the previous answer stays dimmed, under an "Answer
+for …" line; an `error` reply clears it and shows `LookupError` (the write cards' `Notice` and `ErrorText`) under the
+form, which the field names with `aria-invalid` and `aria-describedby`. A submit button that waits stays in the Tab
+order (base-ui's `focusableWhenDisabled`, `aria-disabled`, which `ui/button.tsx` draws as its disabled muted outline)
+and is described by what it still needs. An element the page focuses on its own (a step's first line, a result, a
+group of cards, the card "Show it" reveals) carries `focusTarget` (`src/lib/focus.ts`): no outline after a click, the
+buttons' 2 px outline when the keyboard brought the focus there. Each card keeps
+one `LiveStatus`, a visually hidden `role="status"` paragraph always in the page, whose text the card sets on each
+transition ("Looking up Finance…", "Finance: 4 direct members", "Plan: 2 changes", `writeStatus` and
+`signInStatus` for the write and sign-in cards); an error and a refusal stay `role="alert"`. The user picker hands
+its "N matching users" or "No user starts with …" line to the same region (`onAnnounce`), and is `aria-expanded`
+only while it lists a user. An either/or choice is `Choice`, base-ui's `RadioGroup`: one Tab stop, the arrow keys.
 
 **The write cards** follow the sketch below over the core's real `Plan`: Pick › Plan › Confirm › Result, the flow a
 reducer in `components/write-flow.ts` and its parts in `components/plan-view.tsx`. "See the plan" sends the write
@@ -1111,10 +1129,19 @@ it. Of the core's warnings (`PlanBuilder.Warn` and the resume's own) two name a 
 the plan, the confirmation, the result and an error over the bridge samples with every mailbox write's warning, and
 the forwarding card over the browser mock, without a `--` flag on the card. The confirmation's note says "the window
 sends no change until you confirm" instead of naming `--yes`.
-"Continue to confirm" lists the changes again with a checkbox ("I checked the plan; make these changes."), and
-"Confirm and apply", the one button that sends a write, sends `apply-plan` with `"confirm": true`. "Back to the plan"
-and "Change the picks" send nothing (the host's plan runs out after 15 minutes). The result says "Done", "Partly done"
-or "Not done", each change with its result and the service's sentence, and the plan record's file. An `error` reply
+"Continue to confirm" shows the plan again (task 120): each change with its action's badge and its now → after, the
+warnings in short, the account and profile from the sign-in state (`runAs`), and a checkbox ("I've reviewed these
+changes."); the one button that sends a write is named by the plan's operation (`confirmAction` in
+`plan-wording.ts`: "Grant permissions", "Revoke permissions", "Start forwarding", "Stop forwarding", destructive for
+a removal, "Confirm and apply" for an operation the map does not know) and sends `apply-plan` with `"confirm":
+true`. "Back to the plan", "Cancel" (back to the picks) and "Change the picks" send nothing (the host's plan runs out
+after 15 minutes). The result says "Done", "Partly done" or "Not done", each change with its result and the service's
+sentence, and the plan record's file; "Start a new change" starts over. The picks are a form, so Enter means "See
+the plan" (Enter on a rights toggle or a choice submits too, instead of toggling it), and the line beside the button
+lists what is still needed; Escape goes back from the plan, the confirmation and a refusal, never while an apply
+runs. On a step change the card moves the focus to the step's first element (`tabIndex={-1}`: the plan's title, the
+confirmation's sentence, the working line, the result's or the refusal's notice) and to the mailbox field on the
+picks; the first render and a reset by a sign-out move nothing. An `error` reply
 shows on the card: "Refused: nothing was changed" for a plan the host could not compute or an apply it refused,
 "Stopped: check the mailbox before you try again" for an apply that broke off otherwise (an internal error, no answer
 in time). The cards wait for a sign-in, and an open plan goes back to the picks at a sign-out. The browser mock
@@ -1157,7 +1184,7 @@ scrolls to that card and focuses it. A failed read again, or an answer after the
 sections (groups with the member groups a nested membership comes through, sites, shared files, mailboxes, calendars),
 each a table or a line when it is empty, the snapshot's time in UTC and its age, what reaches everyone as counts, and
 the access view's warnings through the wording map below. `no-snapshot` is a plain "No snapshot yet" state with the
-host's hint; an `error` reply is the page's toast. The card does not wait for a sign-in. The browser mock answers dave
+host's hint; an `error` reply shows under the field. The card does not wait for a sign-in. The browser mock answers dave
 from `src/bridge/mock-access.ts`, which a Vitest test holds equal to the `access-report.json` sample, and
 `?mock=no-snapshot` in the address starts the mock without a snapshot. `?mock=no-exchange` starts it signed in
 without an Exchange Online token (the whoami reply's Exchange Online row carries an error), so the top bar's and the
@@ -1184,7 +1211,7 @@ for one user), a line for the parts without a change and one for the parts left 
 `diffPart` in `plan-wording.ts`: task 113's `snapshotPart`, with one user's `sharedItems` and `calendars` named by the
 part they read; the wording map rewords the diff's partial and left-out warnings with the same names, so no warning
 starts with a store identifier. `too-few-snapshots` is a plain "Nothing to compare yet"
-state; an `error` reply is the page's toast. The browser mock answers from `src/bridge/mock-snapshot-diff.ts` (the
+state; an `error` reply shows under the fields. The browser mock answers from `src/bridge/mock-snapshot-diff.ts` (the
 whole diff, bob's, and the plain state under `?mock=no-snapshot`), which a Vitest test holds equal to the
 `snapshot-diff-report.json`, `snapshot-diff-report.user.json` and `too-few-snapshots.json` samples.
 
