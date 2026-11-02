@@ -1107,7 +1107,10 @@ one lookup at a time (a second submit while one runs is dropped), the field `rea
 while it runs, never `disabled`, so the focus stays in the field; the previous answer stays dimmed, under an "Answer
 for …" line; an `error` reply clears it and shows `LookupError` (the write cards' `Notice` and `ErrorText`) under the
 form, which the field names with `aria-invalid` and `aria-describedby`. A submit button that waits stays in the Tab
-order (base-ui's `focusableWhenDisabled`, `aria-disabled`) and is described by what it still needs. Each card keeps
+order (base-ui's `focusableWhenDisabled`, `aria-disabled`, which `ui/button.tsx` draws as its disabled muted outline)
+and is described by what it still needs. An element the page focuses on its own (a step's first line, a result, a
+group of cards, the card "Show it" reveals) carries `focusTarget` (`src/lib/focus.ts`): no outline after a click, the
+buttons' 2 px outline when the keyboard brought the focus there. Each card keeps
 one `LiveStatus`, a visually hidden `role="status"` paragraph always in the page, whose text the card sets on each
 transition ("Looking up Finance…", "Finance: 4 direct members", "Plan: 2 changes", `writeStatus` and
 `signInStatus` for the write and sign-in cards); an error and a refusal stay `role="alert"`. The user picker hands
